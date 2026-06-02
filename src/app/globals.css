@@ -1,0 +1,127 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+@import "tailwindcss";
+
+
+/* ============================================
+   BARBER PRO — Design System Tokens
+   ============================================ */
+:root {
+  /* Brand */
+  --brand-primary: #f59e0b;       /* amber-500 */
+  --brand-primary-hover: #fbbf24; /* amber-400 */
+  --brand-glow: rgba(245, 158, 11, 0.25);
+
+  /* Surfaces */
+  --surface-base: #09090b;  /* zinc-950 */
+  --surface-card: #18181b;  /* zinc-900 */
+  --surface-raised: #27272a; /* zinc-800 */
+
+  /* Text */
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;  /* zinc-400 */
+  --text-muted: #52525b;      /* zinc-600 */
+
+  /* Borders */
+  --border-subtle: rgba(255,255,255,0.06);
+  --border-default: rgba(255,255,255,0.10);
+
+  /* Sidebar */
+  --sidebar-width: 240px;
+
+  /* Animations */
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+}
+
+/* ============================================
+   Global Resets & Base
+   ============================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-color: var(--surface-base);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
+}
+
+/* ============================================
+   Accessibility — Focus Ring
+   ============================================ */
+:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* ============================================
+   Custom Scrollbar
+   ============================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-raised);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* ============================================
+   Utility Classes
+   ============================================ */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Glow effect for primary elements */
+.glow-amber {
+  box-shadow: 0 0 20px var(--brand-glow);
+}
+
+/* Premium card shimmer on hover */
+.card-hover {
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
+}
+.card-hover:hover {
+  border-color: rgba(245,158,11,0.3);
+  box-shadow: 0 0 30px rgba(245,158,11,0.08);
+  transform: translateY(-1px);
+}
+
+/* Micro-animation for interactive elements */
+.btn-press {
+  transition: transform var(--transition-fast);
+}
+.btn-press:active {
+  transform: scale(0.96);
+}
+
+/* Dashboard layout helper */
+.dashboard-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.dashboard-sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+}
+
+.dashboard-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
