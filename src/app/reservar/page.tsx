@@ -401,12 +401,23 @@ function ReservarContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black py-16 px-4 text-white">
+    <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black py-12 px-4 text-white">
       <div className="max-w-3xl mx-auto">
-
-        <h1 className="text-4xl font-bold text-center mb-12 bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">
-          Reservar Cita
-        </h1>
+        {/* Header con botón de volver */}
+        <div className="flex items-center justify-between mb-12 pb-6 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => router.push('/')}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              title="Volver al inicio"
+            >
+              <ArrowLeft className="w-5 h-5 text-zinc-400 hover:text-white" />
+            </button>
+            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">
+              Reservar Cita
+            </h1>
+          </div>
+        </div>
 
         {/* Usuario logueado */}
         {user && (

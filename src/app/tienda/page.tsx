@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Navbar } from '@/components/ui/Navbar'
 import { formatCurrency } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
-import { ShoppingBag, X, Plus, Minus, Truck, Store, Calendar, CreditCard, Package } from 'lucide-react'
+import { ShoppingBag, X, Plus, Minus, Truck, Store, Calendar, CreditCard, Package, ArrowLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/Toast'
 
@@ -153,8 +152,6 @@ export default function TiendaPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
-      <Navbar />
-
       {/* Cart Drawer */}
       {isCartOpen && !isCheckoutOpen && !orderSuccess &&(
         <div className="fixed inset-0 bg-black/60 z-50 flex justify-end backdrop-blur-sm">
@@ -324,27 +321,37 @@ export default function TiendaPage() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-12">
-        <div className="flex flex-col md:flex-row justify-between items-end mb-12 border-b border-white/10 pb-6">
-           <div>
-             <h1 className="text-4xl md:text-5xl font-black mb-4">Tienda <span className="text-amber-500">Exclusiva</span></h1>
-             <p className="text-zinc-400 text-lg max-w-xl">
-               Los mejores productos para el cuidado de tu barba y cabello, seleccionados por nuestros profesionales.
-             </p>
-           </div>
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Header Navegable */}
+        <div className="flex items-center justify-between mb-8 pb-6 border-b border-white/10">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => router.push('/')}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              title="Volver al inicio"
+            >
+              <ArrowLeft className="w-5 h-5 text-zinc-400 hover:text-white" />
+            </button>
+            <div>
+              <h1 className="text-4xl md:text-5xl font-black">Tienda <span className="text-amber-500">Exclusiva</span></h1>
+              <p className="text-zinc-400 text-lg mt-2">
+                Los mejores productos para el cuidado de tu barba y cabello
+              </p>
+            </div>
+          </div>
            
-           <button 
-              onClick={() => setIsCartOpen(true)}
-              className="mt-6 md:mt-0 relative group flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full px-6 py-3 transition-colors"
-           >
-             <ShoppingBag className="w-5 h-5 text-amber-500" />
-             <span className="font-medium">Mi Carrito</span>
-             {cart.length > 0 && (
-                <span className="absolute -top-2 -right-2 w-6 h-6 bg-amber-500 text-black text-xs font-bold flex items-center justify-center rounded-full border-2 border-zinc-950">
-                  {cart.reduce((a,b)=>a+b.cantidad,0)}
-                </span>
-             )}
-           </button>
+          <button 
+            onClick={() => setIsCartOpen(true)}
+            className="mt-0 relative group flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full px-6 py-3 transition-colors"
+          >
+            <ShoppingBag className="w-5 h-5 text-amber-500" />
+            <span className="font-medium">Mi Carrito</span>
+            {cart.length > 0 && (
+              <span className="absolute -top-2 -right-2 w-6 h-6 bg-amber-500 text-black text-xs font-bold flex items-center justify-center rounded-full border-2 border-zinc-950">
+                {cart.reduce((a,b)=>a+b.cantidad,0)}
+              </span>
+            )}
+          </button>
         </div>
 
         {loading ? (

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Navbar } from '@/components/ui/Navbar'
 import { Camera, Scissors, Filter } from 'lucide-react'
 
 interface PortfolioItem {
@@ -72,8 +71,6 @@ export default function GaleriaPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white pb-32">
-       <Navbar />
-
        <div className="max-w-7xl mx-auto px-4 pt-12">
           {/* Header */}
           <div className="text-center mb-16">

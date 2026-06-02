@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Navbar } from '@/components/ui/Navbar'
 import { CalendarView } from '@/components/ui/CalendarView'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -65,8 +64,6 @@ export default function CalendarioPublicoPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
-      <Navbar />
-
       <main className="max-w-7xl mx-auto px-4 py-8 lg:py-12 space-y-8 pb-28 lg:pb-12">
         <div className="text-center space-y-4 animate-in fade-in duration-500">
           <div className="inline-flex items-center gap-2 text-amber-500 font-black uppercase tracking-[0.3em] text-xs">
