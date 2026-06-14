@@ -49,7 +49,7 @@ export default function AdminLealtadPage() {
   const [servicios, setServicios] = useState<{ id: string; nombre: string }[]>([])
   const [productos, setProductos] = useState<{ id: string; nombre: string }[]>([])
   const [filtro, setFiltro] = useState('')
-  const [metaFiltro, setMetaFiltro] = useState('')
+  const [nivelFiltro, setNivelFiltro] = useState('')
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<LealtadMeta | null>(null)
@@ -72,11 +72,9 @@ export default function AdminLealtadPage() {
 
   const loadAll = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ filtro })
-      if (metaFiltro) params.set('meta_id', metaFiltro)
       const [mRes, aRes, pRes, vRes, rRes] = await Promise.all([
         fetch('/api/lealtad/metas'),
-        fetch(`/api/lealtad/admin?${params}`),
+        fetch(`/api/lealtad/admin`),
         fetch('/api/promociones?activas=false'),
         fetch('/api/cumpleanos'),
         fetch('/api/referidos'),
@@ -95,7 +93,7 @@ export default function AdminLealtadPage() {
     } finally {
       setLoading(false)
     }
-  }, [filtro, metaFiltro])
+  }, [])
 
   useEffect(() => {
     loadAll()
@@ -222,6 +220,12 @@ export default function AdminLealtadPage() {
     return <div className="flex flex-col items-center justify-center h-96"><div className="w-12 h-12 border-4 border-zinc-700 border-t-amber-500 rounded-full animate-spin" /></div>
   }
 
+  const clientesFiltrados = clientes.filter(c => {
+    if (filtro && !c.nombre?.toLowerCase().includes(filtro.toLowerCase())) return false;
+    if (nivelFiltro && (c.nivel_fidelidad ?? 'BRONCE') !== nivelFiltro) return false;
+    return true;
+  });
+
   return (
     <div className="space-y-8 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/5 pb-8">
@@ -295,13 +299,17 @@ export default function AdminLealtadPage() {
       {/* ══ CLIENTES ══ */}
       {tab === 'clientes' && (
         <>
-          <div className="flex flex-wrap gap-2">
-            <Input placeholder="Buscar cliente..." value={filtro} onChange={(e) => setFiltro(e.target.value)} className="max-w-md" />
-            <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white text-sm" value={metaFiltro} onChange={(e) => setMetaFiltro(e.target.value)}>
-              <option value="">Todas las metas</option>
-              {metas.map((m) => <option key={m.id} value={m.id}>{m.nombre} ({m.visitas_requeridas}+ visitas)</option>)}
+          <div className="flex flex-wrap gap-4 items-center bg-zinc-900/40 p-4 rounded-2xl border border-white/5 mb-4">
+            <div className="flex-1 min-w-[250px] relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <Input placeholder="Buscar cliente por nombre..." value={filtro} onChange={(e) => setFiltro(e.target.value)} className="pl-10 max-w-none" />
+            </div>
+            <select className="h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white text-sm outline-none focus:border-amber-500/50" value={nivelFiltro} onChange={(e) => setNivelFiltro(e.target.value)}>
+              <option value="">Todos los niveles</option>
+              <option value="BRONCE">Bronce</option>
+              <option value="PLATA">Plata</option>
+              <option value="ORO">Oro</option>
             </select>
-            <Button variant="outline" onClick={loadAll}><Search className="w-4 h-4" /></Button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -315,7 +323,10 @@ export default function AdminLealtadPage() {
                 </tr>
               </thead>
               <tbody>
-                {clientes.map((c) => (
+                {clientesFiltrados.length === 0 && (
+                  <tr><td colSpan={5} className="text-center py-12 text-zinc-600 font-black uppercase tracking-widest">No se encontraron clientes</td></tr>
+                )}
+                {clientesFiltrados.map((c) => (
                   <tr key={c.id} className="border-b border-white/5 hover:bg-white/5">
                     <td className="py-4 px-4 font-bold text-white">{c.nombre}</td>
                     <td className="py-4 px-4">

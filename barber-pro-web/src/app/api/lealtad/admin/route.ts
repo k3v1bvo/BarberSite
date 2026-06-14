@@ -3,15 +3,11 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export async function GET(req: Request) {
   const supabase = await createServerSupabaseClient()
-  const { searchParams } = new URL(req.url)
-  const filtro = searchParams.get('filtro')
-  
-  let clientesQuery = supabase.from('clientes').select('*')
-  if (filtro) {
-    clientesQuery = clientesQuery.ilike('nombre', `%${filtro}%`)
-  }
-  
-  const { data: clientes, error: clientesError } = await clientesQuery
+  const { data: clientes, error: clientesError } = await supabase
+    .from('clientes')
+    .select('*')
+    .order('total_visitas', { ascending: false })
+    .limit(500)
   
   const { data: canjes, error: canjesError } = await supabase
     .from('lealtad_canjes')
