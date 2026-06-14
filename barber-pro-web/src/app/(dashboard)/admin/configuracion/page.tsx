@@ -60,8 +60,9 @@ export default function AdminConfiguracionPage() {
             setInitialQrUrl(qrConfig.valor.url)
           }
           if (heroConfigData && heroConfigData.valor) {
-            setHeroConfig(heroConfigData.valor as typeof defaultHero)
-            setInitialHeroConfig(heroConfigData.valor as typeof defaultHero)
+            const mergedHeroConfig = { ...defaultHero, ...(heroConfigData.valor as any) }
+            setHeroConfig(mergedHeroConfig)
+            setInitialHeroConfig(mergedHeroConfig)
           }
           if (aboutConfig && aboutConfig.valor) {
             setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)

@@ -190,7 +190,7 @@ export default function HomePage() {
         const aboutConfig = configData.find(c => c.llave === 'about_us_config')
 
         if (heroConfig && heroConfig.valor) {
-          setHeroConfigState(heroConfig.valor as typeof defaultHero)
+          setHeroConfigState({ ...defaultHero, ...(heroConfig.valor as any) })
         }
         if (aboutConfig && aboutConfig.valor) {
           setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
