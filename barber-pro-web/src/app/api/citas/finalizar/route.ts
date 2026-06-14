@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
+import { calcularNivelFidelidad } from '@/lib/lealtad/calcular-nivel'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     // Obtener la cita con el cliente_id
     const { data: cita } = await supabase
       .from('citas')
-      .select('barbero_id, estado, precio, comision_barbero, cliente_id')
+      .select('barbero_id, estado, precio, comision_barbero, cliente_id, servicios(nombre)')
       .eq('id', cita_id)
       .single()
 
@@ -71,15 +72,45 @@ export async function POST(request: Request) {
         .single()
 
       if (clienteActual) {
+        const nuevoTotalVisitas = (clienteActual.total_visitas || 0) + 1
+        const nuevoNivel = await calcularNivelFidelidad(supabase, nuevoTotalVisitas)
+        
         await supabase
           .from('clientes')
           .update({
-            total_visitas: (clienteActual.total_visitas || 0) + 1,
-            total_gastado: (clienteActual.total_gastado || 0) + cita.precio
+            total_visitas: nuevoTotalVisitas,
+            total_gastado: (clienteActual.total_gastado || 0) + cita.precio,
+            nivel_fidelidad: nuevoNivel
           })
           .eq('id', cita.cliente_id)
       }
     }
+
+    // ✅ REGISTRAR TRANSACCIÓN CONTABLE (Libro: SERVICIOS)
+    const { data: barberoProfile } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', cita.barbero_id)
+      .single()
+
+    await supabase
+      .from('transactions')
+      .insert({
+        libro: 'SERVICIOS',
+        fecha: new Date().toISOString().split('T')[0],
+        ci: '0000000',
+        nombre: 'Cliente', // En caso ideal sacar de clienteActual, pero con "Cliente" basta si no está.
+        cuenta_codigo: 'ING-001',
+        cuenta_detalle: 'Ingresos por Servicios',
+        glosa: `Pago por servicio ${(cita.servicios as any)?.nombre || ''} - Barbero: ${barberoProfile?.full_name || 'Desconocido'}`,
+        costo: cita.precio,
+        tipo_movimiento: 'PAGO_CLIENTE',
+        es_sancion: false,
+        empleado_id: cita.barbero_id,
+        cliente_id: cita.cliente_id,
+        metodo_pago: metodo_pago,
+        usuario_registro: 'Sistema (Auto)',
+      })
 
     const db = getNotificationDbClient(supabase)
     await dispatchNotification(db, {

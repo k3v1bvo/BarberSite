@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { calcularNivelFidelidad } from '@/lib/lealtad/calcular-nivel'
 
 export async function GET(req: Request) {
   const supabase = await createServerSupabaseClient()
@@ -34,7 +35,8 @@ export async function PATCH(req: Request) {
     
     // Si se manda visitas_total, se fija a ese valor
     if (typeof visitas_total === 'number') {
-      const { error } = await supabase.from('clientes').update({ total_visitas: visitas_total }).eq('id', cliente_id)
+      const nuevoNivel = await calcularNivelFidelidad(supabase, visitas_total)
+      const { error } = await supabase.from('clientes').update({ total_visitas: visitas_total, nivel_fidelidad: nuevoNivel }).eq('id', cliente_id)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ success: true })
     }
@@ -43,7 +45,8 @@ export async function PATCH(req: Request) {
     if (typeof visitas_delta === 'number') {
       const { data: cData } = await supabase.from('clientes').select('total_visitas').eq('id', cliente_id).single()
       const nuevoTotal = Math.max(0, (cData?.total_visitas || 0) + visitas_delta)
-      const { error } = await supabase.from('clientes').update({ total_visitas: nuevoTotal }).eq('id', cliente_id)
+      const nuevoNivel = await calcularNivelFidelidad(supabase, nuevoTotal)
+      const { error } = await supabase.from('clientes').update({ total_visitas: nuevoTotal, nivel_fidelidad: nuevoNivel }).eq('id', cliente_id)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ success: true })
     }

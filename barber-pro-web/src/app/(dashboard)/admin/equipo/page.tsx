@@ -26,7 +26,6 @@ interface EquipoMember {
   }
   sort_order: number
   is_active: boolean
-  deleted_at: string | null
   created_at: string
   profile_id: string | null
 }
@@ -49,7 +48,7 @@ const EMPTY_FORM = {
   profile_id: null as string | null,
 }
 
-type FilterType = 'todos' | 'activos' | 'eliminados'
+type FilterType = 'todos' | 'activos'
 
 export default function AdminEquipoPage() {
   const { error: toastError, success: toastSuccess } = useToast()
@@ -95,11 +94,7 @@ export default function AdminEquipoPage() {
         .order('created_at', { ascending: false })
 
       if (filter === 'activos') {
-        query = query.is('deleted_at', null).eq('is_active', true)
-      } else if (filter === 'eliminados') {
-        query = query.not('deleted_at', 'is', null)
-      } else {
-        query = query.is('deleted_at', null)
+        query = query.eq('is_active', true)
       }
 
       const { data, error } = await query
@@ -199,8 +194,8 @@ export default function AdminEquipoPage() {
   }
 
   const deleteMember = async (id: string) => {
-    if (!confirm('¿Eliminar lógicamente este miembro del equipo? No aparecerá en listados normales.')) return
-    const { error } = await supabase.from('equipo_home').update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id)
+    if (!confirm('¿Eliminar definitivamente a este miembro del equipo?')) return
+    const { error } = await supabase.from('equipo_home').delete().eq('id', id)
     if (error) {
       toastError('Error al eliminar')
     } else {
@@ -209,15 +204,7 @@ export default function AdminEquipoPage() {
     }
   }
 
-  const restoreMember = async (id: string) => {
-    const { error } = await supabase.from('equipo_home').update({ deleted_at: null, is_active: true }).eq('id', id)
-    if (error) {
-      toastError('Error al restaurar')
-    } else {
-      toastSuccess('Miembro restaurado')
-      loadData()
-    }
-  }
+
 
   // Helpers
   const getLinkedBarbero = (member: EquipoMember) =>
@@ -260,8 +247,7 @@ export default function AdminEquipoPage() {
             className="h-14 bg-zinc-900 border border-white/10 rounded-2xl px-4 text-white font-bold uppercase text-xs"
           >
             <option value="activos">Solo Visibles</option>
-            <option value="todos">Todos (Ocultos)</option>
-            <option value="eliminados">Eliminados</option>
+            <option value="todos">Todos (Visibles + Ocultos)</option>
           </select>
           <Button variant="primary" size="lg" className="shadow-lg shadow-amber-500/20 font-black uppercase tracking-widest h-14 px-8" onClick={openCreate}>
             <Plus className="w-5 h-5 mr-2 stroke-[3px]" />
@@ -277,7 +263,7 @@ export default function AdminEquipoPage() {
           return (
             <Card key={member.id} className={cn(
               'group relative overflow-hidden bg-zinc-900 border-white/5 shadow-2xl transition-all card-hover rounded-3xl',
-              (!member.is_active || member.deleted_at) && 'opacity-50'
+              (!member.is_active) && 'opacity-50'
             )}>
               <div className="aspect-square bg-zinc-800 relative overflow-hidden">
                 <img
@@ -303,11 +289,7 @@ export default function AdminEquipoPage() {
                   </div>
                 )}
 
-                {member.deleted_at ? (
-                  <Badge variant="outline" className="absolute top-4 right-4 bg-red-500/80 text-white border-red-400 uppercase font-black text-[10px] tracking-widest px-3 py-1">
-                    Eliminado
-                  </Badge>
-                ) : !member.is_active ? (
+                {!member.is_active ? (
                   <Badge variant="outline" className="absolute top-4 right-4 bg-zinc-500/20 text-zinc-300 border-zinc-500/30 uppercase font-black text-[10px] tracking-widest px-3 py-1">
                     Oculto
                   </Badge>
@@ -315,15 +297,6 @@ export default function AdminEquipoPage() {
 
                 {/* Hover actions */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-sm gap-3">
-                  {member.deleted_at ? (
-                    <button
-                      onClick={() => restoreMember(member.id)}
-                      className="w-12 h-12 rounded-full bg-green-500 text-white flex items-center justify-center shadow-2xl hover:bg-green-600 transition-colors"
-                      title="Restaurar"
-                    >
-                      <RotateCcw className="w-5 h-5" />
-                    </button>
-                  ) : (
                     <>
                       <button
                         onClick={() => openEdit(member)}
@@ -347,7 +320,6 @@ export default function AdminEquipoPage() {
                         <Trash2 className="w-5 h-5" />
                       </button>
                     </>
-                  )}
                 </div>
               </div>
 
@@ -385,12 +357,10 @@ export default function AdminEquipoPage() {
         <div className="py-32 text-center border-2 border-dashed border-white/5 rounded-3xl">
           <Users size={64} className="mx-auto text-zinc-800 mb-4 opacity-30" />
           <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs mb-4">No hay miembros para este filtro</p>
-          {filter !== 'eliminados' && (
-            <Button variant="primary" onClick={openCreate} className="font-bold uppercase tracking-widest">
-              <Plus className="w-4 h-4 mr-2" />
-              Agregar Primer Miembro
-            </Button>
-          )}
+          <Button variant="primary" onClick={openCreate} className="font-bold uppercase tracking-widest">
+            <Plus className="w-4 h-4 mr-2" />
+            Agregar Primer Miembro
+          </Button>
         </div>
       )}
 
