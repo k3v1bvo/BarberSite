@@ -23,11 +23,17 @@ const defaultAboutUs = {
   ]
 }
 
+const defaultHero = {
+  url: "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1920",
+  titulo: "ESTILO CLÁSICO\nMODERNO",
+  subtitulo: "Donde la tradición barbera se encuentra con la innovación.\nExperimenta el arte del cuidado masculino en su máxima expresión."
+}
+
 export default function AdminConfiguracionPage() {
   const [qrUrl, setQrUrl] = useState('')
   const [initialQrUrl, setInitialQrUrl] = useState('')
-  const [heroBgUrl, setHeroBgUrl] = useState('')
-  const [initialHeroBgUrl, setInitialHeroBgUrl] = useState('')
+  const [heroConfig, setHeroConfig] = useState(defaultHero)
+  const [initialHeroConfig, setInitialHeroConfig] = useState(defaultHero)
   const [aboutUsConfig, setAboutUsConfig] = useState(defaultAboutUs)
   const [initialAboutUsConfig, setInitialAboutUsConfig] = useState(defaultAboutUs)
   const [loading, setLoading] = useState(true)
@@ -46,16 +52,16 @@ export default function AdminConfiguracionPage() {
 
         if (data) {
           const qrConfig = data.find(c => c.llave === 'qr_pago')
-          const heroConfig = data.find(c => c.llave === 'hero_bg_image')
+          const heroConfigData = data.find(c => c.llave === 'hero_bg_image')
           const aboutConfig = data.find(c => c.llave === 'about_us_config')
 
           if (qrConfig && qrConfig.valor?.url) {
             setQrUrl(qrConfig.valor.url)
             setInitialQrUrl(qrConfig.valor.url)
           }
-          if (heroConfig && heroConfig.valor?.url) {
-            setHeroBgUrl(heroConfig.valor.url)
-            setInitialHeroBgUrl(heroConfig.valor.url)
+          if (heroConfigData && heroConfigData.valor) {
+            setHeroConfig(heroConfigData.valor as typeof defaultHero)
+            setInitialHeroConfig(heroConfigData.valor as typeof defaultHero)
           }
           if (aboutConfig && aboutConfig.valor) {
             setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
@@ -108,15 +114,11 @@ export default function AdminConfiguracionPage() {
   const handleSaveHero = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const trimmedUrl = heroBgUrl.trim()
-    if (!trimmedUrl) {
-      return toastError('El enlace del fondo no puede estar vacío.')
-    }
-    if (trimmedUrl === initialHeroBgUrl) {
-      return toastInfo('No se han hecho cambios, la URL es la misma.')
-    }
-    if (!isValidImageUrl(trimmedUrl)) {
+    if (!heroConfig.url || !isValidImageUrl(heroConfig.url)) {
       return toastError('La URL del fondo proporcionada no es una imagen válida.')
+    }
+    if (!heroConfig.titulo.trim() || !heroConfig.subtitulo.trim()) {
+      return toastError('El título y el subtítulo no pueden estar vacíos.')
     }
 
     setSaving(true)
@@ -125,15 +127,15 @@ export default function AdminConfiguracionPage() {
         .from('configuraciones')
         .upsert({
           llave: 'hero_bg_image',
-          valor: { url: heroBgUrl.trim() },
-          descripcion: 'URL de la imagen de fondo principal (Hero)'
+          valor: heroConfig as any,
+          descripcion: 'Configuración de la sección Hero'
         }, { onConflict: 'llave' })
 
       if (error) throw error
-      setInitialHeroBgUrl(trimmedUrl)
-      toastSuccess('Imagen de fondo actualizada correctamente')
+      setInitialHeroConfig(heroConfig)
+      toastSuccess('Hero actualizado correctamente')
     } catch (err: any) {
-      toastError(err.message || 'Error al guardar el fondo')
+      toastError(err.message || 'Error al guardar el hero')
     } finally {
       setSaving(false)
     }
@@ -206,25 +208,46 @@ export default function AdminConfiguracionPage() {
         </CardHeader>
         <CardContent className="p-6">
           <form onSubmit={handleSaveHero} className="space-y-6">
-            <div>
-              <Input
-                label="URL de la imagen de fondo"
-                placeholder="https://..."
-                value={heroBgUrl}
-                onChange={(e) => setHeroBgUrl(e.target.value)}
-                className="bg-zinc-950"
-              />
-              <p className="text-xs text-amber-400 mt-2 font-medium">Sugerencia: Usa una imagen en formato horizontal de alta calidad. Recomendado: 1920x1080px o superior.</p>
-            </div>
-
-            {heroBgUrl && isValidImageUrl(heroBgUrl) ? (
-              <div className="mt-4 p-4 border border-white/5 rounded-2xl bg-zinc-950 flex flex-col items-center justify-center gap-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vista Previa</p>
-                <img src={heroBgUrl} alt="Hero Preview" className="w-full max-w-sm rounded-xl shadow-lg border border-white/10 object-cover aspect-video" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-6 md:col-span-2">
+                <Input
+                  label="URL de la imagen de fondo"
+                  placeholder="https://..."
+                  value={heroConfig.url}
+                  onChange={(e) => setHeroConfig({ ...heroConfig, url: e.target.value })}
+                  className="bg-zinc-950"
+                />
+                <p className="text-xs text-amber-400 mt-2 font-medium">Sugerencia: Usa una imagen en formato horizontal de alta calidad. Recomendado: 1920x1080px o superior.</p>
+                {heroConfig.url && isValidImageUrl(heroConfig.url) ? (
+                  <div className="mt-4 p-4 border border-white/5 rounded-2xl bg-zinc-950 flex flex-col items-center justify-center gap-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vista Previa</p>
+                    <img src={heroConfig.url} alt="Hero Preview" className="w-full max-w-sm rounded-xl shadow-lg border border-white/10 object-cover aspect-video" />
+                  </div>
+                ) : heroConfig.url ? (
+                  <p className="text-sm text-red-400 mt-2">No parece una URL de imagen válida.</p>
+                ) : null}
               </div>
-            ) : heroBgUrl ? (
-              <p className="text-sm text-red-400 mt-2">No parece una URL de imagen válida.</p>
-            ) : null}
+
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Título principal</label>
+                <textarea
+                  className="w-full mt-1 p-4 border border-white/10 bg-zinc-950 rounded-2xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                  rows={2}
+                  value={heroConfig.titulo}
+                  onChange={(e) => setHeroConfig({ ...heroConfig, titulo: e.target.value })}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Subtítulo</label>
+                <textarea
+                  className="w-full mt-1 p-4 border border-white/10 bg-zinc-950 rounded-2xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                  rows={3}
+                  value={heroConfig.subtitulo}
+                  onChange={(e) => setHeroConfig({ ...heroConfig, subtitulo: e.target.value })}
+                />
+              </div>
+            </div>
 
             <Button
               type="submit"
@@ -233,7 +256,7 @@ export default function AdminConfiguracionPage() {
               disabled={saving}
             >
               <Save className="w-5 h-5 mr-2" />
-              {saving ? 'Guardando...' : 'Guardar Fondo'}
+              {saving ? 'Guardando...' : 'Guardar Hero'}
             </Button>
           </form>
         </CardContent>

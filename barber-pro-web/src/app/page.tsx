@@ -74,7 +74,6 @@ export default function HomePage() {
   const [portafolio, setPortafolio] = useState<PortafolioItem[]>([])
   const [equipo, setEquipo] = useState<EquipoHome[]>([])
   const [testimonios, setTestimonios] = useState<any[]>([])
-  const [heroBgUrl, setHeroBgUrl] = useState('https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1920')
   const defaultAboutUs = {
     imagen_url: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800",
     titulo: "La Mejor Barbería\nde la Ciudad",
@@ -88,6 +87,13 @@ export default function HomePage() {
     ]
   }
 
+  const defaultHero = {
+    url: "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1920",
+    titulo: "ESTILO CLÁSICO\nMODERNO",
+    subtitulo: "Donde la tradición barbera se encuentra con la innovación.\nExperimenta el arte del cuidado masculino en su máxima expresión."
+  }
+
+  const [heroConfigState, setHeroConfigState] = useState(defaultHero)
   const [aboutUsConfig, setAboutUsConfig] = useState(defaultAboutUs)
   const [carouselIndex, setCarouselIndex] = useState(0)
   const router = useRouter()
@@ -183,8 +189,8 @@ export default function HomePage() {
         const heroConfig = configData.find(c => c.llave === 'hero_bg_image')
         const aboutConfig = configData.find(c => c.llave === 'about_us_config')
 
-        if (heroConfig && heroConfig.valor?.url) {
-          setHeroBgUrl(heroConfig.valor.url)
+        if (heroConfig && heroConfig.valor) {
+          setHeroConfigState(heroConfig.valor as typeof defaultHero)
         }
         if (aboutConfig && aboutConfig.valor) {
           setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
@@ -329,7 +335,7 @@ export default function HomePage() {
       <section className="relative h-screen flex items-center justify-center overflow-hidden">
         <div 
           className="absolute inset-0 bg-cover bg-center transition-all duration-1000"
-          style={{ backgroundImage: `url('${heroBgUrl}')` }}
+          style={{ backgroundImage: `url('${heroConfigState.url}')` }}
         >
           <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black" />
         </div>
@@ -343,14 +349,12 @@ export default function HomePage() {
             <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
           </div>
 
-          <h1 className="text-6xl md:text-8xl font-bold mb-6 tracking-tight">
-            ESTILO <span className="text-amber-400">CLÁSICO</span><br />
-            MODERNO
+          <h1 className="text-6xl md:text-8xl font-bold mb-6 tracking-tight whitespace-pre-line">
+            {heroConfigState.titulo}
           </h1>
 
-          <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-            Donde la tradición barbera se encuentra con la innovación.
-            Experimenta el arte del cuidado masculino en su máxima expresión.
+          <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto whitespace-pre-line">
+            {heroConfigState.subtitulo}
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-4">
