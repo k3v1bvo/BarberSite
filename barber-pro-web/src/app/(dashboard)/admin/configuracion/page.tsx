@@ -6,15 +6,30 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useToast } from '@/components/ui/Toast'
-import { QrCode, Save, ArrowLeft, Image as ImageIcon } from 'lucide-react'
+import { QrCode, Save, ArrowLeft, Image as ImageIcon, Info } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { isValidImageUrl } from '@/lib/validators'
+
+const defaultAboutUs = {
+  imagen_url: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800",
+  titulo: "La Mejor Barbería\nde la Ciudad",
+  texto: "En BarberSite, combinamos técnicas tradicionales con las últimas tendencias para ofrecerte una experiencia única. Nuestro compromiso es con la excelencia en cada detalle, desde el momento en que entras hasta que sales luciendo tu mejor versión.",
+  anios_experiencia: "10+",
+  metricas: [
+    { numero: '5000+', texto: 'Clientes Satisfechos' },
+    { numero: '15+', texto: 'Barberos Expertos' },
+    { numero: '4.9', texto: 'Rating Promedio' },
+    { numero: '100%', texto: 'Garantía' }
+  ]
+}
 
 export default function AdminConfiguracionPage() {
   const [qrUrl, setQrUrl] = useState('')
   const [initialQrUrl, setInitialQrUrl] = useState('')
   const [heroBgUrl, setHeroBgUrl] = useState('')
   const [initialHeroBgUrl, setInitialHeroBgUrl] = useState('')
+  const [aboutUsConfig, setAboutUsConfig] = useState(defaultAboutUs)
+  const [initialAboutUsConfig, setInitialAboutUsConfig] = useState(defaultAboutUs)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const { error: toastError, success: toastSuccess, toast: toastInfo } = useToast()
@@ -27,11 +42,13 @@ export default function AdminConfiguracionPage() {
         const { data, error } = await supabase
           .from('configuraciones')
           .select('llave, valor')
-          .in('llave', ['qr_pago', 'hero_bg_image'])
+          .in('llave', ['qr_pago', 'hero_bg_image', 'about_us_config'])
 
         if (data) {
           const qrConfig = data.find(c => c.llave === 'qr_pago')
           const heroConfig = data.find(c => c.llave === 'hero_bg_image')
+          const aboutConfig = data.find(c => c.llave === 'about_us_config')
+
           if (qrConfig && qrConfig.valor?.url) {
             setQrUrl(qrConfig.valor.url)
             setInitialQrUrl(qrConfig.valor.url)
@@ -39,6 +56,10 @@ export default function AdminConfiguracionPage() {
           if (heroConfig && heroConfig.valor?.url) {
             setHeroBgUrl(heroConfig.valor.url)
             setInitialHeroBgUrl(heroConfig.valor.url)
+          }
+          if (aboutConfig && aboutConfig.valor) {
+            setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
+            setInitialAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
           }
         }
       } catch (err) {
@@ -113,6 +134,36 @@ export default function AdminConfiguracionPage() {
       toastSuccess('Imagen de fondo actualizada correctamente')
     } catch (err: any) {
       toastError(err.message || 'Error al guardar el fondo')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveAboutUs = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!aboutUsConfig.imagen_url || !isValidImageUrl(aboutUsConfig.imagen_url)) {
+      return toastError('La URL de la imagen de Acerca de Nosotros no es válida.')
+    }
+    if (!aboutUsConfig.titulo.trim() || !aboutUsConfig.texto.trim()) {
+      return toastError('El título y el texto no pueden estar vacíos.')
+    }
+
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from('configuraciones')
+        .upsert({
+          llave: 'about_us_config',
+          valor: aboutUsConfig as any,
+          descripcion: 'Configuración de la sección Acerca de Nosotros'
+        }, { onConflict: 'llave' })
+
+      if (error) throw error
+      setInitialAboutUsConfig(aboutUsConfig)
+      toastSuccess('Sección "Acerca de Nosotros" actualizada correctamente')
+    } catch (err: any) {
+      toastError(err.message || 'Error al guardar la sección')
     } finally {
       setSaving(false)
     }
@@ -230,6 +281,116 @@ export default function AdminConfiguracionPage() {
             >
               <Save className="w-5 h-5 mr-2" />
               {saving ? 'Guardando...' : 'Guardar QR'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-zinc-900 border-white/5">
+        <CardHeader className="border-b border-white/5 bg-zinc-900/50 p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500">
+              <Info className="w-6 h-6" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-black uppercase text-white">Acerca de Nosotros</CardTitle>
+              <p className="text-sm text-zinc-400">Personaliza la sección de información y métricas de la barbería.</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <form onSubmit={handleSaveAboutUs} className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-6 md:col-span-2">
+                <Input
+                  label="URL de la imagen"
+                  placeholder="https://..."
+                  value={aboutUsConfig.imagen_url}
+                  onChange={(e) => setAboutUsConfig({ ...aboutUsConfig, imagen_url: e.target.value })}
+                  className="bg-zinc-950"
+                />
+                {aboutUsConfig.imagen_url && isValidImageUrl(aboutUsConfig.imagen_url) && (
+                  <div className="p-4 border border-white/5 rounded-2xl bg-zinc-950 flex flex-col items-center gap-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vista Previa de Imagen</p>
+                    <img src={aboutUsConfig.imagen_url} alt="About Us Preview" className="w-full max-w-sm rounded-xl shadow-lg border border-white/10 object-cover aspect-[4/5]" />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Título principal</label>
+                <textarea
+                  className="w-full mt-1 p-4 border border-white/10 bg-zinc-950 rounded-2xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                  rows={2}
+                  value={aboutUsConfig.titulo}
+                  onChange={(e) => setAboutUsConfig({ ...aboutUsConfig, titulo: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Input
+                  label="Años de experiencia (Badge)"
+                  placeholder="10+"
+                  value={aboutUsConfig.anios_experiencia}
+                  onChange={(e) => setAboutUsConfig({ ...aboutUsConfig, anios_experiencia: e.target.value })}
+                  className="bg-zinc-950"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Texto descriptivo</label>
+                <textarea
+                  className="w-full mt-1 p-4 border border-white/10 bg-zinc-950 rounded-2xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                  rows={4}
+                  value={aboutUsConfig.texto}
+                  onChange={(e) => setAboutUsConfig({ ...aboutUsConfig, texto: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-white/5">
+              <h3 className="text-sm font-black uppercase tracking-widest text-amber-500 mb-4">Métricas destacadas</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {aboutUsConfig.metricas.map((metrica, idx) => (
+                  <div key={idx} className="p-4 bg-zinc-950 rounded-2xl border border-white/5 space-y-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Métrica {idx + 1}</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input
+                        label="Número/Valor"
+                        placeholder="5000+"
+                        value={metrica.numero}
+                        onChange={(e) => {
+                          const newMetricas = [...aboutUsConfig.metricas];
+                          newMetricas[idx].numero = e.target.value;
+                          setAboutUsConfig({ ...aboutUsConfig, metricas: newMetricas })
+                        }}
+                        className="bg-zinc-900"
+                      />
+                      <Input
+                        label="Texto descriptivo"
+                        placeholder="Clientes Satisfechos"
+                        value={metrica.texto}
+                        onChange={(e) => {
+                          const newMetricas = [...aboutUsConfig.metricas];
+                          newMetricas[idx].texto = e.target.value;
+                          setAboutUsConfig({ ...aboutUsConfig, metricas: newMetricas })
+                        }}
+                        className="bg-zinc-900"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              className="w-full h-14 shadow-lg font-black uppercase tracking-widest mt-6"
+              disabled={saving}
+            >
+              <Save className="w-5 h-5 mr-2" />
+              {saving ? 'Guardando...' : 'Guardar Acerca de Nosotros'}
             </Button>
           </form>
         </CardContent>

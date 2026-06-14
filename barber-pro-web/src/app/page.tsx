@@ -73,7 +73,20 @@ export default function HomePage() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [portafolio, setPortafolio] = useState<PortafolioItem[]>([])
   const [equipo, setEquipo] = useState<EquipoHome[]>([])
-  const [heroBgUrl, setHeroBgUrl] = useState('https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1920')
+  const defaultAboutUs = {
+    imagen_url: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800",
+    titulo: "La Mejor Barbería\nde la Ciudad",
+    texto: "En BarberSite, combinamos técnicas tradicionales con las últimas tendencias para ofrecerte una experiencia única. Nuestro compromiso es con la excelencia en cada detalle, desde el momento en que entras hasta que sales luciendo tu mejor versión.",
+    anios_experiencia: "10+",
+    metricas: [
+      { numero: '5000+', texto: 'Clientes Satisfechos' },
+      { numero: '15+', texto: 'Barberos Expertos' },
+      { numero: '4.9', texto: 'Rating Promedio' },
+      { numero: '100%', texto: 'Garantía' }
+    ]
+  }
+
+  const [aboutUsConfig, setAboutUsConfig] = useState(defaultAboutUs)
   const [carouselIndex, setCarouselIndex] = useState(0)
   const router = useRouter()
   const supabase = createClient()
@@ -161,12 +174,19 @@ export default function HomePage() {
       // 6. Cargar configuración global
       const { data: configData } = await supabase
         .from('configuraciones')
-        .select('valor')
-        .eq('llave', 'hero_bg_image')
-        .single()
+        .select('llave, valor')
+        .in('llave', ['hero_bg_image', 'about_us_config'])
 
-      if (configData && configData.valor?.url) {
-        setHeroBgUrl(configData.valor.url)
+      if (configData) {
+        const heroConfig = configData.find(c => c.llave === 'hero_bg_image')
+        const aboutConfig = configData.find(c => c.llave === 'about_us_config')
+
+        if (heroConfig && heroConfig.valor?.url) {
+          setHeroBgUrl(heroConfig.valor.url)
+        }
+        if (aboutConfig && aboutConfig.valor) {
+          setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
+        }
       }
 
       setLoading(false)
@@ -536,14 +556,14 @@ export default function HomePage() {
             <div className="relative">
               <div className="aspect-[4/5] rounded-2xl overflow-hidden">
                 <img
-                  src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800"
+                  src={aboutUsConfig.imagen_url}
                   alt="Barbería"
                   className="w-full h-full object-cover"
                 />
               </div>
               <div className="absolute -bottom-8 -right-8 w-48 h-48 bg-amber-400 rounded-2xl flex items-center justify-center">
                 <div className="text-center">
-                  <p className="text-4xl font-bold text-black">10+</p>
+                  <p className="text-4xl font-bold text-black">{aboutUsConfig.anios_experiencia}</p>
                   <p className="text-sm text-black/70 uppercase tracking-widest">Años</p>
                 </div>
               </div>
@@ -551,21 +571,13 @@ export default function HomePage() {
 
             <div>
               <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-4">Acerca de Nosotros</p>
-              <h2 className="text-5xl font-bold mb-6">La Mejor Barbería<br />de la Ciudad</h2>
-              <p className="text-gray-400 mb-6 text-lg">
-                En BarberSite, combinamos técnicas tradicionales con las últimas tendencias
-                para ofrecerte una experiencia única. Nuestro compromiso es con la excelencia
-                en cada detalle, desde el momento en que entras hasta que sales luciendo
-                tu mejor versión.
+              <h2 className="text-5xl font-bold mb-6 whitespace-pre-line">{aboutUsConfig.titulo}</h2>
+              <p className="text-gray-400 mb-6 text-lg whitespace-pre-line">
+                {aboutUsConfig.texto}
               </p>
 
               <div className="grid grid-cols-2 gap-6 mb-8">
-                {[
-                  { numero: '5000+', texto: 'Clientes Satisfechos' },
-                  { numero: '15+', texto: 'Barberos Expertos' },
-                  { numero: '4.9', texto: 'Rating Promedio' },
-                  { numero: '100%', texto: 'Garantía' }
-                ].map((item, i) => (
+                {aboutUsConfig.metricas.map((item, i) => (
                   <div key={i} className="text-center p-4 bg-zinc-900 rounded-xl">
                     <p className="text-3xl font-bold text-amber-400">{item.numero}</p>
                     <p className="text-sm text-gray-400">{item.texto}</p>
