@@ -758,39 +758,56 @@ export default function HomePage() {
       </section>
 
       {/* Testimonios */}
-      {testimonios.length > 0 && (
-        <section className="py-24 bg-black">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="text-center mb-16">
-              <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-4">Testimonios</p>
-              <h2 className="text-5xl font-bold">Lo Que Dicen</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {testimonios.map((testimonio) => (
-                <div key={testimonio.id} className="bg-zinc-900 p-8 rounded-2xl relative">
-                  <div className="flex gap-1 mb-4">
-                    {Array.from({ length: testimonio.estrellas }).map((_, j) => (
-                      <Star key={j} className="w-5 h-5 fill-amber-400 text-amber-400" />
-                    ))}
-                  </div>
-                  {testimonio.comentario && testimonio.comentario.trim() !== '' ? (
-                    <p className="text-gray-300 mb-6 italic">"{testimonio.comentario}"</p>
-                  ) : (
-                    <div className="mb-6 h-6"></div>
-                  )}
-                  <p className="font-bold text-amber-400">{testimonio.cliente?.full_name || 'Cliente'}</p>
-                  {testimonio.barbero && (
-                    <p className="text-xs text-zinc-500 font-bold uppercase mt-1">
-                      Atendido por: {testimonio.barbero.full_name}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+      <section className="py-24 bg-black">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-4">Testimonios</p>
+            <h2 className="text-5xl font-bold">Lo Que Dicen</h2>
           </div>
-        </section>
-      )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {(testimonios.length > 0 ? testimonios : [
+              {
+                id: 'static-1',
+                estrellas: 5,
+                comentario: '¡Excelente servicio! Muy profesionales y el ambiente es increíble. Definitivamente volveré.',
+                cliente: { full_name: 'Carlos Mendoza' }
+              },
+              {
+                id: 'static-2',
+                estrellas: 5,
+                comentario: 'El mejor corte que he tenido en años. La atención al detalle es insuperable.',
+                cliente: { full_name: 'Luis Vargas' }
+              },
+              {
+                id: 'static-3',
+                estrellas: 5,
+                comentario: 'Puntualidad, buen trato y un resultado impecable. 100% recomendados.',
+                cliente: { full_name: 'Andrés Castro' }
+              }
+            ]).map((testimonio) => (
+              <div key={testimonio.id} className="bg-zinc-900 p-8 rounded-2xl relative">
+                <div className="flex gap-1 mb-4">
+                  {Array.from({ length: testimonio.estrellas }).map((_, j) => (
+                    <Star key={j} className="w-5 h-5 fill-amber-400 text-amber-400" />
+                  ))}
+                </div>
+                {testimonio.comentario && testimonio.comentario.trim() !== '' ? (
+                  <p className="text-gray-300 mb-6 italic">"{testimonio.comentario}"</p>
+                ) : (
+                  <div className="mb-6 h-6"></div>
+                )}
+                <p className="font-bold text-amber-400">{testimonio.cliente?.full_name || 'Cliente'}</p>
+                {testimonio.barbero && (
+                  <p className="text-xs text-zinc-500 font-bold uppercase mt-1">
+                    Atendido por: {testimonio.barbero.full_name}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Contacto */}
       <section id="contacto" className="py-24 bg-zinc-900">

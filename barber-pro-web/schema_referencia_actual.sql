@@ -480,3 +480,17 @@ CREATE TABLE public.cumpleanos_verificados (
   CONSTRAINT cumpleanos_verificados_promo_id_fkey FOREIGN KEY (promo_id) REFERENCES public.promociones(id),
   CONSTRAINT cumpleanos_verificados_verificado_por_fkey FOREIGN KEY (verificado_por) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.reviews (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cliente_id uuid,
+  barbero_id uuid,
+  cita_id uuid,
+  estrellas integer NOT NULL CHECK (estrellas >= 1 AND estrellas <= 5),
+  comentario text,
+  is_public boolean DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT reviews_pkey PRIMARY KEY (id),
+  CONSTRAINT reviews_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.profiles(id),
+  CONSTRAINT reviews_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id),
+  CONSTRAINT reviews_cita_id_fkey FOREIGN KEY (cita_id) REFERENCES public.citas(id)
+);
