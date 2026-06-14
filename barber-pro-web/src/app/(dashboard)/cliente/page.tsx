@@ -40,7 +40,9 @@ interface Cita {
 const NIVEL_CONFIG: Record<string, any> = {
   BRONCE: { gradient: 'from-[#7c5c36] via-[#b5845a] to-[#6b4423]', border: 'border-amber-700/50', icon: Shield, label: 'Bronce', next: 'PLATA', nextVisitas: 15, textColor: 'text-amber-200' },
   PLATA: { gradient: 'from-[#4a5568] via-[#718096] to-[#2d3748]', border: 'border-zinc-400/50', icon: Star, label: 'Plata', next: 'ORO', nextVisitas: 30, textColor: 'text-zinc-200' },
-  ORO: { gradient: 'from-[#b7791f] via-[#f6ad55] to-[#c05621]', border: 'border-amber-400/50', icon: Crown, label: 'Oro', next: null, nextVisitas: 30, textColor: 'text-amber-100' },
+  ORO: { gradient: 'from-[#b7791f] via-[#f6ad55] to-[#c05621]', border: 'border-amber-400/50', icon: Crown, label: 'Oro', next: 'PLATINO', nextVisitas: 45, textColor: 'text-amber-100' },
+  PLATINO: { gradient: 'from-[#94a3b8] via-[#e2e8f0] to-[#64748b]', border: 'border-slate-300/50', icon: Sparkles, label: 'Platino', next: 'DIAMANTE', nextVisitas: 60, textColor: 'text-slate-800' },
+  DIAMANTE: { gradient: 'from-[#1e3a8a] via-[#3b82f6] to-[#0f172a]', border: 'border-blue-400/50', icon: Zap, label: 'Diamante', next: null, nextVisitas: 60, textColor: 'text-blue-100' },
 }
 
 const PROMO_ICONS: Record<string, string> = {
