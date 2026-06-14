@@ -73,6 +73,8 @@ export default function HomePage() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [portafolio, setPortafolio] = useState<PortafolioItem[]>([])
   const [equipo, setEquipo] = useState<EquipoHome[]>([])
+  const [testimonios, setTestimonios] = useState<any[]>([])
+  const [heroBgUrl, setHeroBgUrl] = useState('https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1920')
   const defaultAboutUs = {
     imagen_url: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800",
     titulo: "La Mejor Barbería\nde la Ciudad",
@@ -187,6 +189,22 @@ export default function HomePage() {
         if (aboutConfig && aboutConfig.valor) {
           setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
         }
+      }
+
+      // 7. Cargar Testimonios
+      const { data: testimoniosData } = await supabase
+        .from('reviews')
+        .select(`
+          id, estrellas, comentario,
+          cliente:cliente_id(full_name),
+          barbero:barbero_id(full_name)
+        `)
+        .eq('is_public', true)
+        .order('created_at', { ascending: false })
+        .limit(6)
+
+      if (testimoniosData) {
+        setTestimonios(testimoniosData)
       }
 
       setLoading(false)
@@ -740,44 +758,39 @@ export default function HomePage() {
       </section>
 
       {/* Testimonios */}
-      <section className="py-24 bg-black">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-4">Testimonios</p>
-            <h2 className="text-5xl font-bold">Lo Que Dicen</h2>
-          </div>
+      {testimonios.length > 0 && (
+        <section className="py-24 bg-black">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="text-center mb-16">
+              <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-4">Testimonios</p>
+              <h2 className="text-5xl font-bold">Lo Que Dicen</h2>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                nombre: 'Carlos M.',
-                texto: 'El mejor corte que he tenido. Los barberos son verdaderos profesionales que conocen su oficio.',
-                estrellas: 5
-              },
-              {
-                nombre: 'Ana G.',
-                texto: 'Excelente atención y ambiente. Mi esposo siempre queda satisfecho con su corte.',
-                estrellas: 5
-              },
-              {
-                nombre: 'Roberto D.',
-                texto: 'Desde que descubrí BarberSite, no voy a otro lugar. Calidad garantizada y precios justos.',
-                estrellas: 5
-              }
-            ].map((testimonio, i) => (
-              <div key={i} className="bg-zinc-900 p-8 rounded-2xl">
-                <div className="flex gap-1 mb-4">
-                  {Array.from({ length: testimonio.estrellas }).map((_, j) => (
-                    <Star key={j} className="w-5 h-5 fill-amber-400 text-amber-400" />
-                  ))}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {testimonios.map((testimonio) => (
+                <div key={testimonio.id} className="bg-zinc-900 p-8 rounded-2xl relative">
+                  <div className="flex gap-1 mb-4">
+                    {Array.from({ length: testimonio.estrellas }).map((_, j) => (
+                      <Star key={j} className="w-5 h-5 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
+                  {testimonio.comentario && testimonio.comentario.trim() !== '' ? (
+                    <p className="text-gray-300 mb-6 italic">"{testimonio.comentario}"</p>
+                  ) : (
+                    <div className="mb-6 h-6"></div>
+                  )}
+                  <p className="font-bold text-amber-400">{testimonio.cliente?.full_name || 'Cliente'}</p>
+                  {testimonio.barbero && (
+                    <p className="text-xs text-zinc-500 font-bold uppercase mt-1">
+                      Atendido por: {testimonio.barbero.full_name}
+                    </p>
+                  )}
                 </div>
-                <p className="text-gray-300 mb-6 italic">"{testimonio.texto}"</p>
-                <p className="font-bold text-amber-400">{testimonio.nombre}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Contacto */}
       <section id="contacto" className="py-24 bg-zinc-900">

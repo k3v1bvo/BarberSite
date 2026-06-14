@@ -59,6 +59,12 @@ export default function ClientePage() {
   const [citasPasadas, setCitasPasadas] = useState<Cita[]>([])
   const [loading, setLoading] = useState(true)
   const [birthdayGlow, setBirthdayGlow] = useState(false)
+  
+  // Reseñas
+  const [reviewModal, setReviewModal] = useState<{ open: boolean; citaId: string | null; barberoId: string | null }>({ open: false, citaId: null, barberoId: null })
+  const [reviewData, setReviewData] = useState({ estrellas: 5, comentario: '' })
+  const [submittingReview, setSubmittingReview] = useState(false)
+
   const router = useRouter()
   const supabase = createClient()
 
@@ -110,14 +116,25 @@ export default function ClientePage() {
     }
   }
 
-  const enviarTestimonio = async (citaId: string, comentario: string) => {
+  const submitReview = async () => {
+    setSubmittingReview(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      const { error } = await supabase.from('testimonios').insert({ cliente_id: user?.id, estrellas: 5, comentario })
+      const { error } = await supabase.from('reviews').insert({
+        cliente_id: user?.id,
+        cita_id: reviewModal.citaId,
+        barbero_id: reviewModal.barberoId,
+        estrellas: reviewData.estrellas,
+        comentario: reviewData.comentario
+      })
       if (error) throw error
       success('¡Gracias por tu reseña! ⭐')
+      setReviewModal({ open: false, citaId: null, barberoId: null })
+      setReviewData({ estrellas: 5, comentario: '' })
     } catch (e: any) {
       toastError('Error enviando reseña')
+    } finally {
+      setSubmittingReview(false)
     }
   }
 
@@ -485,8 +502,7 @@ export default function ClientePage() {
                       <button
                         className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-zinc-600 hover:bg-amber-500 hover:text-black transition-all opacity-0 group-hover:opacity-100"
                         onClick={() => {
-                          const c = prompt('¿Qué te pareció el servicio?')
-                          if (c) enviarTestimonio(cita.id, c)
+                          setReviewModal({ open: true, citaId: cita.id, barberoId: (cita as any).barbero_id || null })
                         }}
                       >
                         <MessageSquare size={12} />
@@ -523,6 +539,61 @@ export default function ClientePage() {
           )}
         </div>
       </div>
+
+      {/* Modal de Review */}
+      {reviewModal.open && (
+        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-4 backdrop-blur-md animate-in fade-in duration-300">
+          <Card className="w-full max-w-sm border-white/10 shadow-2xl bg-zinc-950">
+            <div className="p-6">
+              <h3 className="text-xl font-black uppercase text-white mb-4">Califica el Servicio</h3>
+              
+              <div className="flex justify-center gap-2 mb-6">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button
+                    key={star}
+                    onClick={() => setReviewData({ ...reviewData, estrellas: star })}
+                    className="transition-transform hover:scale-110"
+                  >
+                    <Star
+                      size={32}
+                      className={cn(
+                        star <= reviewData.estrellas ? "fill-amber-500 text-amber-500" : "text-zinc-700"
+                      )}
+                    />
+                  </button>
+                ))}
+              </div>
+
+              <textarea
+                className="w-full p-4 border border-white/10 bg-zinc-900 rounded-2xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all mb-4"
+                rows={4}
+                placeholder="Opcional: ¿Qué te pareció el corte, el ambiente y el barbero?"
+                value={reviewData.comentario}
+                onChange={(e) => setReviewData({ ...reviewData, comentario: e.target.value })}
+              />
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1 border-white/10 text-zinc-400"
+                  onClick={() => setReviewModal({ open: false, citaId: null, barberoId: null })}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-1 font-black uppercase tracking-widest text-xs"
+                  onClick={submitReview}
+                  disabled={submittingReview}
+                >
+                  {submittingReview ? 'Enviando...' : 'Enviar Reseña'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
     </div>
   )
 }
