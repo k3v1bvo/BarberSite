@@ -221,14 +221,6 @@ export default function AdminConfiguracionPage() {
                   <p className="text-xs text-amber-400 font-medium mb-1">📸 Formato Sugerido: Imagen horizontal de alta calidad (Recomendado: 1920x1080px o superior).</p>
                   <p className="text-xs text-amber-400/80">⚠️ Importante: Debes subir tu imagen previamente a la nube (Google Drive, Imgur, Postimages) y pegar aquí el enlace directo que termine en .jpg o .png.</p>
                 </div>
-                {heroConfig.url && isValidImageUrl(heroConfig.url) ? (
-                  <div className="mt-4 p-4 border border-white/5 rounded-2xl bg-zinc-950 flex flex-col items-center justify-center gap-4">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vista Previa</p>
-                    <img src={heroConfig.url} alt="Hero Preview" className="w-full max-w-sm rounded-xl shadow-lg border border-white/10 object-cover aspect-video" />
-                  </div>
-                ) : heroConfig.url ? (
-                  <p className="text-sm text-red-400 mt-2">No parece una URL de imagen válida.</p>
-                ) : null}
               </div>
 
               <div className="md:col-span-2">
@@ -250,6 +242,30 @@ export default function AdminConfiguracionPage() {
                   onChange={(e) => setHeroConfig({ ...heroConfig, subtitulo: e.target.value })}
                 />
               </div>
+
+              {heroConfig.url && isValidImageUrl(heroConfig.url) ? (
+                <div className="md:col-span-2 mt-4 p-4 border border-white/5 rounded-2xl bg-zinc-950 flex flex-col items-center justify-center gap-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vista Previa en Vivo</p>
+                  <div className="relative w-full max-w-3xl aspect-video rounded-xl overflow-hidden border border-white/10 shadow-2xl flex items-center justify-center">
+                    <div 
+                      className="absolute inset-0 bg-cover bg-center"
+                      style={{ backgroundImage: `url('${heroConfig.url}')` }}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black" />
+                    </div>
+                    <div className="relative z-10 text-center px-4 max-w-xl">
+                      <h1 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight whitespace-pre-line text-white">
+                        {heroConfig.titulo || 'TÍTULO VACÍO'}
+                      </h1>
+                      <p className="text-sm md:text-base text-gray-300 whitespace-pre-line">
+                        {heroConfig.subtitulo || 'Subtítulo vacío...'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : heroConfig.url ? (
+                <p className="md:col-span-2 text-sm text-red-400 mt-2 text-center">No parece una URL de imagen válida para la vista previa.</p>
+              ) : null}
             </div>
 
             <Button
