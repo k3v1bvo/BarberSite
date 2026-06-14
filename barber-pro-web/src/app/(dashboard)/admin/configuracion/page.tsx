@@ -221,6 +221,12 @@ export default function AdminConfiguracionPage() {
                   <p className="text-xs text-amber-400 font-medium mb-1">📸 Formato Sugerido: Imagen horizontal de alta calidad (Recomendado: 1920x1080px o superior).</p>
                   <p className="text-xs text-amber-400/80">⚠️ Importante: Debes subir tu imagen previamente a la nube (Google Drive, Imgur, Postimages) y pegar aquí el enlace directo que termine en .jpg o .png.</p>
                 </div>
+                {heroConfig.url && isValidImageUrl(heroConfig.url) && (
+                  <div className="mt-4 p-4 border border-white/5 rounded-2xl bg-zinc-950 flex flex-col items-center gap-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vista Previa de Imagen</p>
+                    <img src={heroConfig.url} alt="Hero Preview" className="w-full max-w-sm rounded-xl shadow-lg border border-white/10 object-cover aspect-video" />
+                  </div>
+                )}
               </div>
 
               <div className="md:col-span-2">
