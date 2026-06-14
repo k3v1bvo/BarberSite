@@ -1,66 +1,70 @@
 # Barber Pro Web (Next.js)
 
-Aplicación principal del proyecto **BarberSite**. Vive dentro del monorepo en la raíz del repositorio [BarberSite](https://github.com/k3v1bvo/BarberSite).
+Aplicación principal del proyecto **BarberSite**. Sistema ERP completo diseñado específicamente para barberías y salones de belleza. 
 
-## Requisitos
+## 🚀 Características Principales
+
+Este sistema va más allá de un simple gestor de citas, incluyendo:
+- **Punto de Venta (POS)**: Registro de ventas, cobro de citas, descuentos de inventario.
+- **Roles y Permisos**: 
+  - `Admin`: Control total, reportes, configuraciones.
+  - `Coordinador`: Gestión de caja, arqueos, agenda global y personal.
+  - `Barbero`: Vista enfocada en sus propias citas y ganancias.
+  - `Cliente`: Reservas, historial y tienda.
+- **Contabilidad Integrada**: Caja chica, egresos, control de bancos, arqueos de caja diarios.
+- **Recursos Humanos**: Control de asistencia, cálculo automatizado de comisiones, bonos y sanciones.
+- **Marketing y Fidelización**: Programa de Lealtad (Niveles Bronce, Plata, Oro), Reseñas públicas moderables y Tienda E-commerce.
+- **Personalización**: Configuración de Hero, Acerca de Nosotros y código QR directamente desde el panel.
+
+## 📋 Documentación Extendida
+
+Para entender a fondo cada flujo, roles, y el modelo de base de datos, revisa la documentación en la raíz de este proyecto:
+- [📄 Manual de Usuario y Flujos (MANUAL_DE_USUARIO_Y_FLUJOS.md)](./MANUAL_DE_USUARIO_Y_FLUJOS.md)
+- [🏗️ Documentación del Sistema (DOCUMENTACION_SISTEMA.md)](./DOCUMENTACION_SISTEMA.md)
+
+## ⚙️ Requisitos
 
 - Node.js 18+
-- Proyecto Supabase configurado
-- (Opcional) Cuenta Resend para correos
+- Proyecto Supabase configurado (Auth, Database, Storage)
+- (Opcional) Cuenta Resend para envío de correos
 
-## Configuración
+## 🛠️ Configuración Local
 
 ```bash
 npm install
 cp .env.example .env.local
-# Editar .env.local con tus claves
+# Editar .env.local con las URLs y Keys de tu proyecto Supabase
 npm run dev
 ```
 
-Variables: ver `.env.example` y [AVANCE_PROYECTO.md](../AVANCE_PROYECTO.md) en la raíz.
-
-## Scripts
-
-| Comando | Uso |
-|---------|-----|
-| `npm run dev` | Desarrollo en localhost:3000 |
-| `npm run build` | Build de producción |
-| `npm run start` | Servidor tras build |
-| `npm run lint` | ESLint |
-
-## Rutas principales
-
-| Ruta | Rol |
-|------|-----|
-| `/` | Landing pública |
-| `/reservar` | Reserva de citas |
-| `/admin` | Panel administrador |
-| `/agenda` | Agenda general |
-| `/agenda/[id]` | Agenda barbero |
-| `/admin/asistencia` | Control de personal |
-| `/notificaciones` | Historial y preferencias |
-| `/recepcion` | Recepción del día |
-| `/barbero` | Panel barbero |
-| `/cliente` | Portal cliente |
-
-## APIs destacadas
-
-- `POST /api/notificaciones/dispatch` — eventos de notificación
-- `GET /api/citas/agenda` — datos de calendario
-- `POST /api/asistencias/auto-cerrar` — cierre 22:00
-
-## Estructura `src/`
+## 🗂️ Estructura Principal `src/`
 
 ```
 src/
-├── app/              # App Router (páginas y API routes)
-├── components/       # UI, admin, providers
+├── app/              # App Router (Rutas, páginas, (dashboard) y API routes)
+├── components/       # Componentes UI reutilizables y layouts
 ├── lib/
-│   ├── notifications/  # dispatch, email, templates
-│   ├── agenda/
-│   ├── asistencia/
-│   └── navigation/
-└── hooks/
+│   ├── lealtad/      # Lógica de cálculo de puntos y niveles
+│   ├── navigation/   # Menús dinámicos por rol
+│   └── supabase/     # Clientes de Supabase (Server y Client)
+└── types/            # Tipados de TypeScript compartidos
 ```
 
-Documentación completa del producto: carpeta raíz del repo (`../README.md`).
+## 🌐 Rutas Administrativas Destacadas
+
+| Ruta | Uso |
+|------|-----|
+| `/admin/caja` | POS y cobro de citas (Flujo principal) |
+| `/admin/comisiones` | Recibos de pago y nómina automatizada |
+| `/coordinador/arqueo` | Cierre diario de caja |
+| `/admin/configuracion`| Landing Page personalizable dinámicamente |
+| `/admin/resenas` | Moderación de testimonios del Home |
+
+## 📦 Scripts Disponibles
+
+| Comando | Acción |
+|---------|--------|
+| `npm run dev` | Inicia servidor de desarrollo en localhost:3000 |
+| `npm run build` | Genera la versión de producción optimizada |
+| `npm run start` | Inicia el servidor de producción |
+| `npm run lint` | Corre ESLint para validar la sintaxis |
