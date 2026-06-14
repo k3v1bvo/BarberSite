@@ -10,6 +10,7 @@ import type { AgendaCita } from '@/lib/agenda/types'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useToast } from './Toast'
+import { createClient } from '@/lib/supabase/client'
 
 interface CitaDetailModalProps {
   cita: AgendaCita | null
@@ -20,6 +21,7 @@ interface CitaDetailModalProps {
 
 export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }: CitaDetailModalProps) {
   const [verifying, setVerifying] = useState(false)
+  const [canceling, setCanceling] = useState(false)
   const { success, error } = useToast()
   if (!cita) return null
 
@@ -99,6 +101,37 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
+          {(cita.estado === 'pendiente' || cita.estado === 'confirmado') && (
+            <Button
+              variant="danger"
+              size="md"
+              className="flex-1 font-black uppercase tracking-wider"
+              disabled={canceling}
+              onClick={async () => {
+                if (!confirm('¿Marcar que el cliente no se presentó a la cita?')) return;
+                setCanceling(true)
+                try {
+                  const supabase = createClient()
+                  const { error: err } = await supabase
+                    .from('citas')
+                    .update({ estado: 'no_presento', updated_at: new Date().toISOString() })
+                    .eq('id', cita.id)
+                  if (err) throw err
+                  success('Cita marcada como No Asistió')
+                  if (onUpdate) onUpdate()
+                  else window.location.reload()
+                  onClose()
+                } catch (e) {
+                  error('Error al actualizar la cita')
+                } finally {
+                  setCanceling(false)
+                }
+              }}
+            >
+              {canceling ? 'Actualizando...' : 'No Asistió'}
+            </Button>
+          )}
+
           {cita.estado === 'pendiente_pago' ? (
              <Button 
                variant="warning" 
@@ -129,7 +162,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
              </Button>
           ) : (
             <Link href="/coordinador" className="flex-1">
-              <Button variant="primary" size="md" className="w-full font-black uppercase tracking-wider">
+              <Button variant="primary" size="md" className="w-full font-black uppercase tracking-wider hidden">
                 Ir a coordinación
               </Button>
             </Link>

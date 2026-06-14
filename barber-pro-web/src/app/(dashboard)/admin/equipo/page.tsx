@@ -28,6 +28,7 @@ interface EquipoMember {
   is_active: boolean
   created_at: string
   profile_id: string | null
+  is_configured?: boolean
 }
 
 interface BarberoProfile {
@@ -97,9 +98,48 @@ export default function AdminEquipoPage() {
         query = query.eq('is_active', true)
       }
 
-      const { data, error } = await query
+      const { data: equipoData, error } = await query
       if (error) throw error
-      if (data) setMembers(data)
+
+      const { data: barberosData } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role, avatar_url')
+        .in('role', ['barbero', 'coordinador', 'admin'])
+        .eq('is_active', true)
+
+      if (barberosData) setBarberos(barberosData as any)
+
+      const processed: EquipoMember[] = []
+      const foundProfileIds = new Set()
+
+      if (equipoData) {
+        equipoData.forEach((eq: any) => {
+          if (eq.profile_id) foundProfileIds.add(eq.profile_id)
+          processed.push({ ...eq, is_configured: true })
+        })
+      }
+
+      if (filter === 'todos' && barberosData) {
+        barberosData.forEach((b: any) => {
+          if (!foundProfileIds.has(b.id) && b.role === 'barbero') {
+             processed.push({
+               id: 'virtual_' + b.id,
+               nombre: b.full_name || 'Barbero',
+               especialidad: 'Especialista',
+               descripcion: 'Pendiente de configurar',
+               imagen_url: b.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(b.full_name || 'B')}&background=f59e0b&color=000&size=256`,
+               redes_sociales: {},
+               sort_order: 999,
+               is_active: false,
+               profile_id: b.id,
+               is_configured: false,
+               created_at: new Date().toISOString()
+             })
+          }
+        })
+      }
+
+      setMembers(processed)
     } catch (e: any) {
       console.error(e)
       toastError(e.message)
@@ -163,9 +203,15 @@ export default function AdminEquipoPage() {
       }
 
       if (editing) {
-        const { error } = await supabase.from('equipo_home').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editing.id)
-        if (error) throw error
-        toastSuccess('Miembro actualizado')
+        if (editing.is_configured === false) {
+          const { error } = await supabase.from('equipo_home').insert(payload)
+          if (error) throw error
+          toastSuccess('Miembro configurado y agregado al equipo')
+        } else {
+          const { error } = await supabase.from('equipo_home').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editing.id)
+          if (error) throw error
+          toastSuccess('Miembro actualizado')
+        }
       } else {
         const { error } = await supabase.from('equipo_home').insert(payload)
         if (error) throw error
@@ -184,6 +230,10 @@ export default function AdminEquipoPage() {
   }
 
   const toggleActive = async (member: EquipoMember) => {
+    if (member.is_configured === false) {
+      toastError('Debes editar y guardar al barbero antes de hacerlo visible')
+      return;
+    }
     const { error } = await supabase.from('equipo_home').update({ is_active: !member.is_active, updated_at: new Date().toISOString() }).eq('id', member.id)
     if (error) {
       toastError('Error al cambiar estado')
@@ -291,7 +341,7 @@ export default function AdminEquipoPage() {
 
                 {!member.is_active ? (
                   <Badge variant="outline" className="absolute top-4 right-4 bg-zinc-500/20 text-zinc-300 border-zinc-500/30 uppercase font-black text-[10px] tracking-widest px-3 py-1">
-                    Oculto
+                    {member.is_configured === false ? 'Pendiente' : 'Oculto'}
                   </Badge>
                 ) : null}
 
@@ -312,13 +362,15 @@ export default function AdminEquipoPage() {
                       >
                         {member.is_active ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
-                      <button
-                        onClick={() => deleteMember(member.id)}
-                        className="w-12 h-12 rounded-full bg-red-500 text-white flex items-center justify-center shadow-2xl hover:bg-red-600 transition-colors"
-                        title="Eliminar"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                      {member.is_configured !== false && (
+                        <button
+                          onClick={() => deleteMember(member.id)}
+                          className="w-12 h-12 rounded-full bg-red-500 text-white flex items-center justify-center shadow-2xl hover:bg-red-600 transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
                     </>
                 </div>
               </div>

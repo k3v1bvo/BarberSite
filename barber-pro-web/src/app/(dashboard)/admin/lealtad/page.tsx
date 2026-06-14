@@ -62,6 +62,13 @@ export default function AdminLealtadPage() {
   const [promoForm, setPromoForm] = useState(emptyPromo)
   const [savingPromo, setSavingPromo] = useState(false)
 
+  // Cliente Edit State
+  const [showClienteModal, setShowClienteModal] = useState(false)
+  const [editingCliente, setEditingCliente] = useState<any | null>(null)
+  const [clienteForm, setClienteForm] = useState({ nombre: '', telefono: '', ci: '', fecha_nacimiento: '' })
+  const [savingCliente, setSavingCliente] = useState(false)
+  const [resettingPwd, setResettingPwd] = useState(false)
+
   // Cumpleaños verificados hoy
   const [verifs, setVerifs] = useState<any[]>([])
 
@@ -148,6 +155,53 @@ export default function AdminLealtadPage() {
     success('Recompensa otorgada'); loadAll()
   }
 
+  const openEditCliente = (c: any) => {
+    setEditingCliente(c)
+    setClienteForm({
+      nombre: c.nombre || '',
+      telefono: c.telefono || '',
+      ci: c.ci || '',
+      fecha_nacimiento: c.fecha_nacimiento || ''
+    })
+    setShowClienteModal(true)
+  }
+
+  const saveCliente = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSavingCliente(true)
+    try {
+      const payload: any = { ...clienteForm, updated_at: new Date().toISOString() }
+      if (!payload.fecha_nacimiento) payload.fecha_nacimiento = null
+      
+      const { error: err } = await supabase.from('clientes').update(payload).eq('id', editingCliente.id)
+      if (err) throw err
+      success('Cliente actualizado correctamente')
+      setShowClienteModal(false)
+      loadAll()
+    } catch (err: any) {
+      toastError(err.message || 'Error al actualizar el cliente')
+    } finally {
+      setSavingCliente(false)
+    }
+  }
+
+  const resetPassword = async () => {
+    setResettingPwd(true)
+    try {
+      const res = await fetch('/api/admin/clientes/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_id: editingCliente.id })
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      success('Se ha enviado un enlace de recuperación al correo del cliente.')
+    } catch (err: any) {
+      toastError(err.message || 'Error al enviar enlace de restablecimiento')
+    } finally {
+      setResettingPwd(false)
+    }
+  }
+
   // ── Referidos CRUD ──
   const otorgarDescuentoReferido = async (ref: any) => {
     if (!confirm(`¿Otorgar descuento/bono a ${ref.recomendante?.nombre}? Se marcará como entregado.`)) return
@@ -222,9 +276,15 @@ export default function AdminLealtadPage() {
 
   const clientesFiltrados = clientes.filter(c => {
     if (filtro && !c.nombre?.toLowerCase().includes(filtro.toLowerCase())) return false;
-    if (nivelFiltro && (c.nivel_fidelidad ?? 'BRONCE') !== nivelFiltro) return false;
+    if (nivelFiltro && calcularNivel(c.total_visitas ?? 0) !== nivelFiltro) return false;
     return true;
   });
+
+  function calcularNivel(visitas: number) {
+    const metasActivas = [...metas].filter(m => m.is_active).sort((a, b) => b.visitas_requeridas - a.visitas_requeridas)
+    const meta = metasActivas.find(m => visitas >= m.visitas_requeridas)
+    return meta ? meta.nombre.toUpperCase() : 'BRONCE'
+  }
 
   return (
     <div className="space-y-8 pb-20">
@@ -330,11 +390,22 @@ export default function AdminLealtadPage() {
                   <tr key={c.id} className="border-b border-white/5 hover:bg-white/5">
                     <td className="py-4 px-4 font-bold text-white">{c.nombre}</td>
                     <td className="py-4 px-4">
-                      <Badge variant={c.nivel_fidelidad === 'ORO' ? 'warning' : 'default'} className="text-[10px] uppercase font-black">{c.nivel_fidelidad ?? 'BRONCE'}</Badge>
+                      <Badge 
+                        variant={
+                          calcularNivel(c.total_visitas ?? 0) === 'ORO' ? 'warning' : 
+                          calcularNivel(c.total_visitas ?? 0) === 'DIAMANTE' ? 'success' : 
+                          calcularNivel(c.total_visitas ?? 0) === 'PLATINO' ? 'info' : 
+                          calcularNivel(c.total_visitas ?? 0) === 'PLATA' ? 'outline' : 'default'
+                        } 
+                        className="text-[10px] uppercase font-black"
+                      >
+                        {calcularNivel(c.total_visitas ?? 0)}
+                      </Badge>
                     </td>
                     <td className="py-4 px-4 text-amber-500 font-black text-lg">{c.total_visitas ?? 0}</td>
                     <td className="py-4 px-4 text-zinc-400">Bs. {c.total_gastado ?? 0}</td>
-                    <td className="py-4 px-4 text-right space-x-1">
+                    <td className="py-4 px-4 text-right space-x-1 whitespace-nowrap">
+                      <Button variant="outline" size="sm" onClick={() => openEditCliente(c)} title="Editar información del cliente"><Edit className="w-4 h-4" /></Button>
                       <Button variant="outline" size="sm" onClick={() => ajustarVisitas(c.id, 1)}>+1</Button>
                       <Button variant="outline" size="sm" onClick={() => ajustarVisitas(c.id, -1)}>-1</Button>
                       <Button variant="outline" size="sm" onClick={() => fijarVisitas(c.id, c.total_visitas ?? 0)}>Fijar</Button>
@@ -651,6 +722,62 @@ export default function AdminLealtadPage() {
           </Card>
         </div>
       )}
+
+      {/* ══ MODAL EDITAR CLIENTE ══ */}
+      {showClienteModal && editingCliente && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowClienteModal(false)}>
+          <div className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-2xl p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-black uppercase text-white">Editar Cliente</h3>
+              <button onClick={() => setShowClienteModal(false)} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            
+            <form onSubmit={saveCliente} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-zinc-400 uppercase mb-1">Nombre Completo</label>
+                <Input required value={clienteForm.nombre} onChange={e => setClienteForm({ ...clienteForm, nombre: e.target.value })} className="bg-zinc-950 border-white/10" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-zinc-400 uppercase mb-1">Teléfono</label>
+                <Input value={clienteForm.telefono} onChange={e => setClienteForm({ ...clienteForm, telefono: e.target.value })} className="bg-zinc-950 border-white/10" placeholder="+591..." />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-400 uppercase mb-1">CI / Documento</label>
+                  <Input value={clienteForm.ci} onChange={e => setClienteForm({ ...clienteForm, ci: e.target.value })} className="bg-zinc-950 border-white/10" placeholder="Ej: 1234567" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-zinc-400 uppercase mb-1">F. Nacimiento</label>
+                  <Input type="date" value={clienteForm.fecha_nacimiento} onChange={e => setClienteForm({ ...clienteForm, fecha_nacimiento: e.target.value })} className="bg-zinc-950 border-white/10 [color-scheme:dark]" />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-white/5 space-y-3">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full justify-start text-zinc-300 border-white/10 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-500 transition-colors"
+                  onClick={resetPassword}
+                  disabled={resettingPwd}
+                >
+                  {resettingPwd ? 'Enviando...' : '📧 Enviar Enlace de Cambio de Contraseña'}
+                </Button>
+                <p className="text-[10px] text-zinc-500 text-center leading-relaxed">
+                  Si el cliente tiene una cuenta vinculada, recibirá un correo con un enlace para cambiar su contraseña.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowClienteModal(false)}>Cancelar</Button>
+                <Button type="submit" variant="primary" className="flex-1" disabled={savingCliente}>
+                  {savingCliente ? 'Guardando...' : 'Guardar Cambios'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
