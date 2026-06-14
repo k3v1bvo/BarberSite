@@ -19,7 +19,8 @@ import {
   Wallet,
   Activity,
   Heart,
-  Crown
+  Crown,
+  Download
 } from 'lucide-react'
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -267,6 +268,23 @@ export default function ReportesPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const exportarCSV = () => {
+    const cabeceras = ['Fecha', 'Ingresos', 'Egresos', 'Utilidad Neta']
+    const filas = data.finanzasDiarias.map((d: any) => [d.fecha, d.ingresos, d.egresos, d.utilidad])
+    
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + cabeceras.join(",") + "\n"
+      + filas.map((e: any[]) => e.join(",")).join("\n")
+
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement("a")
+    link.setAttribute("href", encodedUri)
+    link.setAttribute("download", `reporte_financiero_${fechaInicio}_al_${fechaFin}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   // Helper para renderizar badges de tendencia
@@ -624,28 +642,41 @@ export default function ReportesPage() {
       {/* Filtros */}
       <Card className="border-amber-500/10 bg-zinc-900/40">
         <CardContent className="p-6">
-          <div className="flex flex-wrap gap-6 items-end">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Fecha Inicio</label>
-              <input
-                type="date"
-                className="h-12 w-48 border border-white/10 bg-zinc-950 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
-                value={fechaInicio}
-                onChange={(e) => setFechaInicio(e.target.value)}
-              />
+          <div className="flex flex-wrap gap-6 items-end justify-between">
+            <div className="flex flex-wrap gap-6 items-end">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Fecha Inicio</label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    style={{ colorScheme: 'dark' }}
+                    className="h-12 w-48 border border-white/10 bg-zinc-950 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                    value={fechaInicio}
+                    onChange={(e) => setFechaInicio(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Fecha Fin</label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    style={{ colorScheme: 'dark' }}
+                    className="h-12 w-48 border border-white/10 bg-zinc-950 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                    value={fechaFin}
+                    onChange={(e) => setFechaFin(e.target.value)}
+                  />
+                </div>
+              </div>
+              <Button variant="primary" size="lg" className="h-12 uppercase tracking-widest font-black" onClick={loadReportes}>
+                <TrendingUp className="w-4 h-4 mr-2" />
+                Actualizar Datos
+              </Button>
             </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Fecha Fin</label>
-              <input
-                type="date"
-                className="h-12 w-48 border border-white/10 bg-zinc-950 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
-                value={fechaFin}
-                onChange={(e) => setFechaFin(e.target.value)}
-              />
-            </div>
-            <Button variant="primary" size="lg" className="h-12 uppercase tracking-widest font-black" onClick={loadReportes}>
-              <TrendingUp className="w-4 h-4 mr-2" />
-              Actualizar Datos
+            
+            <Button variant="outline" size="lg" className="h-12 uppercase tracking-widest font-black border-white/10 hover:bg-white/5" onClick={exportarCSV}>
+              <Download className="w-4 h-4 mr-2" />
+              Exportar CSV
             </Button>
           </div>
         </CardContent>
