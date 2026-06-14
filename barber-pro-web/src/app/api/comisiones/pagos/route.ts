@@ -110,7 +110,7 @@ export async function POST(req: Request) {
   if (descuento_adelanto > 0) {
     const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', currentUserId).single()
     await supabase.from('transactions').insert({
-      libro: 'CAJA_CHICA',
+      libro: metodo_pago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
       fecha: new Date().toISOString().split('T')[0],
       ci: '0000000',
       nombre: 'Devolución Adelanto (vía Comisión)',
@@ -121,6 +121,7 @@ export async function POST(req: Request) {
       tipo_movimiento: 'INGRESO',
       es_sancion: false,
       empleado_id: barbero_id,
+      metodo_pago: metodo_pago,
       usuario_registro: profile?.full_name || 'Sistema',
     })
   }
@@ -142,6 +143,32 @@ export async function POST(req: Request) {
     await supabase.from('bonos')
       .update({ pagado: true, pagado_at: new Date().toISOString() })
       .in('id', bonos_ids)
+  }
+
+  // Insertar EGRESO en la caja por el pago de comisiones
+  const { data: adminProfile } = await supabase.from('profiles').select('full_name').eq('id', currentUserId).single()
+  const { data: barberoProfile } = await supabase.from('profiles').select('full_name').eq('id', barbero_id).single()
+  
+  if (monto_total > 0) {
+    const { error: egresoError } = await supabase.from('transactions').insert({
+      libro: metodo_pago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
+      fecha: new Date().toISOString().split('T')[0],
+      ci: '0000000',
+      nombre: `Pago Comisiones a ${barberoProfile?.full_name || 'Barbero'}`,
+      cuenta_codigo: 'EGR-COM',
+      cuenta_detalle: 'Pago de Comisiones / Sueldos',
+      glosa: `Pago ${periodo_tipo} del ${fecha_inicio} al ${fecha_fin}. (Pago ID: ${pago.id})`,
+      costo: monto_total,
+      tipo_movimiento: 'EGRESO',
+      es_sancion: false,
+      empleado_id: barbero_id,
+      metodo_pago: metodo_pago,
+      usuario_registro: adminProfile?.full_name || 'Sistema',
+    })
+
+    if (egresoError) {
+      console.error("Error al registrar egreso de comisión en caja:", egresoError)
+    }
   }
 
   return NextResponse.json({ success: true, pago })

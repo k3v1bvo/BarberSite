@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import { formatCurrency } from '@/lib/utils'
-import { ArrowLeft, DollarSign, CheckCircle, Filter, Download, Edit } from 'lucide-react'
+import { ArrowLeft, DollarSign, CheckCircle, Filter, Download, Edit, RefreshCw } from 'lucide-react'
 
 export default function AdminComisionesPage() {
   const router = useRouter()
@@ -19,9 +19,10 @@ export default function AdminComisionesPage() {
   const [resumen, setResumen] = useState({ pendiente: 0, pagado: 0, hoy: 0, semana: 0 })
   const [barberoId, setBarberoId] = useState('')
   const [estado, setEstado] = useState('pendiente')
-  const [metodoPago, setMetodoPago] = useState('Efectivo')
+  const [metodoPago, setMetodoPago] = useState('efectivo')
   const [periodo, setPeriodo] = useState<'diario' | 'semanal' | 'personalizado'>('semanal')
   const [loading, setLoading] = useState(true)
+  const [isRecalculating, setIsRecalculating] = useState(false)
 
   const [finanzas, setFinanzas] = useState({ saldo_adelantos: 0, sanciones_pendientes: [] as any[], total_sanciones: 0, bonos_pendientes: [] as any[], total_bonos: 0 })
   const [descuentoAdelanto, setDescuentoAdelanto] = useState<number>(0)
@@ -113,6 +114,23 @@ export default function AdminComisionesPage() {
     load()
   }
 
+  const recalcularHistorico = async () => {
+    if (!confirm('¿Deseas intentar recalcular las comisiones antiguas que se guardaron en $0.00 automáticamente? El sistema revisará el porcentaje de cada barbero y el precio del servicio.')) return
+    
+    setIsRecalculating(true)
+    try {
+      const res = await fetch('/api/admin/comisiones/recalcular', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      success(data.message || 'Recálculo finalizado')
+      load()
+    } catch (err: any) {
+      toastError(err.message || 'Error al recalcular')
+    } finally {
+      setIsRecalculating(false)
+    }
+  }
+
   const exportarCSV = () => {
     const rows = [
       ['Fecha', 'Barbero', 'Servicio', 'Cliente', 'Comisión', 'Estado'],
@@ -147,6 +165,10 @@ export default function AdminComisionesPage() {
           <h1 className="text-4xl font-black text-white uppercase">Control de <span className="text-amber-500">Comisiones</span></h1>
           <p className="text-zinc-500 mt-2">Pagos pendientes, historial y reportes por barbero</p>
         </div>
+        <Button variant="outline" className="border-amber-500/30 text-amber-500 hover:bg-amber-500 hover:text-black" onClick={recalcularHistorico} disabled={isRecalculating}>
+          <RefreshCw className={`w-4 h-4 mr-2 ${isRecalculating ? 'animate-spin' : ''}`} /> 
+          Corregir Citas a $0.00
+        </Button>
         <Button variant="outline" onClick={exportarCSV} disabled={!citas.length}>
           <Download className="w-4 h-4 mr-2" /> Exportar CSV
         </Button>
@@ -186,7 +208,11 @@ export default function AdminComisionesPage() {
               <option value="semanal">Pago semanal</option>
               <option value="personalizado">Personalizado</option>
             </select>
-            <Input placeholder="Método de pago" value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="max-w-[180px]" />
+            <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white uppercase text-xs font-bold" value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}>
+              <option value="efectivo">Efectivo</option>
+              <option value="qr">QR / Transferencia</option>
+              <option value="tarjeta">Tarjeta</option>
+            </select>
           </div>
 
           {barberoId && estado === 'pendiente' && (

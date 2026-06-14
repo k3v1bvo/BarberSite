@@ -14,38 +14,56 @@ interface Barbero {
   email: string
 }
 
+interface Cliente {
+  id: string
+  nombre: string
+  email: string | null
+  telefono: string | null
+  total_visitas: number
+}
+
 export default function SincronizarHistorialPage() {
+  const [tab, setTab] = useState<'barberos' | 'clientes'>('barberos')
   const [barberos, setBarberos] = useState<Barbero[]>([])
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  
+  // States Barbero
   const [selectedBarbero, setSelectedBarbero] = useState<string>('')
   const [nombreAntiguo, setNombreAntiguo] = useState('')
+  
+  // States Cliente
+  const [clienteAntiguoId, setClienteAntiguoId] = useState('')
+  const [clienteNuevoId, setClienteNuevoId] = useState('')
+
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [result, setResult] = useState<{success: boolean, message: string} | null>(null)
-  
   const { success, error: toastError } = useToast()
   const supabase = createClient()
 
-  const loadBarberos = useCallback(async () => {
+  const loadDatos = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .in('role', ['barbero', 'coordinador'])
-        .order('full_name')
+      const [barberosRes, clientesRes] = await Promise.all([
+        supabase.from('profiles').select('id, full_name, email').in('role', ['barbero', 'coordinador']).order('full_name'),
+        supabase.from('clientes').select('id, nombre, email, telefono, total_visitas').order('nombre')
+      ])
       
-      if (error) throw error
-      setBarberos(data || [])
+      if (barberosRes.error) throw barberosRes.error
+      if (clientesRes.error) throw clientesRes.error
+
+      setBarberos(barberosRes.data || [])
+      setClientes(clientesRes.data || [])
     } catch (err) {
-      console.error('Error loading barberos:', err)
-      toastError('Error al cargar la lista de barberos')
+      console.error('Error loading data:', err)
+      toastError('Error al cargar datos')
     } finally {
       setLoading(false)
     }
   }, [supabase, toastError])
 
   useEffect(() => {
-    loadBarberos()
-  }, [loadBarberos])
+    loadDatos()
+  }, [loadDatos])
 
   const handleSync = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -88,6 +106,56 @@ export default function SincronizarHistorialPage() {
     }
   }
 
+  const handleSyncCliente = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!clienteAntiguoId || !clienteNuevoId) {
+      toastError('Por favor selecciona ambos clientes')
+      return
+    }
+
+    if (clienteAntiguoId === clienteNuevoId) {
+      toastError('No puedes seleccionar el mismo cliente en ambos campos')
+      return
+    }
+
+    const nameAntiguo = clientes.find(c => c.id === clienteAntiguoId)?.nombre
+    const nameNuevo = clientes.find(c => c.id === clienteNuevoId)?.nombre
+
+    if (!confirm(`¿Estás seguro de fusionar el historial de "${nameAntiguo}" hacia "${nameNuevo}"? Esta acción no se puede deshacer y el cliente antiguo será eliminado.`)) {
+      return
+    }
+
+    setSyncing(true)
+    setResult(null)
+
+    try {
+      const res = await fetch('/api/admin/sincronizar-cliente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_antiguo_id: clienteAntiguoId,
+          cliente_nuevo_id: clienteNuevoId
+        })
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al sincronizar')
+
+      setResult({ success: true, message: data.message })
+      success(data.message)
+      setClienteAntiguoId('')
+      setClienteNuevoId('')
+      loadDatos() // recargar clientes
+      
+    } catch (err: any) {
+      setResult({ success: false, message: err.message })
+      toastError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -108,15 +176,35 @@ export default function SincronizarHistorialPage() {
         </div>
       </div>
 
-      <Card className="bg-zinc-900 border-white/5 shadow-2xl">
+      <div className="flex bg-zinc-900 border border-white/5 rounded-xl p-1 mb-6 max-w-sm">
+        <button 
+          onClick={() => { setTab('barberos'); setResult(null); }}
+          className={`flex-1 py-2 text-sm font-bold uppercase rounded-lg transition-all ${tab === 'barberos' ? 'bg-amber-500 text-black' : 'text-zinc-400 hover:text-white'}`}
+        >
+          Barberos
+        </button>
+        <button 
+          onClick={() => { setTab('clientes'); setResult(null); }}
+          className={`flex-1 py-2 text-sm font-bold uppercase rounded-lg transition-all ${tab === 'clientes' ? 'bg-amber-500 text-black' : 'text-zinc-400 hover:text-white'}`}
+        >
+          Clientes
+        </button>
+      </div>
+
+      <Card className="bg-zinc-900 border-white/5 shadow-2xl animate-in slide-in-from-bottom-4 duration-500">
         <CardHeader>
-          <CardTitle className="text-xl text-white">Vincular Operario (Excel) a Perfil (Sistema)</CardTitle>
+          <CardTitle className="text-xl text-white">
+            {tab === 'barberos' ? 'Vincular Operario (Excel) a Perfil (Sistema)' : 'Fusionar Clientes Duplicados'}
+          </CardTitle>
           <p className="text-sm text-zinc-400 mt-2">
-            El sistema buscará en las notas de las citas huérfanas el patrón exacto <strong>"Op: [Nombre]."</strong> y las asignará al barbero seleccionado.
+            {tab === 'barberos' 
+              ? 'El sistema buscará en las notas de las citas huérfanas el patrón exacto "Op: [Nombre]." y las asignará al barbero seleccionado.'
+              : 'Selecciona un cliente antiguo para transferir todas sus citas, visitas y gastos al cliente nuevo, borrando al antiguo.'}
           </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSync} className="space-y-6">
+          {tab === 'barberos' ? (
+            <form onSubmit={handleSync} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               
               {/* Paso 1 */}
@@ -190,6 +278,85 @@ export default function SincronizarHistorialPage() {
               )}
             </div>
           </form>
+          ) : (
+          <form onSubmit={handleSyncCliente} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              
+              {/* Paso 1 */}
+              <div className="space-y-4 bg-white/5 p-6 rounded-2xl border border-white/10">
+                <div className="flex items-center gap-3 text-red-500 font-black uppercase tracking-widest text-xs mb-4">
+                  <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center border border-red-500/50">1</div>
+                  Cliente a Eliminar (Antiguo)
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-zinc-400 font-bold uppercase">Seleccionar Cliente</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <select
+                      required
+                      value={clienteAntiguoId}
+                      onChange={(e) => setClienteAntiguoId(e.target.value)}
+                      className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-red-500/50 outline-none transition-all appearance-none"
+                    >
+                      <option value="">-- Buscar Cliente --</option>
+                      {clientes.map(c => (
+                        <option key={c.id} value={c.id}>{c.nombre} {c.telefono ? `(${c.telefono})` : ''} - {c.total_visitas} visitas</option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-zinc-600 mt-1">Este cliente donará su historial y luego será borrado de la base de datos.</p>
+                </div>
+              </div>
+
+              {/* Paso 2 */}
+              <div className="space-y-4 bg-white/5 p-6 rounded-2xl border border-white/10">
+                <div className="flex items-center gap-3 text-green-500 font-black uppercase tracking-widest text-xs mb-4">
+                  <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/50">2</div>
+                  Cliente a Mantener (Nuevo)
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-zinc-400 font-bold uppercase">Seleccionar Cliente</label>
+                  <div className="relative">
+                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <select
+                      required
+                      value={clienteNuevoId}
+                      onChange={(e) => setClienteNuevoId(e.target.value)}
+                      className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-green-500/50 outline-none transition-all appearance-none"
+                    >
+                      <option value="">-- Buscar Cliente --</option>
+                      {clientes.map(c => (
+                        <option key={c.id} value={c.id}>{c.nombre} {c.telefono ? `(${c.telefono})` : ''} - {c.total_visitas} visitas</option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-zinc-600 mt-1">Este cliente absorberá las visitas, gastos e historial de citas del antiguo.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Submit */}
+            <div className="pt-4 flex flex-col items-center border-t border-white/5">
+              <Button
+                type="submit"
+                variant="primary"
+                className="w-full md:w-auto min-w-[250px] h-14 text-sm font-black uppercase tracking-widest shadow-xl shadow-amber-500/20"
+                disabled={syncing || !clienteAntiguoId || !clienteNuevoId}
+              >
+                {syncing ? (
+                  <span className="flex items-center gap-2"><RefreshCw className="animate-spin w-4 h-4" /> Fusionando...</span>
+                ) : 'Fusionar Clientes'}
+              </Button>
+
+              {result && (
+                <div className={`mt-6 flex items-center gap-3 p-4 rounded-xl border ${result.success ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                  {result.success ? <CheckCircle2 className="w-5 h-5" /> : null}
+                  <p className="font-bold text-sm">{result.message}</p>
+                </div>
+              )}
+            </div>
+          </form>
+          )}
         </CardContent>
       </Card>
     </div>

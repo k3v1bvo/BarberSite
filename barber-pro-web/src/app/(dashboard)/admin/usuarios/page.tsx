@@ -24,7 +24,8 @@ interface Usuario {
 }
 
 export default function UsuariosPage() {
-  const { error: toastError } = useToast()
+  const { error: toastError, success: toastSuccess } = useToast()
+  const [resettingPwd, setResettingPwd] = useState(false)
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -37,7 +38,6 @@ export default function UsuariosPage() {
     role: 'barbero' as 'barbero' | 'coordinador' | 'admin',
     comision_porcentaje: 30,
     avatar_url: '',
-    password: '',
   })
   const router = useRouter()
   const supabase = createClient()
@@ -69,6 +69,15 @@ export default function UsuariosPage() {
     e.preventDefault()
     try {
       if (editingUser) {
+        if (formData.email !== editingUser.email) {
+          const patchRes = await fetch('/api/admin/usuarios', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: editingUser.id, email: formData.email })
+          })
+          if (!patchRes.ok) throw new Error((await patchRes.json()).error)
+        }
+
         const { error } = await supabase
           .from('profiles')
           .update({
@@ -83,6 +92,7 @@ export default function UsuariosPage() {
           .eq('id', editingUser.id)
 
         if (error) throw error
+        toastSuccess('Usuario actualizado')
       } else {
         const response = await fetch('/api/admin/usuarios', {
           method: 'POST',
@@ -91,7 +101,6 @@ export default function UsuariosPage() {
           },
           body: JSON.stringify({
             email: formData.email,
-            password: formData.password,
             full_name: formData.full_name,
             phone: formData.phone,
             ci: formData.ci,
@@ -118,7 +127,6 @@ export default function UsuariosPage() {
         role: 'barbero',
         comision_porcentaje: 30,
         avatar_url: '',
-        password: '',
       })
       loadUsuarios()
     } catch (error: any) {
@@ -249,7 +257,6 @@ export default function UsuariosPage() {
                               role: usuario.role as any,
                               comision_porcentaje: usuario.comision_porcentaje,
                               avatar_url: usuario.avatar_url || '',
-                              password: '',
                             })
                             setShowModal(true)
                           }}
@@ -320,20 +327,8 @@ export default function UsuariosPage() {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
-                    disabled={!!editingUser}
                     className="bg-zinc-900"
                   />
-                  {!editingUser && (
-                    <Input
-                      label="Contraseña"
-                      type="password"
-                      placeholder="••••••••"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      required={!editingUser}
-                      className="bg-zinc-900"
-                    />
-                  )}
                   <Input
                     label="Teléfono"
                     type="tel"
@@ -381,6 +376,37 @@ export default function UsuariosPage() {
                         className="bg-zinc-900"
                       />
                   </div>
+                  {editingUser && (
+                    <div className="md:col-span-2 pt-4 border-t border-white/5 space-y-3">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        className="w-full justify-center text-zinc-300 border-white/10 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-500 transition-colors"
+                        disabled={resettingPwd}
+                        onClick={async () => {
+                          setResettingPwd(true)
+                          try {
+                            const res = await fetch('/api/admin/usuarios/reset-password', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ email: formData.email })
+                            })
+                            if (!res.ok) throw new Error((await res.json()).error)
+                            toastSuccess('Se ha enviado el enlace de recuperación a ' + formData.email)
+                          } catch (err: any) {
+                            toastError(err.message || 'Error al enviar enlace')
+                          } finally {
+                            setResettingPwd(false)
+                          }
+                        }}
+                      >
+                        {resettingPwd ? 'Enviando...' : '📧 Enviar Enlace de Cambio de Contraseña'}
+                      </Button>
+                      <p className="text-[10px] text-zinc-500 text-center leading-relaxed uppercase font-bold">
+                        Enviará un correo con un enlace temporal para que el usuario restablezca su contraseña.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
               <div className="p-8 bg-zinc-900/30 border-t border-white/5 flex gap-4">
