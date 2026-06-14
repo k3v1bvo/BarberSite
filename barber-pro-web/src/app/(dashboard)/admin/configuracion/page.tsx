@@ -217,7 +217,10 @@ export default function AdminConfiguracionPage() {
                   onChange={(e) => setHeroConfig({ ...heroConfig, url: e.target.value })}
                   className="bg-zinc-950"
                 />
-                <p className="text-xs text-amber-400 mt-2 font-medium">Sugerencia: Usa una imagen en formato horizontal de alta calidad. Recomendado: 1920x1080px o superior.</p>
+                <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                  <p className="text-xs text-amber-400 font-medium mb-1">📸 Formato Sugerido: Imagen horizontal de alta calidad (Recomendado: 1920x1080px o superior).</p>
+                  <p className="text-xs text-amber-400/80">⚠️ Importante: Debes subir tu imagen previamente a la nube (Google Drive, Imgur, Postimages) y pegar aquí el enlace directo que termine en .jpg o .png.</p>
+                </div>
                 {heroConfig.url && isValidImageUrl(heroConfig.url) ? (
                   <div className="mt-4 p-4 border border-white/5 rounded-2xl bg-zinc-950 flex flex-col items-center justify-center gap-4">
                     <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vista Previa</p>
@@ -284,7 +287,10 @@ export default function AdminConfiguracionPage() {
                 onChange={(e) => setQrUrl(e.target.value)}
                 className="bg-zinc-950"
               />
-              <p className="text-xs text-amber-400 mt-2 font-medium">Sugerencia: Usa una imagen cuadrada y clara del código QR. Recomendado: 500x500px, formato cuadrado.</p>
+              <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                <p className="text-xs text-amber-400 font-medium mb-1">📸 Formato Sugerido: Imagen cuadrada y nítida (Recomendado: 500x500px).</p>
+                <p className="text-xs text-amber-400/80">⚠️ Importante: Pega aquí el enlace directo (URL) de la imagen previamente subida a la nube (Drive, Imgur, etc).</p>
+              </div>
             </div>
 
             {qrUrl && isValidImageUrl(qrUrl) ? (
@@ -332,6 +338,10 @@ export default function AdminConfiguracionPage() {
                   onChange={(e) => setAboutUsConfig({ ...aboutUsConfig, imagen_url: e.target.value })}
                   className="bg-zinc-950"
                 />
+                <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                  <p className="text-xs text-amber-400 font-medium mb-1">📸 Formato Sugerido: Imagen vertical tipo retrato (Recomendado: 800x1000px, proporción 4:5).</p>
+                  <p className="text-xs text-amber-400/80">⚠️ Importante: Pega aquí el enlace directo (URL) de la imagen previamente subida a la nube (Drive, Imgur, etc).</p>
+                </div>
                 {aboutUsConfig.imagen_url && isValidImageUrl(aboutUsConfig.imagen_url) && (
                   <div className="p-4 border border-white/5 rounded-2xl bg-zinc-950 flex flex-col items-center gap-4">
                     <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vista Previa de Imagen</p>
