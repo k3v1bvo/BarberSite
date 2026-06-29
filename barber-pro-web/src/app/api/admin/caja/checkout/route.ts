@@ -312,10 +312,24 @@ export async function POST(request: NextRequest) {
         
       // Despachar notificacion
       if (citaId) {
+        let clienteDataForNotif = null
+        if (finalClienteId) {
+          const { data } = await supabase.from('clientes').select('user_id, email, full_name').eq('id', finalClienteId).single()
+          clienteDataForNotif = data
+        }
+        
         const db = getNotificationDbClient(supabase)
         await dispatchNotification(db, {
           event: 'cita_completada',
-          payload: { citaId, barberoId: barbero_id, monto: precioBase + totalProductos },
+          payload: { 
+            citaId, 
+            barberoId: barbero_id, 
+            barberoNombre: barberoProfile?.full_name || 'Tu Barbero',
+            monto: precioBase + totalProductos,
+            clienteId: clienteDataForNotif?.user_id || undefined,
+            clienteEmail: clienteDataForNotif?.email || undefined,
+            clienteNombre: clienteDataForNotif?.full_name || undefined
+          },
         })
       }
     } else {

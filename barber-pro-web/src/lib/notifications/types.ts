@@ -17,6 +17,7 @@ export interface NotificationPayload {
   citaId?: string
   pedidoId?: string
   barberoId?: string
+  clienteId?: string
   clienteNombre?: string
   clienteEmail?: string
   barberoNombre?: string

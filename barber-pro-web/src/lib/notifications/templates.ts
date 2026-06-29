@@ -141,6 +141,18 @@ export function buildEmail(
         ),
       }
 
+    case 'solicitud_resena':
+      return {
+        subject: `⭐ ¿Cómo te fue hoy, ${nombre}?`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Esperamos que hayas disfrutado tu servicio!</h2>
+          <p>Tu cita con <strong>${data.barbero || 'tu barbero'}</strong> acaba de finalizar. Nos encantaría saber qué tal te pareció.</p>
+          <p>Tu opinión nos ayuda a seguir mejorando para darte el mejor estilo.</p>
+          ${cta(data.link || `${SITE}/cliente`, 'Dejar una Reseña')}`,
+          'Queremos saber tu opinión'
+        ),
+      }
+
     case 'reserva_cancelada':
       return {
         subject: '❌ Cita cancelada',

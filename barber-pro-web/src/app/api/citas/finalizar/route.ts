@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     if (cita.cliente_id) {
       const { data: clienteActual } = await supabase
         .from('clientes')
-        .select('total_visitas, total_gastado')
+        .select('total_visitas, total_gastado, email, full_name, user_id')
         .eq('id', cita.cliente_id)
         .single()
 
@@ -112,10 +112,25 @@ export async function POST(request: Request) {
         usuario_registro: 'Sistema (Auto)',
       })
 
+    // Obtener info del cliente si no se sacó arriba
+    const { data: clienteData } = await supabase
+      .from('clientes')
+      .select('email, full_name, user_id')
+      .eq('id', cita.cliente_id)
+      .single()
+
     const db = getNotificationDbClient(supabase)
     await dispatchNotification(db, {
       event: 'cita_completada',
-      payload: { citaId: cita_id, barberoId: cita.barbero_id, monto: cita.precio },
+      payload: { 
+        citaId: cita_id, 
+        barberoId: cita.barbero_id, 
+        barberoNombre: barberoProfile?.full_name || 'Tu Barbero',
+        monto: cita.precio,
+        clienteId: clienteData?.user_id || undefined,
+        clienteEmail: clienteData?.email || undefined,
+        clienteNombre: clienteData?.full_name || undefined
+      },
     })
 
     return NextResponse.json({ success: true })

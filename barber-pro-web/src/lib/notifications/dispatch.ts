@@ -236,6 +236,33 @@ export async function dispatchNotification(
           link: '/admin/reportes',
           metadata: { cita_id: p.citaId },
         })
+
+        if (p.clienteId) {
+          await notifyUser(
+            db,
+            p.clienteId,
+            event,
+            {
+              titulo: '⭐ ¿Cómo te fue?',
+              mensaje: `Tu cita ha finalizado. Por favor déjanos tu reseña.`,
+              tipo: 'info',
+              categoria: event,
+              link: '/cliente',
+              metadata: { cita_id: p.citaId },
+            },
+            p.clienteEmail
+              ? {
+                  to: p.clienteEmail,
+                  template: 'solicitud_resena',
+                  data: {
+                    nombre: p.clienteNombre,
+                    barbero: p.barberoNombre,
+                    link: `${SITE}/cliente`,
+                  },
+                }
+              : undefined
+          )
+        }
         break
       }
 
