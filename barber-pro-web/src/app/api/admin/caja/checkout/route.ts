@@ -318,13 +318,19 @@ export async function POST(request: NextRequest) {
           clienteDataForNotif = data
         }
         
+        let finalBarberoNombre = 'Tu Barbero'
+        if (barbero_id) {
+          const { data: bData } = await supabase.from('profiles').select('full_name').eq('id', barbero_id).single()
+          if (bData?.full_name) finalBarberoNombre = bData.full_name
+        }
+        
         const db = getNotificationDbClient(supabase)
         await dispatchNotification(db, {
           event: 'cita_completada',
           payload: { 
             citaId, 
             barberoId: barbero_id, 
-            barberoNombre: barberoProfile?.full_name || 'Tu Barbero',
+            barberoNombre: finalBarberoNombre,
             monto: precioBase + totalProductos,
             clienteId: clienteDataForNotif?.user_id || undefined,
             clienteEmail: clienteDataForNotif?.email || undefined,

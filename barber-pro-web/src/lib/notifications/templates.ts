@@ -59,6 +59,7 @@ function cta(href: string, label: string): string {
 }
 
 export interface EmailTemplateInput {
+  link?: string
   nombre?: string
   servicio?: string
   fecha?: string

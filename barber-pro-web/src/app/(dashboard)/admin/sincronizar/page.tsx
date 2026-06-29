@@ -31,10 +31,16 @@ export default function SincronizarHistorialPage() {
   // States Barbero
   const [selectedBarbero, setSelectedBarbero] = useState<string>('')
   const [nombreAntiguo, setNombreAntiguo] = useState('')
+  const [operadoresAntiguos, setOperadoresAntiguos] = useState<string[]>([])
+  const [showOperadoresDropdown, setShowOperadoresDropdown] = useState(false)
   
   // States Cliente
   const [clienteAntiguoId, setClienteAntiguoId] = useState('')
   const [clienteNuevoId, setClienteNuevoId] = useState('')
+  const [searchClienteAntiguo, setSearchClienteAntiguo] = useState('')
+  const [searchClienteNuevo, setSearchClienteNuevo] = useState('')
+  const [showClienteAntiguoDropdown, setShowClienteAntiguoDropdown] = useState(false)
+  const [showClienteNuevoDropdown, setShowClienteNuevoDropdown] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -44,9 +50,10 @@ export default function SincronizarHistorialPage() {
 
   const loadDatos = useCallback(async () => {
     try {
-      const [barberosRes, clientesRes] = await Promise.all([
+      const [barberosRes, clientesRes, citasRes] = await Promise.all([
         supabase.from('profiles').select('id, full_name, email').in('role', ['barbero', 'coordinador']).order('full_name'),
-        supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas').order('nombre')
+        supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas').order('nombre'),
+        supabase.from('citas').select('notas').is('barbero_id', null).not('notas', 'is', null)
       ])
       
       if (barberosRes.error) throw barberosRes.error
@@ -54,6 +61,19 @@ export default function SincronizarHistorialPage() {
 
       setBarberos(barberosRes.data || [])
       setClientes(clientesRes.data || [])
+
+      if (citasRes.data) {
+        const uniqueOps = new Set<string>()
+        citasRes.data.forEach(cita => {
+          if (cita.notas) {
+            const match = cita.notas.match(/Op:\s*([^.]+)\./)
+            if (match && match[1]) {
+              uniqueOps.add(match[1].trim())
+            }
+          }
+        })
+        setOperadoresAntiguos(Array.from(uniqueOps).sort())
+      }
     } catch (err) {
       console.error('Error loading data:', err)
       toastError('Error al cargar datos')
@@ -147,6 +167,8 @@ export default function SincronizarHistorialPage() {
       success(data.message)
       setClienteAntiguoId('')
       setClienteNuevoId('')
+      setSearchClienteAntiguo('')
+      setSearchClienteNuevo('')
       loadDatos() // recargar clientes
       
     } catch (err: any) {
@@ -223,11 +245,41 @@ export default function SincronizarHistorialPage() {
                       required
                       placeholder="Ej: JHOEL LEÓN MORUCHE"
                       value={nombreAntiguo}
-                      onChange={(e) => setNombreAntiguo(e.target.value)}
+                      onChange={(e) => {
+                        setNombreAntiguo(e.target.value.toUpperCase())
+                        setShowOperadoresDropdown(true)
+                      }}
+                      onFocus={() => setShowOperadoresDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowOperadoresDropdown(false), 200)}
                       className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all uppercase"
                     />
+                    
+                    {/* Dropdown Operadores */}
+                    {showOperadoresDropdown && operadoresAntiguos.length > 0 && (
+                      <div className="absolute z-50 w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
+                        {operadoresAntiguos
+                          .filter(op => op.toUpperCase().includes(nombreAntiguo.toUpperCase()))
+                          .map((op, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-amber-500/10 hover:text-amber-400 transition-colors border-b border-white/5 last:border-0 uppercase"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                setNombreAntiguo(op.toUpperCase())
+                                setShowOperadoresDropdown(false)
+                              }}
+                            >
+                              {op}
+                            </button>
+                          ))}
+                        {operadoresAntiguos.filter(op => op.toUpperCase().includes(nombreAntiguo.toUpperCase())).length === 0 && (
+                          <div className="px-4 py-3 text-sm text-zinc-500 text-center">No hay operadores importados con ese nombre</div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-[10px] text-zinc-600 mt-1">Escribe el nombre tal cual aparece en las notas importadas, respetando tildes y mayúsculas.</p>
+                  <p className="text-[10px] text-zinc-600 mt-1">Escribe o selecciona el nombre exacto de la nota importada.</p>
                 </div>
               </div>
 
@@ -293,17 +345,49 @@ export default function SincronizarHistorialPage() {
                   <label className="text-xs text-zinc-400 font-bold uppercase">Seleccionar Cliente</label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                    <select
+                    <input
+                      type="text"
                       required
-                      value={clienteAntiguoId}
-                      onChange={(e) => setClienteAntiguoId(e.target.value)}
-                      className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-red-500/50 outline-none transition-all appearance-none"
-                    >
-                      <option value="">-- Buscar Cliente --</option>
-                      {clientes.map(c => (
-                        <option key={c.id} value={c.id}>{c.nombre} {c.ci ? `(C.I. ${c.ci})` : c.telefono ? `(${c.telefono})` : ''} - {c.total_visitas} visitas</option>
-                      ))}
-                    </select>
+                      placeholder="Buscar Cliente..."
+                      value={searchClienteAntiguo}
+                      onChange={(e) => {
+                        setSearchClienteAntiguo(e.target.value)
+                        setClienteAntiguoId('')
+                        setShowClienteAntiguoDropdown(true)
+                      }}
+                      onFocus={() => setShowClienteAntiguoDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowClienteAntiguoDropdown(false), 200)}
+                      className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-red-500/50 outline-none transition-all uppercase"
+                    />
+
+                    {/* Dropdown Cliente Antiguo */}
+                    {showClienteAntiguoDropdown && (
+                      <div className="absolute z-50 w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
+                        {clientes
+                          .filter(c => c.nombre.toUpperCase().includes(searchClienteAntiguo.toUpperCase()) || c.ci?.includes(searchClienteAntiguo) || c.telefono?.includes(searchClienteAntiguo))
+                          .slice(0, 50)
+                          .map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-red-500/10 hover:text-red-400 transition-colors border-b border-white/5 last:border-0"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                setClienteAntiguoId(c.id)
+                                setSearchClienteAntiguo(`${c.nombre} ${c.ci ? `(C.I. ${c.ci})` : c.telefono ? `(${c.telefono})` : ''}`)
+                                setShowClienteAntiguoDropdown(false)
+                              }}
+                            >
+                              <div className="font-bold uppercase text-white">{c.nombre}</div>
+                              <div className="text-[10px] text-zinc-500 mt-0.5">
+                                {c.ci && <span className="mr-2">CI: {c.ci}</span>}
+                                {c.telefono && <span className="mr-2">Tel: {c.telefono}</span>}
+                                <span>Visitas: {c.total_visitas}</span>
+                              </div>
+                            </button>
+                          ))}
+                      </div>
+                    )}
                   </div>
                   <p className="text-[10px] text-zinc-600 mt-1">Este cliente donará su historial y luego será borrado de la base de datos.</p>
                 </div>
@@ -319,17 +403,49 @@ export default function SincronizarHistorialPage() {
                   <label className="text-xs text-zinc-400 font-bold uppercase">Seleccionar Cliente</label>
                   <div className="relative">
                     <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                    <select
+                    <input
+                      type="text"
                       required
-                      value={clienteNuevoId}
-                      onChange={(e) => setClienteNuevoId(e.target.value)}
-                      className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-green-500/50 outline-none transition-all appearance-none"
-                    >
-                      <option value="">-- Buscar Cliente --</option>
-                      {clientes.map(c => (
-                        <option key={c.id} value={c.id}>{c.nombre} {c.ci ? `(C.I. ${c.ci})` : c.telefono ? `(${c.telefono})` : ''} - {c.total_visitas} visitas</option>
-                      ))}
-                    </select>
+                      placeholder="Buscar Cliente..."
+                      value={searchClienteNuevo}
+                      onChange={(e) => {
+                        setSearchClienteNuevo(e.target.value)
+                        setClienteNuevoId('')
+                        setShowClienteNuevoDropdown(true)
+                      }}
+                      onFocus={() => setShowClienteNuevoDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowClienteNuevoDropdown(false), 200)}
+                      className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-green-500/50 outline-none transition-all uppercase"
+                    />
+
+                    {/* Dropdown Cliente Nuevo */}
+                    {showClienteNuevoDropdown && (
+                      <div className="absolute z-50 w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
+                        {clientes
+                          .filter(c => c.nombre.toUpperCase().includes(searchClienteNuevo.toUpperCase()) || c.ci?.includes(searchClienteNuevo) || c.telefono?.includes(searchClienteNuevo))
+                          .slice(0, 50)
+                          .map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-green-500/10 hover:text-green-400 transition-colors border-b border-white/5 last:border-0"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                setClienteNuevoId(c.id)
+                                setSearchClienteNuevo(`${c.nombre} ${c.ci ? `(C.I. ${c.ci})` : c.telefono ? `(${c.telefono})` : ''}`)
+                                setShowClienteNuevoDropdown(false)
+                              }}
+                            >
+                              <div className="font-bold uppercase text-white">{c.nombre}</div>
+                              <div className="text-[10px] text-zinc-500 mt-0.5">
+                                {c.ci && <span className="mr-2">CI: {c.ci}</span>}
+                                {c.telefono && <span className="mr-2">Tel: {c.telefono}</span>}
+                                <span>Visitas: {c.total_visitas}</span>
+                              </div>
+                            </button>
+                          ))}
+                      </div>
+                    )}
                   </div>
                   <p className="text-[10px] text-zinc-600 mt-1">Este cliente absorberá las visitas, gastos e historial de citas del antiguo.</p>
                 </div>
