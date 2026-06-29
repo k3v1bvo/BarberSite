@@ -268,7 +268,7 @@ export default function ProductosPage() {
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest">Articulo / Categoría</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest">Identificador SKU</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Stock Disponible</th>
-                  <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Inversión Unit.</th>
+                  <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Precio Costo</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Venta Unit.</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Precio Tienda</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Disponibilidad</th>
@@ -475,7 +475,7 @@ export default function ProductosPage() {
                     className="bg-zinc-900"
                   />
                   <Input
-                    label="Inversión Unit."
+                    label="Precio Costo (Inversión)"
                     type="number"
                     placeholder="0.00"
                     value={formData.precio_costo}
