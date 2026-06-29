@@ -7,6 +7,35 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
+const playNotificationSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioContext) return
+    
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gainNode = ctx.createGain()
+    
+    osc.connect(gainNode)
+    gainNode.connect(ctx.destination)
+    
+    // Tono agradable (ding)
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime) // D5
+    osc.frequency.exponentialRampToValueAtTime(880.00, ctx.currentTime + 0.1) // A5
+    
+    // Volumen y fade out
+    gainNode.gain.setValueAtTime(0, ctx.currentTime)
+    gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05)
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
+    
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + 0.5)
+  } catch (e) {
+    // Ignorar si el navegador bloquea el autoplay o no soporta Web Audio API
+  }
+}
+
 interface Notificacion {
   id: string
   titulo: string
@@ -61,6 +90,7 @@ export function CampanaNotificaciones({ userId, userRole }: Props) {
         (payload) => {
           const n = payload.new as Notificacion
           if (belongsToUser(n)) {
+            playNotificationSound()
             setNotificaciones((prev) => {
               if (prev.some((x) => x.id === n.id)) return prev
               return [n, ...prev]

@@ -1,6 +1,6 @@
 'use client'
 
-import { Calendar, CalendarDays, ShoppingBag, Clock, Gift } from 'lucide-react'
+import { Calendar, CalendarDays, Banknote, Clock, Gift, Users } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 const actions = [
@@ -19,11 +19,18 @@ const actions = [
     accent: 'hover:border-blue-500/40 hover:bg-blue-500/5',
   },
   {
-    label: 'Nueva venta',
-    sub: 'POS / reservar',
-    href: '/reservar',
-    icon: ShoppingBag,
+    label: 'Caja',
+    sub: 'Ventas y cobros',
+    href: '/admin/caja',
+    icon: Banknote,
     accent: 'hover:border-green-500/40 hover:bg-green-500/5',
+  },
+  {
+    label: 'Egresos',
+    sub: 'Gastos y pagos',
+    href: '/admin/egresos',
+    icon: Banknote,
+    accent: 'hover:border-red-500/40 hover:bg-red-500/5',
   },
   {
     label: 'Horarios',
@@ -38,6 +45,13 @@ const actions = [
     href: '/admin/asistencia',
     icon: Clock,
     accent: 'hover:border-orange-500/40 hover:bg-orange-500/5',
+  },
+  {
+    label: 'Clientes',
+    sub: 'Directorio completo',
+    href: '/admin/clientes',
+    icon: Users,
+    accent: 'hover:border-cyan-500/40 hover:bg-cyan-500/5',
   },
   {
     label: 'Lealtad',

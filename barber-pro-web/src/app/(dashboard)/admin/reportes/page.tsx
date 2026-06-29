@@ -32,7 +32,7 @@ const GOLD_GRADIENT = ['#fbbf24', '#f59e0b', '#d97706']
 
 export default function ReportesPage() {
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'general' | 'finanzas' | 'rendimiento' | 'clientes'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'finanzas' | 'rendimiento' | 'clientes' | 'inventario'>('general')
   const [fechaInicio, setFechaInicio] = useState(new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0])
   const [fechaFin, setFechaFin] = useState(new Date().toISOString().split('T')[0])
   
@@ -47,7 +47,8 @@ export default function ReportesPage() {
     clientesFrecuentes: [],
     clientesNuevos: 0,
     fidelidadDistribucion: [],
-    ingresosPorDiaArr: []
+    ingresosPorDiaArr: [],
+    inventarioFlujo: []
   })
   
   const router = useRouter()
@@ -80,7 +81,7 @@ export default function ReportesPage() {
       dPrevFin.setDate(dPrevFin.getDate() - 1)
       const prevFinStr = dPrevFin.toISOString().split('T')[0]
 
-      const [citasRes, txRes, prevCitasRes, prevTxRes, barberosRes, clientesRes, serviciosRes] = await Promise.all([
+      const [citasRes, txRes, prevCitasRes, prevTxRes, barberosRes, clientesRes, serviciosRes, inventarioRes] = await Promise.all([
         supabase.from('citas').select('estado, precio, fecha_hora, barbero_id, servicio_id, metodo_pago')
           .gte('fecha_hora', `${fechaInicio}T00:00:00`)
           .lte('fecha_hora', `${fechaFin}T23:59:59`),
@@ -97,7 +98,11 @@ export default function ReportesPage() {
         // Entidades
         supabase.from('profiles').select('id, full_name').eq('role', 'barbero'),
         supabase.from('clientes').select('id, nombre, telefono, total_visitas, total_gastado, created_at, nivel_fidelidad'),
-        supabase.from('servicios').select('id, nombre')
+        supabase.from('servicios').select('id, nombre'),
+        supabase.from('inventario_movimientos')
+          .select('id, tipo, cantidad, created_at, producto:productos(nombre, precio_venta, precio_tienda)')
+          .gte('created_at', `${fechaInicio}T00:00:00`)
+          .lte('created_at', `${fechaFin}T23:59:59`)
       ])
 
       const citas = citasRes.data || []
@@ -107,6 +112,7 @@ export default function ReportesPage() {
       const barberos = barberosRes.data || []
       const clientes = clientesRes.data || []
       const servicios = serviciosRes.data || []
+      const inventarioMovs = inventarioRes.data || []
 
       // --- 1. Finanzas y Transacciones ---
       let ingresosTotal = 0
@@ -241,6 +247,37 @@ export default function ReportesPage() {
       const totalCanceladas = (estadoCount['cancelado'] || 0) + (estadoCount['no_presento'] || 0)
       const tasaCancelacion = citas.length > 0 ? (totalCanceladas / citas.length) * 100 : 0
 
+      // --- 4. Flujo de Inventario ---
+      const invMap: Record<string, { ventas: number, uso: number, ingresosVenta: number, costoUso: number }> = {}
+      let totalVentasInv = 0
+      let totalUsoInv = 0
+
+      inventarioMovs.forEach((m: any) => {
+        if (!m.producto) return
+        const pName = m.producto.nombre || 'Desconocido'
+        if (!invMap[pName]) invMap[pName] = { ventas: 0, uso: 0, ingresosVenta: 0, costoUso: 0 }
+        
+        // Supongamos que tipo = 'venta' es a clientes, y 'salida' es uso tienda
+        if (m.tipo === 'venta') {
+           invMap[pName].ventas += m.cantidad
+           invMap[pName].ingresosVenta += (m.cantidad * (m.producto.precio_venta || 0))
+           totalVentasInv += (m.cantidad * (m.producto.precio_venta || 0))
+        } else if (m.tipo === 'salida' || m.tipo === 'ajuste') {
+           // asumimos salidas y ajustes como uso/pérdida
+           invMap[pName].uso += m.cantidad
+           invMap[pName].costoUso += (m.cantidad * (m.producto.precio_tienda || m.producto.precio_venta || 0))
+           totalUsoInv += (m.cantidad * (m.producto.precio_tienda || m.producto.precio_venta || 0))
+        }
+      })
+      
+      const inventarioFlujo = Object.entries(invMap).map(([nombre, vals]) => ({
+        nombre,
+        ventas: vals.ventas,
+        uso: vals.uso,
+        ingresosVenta: vals.ingresosVenta,
+        costoUso: vals.costoUso
+      }))
+
       setData({
         resumen: {
           ingresosTotal,
@@ -249,7 +286,9 @@ export default function ReportesPage() {
           totalCitas: citasCompletadas.length,
           ticketPromedio,
           tasaCancelacion: tasaCancelacion.toFixed(1),
-          tendencias
+          tendencias,
+          totalVentasInv,
+          totalUsoInv
         },
         finanzasDiarias,
         metodosPago,
@@ -622,6 +661,73 @@ export default function ReportesPage() {
     </div>
   )
 
+  const TabInventario = () => (
+    <div className="space-y-6 animate-in fade-in">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="bg-emerald-500/10 border-emerald-500/30">
+          <CardContent className="p-6 text-center relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-4 opacity-10">
+               <Package className="w-16 h-16 text-emerald-500" />
+             </div>
+             <p className="text-[10px] uppercase font-black tracking-widest text-emerald-400">Generado por Ventas (Clientes)</p>
+             <p className="text-4xl font-black mt-2 text-white">{formatCurrency(data.resumen.totalVentasInv)}</p>
+             <p className="text-[10px] text-zinc-500 mt-2">Productos vendidos directamente.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-red-500/10 border-red-500/30">
+          <CardContent className="p-6 text-center relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-4 opacity-10">
+               <Activity className="w-16 h-16 text-red-500" />
+             </div>
+             <p className="text-[10px] uppercase font-black tracking-widest text-red-400">Consumo Interno / Uso Tienda</p>
+             <p className="text-4xl font-black mt-2 text-white">{formatCurrency(data.resumen.totalUsoInv)}</p>
+             <p className="text-[10px] text-zinc-500 mt-2">Valor de insumos usados por barberos.</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-white/5 shadow-2xl bg-zinc-900">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Package className="w-5 h-5 text-amber-500" />
+            Análisis de Productos
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="overflow-x-auto">
+             <table className="w-full text-left border-collapse">
+               <thead>
+                 <tr className="border-b border-white/5">
+                   <th className="py-3 text-[10px] font-black uppercase text-zinc-500 tracking-widest">Producto</th>
+                   <th className="py-3 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Unidades (Venta)</th>
+                   <th className="py-3 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-right">Ingreso Venta</th>
+                   <th className="py-3 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Unidades (Uso)</th>
+                   <th className="py-3 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-right">Costo Interno</th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y divide-white/5">
+                 {data.inventarioFlujo.length === 0 && (
+                   <tr>
+                     <td colSpan={5} className="py-8 text-center text-zinc-500 text-sm">No hay movimientos en este periodo</td>
+                   </tr>
+                 )}
+                 {data.inventarioFlujo.map((inv: any, i: number) => (
+                   <tr key={i} className="hover:bg-white/5 transition">
+                     <td className="py-3 text-sm font-bold">{inv.nombre}</td>
+                     <td className="py-3 text-sm text-center text-emerald-400 font-bold">{inv.ventas}</td>
+                     <td className="py-3 text-sm text-right text-white font-bold">{formatCurrency(inv.ingresosVenta)}</td>
+                     <td className="py-3 text-sm text-center text-red-400 font-bold">{inv.uso}</td>
+                     <td className="py-3 text-sm text-right text-white font-bold">{formatCurrency(inv.costoUso)}</td>
+                   </tr>
+                 ))}
+               </tbody>
+             </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       {/* Header */}
@@ -688,7 +794,8 @@ export default function ReportesPage() {
           { id: 'general', label: 'Resumen Ejecutivo', icon: BarChart3 },
           { id: 'finanzas', label: 'Finanzas', icon: DollarSign },
           { id: 'rendimiento', label: 'Rendimiento (Staff)', icon: Activity },
-          { id: 'clientes', label: 'Clientes & Fidelidad', icon: Heart }
+          { id: 'clientes', label: 'Clientes & Fidelidad', icon: Heart },
+          { id: 'inventario', label: 'Flujo Inventario', icon: Package }
         ].map(tab => (
           <button
             key={tab.id}
@@ -717,6 +824,7 @@ export default function ReportesPage() {
           {activeTab === 'finanzas' && <TabFinanzas />}
           {activeTab === 'rendimiento' && <TabRendimiento />}
           {activeTab === 'clientes' && <TabClientes />}
+          {activeTab === 'inventario' && <TabInventario />}
         </div>
       )}
     </div>

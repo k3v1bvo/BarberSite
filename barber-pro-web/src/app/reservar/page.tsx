@@ -9,6 +9,7 @@ import { formatCurrency } from '@/lib/utils'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Calendar, User, Scissors, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface Servicio {
   id: string
@@ -60,6 +61,7 @@ function ReservarContent() {
     telefono: '',
     email: '',
     notas: '',
+    comprobante_url: '',
   })
   const [horasOcupadas, setHorasOcupadas] = useState<{hora: string, duracion: number}[]>([])
   const [loadingDisponibilidad, setLoadingDisponibilidad] = useState(false)
@@ -201,7 +203,7 @@ function ReservarContent() {
           .insert({
             nombre: formData.nombre,
             email: formData.email,
-            telefono: null,  // ✅ Sin teléfono para evitar duplicados
+            telefono: formData.telefono,  // ✅ Guardar WhatsApp real del cliente
           })
           .select('id')
           .single()
@@ -262,6 +264,7 @@ function ReservarContent() {
         estado: 'pendiente_pago',
         notas: notasFinales,
         anticipo_monto: anticipoCalculado,
+        comprobante_url: formData.comprobante_url || null,
       })
       .select('id')
       .single()
@@ -289,6 +292,7 @@ function ReservarContent() {
             fecha: formData.fecha,
             hora: formData.hora,
             monto: anticipoCalculado,
+            comprobante_url: formData.comprobante_url || null,
           },
         }),
       })
@@ -766,6 +770,15 @@ function ReservarContent() {
                 <p className="text-xs text-zinc-400 mt-2">Mínimo 20 Bs o el 50% del servicio.</p>
               </div>
 
+              <div className="mb-8">
+                <ImageUpload
+                  label="Captura del Comprobante (Requerido para confirmar)"
+                  defaultImage={formData.comprobante_url || undefined}
+                  onUploadSuccess={(url) => setFormData({ ...formData, comprobante_url: url })}
+                  onUploadError={(err) => toastError(err)}
+                />
+              </div>
+
               <div className="flex justify-between">
                 <Button
                   type="button"
@@ -779,10 +792,10 @@ function ReservarContent() {
                 <Button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={submitting}
+                  disabled={submitting || !formData.comprobante_url}
                   className="bg-amber-500 hover:bg-amber-400 text-black px-8 font-bold"
                 >
-                  {submitting ? 'Verificando...' : 'Ya realicé el pago'}
+                  {submitting ? 'Enviando...' : 'Enviar Reserva'}
                 </Button>
               </div>
             </CardContent>

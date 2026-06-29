@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import { Search, CheckCircle, Camera, Cake, UserCheck, X } from 'lucide-react'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface Cliente { id: string; nombre: string; cumpleanos: string | null; email: string | null; telefono: string | null }
 interface Promo { id: string; nombre: string; tipo: string; descripcion: string | null }
@@ -59,7 +60,7 @@ export default function CumpleanosPage() {
       const { data } = await supabase
         .from('clientes')
         .select('id, nombre, cumpleanos, email, telefono')
-        .or(`nombre.ilike.%${busqueda}%,email.ilike.%${busqueda}%`)
+        .or(`nombre.ilike.%${busqueda}%,email.ilike.%${busqueda}%,ci.ilike.%${busqueda}%`)
         .limit(8)
       setResultados(data ?? [])
     } finally {
@@ -271,18 +272,14 @@ export default function CumpleanosPage() {
                 </div>
               </div>
 
-              {/* URL foto del documento */}
+              {/* Foto del documento */}
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">URL de foto del documento (opcional)</label>
-                <input
-                  value={form.foto_documento_url}
-                  onChange={e => setForm({ ...form, foto_documento_url: e.target.value })}
-                  placeholder="https://... (link de foto tomada)"
-                  className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
+                <ImageUpload
+                  label="Foto del documento (opcional)"
+                  defaultImage={form.foto_documento_url || undefined}
+                  onUploadSuccess={(url) => setForm({ ...form, foto_documento_url: url })}
+                  onUploadError={(err) => toastError(err)}
                 />
-                {form.foto_documento_url && (
-                  <img src={form.foto_documento_url} alt="Preview" className="mt-2 w-full h-24 object-cover rounded-xl border border-white/10" onError={e => (e.currentTarget.style.display = 'none')} />
-                )}
               </div>
 
               {/* Promoción a aplicar */}

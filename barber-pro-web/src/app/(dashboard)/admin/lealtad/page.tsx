@@ -275,7 +275,7 @@ export default function AdminLealtadPage() {
   }
 
   const clientesFiltrados = clientes.filter(c => {
-    if (filtro && !c.nombre?.toLowerCase().includes(filtro.toLowerCase())) return false;
+    if (filtro && !c.nombre?.toLowerCase().includes(filtro.toLowerCase()) && !(c.ci && c.ci.toLowerCase().includes(filtro.toLowerCase()))) return false;
     if (nivelFiltro && calcularNivel(c.total_visitas ?? 0) !== nivelFiltro) return false;
     return true;
   });
@@ -362,7 +362,7 @@ export default function AdminLealtadPage() {
           <div className="flex flex-wrap gap-4 items-center bg-zinc-900/40 p-4 rounded-2xl border border-white/5 mb-4">
             <div className="flex-1 min-w-[250px] relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-              <Input placeholder="Buscar cliente por nombre..." value={filtro} onChange={(e) => setFiltro(e.target.value)} className="pl-10 max-w-none" />
+              <Input placeholder="Buscar cliente por nombre o carnet..." value={filtro} onChange={(e) => setFiltro(e.target.value)} className="pl-10 max-w-none" />
             </div>
             <select className="h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white text-sm outline-none focus:border-amber-500/50" value={nivelFiltro} onChange={(e) => setNivelFiltro(e.target.value)}>
               <option value="">Todos los niveles</option>

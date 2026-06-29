@@ -1,12 +1,15 @@
-import { Resend } from 'resend'
+// import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 import { buildEmail, type EmailTemplateInput } from './templates'
 
-const FROM =
-  process.env.RESEND_FROM_EMAIL || 'Barber Pro <onboarding@resend.dev>'
+/*
+// ==========================================
+// 1. CONFIGURACIÓN CON RESEND (Comentada)
+// ==========================================
+const FROM = process.env.RESEND_FROM_EMAIL || 'Barber Pro <onboarding@resend.dev>'
 
 let resendClient: Resend | null = null
 
-/** Cliente Resend solo al enviar (evita error de build si falta RESEND_API_KEY) */
 function getResend(): Resend | null {
   const key = process.env.RESEND_API_KEY?.trim()
   if (!key || key === 're_placeholder_123') return null
@@ -41,7 +44,65 @@ export async function sendNotificationEmail(
     return { ok: false, error: e instanceof Error ? e.message : 'Error enviando email' }
   }
 }
+*/
 
+// ==========================================
+// 2. CONFIGURACIÓN CON NODEMAILER (Gmail App Password)
+// ==========================================
+const SMTP_USER = process.env.SMTP_USER || 'tucorreo@gmail.com'
+// La contraseña de aplicación va aquí o idealmente en tu archivo .env
+const SMTP_PASS = process.env.SMTP_PASS || 'nray vsaf seuo uajn'
+const FROM_EMAIL = process.env.SMTP_FROM || `"Barber Pro" <${SMTP_USER}>`
+
+let transporter: nodemailer.Transporter | null = null
+
+function getTransporter() {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      service: 'gmail', // Usa el servicio de Gmail
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS,
+      },
+    })
+  }
+  return transporter
+}
+
+export function isEmailConfigured(): boolean {
+  return Boolean(SMTP_USER && SMTP_PASS)
+}
+
+export async function sendNotificationEmail(
+  to: string,
+  templateKind: string,
+  data: EmailTemplateInput
+): Promise<{ ok: boolean; error?: string }> {
+  if (!to || !isEmailConfigured()) {
+    return { ok: false, error: 'Email no configurado o destinatario vacío' }
+  }
+
+  try {
+    const { subject, html } = buildEmail(templateKind, data)
+    const mailOptions = {
+      from: FROM_EMAIL,
+      to,
+      subject,
+      html,
+    }
+
+    const t = getTransporter()
+    await t.sendMail(mailOptions)
+    
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error enviando email' }
+  }
+}
+
+// ==========================================
+// FUNCIÓN COMÚN (Email de Administrador)
+// ==========================================
 export async function sendAdminEmail(
   templateKind: string,
   data: EmailTemplateInput

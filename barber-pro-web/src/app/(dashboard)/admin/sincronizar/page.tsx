@@ -19,6 +19,7 @@ interface Cliente {
   nombre: string
   email: string | null
   telefono: string | null
+  ci: string | null
   total_visitas: number
 }
 
@@ -45,7 +46,7 @@ export default function SincronizarHistorialPage() {
     try {
       const [barberosRes, clientesRes] = await Promise.all([
         supabase.from('profiles').select('id, full_name, email').in('role', ['barbero', 'coordinador']).order('full_name'),
-        supabase.from('clientes').select('id, nombre, email, telefono, total_visitas').order('nombre')
+        supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas').order('nombre')
       ])
       
       if (barberosRes.error) throw barberosRes.error
@@ -300,7 +301,7 @@ export default function SincronizarHistorialPage() {
                     >
                       <option value="">-- Buscar Cliente --</option>
                       {clientes.map(c => (
-                        <option key={c.id} value={c.id}>{c.nombre} {c.telefono ? `(${c.telefono})` : ''} - {c.total_visitas} visitas</option>
+                        <option key={c.id} value={c.id}>{c.nombre} {c.ci ? `(C.I. ${c.ci})` : c.telefono ? `(${c.telefono})` : ''} - {c.total_visitas} visitas</option>
                       ))}
                     </select>
                   </div>
@@ -326,7 +327,7 @@ export default function SincronizarHistorialPage() {
                     >
                       <option value="">-- Buscar Cliente --</option>
                       {clientes.map(c => (
-                        <option key={c.id} value={c.id}>{c.nombre} {c.telefono ? `(${c.telefono})` : ''} - {c.total_visitas} visitas</option>
+                        <option key={c.id} value={c.id}>{c.nombre} {c.ci ? `(C.I. ${c.ci})` : c.telefono ? `(${c.telefono})` : ''} - {c.total_visitas} visitas</option>
                       ))}
                     </select>
                   </div>

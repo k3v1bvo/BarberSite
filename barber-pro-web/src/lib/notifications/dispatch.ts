@@ -8,7 +8,7 @@ import type {
 import { sendAdminEmail, sendNotificationEmail } from './email'
 import { getUserPreferences, shouldSendEmail, shouldSendPush } from './preferences'
 
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://barber-site-livid.vercel.app'
 
 async function insertNotifications(
   db: SupabaseClient,
@@ -135,7 +135,7 @@ export async function dispatchNotification(
           })
         }
 
-        await sendAdminEmail('reserva_nueva_barbero', {
+        await sendAdminEmail('reserva_nueva_admin', {
           nombre: p.clienteNombre,
           servicio: p.servicioNombre,
           fecha: p.fecha,
@@ -371,6 +371,7 @@ export async function dispatchNotification(
                     anticipo,
                     fecha: p.fecha,
                     hora: p.hora,
+                    comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
                   },
                 }
               : undefined
@@ -404,6 +405,7 @@ export async function dispatchNotification(
           anticipo,
           fecha: p.fecha,
           hora: p.hora,
+          comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
         })
         break
       }

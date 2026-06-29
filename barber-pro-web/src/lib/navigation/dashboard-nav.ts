@@ -30,6 +30,8 @@ import {
   Images,
   Sliders,
   RefreshCw,
+  Users2,
+  UserCog,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -85,6 +87,7 @@ export function getAdminNavSections(agendaHref: string): NavSection[] {
     {
       title: 'Administración',
       items: [
+        { label: 'Clientes', href: '/admin/clientes', icon: Users2, description: 'Directorio y movimientos' },
         { label: 'Usuarios', href: '/admin/usuarios', icon: Users },
         { label: 'Sanciones', href: '/coordinador/sanciones', icon: AlertTriangle },
         { label: 'Bonos', href: '/coordinador/bonos', icon: Gift },
@@ -102,6 +105,7 @@ export function getAdminNavSections(agendaHref: string): NavSection[] {
         { label: 'Galería', href: '/admin/galeria', icon: Images, description: 'Todas las imágenes del sistema' },
         { label: 'Buscar', href: '/admin/buscar', icon: Search },
         { label: 'Sincronizar Historial', href: '/admin/sincronizar', icon: RefreshCw, description: 'Asignar citas antiguas' },
+        { label: 'Mi Perfil', href: '/perfil', icon: UserCog, description: 'Editar datos personales' },
       ],
     },
   ]
@@ -146,8 +150,10 @@ export function getCoordinadorNavSections(agendaHref: string): NavSection[] {
         { label: 'Reglas Laborales', href: '/admin/reglas-laborales', icon: Sliders, description: 'Comisiones, sanciones y bonos' },
         { label: 'Galería del Sistema', href: '/admin/galeria', icon: Images, description: 'Imágenes subidas' },
         { label: 'Equipo Home', href: '/admin/equipo', icon: Users, description: 'Miembros web' },
+        { label: 'Clientes', href: '/admin/clientes', icon: Users2, description: 'Directorio y movimientos' },
         { label: 'Buscar', href: '/admin/buscar', icon: Search, description: 'Búsqueda global' },
         { label: 'Sincronizar Historial', href: '/admin/sincronizar', icon: RefreshCw, description: 'Asignar citas antiguas' },
+        { label: 'Mi Perfil', href: '/perfil', icon: UserCog, description: 'Editar datos personales' },
       ],
     },
   ]
@@ -162,6 +168,7 @@ export const barberoNavItems = (agendaHref: string): NavItem[] => [
   { label: 'Mi agenda', href: agendaHref, icon: Calendar },
   { label: 'Venta / POS', href: '/reservar', icon: ShoppingBag },
   { label: 'Notificaciones', href: '/notificaciones', icon: Bell },
+  { label: 'Mi Perfil', href: '/perfil', icon: UserCog },
 ]
 
 export const clienteNavItems: NavItem[] = [
@@ -169,6 +176,7 @@ export const clienteNavItems: NavItem[] = [
   { label: 'Reservar', href: '/reservar', icon: Scissors },
   { label: 'Tienda', href: '/tienda', icon: ShoppingBag },
   { label: 'Notificaciones', href: '/notificaciones', icon: Bell },
+  { label: 'Mi Perfil', href: '/perfil', icon: UserCog },
 ]
 
 export function isDashboardRoute(pathname: string): boolean {
@@ -181,6 +189,7 @@ export function isDashboardRoute(pathname: string): boolean {
     '/cliente',
     '/calendario',
     '/notificaciones',
+    '/perfil',
   ]
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 }

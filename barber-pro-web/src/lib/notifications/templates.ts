@@ -1,5 +1,5 @@
 const BRAND = 'Barber Pro'
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://barber-site-livid.vercel.app'
 
 function layout(content: string, preheader: string): string {
   return `<!DOCTYPE html>
@@ -72,6 +72,13 @@ export interface EmailTemplateInput {
   pedidoId?: string
   anticipo?: string
   verificadoPor?: string
+  comprobante_url?: string | null
+  // Resumen Diario Admin
+  totalCitas?: string
+  totalVentasProductos?: string
+  ingresosServicios?: string
+  ingresosProductos?: string
+  ingresoTotal?: string
 }
 
 export function buildEmail(
@@ -112,6 +119,25 @@ export function buildEmail(
           ])}
           ${cta(`${SITE}/agenda`, 'Abrir mi agenda')}`,
           'Tienes una nueva cita agendada'
+        ),
+      }
+
+    case 'reserva_nueva_admin':
+      return {
+        subject: `🎉 ¡Nueva Reserva Confirmada! — ${nombre}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Gran noticia, Administrador!</h2>
+          <p>Se ha registrado una <strong>nueva reserva</strong> en el sistema exitosamente.</p>
+          ${detailBox([
+            { label: 'Cliente', value: nombre },
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Fecha', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+            { label: 'Barbero', value: data.barbero || '—' },
+          ])}
+          <p>Todo está fluyendo excelente. Puedes revisar los detalles en tu agenda administrativa.</p>
+          ${cta(`${SITE}/admin`, 'Ver Agenda Admin')}`,
+          'Una nueva reserva ingresó al sistema'
         ),
       }
 
@@ -227,9 +253,31 @@ export function buildEmail(
             { label: 'Fecha', value: data.fecha || '—' },
             { label: 'Hora', value: data.hora || '—' },
           ])}
+          ${data.comprobante_url ? `<p><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📥 Ver Comprobante Adjunto</a></p>` : ''}
           <p style="color:#a1a1aa;font-size:13px;">Ingresa al sistema y presiona <strong>"Verificar Pago"</strong> una vez confirmes el depósito.</p>
           ${cta(`${SITE}/barbero`, 'Ir al panel')}`,
           'Hay un pago QR pendiente de verificar'
+        ),
+      }
+
+    case 'pago_pendiente_admin':
+      return {
+        subject: `💰 Acción Requerida: QR por Verificar — ${nombre}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Atención Administrador!</h2>
+          <p><strong>${nombre}</strong> ha subido un comprobante de pago por QR como anticipo de su reserva. ¡Es hora de verificarlo!</p>
+          ${detailBox([
+            { label: 'Cliente', value: nombre },
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Anticipo', value: data.anticipo || '—' },
+            { label: 'Fecha', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+            { label: 'Barbero', value: data.barbero || '—' },
+          ])}
+          ${data.comprobante_url ? `<p><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📥 Ver Comprobante de Pago</a></p>` : ''}
+          <p style="color:#a1a1aa;font-size:13px;">Revisa tu banco o notifica al barbero para que presione <strong>"Aprobar Pago"</strong>.</p>
+          ${cta(`${SITE}/admin`, 'Ir al Panel Admin')}`,
+          'Tienes un comprobante de reserva pendiente de revisión'
         ),
       }
 
@@ -254,10 +302,10 @@ export function buildEmail(
 
     case 'pago_verificado_admin':
       return {
-        subject: `✅ Pago verificado — ${nombre}`,
+        subject: `✅ ¡Excelente! Pago Verificado — ${nombre}`,
         html: layout(
-          `<h2 style="margin:0 0 8px;color:#22c55e;font-size:20px;">Anticipo verificado</h2>
-          <p>El pago QR de <strong>${nombre}</strong> fue verificado por <strong>${data.verificadoPor || 'el equipo'}</strong>.</p>
+          `<h2 style="margin:0 0 8px;color:#22c55e;font-size:20px;">¡Pago Verificado con Éxito!</h2>
+          <p>El sistema registró que el pago QR de <strong>${nombre}</strong> fue verificado por <strong>${data.verificadoPor || 'el equipo'}</strong>. La cita está 100% confirmada.</p>
           ${detailBox([
             { label: 'Cliente', value: nombre },
             { label: 'Servicio', value: data.servicio || '—' },
@@ -265,8 +313,26 @@ export function buildEmail(
             { label: 'Fecha', value: data.fecha || '—' },
             { label: 'Hora', value: data.hora || '—' },
           ])}
-          ${cta(`${SITE}/admin`, 'Ir al panel')}`,
-          'Un pago QR fue verificado'
+          ${cta(`${SITE}/admin`, 'Ir al Panel Admin')}`,
+          'Un pago QR ha sido verificado y la cita confirmada'
+        ),
+      }
+
+    case 'resumen_diario_admin':
+      return {
+        subject: `📊 Resumen Diario — ${data.fecha}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">Resumen del Día</h2>
+          <p>Este es el reporte automático de cierre del día <strong>${data.fecha}</strong>.</p>
+          ${detailBox([
+            { label: 'Citas Atendidas', value: data.totalCitas || '0' },
+            { label: 'Ventas de Productos', value: data.totalVentasProductos || '0' },
+            { label: 'Ingresos por Servicios', value: data.ingresosServicios || 'Bs 0.00' },
+            { label: 'Ingresos por Productos', value: data.ingresosProductos || 'Bs 0.00' },
+            { label: 'Ingreso Total', value: data.ingresoTotal || 'Bs 0.00' },
+          ])}
+          ${cta(`${SITE}/admin/reportes`, 'Ver reportes completos')}`,
+          'Resumen de ventas y citas del día'
         ),
       }
 

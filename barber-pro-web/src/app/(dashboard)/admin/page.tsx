@@ -15,6 +15,7 @@ import {
   ArrowRight,
   Search,
   BarChart3,
+  Store,
 } from 'lucide-react'
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
 import { StatCard } from '@/components/admin/StatCard'
@@ -54,6 +55,7 @@ export default function AdminPage() {
   const [citasRecientes, setCitasRecientes] = useState<Cita[]>([])
   const [ventasSemana, setVentasSemana] = useState<{fecha: string, total: number}[]>([])
   const [topBarberos, setTopBarberos] = useState<{nombre: string, ventas: number, citas: number}[]>([])
+  const [usoTiendaHoy, setUsoTiendaHoy] = useState(0)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
@@ -157,6 +159,14 @@ export default function AdminPage() {
         pedidosPendientes: pedidosPendientes || 0,
       })
 
+      // Uso tienda hoy
+      const { data: txTienda } = await supabase
+        .from('transactions')
+        .select('costo')
+        .eq('libro', 'USO_TIENDA')
+        .eq('fecha', hoy)
+      setUsoTiendaHoy(txTienda?.reduce((s: number, t: any) => s + Number(t.costo), 0) || 0)
+
       setCitasRecientes((citasRecientesData as unknown as Cita[]) || [])
     } catch (error) {
       console.error('Error cargando datos:', JSON.stringify(error, null, 2), error)
@@ -237,7 +247,7 @@ export default function AdminPage() {
           value={stats.clientesTotal}
           icon={Users}
           delay={150}
-          onClick={() => router.push('/admin/usuarios')}
+          onClick={() => router.push('/admin/clientes')}
         />
         <StatCard
           label="Stock en alerta"
@@ -248,6 +258,33 @@ export default function AdminPage() {
           onClick={() => router.push('/admin/productos')}
         />
       </div>
+
+      {usoTiendaHoy > 0 && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 delay-100 fill-mode-both">
+          <Card className="border-violet-500/20 bg-violet-500/5">
+            <CardContent className="py-3 px-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-violet-500/10">
+                  <Store className="w-5 h-5 text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-violet-500">Uso Tienda Hoy</p>
+                  <p className="text-lg font-black text-violet-300">{formatCurrency(usoTiendaHoy)}</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-violet-400 font-bold text-xs"
+                onClick={() => router.push('/coordinador/ventas')}
+              >
+                Ver detalle
+                <ArrowRight size={14} className="ml-1" />
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <AdminQuickActions />
 
@@ -396,7 +433,7 @@ export default function AdminPage() {
                             variant="outline"
                             size="sm"
                             className="mt-4"
-                            onClick={() => router.push('/reservar')}
+                            onClick={() => router.push('/admin/caja')}
                           >
                             Crear cita
                           </Button>

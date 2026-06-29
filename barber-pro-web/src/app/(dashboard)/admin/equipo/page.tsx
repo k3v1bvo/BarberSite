@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/Badge'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/Toast'
 import { isValidImageUrl } from '@/lib/validators'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface EquipoMember {
   id: string
@@ -458,15 +459,12 @@ export default function AdminEquipoPage() {
                 </div>
 
                 <div>
-                  <Input
-                    label="URL de la Imagen"
-                    required
-                    placeholder="https://images.unsplash.com/..."
-                    value={formData.imagen_url}
-                    onChange={(e) => setFormData({ ...formData, imagen_url: e.target.value })}
-                    className="bg-zinc-900"
+                  <ImageUpload
+                    label="Foto del Barbero (Recomendado 500x500px)"
+                    defaultImage={formData.imagen_url || undefined}
+                    onUploadSuccess={(url) => setFormData({ ...formData, imagen_url: url })}
+                    onUploadError={(err) => toastError(err)}
                   />
-                  <p className="text-xs text-amber-400 mt-2 font-medium">Sugerencia: Usa una imagen clara del miembro del equipo. Recomendado: 500x500px, formato cuadrado.</p>
                 </div>
 
                 <div className="space-y-2">
@@ -576,21 +574,7 @@ export default function AdminEquipoPage() {
                   </div>
                 </div>
 
-                {/* Image Preview */}
-                {formData.imagen_url && isValidImageUrl(formData.imagen_url) && (
-                  <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/5 bg-zinc-950">
-                    <img
-                      src={formData.imagen_url}
-                      loading="lazy"
-                      className="w-full h-full object-cover opacity-50"
-                      onError={(e) => { e.currentTarget.style.display = 'none' }}
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <Badge variant="outline" className="text-zinc-400 font-bold uppercase text-[10px] tracking-widest">Vista Previa</Badge>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
+                {/* Image Preview handled by ImageUpload */}              </CardContent>
 
               <div className="p-8 bg-zinc-900/30 border-t border-white/5 flex gap-4">
                 <Button

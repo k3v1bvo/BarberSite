@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/Toast'
 import { QrCode, Save, ArrowLeft, Image as ImageIcon, Info } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { isValidImageUrl } from '@/lib/validators'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 const defaultAboutUs = {
   imagen_url: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800",
@@ -88,9 +89,6 @@ export default function AdminConfiguracionPage() {
     if (trimmedUrl === initialQrUrl) {
       return toastInfo('No se han hecho cambios, la URL es la misma.')
     }
-    if (!isValidImageUrl(trimmedUrl)) {
-      return toastError('La URL proporcionada no parece ser una imagen válida.')
-    }
 
     setSaving(true)
     try {
@@ -115,8 +113,8 @@ export default function AdminConfiguracionPage() {
   const handleSaveHero = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!heroConfig.url || !isValidImageUrl(heroConfig.url)) {
-      return toastError('La URL del fondo proporcionada no es una imagen válida.')
+    if (!heroConfig.url) {
+      return toastError('La imagen del fondo es requerida.')
     }
     if (!heroConfig.titulo.trim() || !heroConfig.subtitulo.trim()) {
       return toastError('El título y el subtítulo no pueden estar vacíos.')
@@ -145,8 +143,8 @@ export default function AdminConfiguracionPage() {
   const handleSaveAboutUs = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!aboutUsConfig.imagen_url || !isValidImageUrl(aboutUsConfig.imagen_url)) {
-      return toastError('La URL de la imagen de Acerca de Nosotros no es válida.')
+    if (!aboutUsConfig.imagen_url) {
+      return toastError('La imagen de Acerca de Nosotros es requerida.')
     }
     if (!aboutUsConfig.titulo.trim() || !aboutUsConfig.texto.trim()) {
       return toastError('El título y el texto no pueden estar vacíos.')
@@ -211,23 +209,12 @@ export default function AdminConfiguracionPage() {
           <form onSubmit={handleSaveHero} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-6 md:col-span-2">
-                <Input
-                  label="URL de la imagen de fondo"
-                  placeholder="https://..."
-                  value={heroConfig.url}
-                  onChange={(e) => setHeroConfig({ ...heroConfig, url: e.target.value })}
-                  className="bg-zinc-950"
+                <ImageUpload
+                  label="Imagen de Fondo (Recomendado 1920x1080px)"
+                  defaultImage={heroConfig.url || undefined}
+                  onUploadSuccess={(url) => setHeroConfig({ ...heroConfig, url })}
+                  onUploadError={(err) => toastError(err)}
                 />
-                <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                  <p className="text-xs text-amber-400 font-medium mb-1">📸 Formato Sugerido: Imagen horizontal de alta calidad (Recomendado: 1920x1080px o superior).</p>
-                  <p className="text-xs text-amber-400/80">⚠️ Importante: Debes subir tu imagen previamente a la nube (Google Drive, Imgur, Postimages) y pegar aquí el enlace directo que termine en .jpg o .png.</p>
-                </div>
-                {heroConfig.url && isValidImageUrl(heroConfig.url) && (
-                  <div className="mt-4 p-4 border border-white/5 rounded-2xl bg-zinc-950 flex flex-col items-center gap-4">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vista Previa de Imagen</p>
-                    <img src={heroConfig.url} alt="Hero Preview" className="w-full max-w-sm rounded-xl shadow-lg border border-white/10 object-cover aspect-video" />
-                  </div>
-                )}
               </div>
 
               <div className="md:col-span-2">
@@ -250,7 +237,7 @@ export default function AdminConfiguracionPage() {
                 />
               </div>
 
-              {heroConfig.url && isValidImageUrl(heroConfig.url) ? (
+              {heroConfig.url ? (
                 <div className="md:col-span-2 mt-4 p-4 border border-white/5 rounded-2xl bg-zinc-950 flex flex-col items-center justify-center gap-4">
                   <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vista Previa en Vivo</p>
                   <div className="relative w-full max-w-3xl aspect-video rounded-xl overflow-hidden border border-white/10 shadow-2xl flex items-center justify-center">
@@ -270,8 +257,6 @@ export default function AdminConfiguracionPage() {
                     </div>
                   </div>
                 </div>
-              ) : heroConfig.url ? (
-                <p className="md:col-span-2 text-sm text-red-400 mt-2 text-center">No parece una URL de imagen válida para la vista previa.</p>
               ) : null}
             </div>
 
@@ -303,27 +288,13 @@ export default function AdminConfiguracionPage() {
         <CardContent className="p-6">
           <form onSubmit={handleSaveQr} className="space-y-6">
             <div>
-              <Input
-                label="URL de la imagen del QR"
-                placeholder="https://..."
-                value={qrUrl}
-                onChange={(e) => setQrUrl(e.target.value)}
-                className="bg-zinc-950"
+              <ImageUpload
+                label="Imagen del QR de Pagos (Recomendado 500x500px)"
+                defaultImage={qrUrl || undefined}
+                onUploadSuccess={(url) => setQrUrl(url)}
+                onUploadError={(err) => toastError(err)}
               />
-              <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                <p className="text-xs text-amber-400 font-medium mb-1">📸 Formato Sugerido: Imagen cuadrada y nítida (Recomendado: 500x500px).</p>
-                <p className="text-xs text-amber-400/80">⚠️ Importante: Pega aquí el enlace directo (URL) de la imagen previamente subida a la nube (Drive, Imgur, etc).</p>
-              </div>
             </div>
-
-            {qrUrl && isValidImageUrl(qrUrl) ? (
-              <div className="mt-4 p-4 border border-white/5 rounded-2xl bg-zinc-950 flex flex-col items-center justify-center gap-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vista Previa</p>
-                <img src={qrUrl} alt="QR Preview" className="max-w-xs rounded-xl shadow-lg border border-white/10" />
-              </div>
-            ) : qrUrl ? (
-              <p className="text-sm text-red-400 mt-2">No parece una URL de imagen válida.</p>
-            ) : null}
 
             <Button
               type="submit"
@@ -354,23 +325,12 @@ export default function AdminConfiguracionPage() {
           <form onSubmit={handleSaveAboutUs} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-6 md:col-span-2">
-                <Input
-                  label="URL de la imagen"
-                  placeholder="https://..."
-                  value={aboutUsConfig.imagen_url}
-                  onChange={(e) => setAboutUsConfig({ ...aboutUsConfig, imagen_url: e.target.value })}
-                  className="bg-zinc-950"
+                <ImageUpload
+                  label="Imagen Acerca de Nosotros (Recomendado 800x1000px)"
+                  defaultImage={aboutUsConfig.imagen_url || undefined}
+                  onUploadSuccess={(url) => setAboutUsConfig({ ...aboutUsConfig, imagen_url: url })}
+                  onUploadError={(err) => toastError(err)}
                 />
-                <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                  <p className="text-xs text-amber-400 font-medium mb-1">📸 Formato Sugerido: Imagen vertical tipo retrato (Recomendado: 800x1000px, proporción 4:5).</p>
-                  <p className="text-xs text-amber-400/80">⚠️ Importante: Pega aquí el enlace directo (URL) de la imagen previamente subida a la nube (Drive, Imgur, etc).</p>
-                </div>
-                {aboutUsConfig.imagen_url && isValidImageUrl(aboutUsConfig.imagen_url) && (
-                  <div className="p-4 border border-white/5 rounded-2xl bg-zinc-950 flex flex-col items-center gap-4">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vista Previa de Imagen</p>
-                    <img src={aboutUsConfig.imagen_url} alt="About Us Preview" className="w-full max-w-sm rounded-xl shadow-lg border border-white/10 object-cover aspect-[4/5]" />
-                  </div>
-                )}
               </div>
 
               <div>

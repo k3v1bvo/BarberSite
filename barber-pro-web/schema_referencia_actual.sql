@@ -96,6 +96,7 @@ CREATE TABLE public.productos (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
   image_url text,
+  precio_tienda numeric DEFAULT NULL::numeric,
   CONSTRAINT productos_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.inventario_movimientos (
@@ -337,7 +338,7 @@ CREATE TABLE public.plan_cuentas (
 );
 CREATE TABLE public.transactions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  libro character varying NOT NULL CHECK (libro::text = ANY (ARRAY['CAJA_CHICA'::character varying, 'VENTAS'::character varying, 'SERVICIOS'::character varying, 'BANCO'::character varying]::text[])),
+  libro character varying NOT NULL CHECK (libro::text = ANY (ARRAY['CAJA_CHICA'::text, 'VENTAS'::text, 'SERVICIOS'::text, 'BANCO'::text, 'USO_TIENDA'::text, 'EGRESOS'::text])),
   fecha date NOT NULL DEFAULT CURRENT_DATE,
   ci character varying NOT NULL,
   nombre text NOT NULL,
@@ -352,7 +353,7 @@ CREATE TABLE public.transactions (
   cita_id uuid,
   producto_id uuid,
   cantidad_producto numeric,
-  metodo_pago character varying CHECK (metodo_pago IS NULL OR (metodo_pago::text = ANY (ARRAY['efectivo'::character varying, 'qr'::character varying, 'tarjeta'::character varying, 'mixto'::character varying]::text[]))),
+  metodo_pago character varying CHECK (metodo_pago IS NULL OR (metodo_pago::text = ANY (ARRAY['efectivo'::text, 'qr'::text, 'tarjeta'::text, 'mixto'::text, 'descuento_caja'::text]))),
   usuario_registro character varying NOT NULL,
   notas text,
   creado_en timestamp with time zone DEFAULT now(),

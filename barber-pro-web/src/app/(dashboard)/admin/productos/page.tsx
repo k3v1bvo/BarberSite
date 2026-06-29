@@ -10,6 +10,7 @@ import { formatCurrency } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { Plus, Edit, Trash2, Package, AlertTriangle, ArrowLeft, X, Save, Search, Filter } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface Producto {
   id: string
@@ -20,13 +21,14 @@ interface Producto {
   stock_minimo: number
   precio_costo: number | null
   precio_venta: number
+  precio_tienda: number | null
   categoria: string | null
   image_url: string | null
   is_active: boolean
 }
 
 export default function ProductosPage() {
-  const { error: toastError } = useToast()
+  const { error: toastError, success: toastSuccess } = useToast()
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -39,6 +41,7 @@ export default function ProductosPage() {
     stock_minimo: 5,
     precio_costo: 0,
     precio_venta: 0,
+    precio_tienda: '' as string | number,
     categoria: '',
     image_url: '',
   })
@@ -85,6 +88,7 @@ export default function ProductosPage() {
             stock_minimo: formData.stock_minimo,
             precio_costo: formData.precio_costo,
             precio_venta: formData.precio_venta,
+            precio_tienda: formData.precio_tienda !== '' ? Number(formData.precio_tienda) : null,
             categoria: formData.categoria,
             image_url: formData.image_url,
           })
@@ -102,6 +106,7 @@ export default function ProductosPage() {
             stock_minimo: formData.stock_minimo,
             precio_costo: formData.precio_costo,
             precio_venta: formData.precio_venta,
+            precio_tienda: formData.precio_tienda !== '' ? Number(formData.precio_tienda) : null,
             categoria: formData.categoria,
             image_url: formData.image_url,
             is_active: true,
@@ -120,9 +125,11 @@ export default function ProductosPage() {
         stock_minimo: 5,
         precio_costo: 0,
         precio_venta: 0,
+        precio_tienda: '',
         categoria: '',
         image_url: '',
       })
+      toastSuccess(editingProducto ? 'Producto actualizado con éxito' : 'Producto creado con éxito')
       loadProductos()
     } catch (error: any) {
       toastError('Error: ' + error.message)
@@ -137,6 +144,7 @@ export default function ProductosPage() {
         .eq('id', producto.id)
 
       if (error) throw error
+      toastSuccess(producto.is_active ? 'Producto desactivado' : 'Producto activado')
       loadProductos()
     } catch (error: any) {
       toastError('Error: ' + error.message)
@@ -262,6 +270,7 @@ export default function ProductosPage() {
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Stock Disponible</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Inversión Unit.</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Venta Unit.</th>
+                  <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Precio Tienda</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Disponibilidad</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-right">Manejo</th>
                 </tr>
@@ -320,6 +329,16 @@ export default function ProductosPage() {
                          <p className="text-lg font-black text-amber-500 tracking-tighter">{formatCurrency(producto.precio_venta)}</p>
                       </td>
                       <td className="py-6 px-6 text-center">
+                        {producto.precio_tienda != null ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <p className="text-sm font-black text-violet-400">{formatCurrency(producto.precio_tienda)}</p>
+                            <span className="text-[9px] uppercase font-bold text-violet-500/60 tracking-widest">especial</span>
+                          </div>
+                        ) : (
+                          <span className="text-zinc-700 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="py-6 px-6 text-center">
                         <Badge variant={status.variant} className="uppercase font-black text-[10px] tracking-widest px-3">
                            {status.text}
                         </Badge>
@@ -340,6 +359,7 @@ export default function ProductosPage() {
                                 stock_minimo: producto.stock_minimo,
                                 precio_costo: producto.precio_costo || 0,
                                 precio_venta: producto.precio_venta,
+                                precio_tienda: producto.precio_tienda ?? '',
                                 categoria: producto.categoria || '',
                                 image_url: producto.image_url || '',
                               })
@@ -363,7 +383,7 @@ export default function ProductosPage() {
                 })}
                 {productos.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-24 text-center">
+                    <td colSpan={8} className="py-24 text-center">
                        <Package size={64} className="mx-auto text-zinc-800 mb-4 opacity-30" />
                        <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Aún no hay productos registrados en el inventario</p>
                     </td>
@@ -421,23 +441,12 @@ export default function ProductosPage() {
                     className="bg-zinc-900"
                   />
                   <div className="md:col-span-2">
-                    <Input
-                      label="URL de la Imagen"
-                      placeholder="https://..."
-                      value={formData.image_url}
-                      onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                      className="bg-zinc-900"
+                    <ImageUpload
+                      label="Foto del Producto"
+                      defaultImage={formData.image_url || undefined}
+                      onUploadSuccess={(url) => setFormData({ ...formData, image_url: url })}
+                      onUploadError={(err) => toastError(err)}
                     />
-                    {formData.image_url && isValidImageUrl(formData.image_url) && (
-                      <div className="mt-4 w-32 h-32 rounded-xl overflow-hidden border border-white/10 relative group">
-                        <img 
-                          src={formData.image_url} 
-                          alt="Preview" 
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
-                          onError={(e) => (e.currentTarget.style.display = 'none')}
-                        />
-                      </div>
-                    )}
                   </div>
                   <div className="md:col-span-2 space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción Breve</label>
@@ -474,8 +483,8 @@ export default function ProductosPage() {
                     required
                     className="bg-zinc-900"
                   />
-                  <Input
-                    label="Precio de Venta"
+                   <Input
+                    label="Precio de Venta (Público)"
                     type="number"
                     placeholder="0.00"
                     value={formData.precio_venta}
@@ -483,6 +492,19 @@ export default function ProductosPage() {
                     required
                     className="bg-zinc-900"
                   />
+                  <div className="space-y-1">
+                    <Input
+                      label="Precio Especial Tienda"
+                      type="number"
+                      placeholder="Dejar vacío si no aplica"
+                      value={formData.precio_tienda}
+                      onChange={(e) => setFormData({ ...formData, precio_tienda: e.target.value })}
+                      className="bg-zinc-900 border-violet-500/30 focus:border-violet-500/60"
+                    />
+                    <p className="text-[10px] text-violet-500/70 leading-tight">
+                      ⚡ Solo para compras internas de la tienda. Por defecto se usa el precio público.
+                    </p>
+                  </div>
                 </div>
               </CardContent>
               <div className="p-8 bg-zinc-900/30 border-t border-white/5 flex gap-4">

@@ -28,7 +28,7 @@ interface Servicio {
 }
 
 export default function ServiciosPage() {
-  const { error: toastError } = useToast()
+  const { error: toastError, success: toastSuccess } = useToast()
   const [servicios, setServicios] = useState<Servicio[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -121,6 +121,7 @@ export default function ServiciosPage() {
         comision_valor: 30,
         comision_acumulable: false,
       })
+      toastSuccess(editingServicio ? 'Servicio actualizado con éxito' : 'Servicio creado con éxito')
       loadServicios()
     } catch (error: any) {
       toastError('Error: ' + error.message)
@@ -135,6 +136,7 @@ export default function ServiciosPage() {
         .eq('id', servicio.id)
 
       if (error) throw error
+      toastSuccess(servicio.is_active ? 'Servicio desactivado' : 'Servicio activado')
       loadServicios()
     } catch (error: any) {
       toastError('Error: ' + error.message)

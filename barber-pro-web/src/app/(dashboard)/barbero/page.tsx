@@ -10,7 +10,7 @@ import { formatCurrency } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import {
   DollarSign, Clock, TrendingUp,
-  Plus, X, Scissors, Calendar, BarChart3, CalendarDays
+  Plus, X, Scissors, Calendar, BarChart3, CalendarDays, Package, Minus, ShoppingCart
 } from 'lucide-react'
 import { AsistenciaWidget } from '@/components/ui/AsistenciaWidget'
 import { useToast } from '@/components/ui/Toast'
@@ -29,6 +29,7 @@ interface Cita {
   precio: number
   comision_barbero: number | null
   fecha_hora: string
+  comprobante_url?: string | null
   clientes?: { nombre: string; telefono: string | null }
   servicios?: { nombre: string }
 }
@@ -58,11 +59,13 @@ export default function BarberoPage() {
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [search, setSearch] = useState('')
   const [servicios, setServicios] = useState<{id:string, nombre:string, precio:number}[]>([])
+  const [productosDisp, setProductosDisp] = useState<{id:string, nombre:string, precio_venta:number, stock_actual:number}[]>([])
   const [showWalkinModal, setShowWalkinModal] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [walkinData, setWalkinData] = useState({
     nombreCliente: '', emailCliente: '', telefonoCliente: '', servicio_id: '', metodo_pago: 'efectivo', propinas: 0
   })
+  const [walkinProductos, setWalkinProductos] = useState<{id:string, nombre:string, precio:number, cantidad:number}[]>([])
   const [submittingWalkin, setSubmittingWalkin] = useState(false)
   const [metaServicios, setMetaServicios] = useState<number>(30)
   const router = useRouter()
@@ -82,6 +85,9 @@ export default function BarberoPage() {
 
       const { data: servs } = await supabase.from('servicios').select('id, nombre, precio').eq('is_active', true)
       if (servs) setServicios(servs)
+
+      const { data: prods } = await supabase.from('productos').select('id, nombre, precio_venta, stock_actual').eq('is_active', true).gt('stock_actual', 0).order('nombre')
+      if (prods) setProductosDisp(prods)
 
       const { data: config } = await supabase.from('configuraciones').select('valor').eq('llave', 'bonos_config').single()
       if (config?.valor?.cantidad_servicios?.meta_cantidad) {
@@ -127,7 +133,7 @@ export default function BarberoPage() {
       let query = supabase
         .from('citas')
         .select(`
-          id, estado, precio, comision_barbero, fecha_hora,
+          id, estado, precio, comision_barbero, fecha_hora, comprobante_url,
           clientes(nombre, telefono),
           servicios(nombre)
         `)
@@ -176,6 +182,7 @@ export default function BarberoPage() {
           precio: cita.precio,
           comision_barbero: cita.comision_barbero,
           fecha_hora: cita.fecha_hora,
+          comprobante_url: cita.comprobante_url,
           clientes: getCliente(),
           servicios: getServicio()
         }
@@ -226,18 +233,28 @@ export default function BarberoPage() {
 
   const handleWalkinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!walkinData.servicio_id && walkinProductos.length === 0) {
+      toastError('Selecciona un servicio o agrega un producto')
+      return
+    }
     setSubmittingWalkin(true)
     try {
       const res = await fetch('/api/citas/walkin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(walkinData)
+        body: JSON.stringify({
+          ...walkinData,
+          productos_carrito: walkinProductos.map(p => ({
+            id: p.id, nombre: p.nombre, precio: p.precio, cantidad: p.cantidad,
+          }))
+        })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       
       setShowWalkinModal(false)
       setWalkinData({ nombreCliente: '', emailCliente: '', telefonoCliente: '', servicio_id: '', metodo_pago: 'efectivo', propinas: 0 })
+      setWalkinProductos([])
       loadData()
       success('Venta procesada con éxito')
     } catch (e: unknown) {
@@ -246,6 +263,27 @@ export default function BarberoPage() {
       setSubmittingWalkin(false)
     }
   }
+
+  const addWalkinProduct = (p: {id:string, nombre:string, precio_venta:number, stock_actual:number}) => {
+    setWalkinProductos(prev => {
+      const existing = prev.find(x => x.id === p.id)
+      if (existing) {
+        if (existing.cantidad >= p.stock_actual) return prev
+        return prev.map(x => x.id === p.id ? { ...x, cantidad: x.cantidad + 1 } : x)
+      }
+      return [...prev, { id: p.id, nombre: p.nombre, precio: p.precio_venta, cantidad: 1 }]
+    })
+  }
+
+  const removeWalkinProduct = (id: string) => {
+    setWalkinProductos(prev => {
+      const item = prev.find(x => x.id === id)
+      if (item && item.cantidad > 1) return prev.map(x => x.id === id ? { ...x, cantidad: x.cantidad - 1 } : x)
+      return prev.filter(x => x.id !== id)
+    })
+  }
+
+  const walkinProductoTotal = walkinProductos.reduce((s, p) => s + p.precio * p.cantidad, 0)
 
   if (loading) {
     return (
@@ -482,25 +520,36 @@ export default function BarberoPage() {
                     
                     <div className="flex gap-3">
                       {cita.estado === 'pendiente_pago' && (
-                        <Button 
-                          onClick={async () => {
-                            try {
-                              const res = await fetch('/api/citas/verificar-pago', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ citaId: cita.id })
-                              })
-                              if (!res.ok) throw new Error('Error al verificar')
-                              success('Pago verificado y cita confirmada')
-                              loadData()
-                            } catch (e) {
-                              toastError('No se pudo verificar el pago')
-                            }
-                          }}
-                          className="flex-1 h-12 uppercase tracking-widest font-black bg-amber-500 hover:bg-amber-600 text-black"
-                        >
-                          ✅ Verificar Pago
-                        </Button>
+                        <div className="flex w-full gap-3">
+                          {cita.comprobante_url && (
+                            <Button
+                              onClick={() => window.open(cita.comprobante_url!, '_blank')}
+                              variant="outline"
+                              className="flex-1 h-12 uppercase tracking-widest font-black text-amber-500 border-amber-500/20 hover:bg-amber-500/10"
+                            >
+                              Ver Comprobante
+                            </Button>
+                          )}
+                          <Button 
+                            onClick={async () => {
+                              try {
+                                const res = await fetch('/api/citas/verificar-pago', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ citaId: cita.id })
+                                })
+                                if (!res.ok) throw new Error('Error al verificar')
+                                success('Pago verificado y cita confirmada')
+                                loadData()
+                              } catch (e) {
+                                toastError('No se pudo verificar el pago')
+                              }
+                            }}
+                            className="flex-1 h-12 uppercase tracking-widest font-black bg-amber-500 hover:bg-amber-600 text-black"
+                          >
+                            ✅ Aprobar Pago
+                          </Button>
+                        </div>
                       )}
                       {cita.estado === 'pendiente' && (
                         <Button 
@@ -665,11 +714,46 @@ export default function BarberoPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Servicio Realizado</label>
-                  <select required value={walkinData.servicio_id} onChange={e=>setWalkinData({...walkinData, servicio_id: e.target.value})} className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all">
-                    <option value="">Selecciona un servicio</option>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Servicio (Opcional)</label>
+                  <select value={walkinData.servicio_id} onChange={e=>setWalkinData({...walkinData, servicio_id: e.target.value})} className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all">
+                    <option value="">Sin servicio</option>
                     {servicios.map(s => <option key={s.id} value={s.id}>{s.nombre} — {formatCurrency(s.precio)}</option>)}
                   </select>
+                </div>
+
+                {/* Productos */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1 flex items-center gap-1">
+                    <Package className="w-3 h-3" /> Productos (Opcional)
+                  </label>
+                  {walkinProductos.length > 0 && (
+                    <div className="bg-zinc-950 border border-violet-500/20 rounded-xl p-3 space-y-2 mb-2">
+                      {walkinProductos.map(p => (
+                        <div key={p.id} className="flex items-center justify-between text-sm">
+                          <span className="text-zinc-300 text-xs">{p.cantidad}x {p.nombre}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-violet-400 font-bold text-xs">{formatCurrency(p.precio * p.cantidad)}</span>
+                            <button type="button" onClick={() => removeWalkinProduct(p.id)} className="w-5 h-5 rounded bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500/40">
+                              <Minus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="border-t border-white/5 pt-1 flex justify-between text-xs">
+                        <span className="text-zinc-500">Subtotal productos</span>
+                        <span className="text-violet-400 font-black">{formatCurrency(walkinProductoTotal)}</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                    {productosDisp.map(p => (
+                      <button key={p.id} type="button" onClick={() => addWalkinProduct(p)}
+                        className="text-left px-3 py-2 bg-zinc-950 border border-white/10 rounded-lg hover:border-violet-500/40 transition text-xs">
+                        <p className="font-bold text-white truncate">{p.nombre}</p>
+                        <p className="text-violet-400 font-bold">{formatCurrency(p.precio_venta)}</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -690,9 +774,22 @@ export default function BarberoPage() {
                     onChange={e=>setWalkinData({...walkinData, propinas: parseFloat(e.target.value) || 0})} 
                   />
                 </div>
+
+                {/* Total */}
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex justify-between items-center">
+                  <span className="text-sm font-bold text-zinc-300">Total a Cobrar</span>
+                  <span className="text-xl font-black text-amber-400">
+                    {formatCurrency(
+                      (servicios.find(s => s.id === walkinData.servicio_id)?.precio || 0) 
+                      + walkinProductoTotal 
+                      + (walkinData.propinas || 0)
+                    )}
+                  </span>
+                </div>
                 
-                <div className="pt-4">
-                  <Button type="submit" disabled={submittingWalkin} className="w-full py-6 text-lg uppercase tracking-widest font-black" variant="primary">
+                <div className="pt-2">
+                  <Button type="submit" disabled={submittingWalkin || (!walkinData.servicio_id && walkinProductos.length === 0)} className="w-full py-6 text-lg uppercase tracking-widest font-black" variant="primary">
+                    <ShoppingCart className="w-5 h-5 mr-2" />
                     {submittingWalkin ? 'Registrando...' : 'Finalizar y Cobrar'}
                   </Button>
                 </div>

@@ -6,7 +6,8 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
-import { Wallet, Plus, X } from 'lucide-react'
+import { Wallet, Plus, X, User, ArrowRightLeft } from 'lucide-react'
+import { useToast } from '@/components/ui/Toast'
 
 interface PlanCuenta {
   codigo: string
@@ -26,11 +27,14 @@ interface Transaction {
   tipo_movimiento: string
   es_sancion: boolean
   metodo_pago: string | null
+  usuario_registro: string
+  libro: string
   creado_en: string
 }
 
 export default function CajaChicaPage() {
   const supabase = createClient()
+  const { success: toastSuccess, error: toastError } = useToast()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [cuentas, setCuentas] = useState<PlanCuenta[]>([])
   const [barberos, setBarberos] = useState<{id: string, full_name: string}[]>([])
@@ -48,7 +52,9 @@ export default function CajaChicaPage() {
     costo: '',
     tipo_movimiento: 'ADELANTO',
     metodo_pago: 'efectivo',
+    libro: 'CAJA_CHICA',
     notas: '',
+    mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '',
   })
 
   const loadData = useCallback(async () => {
@@ -79,7 +85,7 @@ export default function CajaChicaPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        libro: 'CAJA_CHICA',
+        libro: form.libro,
         ci: form.ci,
         nombre: form.nombre,
         cuenta_codigo: form.cuenta_codigo,
@@ -88,14 +94,19 @@ export default function CajaChicaPage() {
         costo: parseFloat(form.costo),
         tipo_movimiento: form.tipo_movimiento,
         metodo_pago: form.metodo_pago,
-        notas: form.notas || null,
+        notas: form.metodo_pago === 'mixto'
+          ? `Efectivo: Bs ${form.mixto_efectivo || 0} | QR: Bs ${form.mixto_qr || 0} | Tarjeta: Bs ${form.mixto_tarjeta || 0}${form.notas ? ' | ' + form.notas : ''}`
+          : form.notas || null,
         empleado_id: form.empleado_id || null,
       }),
     })
     if (res.ok) {
+      toastSuccess('Movimiento registrado con éxito ✅')
       setShowForm(false)
-      setForm({ empleado_id: '', ci: '', nombre: '', cuenta_codigo: '', glosa: '', costo: '', tipo_movimiento: 'ADELANTO', metodo_pago: 'efectivo', notas: '' })
+      setForm({ empleado_id: '', ci: '', nombre: '', cuenta_codigo: '', glosa: '', costo: '', tipo_movimiento: 'ADELANTO', metodo_pago: 'efectivo', libro: 'CAJA_CHICA', notas: '', mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '' })
       loadData()
+    } else {
+      toastError('Error al registrar el movimiento')
     }
     setSaving(false)
   }
@@ -106,7 +117,31 @@ export default function CajaChicaPage() {
   }
 
   const totalHoy = transactions.filter((t) => t.fecha === hoy).reduce((s, t) => s + Number(t.costo), 0)
-  const cajaChicaCuentas = cuentas.filter((c) => c.tipo === 'ACTIVO' || c.tipo === 'PATRIMONIO' || c.tipo === 'INGRESO')
+  const cajaChicaCuentas = cuentas.filter((c) => c.tipo === 'ACTIVO' || c.tipo === 'PATRIMONIO' || c.tipo === 'INGRESO' || c.tipo === 'EGRESO')
+
+  // Tipos de movimiento según el libro seleccionado
+  const tiposMovimiento: Record<string, {value: string, label: string}[]> = {
+    CAJA_CHICA: [
+      { value: 'ADELANTO', label: 'Adelanto' },
+      { value: 'APORTE_CAPITAL', label: 'Aporte de Capital' },
+      { value: 'DEPOSITO_BANCO', label: 'Depósito a Banco' },
+      { value: 'SANCCION', label: 'Sanción' },
+      { value: 'OTRO', label: 'Otro' },
+    ],
+    VENTAS: [
+      { value: 'VENTA', label: 'Venta' },
+      { value: 'DEVOLUCION', label: 'Devolución' },
+    ],
+    SERVICIOS: [
+      { value: 'SERVICIO', label: 'Servicio' },
+      { value: 'PROPINA', label: 'Propina' },
+    ],
+    EGRESOS: [
+      { value: 'GASTO', label: 'Gasto' },
+      { value: 'COMPRA', label: 'Compra' },
+      { value: 'PAGO', label: 'Pago' },
+    ],
+  }
 
   if (loading) {
     return (
@@ -146,79 +181,157 @@ export default function CajaChicaPage() {
       {showForm && (
         <Card className="border-amber-500/30 bg-zinc-900/80 animate-in slide-in-from-top-2 duration-300">
           <CardContent className="p-6">
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Empleado / Barbero (Opcional)</label>
-                <select
-                  value={form.empleado_id} onChange={(e) => handleBarberoChange(e.target.value)}
-                  className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none appearance-none"
-                >
-                  <option value="">Seleccionar empleado...</option>
-                  {barberos.map((b) => (
-                    <option key={b.id} value={b.id}>{b.full_name}</option>
-                  ))}
-                </select>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Fila 1: Libro y Quién registra */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1 block">📚 Libro / Categoría</label>
+                  <select
+                    value={form.libro}
+                    onChange={(e) => setForm({ ...form, libro: e.target.value, tipo_movimiento: tiposMovimiento[e.target.value]?.[0]?.value || 'OTRO' })}
+                    className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none appearance-none font-bold"
+                  >
+                    <option value="CAJA_CHICA">💰 Caja Chica</option>
+                    <option value="VENTAS">🛒 Ventas</option>
+                    <option value="SERVICIOS">✂️ Servicios</option>
+                    <option value="EGRESOS">📤 Egresos</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1 block">👤 A quién pertenece (Empleado)</label>
+                  <select
+                    value={form.empleado_id} onChange={(e) => handleBarberoChange(e.target.value)}
+                    className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none appearance-none"
+                  >
+                    <option value="">Sin empleado (externo)</option>
+                    {barberos.map((b) => (
+                      <option key={b.id} value={b.id}>{b.full_name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">C.I.</label>
-                <input
-                  value={form.ci} onChange={(e) => setForm({ ...form, ci: e.target.value })}
-                  className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
-                />
+
+              {/* Fila 2: CI y Nombre */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">C.I.</label>
+                  <input
+                    value={form.ci} onChange={(e) => setForm({ ...form, ci: e.target.value })}
+                    className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Nombre</label>
+                  <input
+                    value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                    className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
+                    required
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Nombre</label>
-                <input
-                  value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                  className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
-                  required
-                />
+
+              {/* Fila 3: Cuenta, Tipo, Método Pago */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Cuenta (Código — Detalle)</label>
+                  <select
+                    value={form.cuenta_codigo} onChange={(e) => setForm({ ...form, cuenta_codigo: e.target.value })}
+                    className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none appearance-none"
+                    required
+                  >
+                    <option value="">Seleccionar...</option>
+                    {cajaChicaCuentas.map((c) => (
+                      <option key={c.codigo} value={c.codigo}>{c.codigo} — {c.detalle}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Tipo de Movimiento</label>
+                  <select
+                    value={form.tipo_movimiento} onChange={(e) => setForm({ ...form, tipo_movimiento: e.target.value })}
+                    className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none appearance-none"
+                  >
+                    {(tiposMovimiento[form.libro] || tiposMovimiento.CAJA_CHICA).map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1 block">💳 Método de Pago</label>
+                  <select
+                    value={form.metodo_pago} onChange={(e) => setForm({ ...form, metodo_pago: e.target.value })}
+                    className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none appearance-none font-bold"
+                  >
+                    <option value="efectivo">💵 Efectivo</option>
+                    <option value="qr">📱 QR / Transferencia</option>
+                    <option value="tarjeta">💳 Tarjeta</option>
+                    <option value="mixto">🔄 Mixto</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Cuenta</label>
-                <select
-                  value={form.cuenta_codigo} onChange={(e) => setForm({ ...form, cuenta_codigo: e.target.value })}
-                  className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none appearance-none"
-                  required
-                >
-                  <option value="">Seleccionar...</option>
-                  {cajaChicaCuentas.map((c) => (
-                    <option key={c.codigo} value={c.codigo}>{c.codigo} — {c.detalle}</option>
-                  ))}
-                </select>
+
+              {/* Fila 4: Glosa y Monto */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Glosa / Descripción</label>
+                  <input
+                    value={form.glosa} onChange={(e) => setForm({ ...form, glosa: e.target.value })}
+                    className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
+                    placeholder="Descripción del movimiento"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Monto (Bs)</label>
+                  <input
+                    type="number" step="0.01" min="0"
+                    value={form.costo} onChange={(e) => setForm({ ...form, costo: e.target.value })}
+                    className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
+                    required
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Tipo</label>
-                <select
-                  value={form.tipo_movimiento} onChange={(e) => setForm({ ...form, tipo_movimiento: e.target.value })}
-                  className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none appearance-none"
-                >
-                  <option value="ADELANTO">Adelanto</option>
-                  <option value="APORTE_CAPITAL">Aporte de Capital</option>
-                  <option value="DEPOSITO_BANCO">Depósito a Banco</option>
-                  <option value="SANCCION">Sanción</option>
-                  <option value="OTRO">Otro</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Glosa</label>
-                <input
-                  value={form.glosa} onChange={(e) => setForm({ ...form, glosa: e.target.value })}
-                  className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
-                  placeholder="Descripción del movimiento"
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Monto (Bs)</label>
-                <input
-                  type="number" step="0.01" min="0"
-                  value={form.costo} onChange={(e) => setForm({ ...form, costo: e.target.value })}
-                  className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
-                  required
-                />
-              </div>
-              <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-3 pt-2">
+
+              {/* Desglose Mixto */}
+              {form.metodo_pago === 'mixto' && (
+                <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-3">🔄 Desglose Mixto</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">💵 Efectivo (Bs)</label>
+                      <input type="number" step="0.01" min="0" value={form.mixto_efectivo}
+                        onChange={(e) => setForm({ ...form, mixto_efectivo: e.target.value })}
+                        placeholder="0.00"
+                        className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">📱 QR / Transf. (Bs)</label>
+                      <input type="number" step="0.01" min="0" value={form.mixto_qr}
+                        onChange={(e) => setForm({ ...form, mixto_qr: e.target.value })}
+                        placeholder="0.00"
+                        className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">💳 Tarjeta (Bs)</label>
+                      <input type="number" step="0.01" min="0" value={form.mixto_tarjeta}
+                        onChange={(e) => setForm({ ...form, mixto_tarjeta: e.target.value })}
+                        placeholder="0.00"
+                        className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
+                      />
+                    </div>
+                  </div>
+                  {form.costo && (parseFloat(form.mixto_efectivo || '0') + parseFloat(form.mixto_qr || '0') + parseFloat(form.mixto_tarjeta || '0')) !== parseFloat(form.costo) && (
+                    <p className="text-red-400 text-xs mt-2 font-bold">
+                      ⚠ La suma ({formatCurrency(parseFloat(form.mixto_efectivo || '0') + parseFloat(form.mixto_qr || '0') + parseFloat(form.mixto_tarjeta || '0'))}) no coincide con el monto total ({formatCurrency(parseFloat(form.costo))})
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Acciones */}
+              <div className="flex justify-end gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
                 <Button type="submit" variant="primary" disabled={saving} className="font-black uppercase tracking-wider">
                   {saving ? 'Guardando...' : 'Registrar'}
@@ -237,24 +350,35 @@ export default function CajaChicaPage() {
               <thead>
                 <tr className="border-b border-white/10 text-left">
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Fecha</th>
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">C.I.</th>
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Nombre</th>
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Cuenta</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Registrado por</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Nombre (A quién)</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Código — Detalle</th>
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Glosa</th>
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Tipo</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Pago</th>
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">Monto</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {transactions.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-zinc-600">No hay registros aún</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-600">No hay registros aún</td></tr>
                 ) : (
                   transactions.map((tx) => (
                     <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{tx.fecha}</td>
-                      <td className="px-4 py-3 text-zinc-300 font-mono text-xs">{tx.ci}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <User className="w-3 h-3 text-amber-500/60" />
+                          <span className="text-amber-400 text-xs font-semibold">{tx.usuario_registro}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-white font-bold">{tx.nombre}</td>
-                      <td className="px-4 py-3 text-zinc-400 text-xs">{tx.cuenta_codigo}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                          <span className="text-zinc-500 text-[10px] font-mono">{tx.cuenta_codigo}</span>
+                          <span className="text-zinc-300 text-xs">{tx.cuenta_detalle}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-zinc-300">
                         {tx.es_sancion && <span className="text-red-400 mr-1">⚠</span>}
                         {tx.glosa}
@@ -262,6 +386,14 @@ export default function CajaChicaPage() {
                       <td className="px-4 py-3">
                         <Badge variant={tx.es_sancion ? 'danger' : 'default'} className="text-[10px] uppercase">
                           {tx.tipo_movimiento}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge
+                          variant={tx.metodo_pago === 'qr' ? 'info' : tx.metodo_pago === 'mixto' ? 'warning' : 'default'}
+                          className="text-[10px] uppercase"
+                        >
+                          {tx.metodo_pago === 'efectivo' ? '💵 Efect.' : tx.metodo_pago === 'qr' ? '📱 QR' : tx.metodo_pago || '—'}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-right font-black text-white">{formatCurrency(tx.costo)}</td>

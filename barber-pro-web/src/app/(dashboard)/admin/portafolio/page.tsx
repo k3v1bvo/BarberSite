@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/Badge'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/Toast'
 import { isValidImageUrl } from '@/lib/validators'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface PortafolioItem {
   id: string
@@ -289,15 +290,12 @@ export default function AdminPortafolioPage() {
             <form onSubmit={handleSubmit}>
               <CardContent className="p-8 space-y-6">
                 <div>
-                  <Input
-                    label="URL de la Imagen"
-                    required
-                    placeholder="https://images.unsplash.com/..."
-                    value={formData.image_url}
-                    onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                    className="bg-zinc-900"
+                  <ImageUpload
+                    label="Foto del Trabajo (Recomendado 1080x1080px)"
+                    defaultImage={formData.image_url || undefined}
+                    onUploadSuccess={(url) => setFormData({ ...formData, image_url: url })}
+                    onUploadError={(err) => toastError(err)}
                   />
-                  <p className="text-xs text-amber-400 mt-2 font-medium">Sugerencia: Usa una imagen de buena calidad de tus trabajos. Recomendado: 1080x1080px o 1080x1350px.</p>
                 </div>
                 <Input
                   label="Título (opcional)"
@@ -364,20 +362,7 @@ export default function AdminPortafolioPage() {
                   Visible en galería y carrusel del index
                 </label>
 
-                {/* Image Preview if URL exists */}
-                {formData.image_url && isValidImageUrl(formData.image_url) && (
-                  <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/5 bg-zinc-950">
-                    <img 
-                      src={formData.image_url} 
-                      loading="lazy"
-                      className="w-full h-full object-cover opacity-50" 
-                      onError={(e) => { e.currentTarget.style.display = 'none'; toastError('No se pudo cargar la vista previa') }}
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <Badge variant="outline" className="text-zinc-400 font-bold uppercase text-[10px] tracking-widest">Vista Previa Activa</Badge>
-                    </div>
-                  </div>
-                )}
+                {/* Image Preview handled by ImageUpload */}
               </CardContent>
               <div className="p-8 bg-zinc-900/30 border-t border-white/5 flex gap-4">
                 <Button

@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
-import { Receipt, Plus, X } from 'lucide-react'
+import { Receipt, Plus, X, Store, Filter } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/client'
 
@@ -27,27 +27,41 @@ export default function VentasPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [filtroLibro, setFiltroLibro] = useState<'VENTAS' | 'USO_TIENDA' | 'TODOS'>('TODOS')
   const hoy = new Date().toISOString().split('T')[0]
 
   const [form, setForm] = useState({
     ci: '', nombre: '', cuenta_codigo: '', glosa: '', costo: '',
     metodo_pago: 'efectivo', notas: '',
+    mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '',
   })
 
   const loadData = useCallback(async () => {
     const supabase = createClient()
+    const libroParam = filtroLibro === 'TODOS' ? 'VENTAS&libro=USO_TIENDA' : filtroLibro
     const [txRes, ctasRes, { data: sData }, { data: pData }] = await Promise.all([
-      fetch(`/api/transactions?libro=VENTAS&limit=50`),
+      filtroLibro === 'TODOS'
+        ? Promise.all([
+            fetch(`/api/transactions?libro=VENTAS&limit=50`),
+            fetch(`/api/transactions?libro=USO_TIENDA&limit=50`),
+          ]).then(async ([r1, r2]) => {
+            const d1 = r1.ok ? await r1.json() : []
+            const d2 = r2.ok ? await r2.json() : []
+            return [...d1, ...d2].sort((a: any, b: any) => new Date(b.creado_en).getTime() - new Date(a.creado_en).getTime()).slice(0, 100)
+          })
+        : fetch(`/api/transactions?libro=${filtroLibro}&limit=50`).then(r => r.ok ? r.json() : []),
       fetch('/api/plan-cuentas'),
       supabase.from('servicios').select('id, nombre, precio').eq('is_active', true),
       supabase.from('productos').select('id, nombre, precio_venta').eq('is_active', true)
     ])
-    if (txRes.ok) setTransactions(await txRes.json())
+    if (Array.isArray(txRes)) setTransactions(txRes)
+    else if (txRes.ok) setTransactions(await txRes.json())
+    else setTransactions(txRes)
     if (ctasRes.ok) setCuentas(await ctasRes.json())
     if (sData) setServicios(sData)
     if (pData) setProductos(pData)
     setLoading(false)
-  }, [])
+  }, [filtroLibro])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -85,18 +99,21 @@ export default function VentasPage() {
         glosa: form.glosa, costo: parseFloat(form.costo),
         tipo_movimiento: 'VENTA_SERVICIO',
         metodo_pago: form.metodo_pago,
-        notas: form.notas || null,
+        notas: form.metodo_pago === 'mixto'
+          ? `Efectivo: Bs ${form.mixto_efectivo || 0} | QR: Bs ${form.mixto_qr || 0} | Tarjeta: Bs ${form.mixto_tarjeta || 0}${form.notas ? ' | ' + form.notas : ''}`
+          : form.notas || null,
       }),
     })
     if (res.ok) {
       setShowForm(false)
-      setForm({ ci: '', nombre: '', cuenta_codigo: '', glosa: '', costo: '', metodo_pago: 'efectivo', notas: '' })
+      setForm({ ci: '', nombre: '', cuenta_codigo: '', glosa: '', costo: '', metodo_pago: 'efectivo', notas: '', mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '' })
       loadData()
     }
     setSaving(false)
   }
 
-  const totalHoy = transactions.filter((t) => t.fecha === hoy).reduce((s, t) => s + Number(t.costo), 0)
+  const totalHoy = transactions.filter((t) => t.fecha === hoy && t.tipo_movimiento !== 'USO_TIENDA').reduce((s, t) => s + Number(t.costo), 0)
+  const totalTiendaHoy = transactions.filter((t) => t.fecha === hoy && t.tipo_movimiento === 'USO_TIENDA').reduce((s, t) => s + Number(t.costo), 0)
   const ventasCuentas = cuentas.filter((c) => c.codigo.startsWith('4.1'))
 
   if (loading) {
@@ -112,21 +129,53 @@ export default function VentasPage() {
           </h1>
           <p className="text-zinc-500 font-medium mt-1">Pagos de clientes por cortes, barba y productos</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
           <Card className="border-white/5 bg-zinc-900/80">
             <CardContent className="px-4 py-3 flex items-center gap-3">
               <Receipt className="w-5 h-5 text-green-500" />
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Hoy</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Ventas Hoy</p>
                 <p className="text-lg font-black text-white">{formatCurrency(totalHoy)}</p>
               </div>
             </CardContent>
           </Card>
+          {totalTiendaHoy > 0 && (
+            <Card className="border-violet-500/20 bg-zinc-900/80">
+              <CardContent className="px-4 py-3 flex items-center gap-3">
+                <Store className="w-5 h-5 text-violet-400" />
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Uso Tienda Hoy</p>
+                  <p className="text-lg font-black text-violet-400">{formatCurrency(totalTiendaHoy)}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <Button variant="primary" onClick={() => setShowForm(!showForm)} className="gap-2 font-black uppercase tracking-wider">
             {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             {showForm ? 'Cerrar' : 'Nuevo'}
           </Button>
         </div>
+      </div>
+
+      {/* FILTROS */}
+      <div className="flex items-center gap-2">
+        <Filter className="w-4 h-4 text-zinc-500" />
+        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mr-2">Filtrar:</span>
+        {(['TODOS', 'VENTAS', 'USO_TIENDA'] as const).map(f => (
+          <button
+            key={f}
+            onClick={() => setFiltroLibro(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${
+              filtroLibro === f
+                ? f === 'USO_TIENDA'
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-amber-500 text-black'
+                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+            }`}
+          >
+            {f === 'TODOS' ? 'Todas' : f === 'VENTAS' ? 'Ventas' : '⚡ Uso Tienda'}
+          </button>
+        ))}
       </div>
 
       {showForm && (
@@ -185,12 +234,56 @@ export default function VentasPage() {
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Método pago</label>
                 <select value={form.metodo_pago} onChange={(e) => setForm({ ...form, metodo_pago: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-green-500/50 outline-none appearance-none">
-                  <option value="efectivo">Efectivo</option>
-                  <option value="qr">QR</option>
-                  <option value="tarjeta">Tarjeta</option>
-                  <option value="mixto">Mixto</option>
+                  <option value="efectivo">💵 Efectivo</option>
+                  <option value="qr">📱 QR</option>
+                  <option value="tarjeta">💳 Tarjeta</option>
+                  <option value="mixto">🔄 Mixto (Efectivo + QR + Tarjeta)</option>
                 </select>
               </div>
+              {form.metodo_pago === 'mixto' && (
+                <div className="md:col-span-2 lg:col-span-3">
+                  <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-3">🔄 Desglose Mixto</p>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">💵 Efectivo (Bs)</label>
+                        <input
+                          type="number" step="0.01" min="0"
+                          value={form.mixto_efectivo}
+                          onChange={(e) => setForm({ ...form, mixto_efectivo: e.target.value })}
+                          placeholder="0.00"
+                          className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">📱 QR / Transf. (Bs)</label>
+                        <input
+                          type="number" step="0.01" min="0"
+                          value={form.mixto_qr}
+                          onChange={(e) => setForm({ ...form, mixto_qr: e.target.value })}
+                          placeholder="0.00"
+                          className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">💳 Tarjeta (Bs)</label>
+                        <input
+                          type="number" step="0.01" min="0"
+                          value={form.mixto_tarjeta}
+                          onChange={(e) => setForm({ ...form, mixto_tarjeta: e.target.value })}
+                          placeholder="0.00"
+                          className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
+                        />
+                      </div>
+                    </div>
+                    {form.costo && (parseFloat(form.mixto_efectivo || '0') + parseFloat(form.mixto_qr || '0') + parseFloat(form.mixto_tarjeta || '0')) !== parseFloat(form.costo) && (
+                      <p className="text-red-400 text-xs mt-2 font-bold">
+                        ⚠ La suma ({formatCurrency(parseFloat(form.mixto_efectivo || '0') + parseFloat(form.mixto_qr || '0') + parseFloat(form.mixto_tarjeta || '0'))}) no coincide con el monto total ({formatCurrency(parseFloat(form.costo))})
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
                 <Button type="submit" variant="primary" disabled={saving} className="font-black uppercase tracking-wider">{saving ? 'Guardando...' : 'Registrar Venta'}</Button>
@@ -227,7 +320,17 @@ export default function VentasPage() {
                       <td className="px-4 py-3 text-zinc-400 text-xs">{tx.cuenta_detalle}</td>
                       <td className="px-4 py-3 text-zinc-300">{tx.glosa}</td>
                       <td className="px-4 py-3">
-                        <Badge variant={tx.metodo_pago === 'qr' ? 'info' : 'default'} className="text-[10px] uppercase">{tx.metodo_pago || '—'}</Badge>
+                        <div className="flex items-center gap-1.5">
+                          <Badge 
+                            variant={tx.metodo_pago === 'descuento_caja' ? 'warning' : tx.metodo_pago === 'qr' ? 'info' : 'default'} 
+                            className={`text-[10px] uppercase ${tx.metodo_pago === 'descuento_caja' ? 'bg-violet-500/20 text-violet-400 border-violet-500/30' : ''}`}
+                          >
+                            {tx.metodo_pago === 'descuento_caja' ? 'Desc. Caja' : (tx.metodo_pago || '—')}
+                          </Badge>
+                          {tx.tipo_movimiento === 'USO_TIENDA' && (
+                            <Badge className="text-[9px] uppercase bg-violet-600/20 text-violet-300 border-violet-500/30">TIENDA</Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right font-black text-green-400">{formatCurrency(tx.costo)}</td>
                     </tr>

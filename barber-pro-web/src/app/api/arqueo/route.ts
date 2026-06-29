@@ -32,10 +32,12 @@ export async function GET(request: NextRequest) {
       ventas: 0,
       servicios: 0,
       banco: 0,
+      uso_tienda: 0,
       total_registrado: 0,
       total_efectivo: 0,
       total_qr: 0,
       total_tarjeta: 0,
+      total_descuento_caja: 0,
       sanciones: 0,
       movimientos: txDia?.length || 0,
     }
@@ -46,11 +48,13 @@ export async function GET(request: NextRequest) {
       else if (t.libro === 'VENTAS') resumen.ventas += costo
       else if (t.libro === 'SERVICIOS') resumen.servicios += costo
       else if (t.libro === 'BANCO') resumen.banco += costo
+      else if (t.libro === 'USO_TIENDA') resumen.uso_tienda += costo
       resumen.total_registrado += costo
       if (t.es_sancion) resumen.sanciones += costo
       if (t.metodo_pago === 'efectivo') resumen.total_efectivo += costo
       else if (t.metodo_pago === 'qr') resumen.total_qr += costo
       else if (t.metodo_pago === 'tarjeta') resumen.total_tarjeta += costo
+      else if (t.metodo_pago === 'descuento_caja') resumen.total_descuento_caja += costo
     })
 
     // Traer cierre existente

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { formatCurrency } from '@/lib/utils'
-import { Scale, CheckCircle, AlertCircle } from 'lucide-react'
+import { Scale, CheckCircle, AlertCircle, Store } from 'lucide-react'
 
 interface Resumen {
   fecha: string
@@ -12,10 +12,12 @@ interface Resumen {
   ventas: number
   servicios: number
   banco: number
+  uso_tienda: number
   total_registrado: number
   total_efectivo: number
   total_qr: number
   total_tarjeta: number
+  total_descuento_caja: number
   sanciones: number
   movimientos: number
 }
@@ -110,15 +112,16 @@ export default function ArqueoPage() {
       )}
 
       {/* Resumen por libro */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         {[
           { label: 'Caja Chica', value: resumen.caja_chica, color: 'text-amber-400' },
           { label: 'Ventas', value: resumen.ventas, color: 'text-green-400' },
           { label: 'Servicios', value: resumen.servicios, color: 'text-emerald-400' },
           { label: 'Banco', value: resumen.banco, color: 'text-blue-400' },
+          { label: 'Uso Tienda', value: resumen.uso_tienda, color: 'text-violet-400' },
           { label: 'Total Sistema', value: resumen.total_registrado, color: 'text-white' },
         ].map((item) => (
-          <Card key={item.label} className="border-white/5 bg-zinc-900/80">
+          <Card key={item.label} className={`border-white/5 bg-zinc-900/80 ${item.label === 'Uso Tienda' && resumen.uso_tienda > 0 ? 'border-violet-500/20' : ''}`}>
             <CardContent className="p-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">{item.label}</p>
               <p className={`text-xl font-black ${item.color}`}>{formatCurrency(item.value)}</p>
@@ -192,13 +195,14 @@ export default function ArqueoPage() {
       </Card>
 
       {/* Detalle por método de pago */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Efectivo (sistema)', value: resumen.total_efectivo, color: 'text-amber-400' },
           { label: 'QR (sistema)', value: resumen.total_qr, color: 'text-blue-400' },
           { label: 'Tarjeta (sistema)', value: resumen.total_tarjeta, color: 'text-purple-400' },
+          { label: 'Desc. Caja (tienda)', value: resumen.total_descuento_caja, color: 'text-violet-400' },
         ].map((item) => (
-          <Card key={item.label} className="border-white/5 bg-zinc-900/50">
+          <Card key={item.label} className={`border-white/5 bg-zinc-900/50 ${item.label.includes('tienda') && item.value > 0 ? 'border-violet-500/20' : ''}`}>
             <CardContent className="p-4 text-center">
               <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">{item.label}</p>
               <p className={`text-lg font-black ${item.color}`}>{formatCurrency(item.value)}</p>

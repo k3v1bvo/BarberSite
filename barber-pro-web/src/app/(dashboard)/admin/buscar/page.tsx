@@ -12,7 +12,7 @@ import Link from 'next/link'
 export default function BuscarPage() {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
-  const [clientes, setClientes] = useState<Array<{ id: string; nombre: string; telefono: string | null; email: string | null }>>([])
+  const [clientes, setClientes] = useState<Array<{ id: string; nombre: string; telefono: string | null; email: string | null; ci: string | null }>>([])
   const [citas, setCitas] = useState<Array<{
     id: string
     fecha_hora: string
@@ -39,8 +39,8 @@ export default function BuscarPage() {
 
       const { data: clientesData } = await supabase
         .from('clientes')
-        .select('id, nombre, telefono, email')
-        .or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,email.ilike.%${q}%`)
+        .select('id, nombre, telefono, email, ci')
+        .or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,email.ilike.%${q}%,ci.ilike.%${q}%`)
         .limit(15)
 
       const { data: citasData } = await supabase
@@ -89,7 +89,7 @@ export default function BuscarPage() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Nombre, teléfono, email o ID de cita..."
+                placeholder="Nombre, carnet, teléfono, email o ID de cita..."
                 className="w-full h-12 pl-12 pr-4 bg-zinc-950 border border-white/10 rounded-xl text-white font-medium focus:border-amber-500/50 outline-none"
               />
             </div>
@@ -111,7 +111,7 @@ export default function BuscarPage() {
           <CardContent className="p-0 divide-y divide-white/5">
             {clientes.map((c) => (
               <div key={c.id} className="p-4 hover:bg-white/5 transition-colors">
-                <p className="font-bold text-white">{c.nombre}</p>
+                <p className="font-bold text-white">{c.nombre}{c.ci ? <span className="text-zinc-500 text-xs ml-2">C.I. {c.ci}</span> : null}</p>
                 <p className="text-sm text-zinc-500">
                   {[c.telefono, c.email].filter(Boolean).join(' · ') || 'Sin contacto'}
                 </p>
