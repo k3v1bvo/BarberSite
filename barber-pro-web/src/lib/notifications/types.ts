@@ -29,7 +29,7 @@ export interface NotificationPayload {
   monto?: number
   motivo?: string
   link?: string
-  comprobante_url?: string | null
+  comprobante_url?: string
   [key: string]: string | number | undefined
 }
 
