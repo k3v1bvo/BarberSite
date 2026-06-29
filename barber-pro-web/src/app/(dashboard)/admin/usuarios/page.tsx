@@ -35,7 +35,7 @@ export default function UsuariosPage() {
     full_name: '',
     phone: '',
     ci: '',
-    role: 'barbero' as 'barbero' | 'coordinador' | 'admin',
+    role: 'cliente' as 'cliente' | 'barbero' | 'coordinador' | 'admin',
     comision_porcentaje: 30,
     avatar_url: '',
   })
@@ -362,6 +362,7 @@ export default function UsuariosPage() {
                       onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
                       className="h-12 w-full border border-white/10 bg-zinc-900 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all appearance-none uppercase"
                     >
+                      <option value="cliente">Cliente</option>
                       <option value="barbero">Barbero</option>
                       <option value="coordinador">Coordinador/a</option>
                       <option value="admin">Administrador</option>
