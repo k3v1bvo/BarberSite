@@ -6,8 +6,9 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
-import { Wallet, Plus, X, User, ArrowRightLeft } from 'lucide-react'
+import { Wallet, Plus, X, User, ArrowRightLeft, Image as ImageIcon } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface PlanCuenta {
   codigo: string
@@ -27,6 +28,7 @@ interface Transaction {
   tipo_movimiento: string
   es_sancion: boolean
   metodo_pago: string | null
+  comprobante_url: string | null
   usuario_registro: string
   libro: string
   creado_en: string
@@ -55,6 +57,7 @@ export default function CajaChicaPage() {
     libro: 'CAJA_CHICA',
     notas: '',
     mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '',
+    comprobante_url: '' as string | null,
   })
 
   const loadData = useCallback(async () => {
@@ -94,6 +97,7 @@ export default function CajaChicaPage() {
         costo: parseFloat(form.costo),
         tipo_movimiento: form.tipo_movimiento,
         metodo_pago: form.metodo_pago,
+        comprobante_url: form.comprobante_url,
         notas: form.metodo_pago === 'mixto'
           ? `Efectivo: Bs ${form.mixto_efectivo || 0} | QR: Bs ${form.mixto_qr || 0} | Tarjeta: Bs ${form.mixto_tarjeta || 0}${form.notas ? ' | ' + form.notas : ''}`
           : form.notas || null,
@@ -103,7 +107,12 @@ export default function CajaChicaPage() {
     if (res.ok) {
       toastSuccess('Movimiento registrado con éxito ✅')
       setShowForm(false)
-      setForm({ empleado_id: '', ci: '', nombre: '', cuenta_codigo: '', glosa: '', costo: '', tipo_movimiento: 'ADELANTO', metodo_pago: 'efectivo', libro: 'CAJA_CHICA', notas: '', mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '' })
+      setForm({
+        empleado_id: '', ci: '', nombre: '', cuenta_codigo: '', glosa: '', costo: '',
+        tipo_movimiento: 'ADELANTO', metodo_pago: 'efectivo', libro: 'CAJA_CHICA', notas: '',
+        mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '', comprobante_url: null
+      })
+      setShowForm(false)
       loadData()
     } else {
       toastError('Error al registrar el movimiento')
@@ -330,6 +339,21 @@ export default function CajaChicaPage() {
                 </div>
               )}
 
+              {/* Subir Comprobante (Opcional, pero recomendado para QR/Transferencia) */}
+              {(form.metodo_pago === 'qr' || form.metodo_pago === 'mixto') && (
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1 block">📸 Comprobante de Pago</label>
+                  <div className="bg-zinc-950 border border-white/5 rounded-xl p-4">
+                    <ImageUpload
+                      value={form.comprobante_url || ''}
+                      onChange={(url) => setForm({ ...form, comprobante_url: url })}
+                      bucket="comprobantes"
+                      folder="caja-chica"
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Acciones */}
               <div className="flex justify-end gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
@@ -372,7 +396,12 @@ export default function CajaChicaPage() {
                           <span className="text-amber-400 text-xs font-semibold">{tx.usuario_registro}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-white font-bold">{tx.nombre}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                          <span className="text-white font-bold">{tx.nombre}</span>
+                          {tx.ci && <span className="text-zinc-500 text-[10px] uppercase font-black tracking-widest">C.I. {tx.ci}</span>}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col">
                           <span className="text-zinc-500 text-[10px] font-mono">{tx.cuenta_codigo}</span>
@@ -389,12 +418,19 @@ export default function CajaChicaPage() {
                         </Badge>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge
-                          variant={tx.metodo_pago === 'qr' ? 'info' : tx.metodo_pago === 'mixto' ? 'warning' : 'default'}
-                          className="text-[10px] uppercase"
-                        >
-                          {tx.metodo_pago === 'efectivo' ? '💵 Efect.' : tx.metodo_pago === 'qr' ? '📱 QR' : tx.metodo_pago || '—'}
-                        </Badge>
+                        <div className="flex flex-col items-start gap-1">
+                          <Badge
+                            variant={tx.metodo_pago === 'qr' ? 'info' : tx.metodo_pago === 'mixto' ? 'warning' : 'default'}
+                            className="text-[10px] uppercase"
+                          >
+                            {tx.metodo_pago === 'efectivo' ? '💵 Efect.' : tx.metodo_pago === 'qr' ? '📱 QR' : tx.metodo_pago || '—'}
+                          </Badge>
+                          {tx.comprobante_url && (
+                            <a href={tx.comprobante_url} target="_blank" rel="noreferrer" className="text-[10px] text-amber-500 hover:text-amber-400 flex items-center gap-1 font-bold">
+                              <ImageIcon className="w-3 h-3" /> Ver
+                            </a>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right font-black text-white">{formatCurrency(tx.costo)}</td>
                     </tr>

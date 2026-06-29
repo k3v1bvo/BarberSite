@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
         producto_id: body.producto_id || null,
         cantidad_producto: body.cantidad_producto || null,
         metodo_pago: body.metodo_pago || null,
+        comprobante_url: body.comprobante_url || null,
         usuario_registro: profile.full_name || user.email || 'Sistema',
         notas: body.notas || null,
       })
