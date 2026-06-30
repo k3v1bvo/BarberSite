@@ -333,7 +333,7 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center transition-all duration-1000"
           style={{ backgroundImage: `url('${heroConfigState.url}')` }}
         >
@@ -532,9 +532,8 @@ export default function HomePage() {
                     key={item.id}
                     type="button"
                     onClick={() => setCarouselIndex(idx)}
-                    className={`shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                      idx === carouselIndex ? 'border-amber-500 scale-105' : 'border-white/10 opacity-60 hover:opacity-100'
-                    }`}
+                    className={`shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${idx === carouselIndex ? 'border-amber-500 scale-105' : 'border-white/10 opacity-60 hover:opacity-100'
+                      }`}
                   >
                     <img src={item.image_url} alt="" className="w-full h-full object-cover" />
                   </button>
@@ -688,31 +687,31 @@ export default function HomePage() {
 
           {equipo.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {equipo.map((barbero) => (
-              <div key={barbero.id} className="group text-center">
-                <div className="relative inline-block mb-6">
-                  <div className="w-64 h-64 rounded-full overflow-hidden mx-auto">
-                    {barbero.imagen_url ? (
-                      <img
-                        src={barbero.imagen_url}
-                        alt={barbero.nombre}
-                        className="w-full h-full object-cover blur-[3px] grayscale opacity-70 group-hover:blur-[0px] group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-500"
-                        onError={(e) => {
-                           (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre)}&background=f59e0b&color=000&size=256`;
-                        }}
-                      />
-                    ) : (
-                      <img
-                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre)}&background=f59e0b&color=000&size=256`}
-                        alt={barbero.nombre}
-                        className="w-full h-full object-cover blur-[3px] grayscale opacity-70 group-hover:blur-[0px] group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-500"
-                      />
-                    )}
+              {equipo.map((barbero) => (
+                <div key={barbero.id} className="group text-center">
+                  <div className="relative inline-block mb-6">
+                    <div className="w-64 h-64 rounded-full overflow-hidden mx-auto">
+                      {barbero.imagen_url ? (
+                        <img
+                          src={barbero.imagen_url}
+                          alt={barbero.nombre}
+                          className="w-full h-full object-cover blur-[3px] grayscale opacity-70 group-hover:blur-[0px] group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-500"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre)}&background=f59e0b&color=000&size=256`;
+                          }}
+                        />
+                      ) : (
+                        <img
+                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre)}&background=f59e0b&color=000&size=256`}
+                          alt={barbero.nombre}
+                          className="w-full h-full object-cover blur-[3px] grayscale opacity-70 group-hover:blur-[0px] group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-500"
+                        />
+                      )}
+                    </div>
+                    <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-amber-400 text-black px-4 py-1 rounded-full text-sm font-bold truncate max-w-[200px]">
+                      {barbero.especialidad}
+                    </div>
                   </div>
-                  <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-amber-400 text-black px-4 py-1 rounded-full text-sm font-bold truncate max-w-[200px]">
-                    {barbero.especialidad}
-                  </div>
-                </div>
                   <h3 className="text-xl font-bold mb-2">{barbero.nombre}</h3>
                   {barbero.descripcion && (
                     <p className="text-gray-400 text-sm mb-4 max-w-xs mx-auto line-clamp-3">
@@ -932,7 +931,7 @@ export default function HomePage() {
             </div>
 
             <p className="text-gray-500 text-sm text-center md:text-right">
-              © 2026 BarberSite. Todos los derechos reservados. Cochabamba, Bolivia. -k3v1bvo Studios, designed by k3v1bvo-
+              © 2026 BarberSite. Todos los derechos reservados. Cochabamba, Bolivia. -k3v1bvo Studios, designed by k3v1bvo
             </p>
           </div>
         </div>

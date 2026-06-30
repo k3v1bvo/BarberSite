@@ -52,7 +52,10 @@ export async function POST(request: Request) {
     }
 
     // Disparamos el correo de restablecimiento
-    const { error: resetErr } = await supabaseAdmin.auth.resetPasswordForEmail(emailToReset)
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://barber-site-livid.vercel.app'
+    const { error: resetErr } = await supabaseAdmin.auth.resetPasswordForEmail(emailToReset, {
+      redirectTo: `${siteUrl}/actualizar-password`
+    })
 
     if (resetErr) {
       console.error("Error al enviar reset:", resetErr)
