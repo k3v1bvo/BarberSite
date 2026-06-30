@@ -345,10 +345,8 @@ export default function CajaChicaPage() {
                   <label className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1 block">📸 Comprobante de Pago</label>
                   <div className="bg-zinc-950 border border-white/5 rounded-xl p-4">
                     <ImageUpload
-                      value={form.comprobante_url || ''}
-                      onChange={(url) => setForm({ ...form, comprobante_url: url })}
-                      bucket="comprobantes"
-                      folder="caja-chica"
+                      defaultImage={form.comprobante_url || ''}
+                      onUploadSuccess={(url) => setForm({ ...form, comprobante_url: url })}
                     />
                   </div>
                 </div>
