@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    if (!profile || !['admin', 'coordinador'].includes(profile.role)) {
+    if (!profile || !['admin', 'coordinador', 'barbero'].includes(profile.role)) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
@@ -36,7 +36,8 @@ export async function POST(request: NextRequest) {
       servicio_id, barbero_id, 
       metodo_pago, propinas, estado, notas,
       productos_carrito,
-      descuento, promo_id, referral_ids, comprobante_url
+      descuento, promo_id, referral_ids, comprobante_url,
+      acompanante_2x1
     } = body
     const descuentoTotal = Number(descuento) || 0
     const referralIdsToMark: string[] = referral_ids || []
@@ -139,8 +140,7 @@ export async function POST(request: NextRequest) {
       precioBase = serv.precio || 0
 
       if (estado === 'completado') {
-        const { data: barbero } = await supabase.from('profiles').select('comision_porcentaje, full_name').eq('id', barbero_id).single()
-        const barberoComision = barbero?.comision_porcentaje || 0
+        // (La comisión base de perfil ya no se usa, ahora es estrictamente por servicio)
         
         let baseComision = 0
         if (serv.comision_activa !== false && serv.comision_tipo !== 'ninguna') {
@@ -148,8 +148,6 @@ export async function POST(request: NextRequest) {
             baseComision = serv.comision_valor || 0
           } else if (serv.comision_tipo === 'porcentaje') {
             baseComision = (precioBase * (serv.comision_valor || 0)) / 100
-          } else {
-            baseComision = (precioBase * barberoComision) / 100
           }
         }
         const extraPropinas = serv.comision_acumulable !== false ? (propinas || 0) : 0
@@ -167,6 +165,11 @@ export async function POST(request: NextRequest) {
     if (servicio_id && serv) {
       const inicio = new Date(ahora.getTime() - (serv.duracion_minutos || 30) * 60000)
 
+      let finalNotas = notas || 'Venta desde Caja'
+      if (acompanante_2x1 && acompanante_2x1.nombre) {
+        finalNotas += `\n[PROMO 2x1] Acompañante: ${acompanante_2x1.nombre}${acompanante_2x1.email ? ` (${acompanante_2x1.email})` : ''}`
+      }
+
       const insertData: any = {
         cliente_id: finalClienteId,
         barbero_id,
@@ -175,7 +178,7 @@ export async function POST(request: NextRequest) {
         precio: precioBase,
         duracion_real_minutos: serv.duracion_minutos || 30,
         estado: estado || 'en_proceso',
-        notas: notas || 'Venta desde Caja',
+        notas: finalNotas,
       }
 
       if (estado === 'completado') {
@@ -198,6 +201,27 @@ export async function POST(request: NextRequest) {
     } else if (productosCarrito.length > 0 && !servicio_id) {
       // Si solo hay productos sin servicio, crear una cita "virtual" para registro
       // No se crea cita, solo se registra la transacción contable abajo
+    }
+
+    // 3.1. Enviar notificación 2x1 si hay acompañante con correo
+    if (acompanante_2x1?.email && citaId && estado !== 'completado') {
+      try {
+        const d = ahora
+        const fechaFormat = d.toLocaleDateString('es-BO')
+        const horaFormat = d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })
+        
+        await dispatchNotification(adminSupabase, {
+          event: 'invitacion_2x1',
+          payload: {
+            citaId,
+            acompananteNombre: acompanante_2x1.nombre,
+            acompananteEmail: acompanante_2x1.email,
+            clienteNombre: nombre || 'Un amigo',
+            fecha: fechaFormat,
+            hora: horaFormat
+          }
+        })
+      } catch (e) { console.error('Error dispatching 2x1 invite', e) }
     }
 
     // 4. Procesar productos: actualizar stock y registrar transacciones

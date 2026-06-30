@@ -67,18 +67,13 @@ export async function POST(request: Request) {
       const { data: serv } = await supabase.from('servicios').select('precio, comision_activa, comision_tipo, comision_valor, comision_acumulable').eq('id', servicio_id).single()
       precioBase = serv?.precio || 0
       
-      // Obtener comisión del barbero
-      const { data: barbero } = await supabase.from('profiles').select('comision_porcentaje, full_name').eq('id', user.id).single()
-      const barberoComision = barbero?.comision_porcentaje || 0
-      
+      // (La comisión base de perfil ya no se usa, ahora es estrictamente por servicio)
       let baseComision = 0
       if (serv?.comision_activa !== false && serv?.comision_tipo !== 'ninguna') {
         if (serv?.comision_tipo === 'fija') {
           baseComision = serv?.comision_valor || 0
         } else if (serv?.comision_tipo === 'porcentaje') {
           baseComision = (precioBase * (serv?.comision_valor || 0)) / 100
-        } else {
-          baseComision = (precioBase * barberoComision) / 100
         }
       }
       

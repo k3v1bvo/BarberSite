@@ -10,13 +10,11 @@ import { Coins, Calculator } from 'lucide-react'
 interface Barbero {
   id: string
   full_name: string
-  comision_porcentaje: number
 }
 
 interface ResumenBarbero {
   barbero_id: string
   nombre: string
-  porcentaje: number
   total_ventas: number
   comision: number
 }
@@ -36,7 +34,7 @@ export default function ComisionesPage() {
     // Barberos
     const { data: bList } = await supabase
       .from('profiles')
-      .select('id, full_name, comision_porcentaje')
+      .select('id, full_name')
       .eq('role', 'barbero')
       .eq('is_active', true)
 
@@ -52,26 +50,28 @@ export default function ComisionesPage() {
 
     const { data: citas } = await supabase
       .from('citas')
-      .select('barbero_id, precio')
+      .select('barbero_id, precio, comision_barbero')
       .eq('estado', 'completado')
       .gte('fecha_hora', desde)
       .lt('fecha_hora', hasta)
 
     const mapaVentas: Record<string, number> = {}
+    const mapaComisiones: Record<string, number> = {}
     citas?.forEach((c) => {
       if (c.barbero_id) {
         mapaVentas[c.barbero_id] = (mapaVentas[c.barbero_id] || 0) + Number(c.precio || 0)
+        mapaComisiones[c.barbero_id] = (mapaComisiones[c.barbero_id] || 0) + Number(c.comision_barbero || 0)
       }
     })
 
     const resumenCalc: ResumenBarbero[] = bList.map((b) => {
       const totalVentas = mapaVentas[b.id] || 0
+      const comision = mapaComisiones[b.id] || 0
       return {
         barbero_id: b.id,
         nombre: b.full_name,
-        porcentaje: b.comision_porcentaje || 0,
         total_ventas: totalVentas,
-        comision: totalVentas * (b.comision_porcentaje / 100),
+        comision: comision,
       }
     })
 
@@ -137,7 +137,6 @@ export default function ComisionesPage() {
               <thead>
                 <tr className="border-b border-white/10 text-left">
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Barbero</th>
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center">% Comisión</th>
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">Ventas</th>
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">Comisión</th>
                 </tr>
@@ -149,11 +148,6 @@ export default function ComisionesPage() {
                   resumen.map((r) => (
                     <tr key={r.barbero_id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-4 py-4 text-white font-bold">{r.nombre}</td>
-                      <td className="px-4 py-4 text-center">
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 text-xs font-black">
-                          {r.porcentaje}%
-                        </span>
-                      </td>
                       <td className="px-4 py-4 text-right text-green-400 font-bold">{formatCurrency(r.total_ventas)}</td>
                       <td className="px-4 py-4 text-right font-black text-purple-400 text-lg">{formatCurrency(r.comision)}</td>
                     </tr>
@@ -163,7 +157,7 @@ export default function ComisionesPage() {
               {resumen.length > 0 && (
                 <tfoot>
                   <tr className="border-t border-white/10 bg-zinc-950/50">
-                    <td className="px-4 py-3 font-black text-zinc-400 uppercase text-xs tracking-widest" colSpan={2}>Total</td>
+                    <td className="px-4 py-3 font-black text-zinc-400 uppercase text-xs tracking-widest">Total</td>
                     <td className="px-4 py-3 text-right font-black text-green-400">{formatCurrency(totalVentas)}</td>
                     <td className="px-4 py-3 text-right font-black text-purple-400 text-lg">{formatCurrency(totalComisiones)}</td>
                   </tr>

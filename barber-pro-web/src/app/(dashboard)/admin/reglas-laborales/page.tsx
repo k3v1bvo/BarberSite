@@ -74,10 +74,8 @@ export default function ReglasLaboralesPage() {
   // ─── Comisiones ───────────────────────────────────────────────────────
   const [servicios, setServicios] = useState<Servicio[]>([])
   const [barberos, setBarberos] = useState<Barbero[]>([])
-  const [globalPct, setGlobalPct] = useState<number>(30)
   const [expandido, setExpandido] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
-  const [editBarbero, setEditBarbero] = useState<{ id: string; pct: number } | null>(null)
 
   // ─── Sanciones catálogo ───────────────────────────────────────────────
   const [planCuentas, setPlanCuentas] = useState<PlanCuenta[]>([])
@@ -129,8 +127,7 @@ export default function ReglasLaboralesPage() {
       setPlanCuentas(data.plan_cuentas ?? [])
       const bonosCfg = data.configuraciones?.find((c: any) => c.llave === 'bonos_config')
       if (bonosCfg?.valor) setBonosConfig(bonosCfg.valor)
-      const globalCfg = data.configuraciones?.find((c: any) => c.llave === 'comision_global_pct')
-      if (globalCfg?.valor?.pct !== undefined) setGlobalPct(globalCfg.valor.pct)
+
     } finally {
       setLoading(false)
     }
@@ -186,23 +183,6 @@ export default function ReglasLaboralesPage() {
   const updateServicio = (id: string, changes: Partial<Servicio>) =>
     setServicios(prev => prev.map(s => s.id === id ? { ...s, ...changes } : s))
 
-  const saveBarberoComision = async () => {
-    if (!editBarbero) return
-    const res = await fetch('/api/reglas-laborales', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion: 'update_barbero_comision', barbero_id: editBarbero.id, comision_porcentaje: editBarbero.pct }),
-    })
-    if (res.ok) {
-      success('% del barbero actualizado')
-      setBarberos(prev => prev.map(b => b.id === editBarbero.id ? { ...b, comision_porcentaje: editBarbero.pct } : b))
-    } else { toastError('Error al guardar') }
-    setEditBarbero(null)
-  }
-
-  const saveGlobal = async () => {
-    const res = await fetch('/api/reglas-laborales', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'update_comision_global', pct: globalPct }) })
-    if (res.ok) { success('% global guardado') } else { toastError('Error') }
-  }
 
   // ─── Plan de cuentas handlers ─────────────────────────────────────────
   const openCuenta = (c?: PlanCuenta) => {
@@ -369,24 +349,6 @@ export default function ReglasLaboralesPage() {
       {/* ════════ COMISIONES ════════ */}
       {tab === 'comisiones' && (
         <div className="space-y-8">
-          <Card className="border-amber-500/20 bg-zinc-900/80">
-            <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-amber-500 mb-1">% Global por Defecto</p>
-                  <p className="text-zinc-400 text-sm">Se aplica como fallback cuando un servicio no tiene comisión configurada</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 bg-zinc-950 border border-white/10 rounded-xl px-4 py-2">
-                    <input type="number" min={0} max={100} step={0.5} value={globalPct} onChange={e => setGlobalPct(parseFloat(e.target.value) || 0)}
-                      className="w-16 bg-transparent text-amber-500 font-black text-xl outline-none text-center" />
-                    <span className="text-zinc-500 font-black text-lg">%</span>
-                  </div>
-                  <Button variant="primary" size="sm" onClick={saveGlobal}><Save size={14} /></Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           <div>
             <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4 border-l-4 border-amber-500 pl-3">Comisión por Servicio</h2>
@@ -460,40 +422,7 @@ export default function ReglasLaboralesPage() {
             </div>
           </div>
 
-          <div>
-            <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4 border-l-4 border-purple-500 pl-3">Comisión por Barbero (override)</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {barberos.map(b => (
-                <Card key={b.id} className="bg-zinc-900 border-white/5 hover:border-purple-500/20 transition-all">
-                  <CardContent className="p-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-black text-white">{b.full_name}</p>
-                        <Badge variant="default" className="text-[9px] uppercase mt-1">{b.role}</Badge>
-                      </div>
-                      {editBarbero?.id === b.id ? (
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1 bg-zinc-950 border border-purple-500/30 rounded-xl px-3 py-1">
-                            <input type="number" min={0} max={100} step={0.5} value={editBarbero.pct}
-                              onChange={e => setEditBarbero({ ...editBarbero, pct: parseFloat(e.target.value) || 0 })}
-                              className="w-14 bg-transparent text-purple-400 font-black outline-none text-center" autoFocus />
-                            <span className="text-zinc-500 font-bold">%</span>
-                          </div>
-                          <button onClick={saveBarberoComision} className="w-8 h-8 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center justify-center text-green-500 hover:bg-green-500/20 transition-colors"><Check size={14} /></button>
-                          <button onClick={() => setEditBarbero(null)} className="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center text-zinc-500"><X size={14} /></button>
-                        </div>
-                      ) : (
-                        <div className="text-right cursor-pointer" onClick={() => setEditBarbero({ id: b.id, pct: b.comision_porcentaje ?? 0 })}>
-                          <p className="text-purple-400 font-black text-2xl">{b.comision_porcentaje ?? 0}<span className="text-base">%</span></p>
-                          <p className="text-zinc-600 text-[10px] uppercase">toca para editar</p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
+
         </div>
       )}
 

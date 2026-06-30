@@ -19,12 +19,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: 'No hay citas para recalcular.' })
     }
 
-    // 2. Obtener barberos y sus comisiones
-    const { data: perfiles } = await adminClient.from('profiles').select('id, comision_porcentaje').in('role', ['barbero', 'coordinador'])
-    const barberMap = new Map()
-    if (perfiles) {
-      perfiles.forEach(p => barberMap.set(p.id, p.comision_porcentaje || 50)) // 50% por defecto si no tienen
-    }
+    // 2. Ya no se usan comisiones de perfiles
 
     // 3. Obtener servicios y sus reglas de comisión
     const { data: servicios } = await adminClient.from('servicios').select('id, comision_activa, comision_tipo, comision_valor, comision_acumulable')
@@ -38,7 +33,6 @@ export async function POST(request: Request) {
     // 4. Recalcular
     for (const cita of citas) {
       const precioBase = Number(cita.precio) || 0
-      const barberoPorcentaje = barberMap.get(cita.barbero_id) || 50
       const serv = servMap.get(cita.servicio_id)
 
       let baseComision = 0
@@ -49,13 +43,11 @@ export async function POST(request: Request) {
             baseComision = serv.comision_valor || 0
           } else if (serv.comision_tipo === 'porcentaje') {
             baseComision = (precioBase * (serv.comision_valor || 0)) / 100
-          } else {
-            baseComision = (precioBase * barberoPorcentaje) / 100
           }
         }
       } else {
-        // Si el servicio fue borrado, calcular por porcentaje del barbero
-        baseComision = (precioBase * barberoPorcentaje) / 100
+        // Si el servicio fue borrado o no tiene comision definida, es 0
+        baseComision = 0
       }
 
       const extraPropinas = (serv && serv.comision_acumulable !== false) ? (cita.propinas || 0) : 0

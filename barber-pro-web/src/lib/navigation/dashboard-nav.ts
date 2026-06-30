@@ -166,7 +166,7 @@ export function flattenSections(sections: NavSection[]): NavItem[] {
 export const barberoNavItems = (agendaHref: string): NavItem[] => [
   { label: 'Mi panel', href: '/barbero', icon: LayoutDashboard },
   { label: 'Mi agenda', href: agendaHref, icon: Calendar },
-  { label: 'Venta / POS', href: '/reservar', icon: ShoppingBag },
+  { label: 'Venta / POS', href: '/barbero/pos', icon: ShoppingBag },
   { label: 'Notificaciones', href: '/notificaciones', icon: Bell },
   { label: 'Mi Perfil', href: '/perfil', icon: UserCog },
 ]

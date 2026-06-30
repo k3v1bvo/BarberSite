@@ -36,7 +36,6 @@ export default function UsuariosPage() {
     phone: '',
     ci: '',
     role: 'cliente' as 'cliente' | 'barbero' | 'coordinador' | 'admin',
-    comision_porcentaje: 30,
     avatar_url: '',
   })
   const router = useRouter()
@@ -85,7 +84,6 @@ export default function UsuariosPage() {
             phone: formData.phone,
             ci: formData.ci || null,
             role: formData.role,
-            comision_porcentaje: formData.comision_porcentaje,
             avatar_url: formData.avatar_url,
             is_active: true,
           })
@@ -105,7 +103,6 @@ export default function UsuariosPage() {
             phone: formData.phone,
             ci: formData.ci,
             role: formData.role,
-            comision_porcentaje: formData.comision_porcentaje,
             avatar_url: formData.avatar_url
           })
         })
@@ -125,7 +122,6 @@ export default function UsuariosPage() {
         phone: '',
         ci: '',
         role: 'barbero',
-        comision_porcentaje: 30,
         avatar_url: '',
       })
       loadUsuarios()
@@ -255,7 +251,6 @@ export default function UsuariosPage() {
                               phone: usuario.phone || '',
                               ci: usuario.ci || '',
                               role: usuario.role as any,
-                              comision_porcentaje: usuario.comision_porcentaje,
                               avatar_url: usuario.avatar_url || '',
                             })
                             setShowModal(true)
@@ -344,17 +339,7 @@ export default function UsuariosPage() {
                     onChange={(e) => setFormData({ ...formData, ci: e.target.value })}
                     className="bg-zinc-900"
                   />
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Comisión (%)</label>
-                    <input
-                      type="number"
-                      className="h-12 w-full border border-white/10 bg-zinc-900 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
-                      value={formData.comision_porcentaje}
-                      onChange={(e) => setFormData({ ...formData, comision_porcentaje: parseInt(e.target.value) })}
-                      min="0"
-                      max="100"
-                    />
-                  </div>
+
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Rol Operativo</label>
                     <select

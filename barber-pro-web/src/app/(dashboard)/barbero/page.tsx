@@ -32,6 +32,7 @@ interface Cita {
   comprobante_url?: string | null
   clientes?: { nombre: string; telefono: string | null }
   servicios?: { nombre: string }
+  productos?: { notas: string }[]
 }
 
 export default function BarberoPage() {
@@ -58,6 +59,7 @@ export default function BarberoPage() {
   const [filtroFecha, setFiltroFecha] = useState('hoy')
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [servicios, setServicios] = useState<{id:string, nombre:string, precio:number}[]>([])
   const [productosDisp, setProductosDisp] = useState<{id:string, nombre:string, precio_venta:number, stock_actual:number}[]>([])
   const [showWalkinModal, setShowWalkinModal] = useState(false)
@@ -72,11 +74,15 @@ export default function BarberoPage() {
   const supabase = createClient()
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  useEffect(() => {
     loadData()
-  }, [filtroFecha, filtroEstado, search])
+  }, [filtroFecha, filtroEstado, debouncedSearch])
 
   const loadData = useCallback(async () => {
-    setLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return router.push('/login')
@@ -140,25 +146,64 @@ export default function BarberoPage() {
         .eq('barbero_id', user.id)
         .order('fecha_hora', { ascending: false })
 
-      if (filtroFecha === 'hoy') {
-        const hoyInicio = `${new Date().toISOString().split('T')[0]}T00:00:00`
-        const hoyFin = `${new Date().toISOString().split('T')[0]}T23:59:59`
-        query = query.gte('fecha_hora', hoyInicio).lte('fecha_hora', hoyFin)
-      } else if (filtroFecha === 'semana') {
-        const semanaAtras = new Date()
-        semanaAtras.setDate(semanaAtras.getDate() - 7)
-        query = query.gte('fecha_hora', semanaAtras.toISOString())
+      if (!debouncedSearch) {
+        if (filtroFecha === 'hoy') {
+          const hoyInicio = `${new Date().toISOString().split('T')[0]}T00:00:00`
+          const hoyFin = `${new Date().toISOString().split('T')[0]}T23:59:59`
+          query = query.gte('fecha_hora', hoyInicio).lte('fecha_hora', hoyFin)
+        } else if (filtroFecha === 'semana') {
+          const semanaAtras = new Date()
+          semanaAtras.setDate(semanaAtras.getDate() - 7)
+          query = query.gte('fecha_hora', semanaAtras.toISOString())
+        } else if (filtroFecha === 'mes') {
+          const mesAtras = new Date()
+          mesAtras.setMonth(mesAtras.getMonth() - 1)
+          query = query.gte('fecha_hora', mesAtras.toISOString())
+        }
       }
 
       if (filtroEstado !== 'todos') {
         query = query.eq('estado', filtroEstado)
       }
 
-      if (search) {
-        query = query.or(`clientes.nombre.ilike.%${search}%, servicios.nombre.ilike.%${search}%`)
+      if (debouncedSearch) {
+        // Buscar clientes coincidentes
+        const { data: matchClientes } = await supabase
+          .from('clientes')
+          .select('id')
+          .or(`nombre.ilike.%${debouncedSearch}%,telefono.ilike.%${debouncedSearch}%,ci.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%`)
+        
+        // Buscar servicios coincidentes
+        const { data: matchServicios } = await supabase
+          .from('servicios')
+          .select('id')
+          .ilike('nombre', `%${debouncedSearch}%`)
+
+        const cIds = matchClientes?.map(c => c.id) || []
+        const sIds = matchServicios?.map(s => s.id) || []
+
+        const ors = []
+        if (cIds.length > 0) ors.push(`cliente_id.in.(${cIds.join(',')})`)
+        if (sIds.length > 0) ors.push(`servicio_id.in.(${sIds.join(',')})`)
+
+        if (ors.length > 0) {
+          query = query.or(ors.join(','))
+        } else {
+          query = query.eq('id', '00000000-0000-0000-0000-000000000000') // Forzar vacío
+        }
       }
 
       const { data: citasData } = await query.limit(50)
+
+      let movimientos: any[] = []
+      if (citasData && citasData.length > 0) {
+        const citaIds = citasData.map(c => c.id)
+        const { data: movs } = await supabase
+          .from('inventario_movimientos')
+          .select('referencia, notas')
+          .in('referencia', citaIds)
+        if (movs) movimientos = movs
+      }
 
       const transformedCitas: Cita[] = (citasData || []).map(cita => {
         const getCliente = () => {
@@ -184,7 +229,8 @@ export default function BarberoPage() {
           fecha_hora: cita.fecha_hora,
           comprobante_url: cita.comprobante_url,
           clientes: getCliente(),
-          servicios: getServicio()
+          servicios: getServicio(),
+          productos: movimientos.filter(m => m.referencia === cita.id).map(m => ({ notas: m.notas }))
         }
       })
 
@@ -207,7 +253,7 @@ export default function BarberoPage() {
     } finally {
       setLoading(false)
     }
-  }, [filtroFecha, filtroEstado, search, router, supabase])
+  }, [filtroFecha, filtroEstado, debouncedSearch, router, supabase])
 
   const getEstadoBadge = (estado: string) => {
     const variants = {
@@ -512,8 +558,15 @@ export default function BarberoPage() {
                       <div className="text-right">
                         <p className="text-3xl font-black text-amber-500 tracking-tighter">{formatCurrency(cita.precio)}</p>
                         <p className="text-[10px] font-black text-amber-500/60 uppercase tracking-widest mt-1">Comisión {formatCurrency(cita.comision_barbero || 0)}</p>
-                        <div className="mt-4 flex items-center justify-end gap-2 text-zinc-500 text-[10px] uppercase font-black">
-                           <Scissors size={12}/> {cita.servicios?.nombre}
+                        <div className="mt-4 flex flex-col items-end gap-1 text-zinc-500 text-[10px] uppercase font-black">
+                           {cita.servicios?.nombre && (
+                             <span className="flex items-center gap-1"><Scissors size={12}/> {cita.servicios.nombre}</span>
+                           )}
+                           {cita.productos?.map((p, idx) => (
+                             <span key={idx} className="flex items-center gap-1 text-violet-400">
+                               <Package size={12}/> {p.notas.replace('Venta POS - ', '')}
+                             </span>
+                           ))}
                         </div>
                       </div>
                     </div>

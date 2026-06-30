@@ -15,9 +15,9 @@ export async function GET() {
 
     const [serviciosRes, barberosRes, planRes, configRes] = await Promise.all([
       supabase.from('servicios').select('id,nombre,precio,comision_activa,comision_tipo,comision_valor,comision_acumulable,comision_notas,is_active').order('nombre'),
-      supabase.from('profiles').select('id,full_name,comision_porcentaje,role,is_active').in('role', ['barbero', 'coordinador']).order('full_name'),
+      supabase.from('profiles').select('id,full_name,role,is_active').in('role', ['barbero', 'coordinador']).order('full_name'),
       supabase.from('plan_cuentas').select('*').order('codigo'),
-      supabase.from('configuraciones').select('llave,valor,descripcion').in('llave', ['bonos_config', 'comision_global_pct', 'comision_global_activa']),
+      supabase.from('configuraciones').select('llave,valor,descripcion').in('llave', ['bonos_config']),
     ])
 
     return NextResponse.json({
@@ -54,13 +54,6 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
-    // ── Actualizar comisión de un barbero ──
-    if (accion === 'update_barbero_comision') {
-      const { barbero_id, comision_porcentaje } = payload
-      const { error } = await supabase.from('profiles').update({ comision_porcentaje }).eq('id', barbero_id)
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ success: true })
-    }
 
     // ── Crear/editar cuenta en plan_cuentas (sanciones) ──
     if (accion === 'upsert_plan_cuenta') {
@@ -91,13 +84,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
-    // ── Guardar comisión global por defecto ──
-    if (accion === 'update_comision_global') {
-      const { pct } = payload
-      const { error } = await supabase.from('configuraciones').upsert({ llave: 'comision_global_pct', valor: { pct }, descripcion: 'Porcentaje de comisión global por defecto' }, { onConflict: 'llave' })
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ success: true })
-    }
+
 
     return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })
   } catch {

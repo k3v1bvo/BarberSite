@@ -488,6 +488,27 @@ export async function dispatchNotification(
         })
         break
       }
+      case 'invitacion_2x1': {
+        if (p.acompananteEmail) {
+          await sendNotificationEmail(p.acompananteEmail, 'invitacion_2x1', {
+            nombre: p.acompananteNombre,
+            clienteNombre: p.clienteNombre,
+            fecha: p.fecha,
+            hora: p.hora,
+          })
+        }
+        break
+      }
+      case 'invitacion_referido': {
+        if (input.userEmail) {
+          await sendNotificationEmail(input.userEmail, 'invitacion_referido', {
+            clienteNombre: p.clienteNombre,
+            acompananteNombre: p.acompananteNombre, // Recomendante
+            monto: p.montoBono
+          })
+        }
+        break
+      }
 
       default:
         errors.push(`Evento desconocido: ${event}`)

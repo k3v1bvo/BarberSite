@@ -299,7 +299,8 @@ export default function ReportesPage() {
         clientesFrecuentes,
         clientesNuevos,
         fidelidadDistribucion,
-        ingresosPorDiaArr
+        ingresosPorDiaArr,
+        inventarioFlujo
       })
 
     } catch (error) {

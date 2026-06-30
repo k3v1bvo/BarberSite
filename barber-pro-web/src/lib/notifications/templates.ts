@@ -66,6 +66,8 @@ export interface EmailTemplateInput {
   hora?: string
   barbero?: string
   cliente?: string
+  clienteNombre?: string
+  acompananteNombre?: string
   monto?: string
   motivo?: string
   fechaAnterior?: string
@@ -151,6 +153,18 @@ export function buildEmail(
           <p>Tu opinión nos ayuda a seguir mejorando para darte el mejor estilo.</p>
           ${cta(data.link || `${SITE}/cliente`, 'Dejar una Reseña')}`,
           'Queremos saber tu opinión'
+        ),
+      }
+
+    case 'invitacion_referido':
+      return {
+        subject: `🎁 ¡${data.acompananteNombre || 'Un amigo'} te ha recomendado nuestra barbería!`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">¡Hola ${data.clienteNombre || 'Cliente'}!</h2>
+          <p>Tu amigo <strong>${data.acompananteNombre || 'alguien especial'}</strong> nos contó sobre ti y te ha enviado una invitación exclusiva para visitarnos.</p>
+          <p>Ven y descubre el mejor estilo en nuestra barbería. Regístrate en nuestra plataforma para agendar tu primera cita y empezar a disfrutar de beneficios y puntos de fidelidad.</p>
+          ${cta(`${SITE}/login`, 'Crear mi cuenta')}`,
+          'Tienes una invitación especial'
         ),
       }
 
@@ -346,6 +360,23 @@ export function buildEmail(
           ])}
           ${cta(`${SITE}/admin/reportes`, 'Ver reportes completos')}`,
           'Resumen de ventas y citas del día'
+        ),
+      }
+
+    case 'invitacion_2x1':
+      return {
+        subject: `🎁 ¡Estás invitado a un 2x1! — ${BRAND}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Tienes una promoción 2x1!</h2>
+          <p>Hola <strong>${nombre}</strong>, tu amigo/a <strong>${data.clienteNombre}</strong> te ha invitado a aprovechar una promoción 2x1 en nuestra barbería.</p>
+          ${detailBox([
+            { label: 'Invitado por', value: data.clienteNombre || 'Un amigo' },
+            { label: 'Fecha de la Cita', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+          ])}
+          <p>Si aún no tienes cuenta en nuestro sistema, puedes registrarte haciendo clic abajo y así tener todo tu historial y bonos guardados.</p>
+          ${cta(`${SITE}/login`, 'Registrarme / Iniciar Sesión')}`,
+          'Un amigo te ha invitado a una promoción 2x1'
         ),
       }
 

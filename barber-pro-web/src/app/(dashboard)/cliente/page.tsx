@@ -294,56 +294,95 @@ export default function ClientePage() {
             </div>
           </div>
 
-          {/* ——— PROGRESO DE LEALTAD ——— */}
-          <Card className="bg-zinc-900 border-white/5">
+          {/* ——— PROGRESO DE LEALTAD (CICLO DE 10 VISITAS) ——— */}
+          <Card className="bg-zinc-900 border-white/5 overflow-hidden">
             <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-6">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Tu Progreso</p>
-                  <p className="text-white font-black text-lg">
-                    {proximaMeta ? (
-                      <>Hacia <span className="text-amber-500">{proximaMeta.nombre}</span></>
-                    ) : (
-                      <span className="text-amber-500">🏆 Nivel Máximo Alcanzado</span>
-                    )}
-                  </p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Tu Tarjeta de Sellos</p>
+                  <p className="text-white font-black text-xl">Recompensas Frecuentes</p>
                 </div>
-                {proximaMeta && (
-                  <div className="text-right">
-                    <p className="text-3xl font-black text-white">{visitas}<span className="text-zinc-600 text-xl">/{proximaMeta.visitas_requeridas}</span></p>
-                    <p className="text-xs text-zinc-500 uppercase font-black tracking-widest">visitas</p>
-                  </div>
-                )}
+                <div className="text-right">
+                  <p className="text-3xl font-black text-white">{visitas}</p>
+                  <p className="text-xs text-zinc-500 uppercase font-black tracking-widest">visitas totales</p>
+                </div>
               </div>
 
-              {proximaMeta && (
-                <>
-                  <div className="w-full h-4 bg-zinc-800 rounded-full overflow-hidden border border-white/5 mb-3">
-                    <div
-                      className="h-full bg-gradient-to-r from-amber-600 to-amber-400 rounded-full transition-all duration-1000 relative overflow-hidden"
-                      style={{ width: `${progreso}%` }}
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <p className="text-xs text-zinc-500">{visitas} visitas</p>
-                    <p className="text-xs text-zinc-400 font-bold">
-                      {proximaMeta.visitas_requeridas - visitas} visitas para tu recompensa 🎁
-                    </p>
-                    <p className="text-xs text-zinc-500">{proximaMeta.visitas_requeridas}</p>
-                  </div>
+              {/* Tira de 10 Sellos */}
+              <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 mb-6">
+                {Array.from({ length: 10 }).map((_, idx) => {
+                  const visitNum = idx + 1;
+                  const currentCycle = visitas % 10;
+                  const isCompleted = visitNum <= currentCycle || (currentCycle === 0 && visitas > 0 && visitNum <= 10 && visitas !== 0);
+                  // Fix for when visits is exactly a multiple of 10
+                  const isActuallyCompleted = visitas > 0 && (currentCycle === 0 ? true : visitNum <= currentCycle);
+                  const isCurrent = visitNum === currentCycle + 1;
+                  
+                  const isHalfReward = visitNum === 5;
+                  const isFullReward = visitNum === 10;
 
-                  <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
-                    <p className="text-amber-400 text-xs font-black uppercase tracking-widest mb-1">Premio al alcanzar la meta</p>
-                    <p className="text-white font-bold text-sm">
-                      {proximaMeta.tipo_recompensa === 'porcentaje' && `${proximaMeta.valor_recompensa}% de descuento`}
-                      {proximaMeta.tipo_recompensa === 'monto_fijo' && `Bs ${proximaMeta.valor_recompensa} de descuento`}
-                      {proximaMeta.tipo_recompensa === 'servicio_gratis' && 'Servicio gratis'}
-                      {proximaMeta.tipo_recompensa === 'producto_gratis' && 'Producto gratis'}
-                    </p>
-                  </div>
-                </>
+                  return (
+                    <div 
+                      key={idx} 
+                      className={cn(
+                        "relative aspect-square flex flex-col items-center justify-center rounded-xl border-2 transition-all",
+                        isActuallyCompleted 
+                          ? "bg-amber-500/20 border-amber-500 text-amber-500"
+                          : isCurrent
+                            ? "bg-zinc-800 border-amber-500/50 text-white shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+                            : "bg-black/40 border-zinc-800 text-zinc-600",
+                        isHalfReward && !isActuallyCompleted ? "border-dashed border-amber-500/30" : "",
+                        isFullReward && !isActuallyCompleted ? "border-dashed border-amber-500/50" : ""
+                      )}
+                    >
+                      {/* Icon */}
+                      {isActuallyCompleted ? (
+                        <CheckCircle className="w-5 h-5 mb-1 text-amber-500" />
+                      ) : isHalfReward ? (
+                        <span className="text-lg mb-1">✂️</span>
+                      ) : isFullReward ? (
+                        <span className="text-xl mb-1">🎁</span>
+                      ) : (
+                        <span className="text-xs font-bold mb-1 opacity-50">{visitNum}</span>
+                      )}
+                      
+                      {/* Text */}
+                      {isHalfReward && <span className="text-[8px] font-black uppercase text-center leading-tight">50%<br/>OFF</span>}
+                      {isFullReward && <span className="text-[8px] font-black uppercase text-center leading-tight text-amber-400">CORTE<br/>GRATIS</span>}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Alerta de Próxima Recompensa */}
+              <div className="bg-gradient-to-r from-zinc-950 to-zinc-900 border border-amber-500/20 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-amber-500 text-xs font-black uppercase tracking-widest mb-0.5 flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5" /> Próxima Recompensa
+                  </p>
+                  <p className="text-white font-bold text-sm">
+                    {visitas % 10 < 5 
+                      ? `En ${5 - (visitas % 10)} visitas obtienes 50% de descuento.` 
+                      : `En ${10 - (visitas % 10)} visitas obtienes un corte GRATIS.`
+                    }
+                  </p>
+                </div>
+              </div>
+
+              {/* Mantener metas adicionales de la DB si existen */}
+              {proximaMeta && proximaMeta.nombre && proximaMeta.visitas_requeridas > 10 && (
+                 <div className="mt-6 pt-6 border-t border-white/5">
+                   <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">Meta Global: {proximaMeta.nombre}</p>
+                   <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden mb-2">
+                     <div
+                       className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full"
+                       style={{ width: `${Math.min((visitas / proximaMeta.visitas_requeridas) * 100, 100)}%` }}
+                     />
+                   </div>
+                   <p className="text-xs text-zinc-400 font-bold">
+                     Faltan {proximaMeta.visitas_requeridas - visitas} visitas para desbloquear: {proximaMeta.tipo_recompensa}
+                   </p>
+                 </div>
               )}
 
               {cardData?.metasAlcanzadas && cardData.metasAlcanzadas.length > 0 && (

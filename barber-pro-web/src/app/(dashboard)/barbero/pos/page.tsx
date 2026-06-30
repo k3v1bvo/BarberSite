@@ -2,6 +2,6 @@
 
 import { CajaPOS } from '@/components/pos/CajaPOS'
 
-export default function AdminCajaPage() {
+export default function BarberoPOSPage() {
   return <CajaPOS />
 }

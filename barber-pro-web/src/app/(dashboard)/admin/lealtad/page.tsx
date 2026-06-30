@@ -655,9 +655,23 @@ export default function AdminLealtadPage() {
                 {/* Tipo */}
                 <div>
                   <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">Tipo de Promoción</label>
-                  <select className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white" value={promoForm.tipo} onChange={e => setPromoForm({ ...promoForm, tipo: e.target.value })}>
-                    {TIPOS_PROMO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
+                  <div className="flex gap-2">
+                    <select 
+                      className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white" 
+                      value={TIPOS_PROMO.some(t => t.value === promoForm.tipo) ? promoForm.tipo : 'otro'} 
+                      onChange={e => setPromoForm({ ...promoForm, tipo: e.target.value === 'otro' ? '' : e.target.value })}
+                    >
+                      {TIPOS_PROMO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      <option value="otro">Otro (Personalizado...)</option>
+                    </select>
+                    {!TIPOS_PROMO.some(t => t.value === promoForm.tipo) && (
+                      <Input 
+                        placeholder="Ej. vip, verano_26" 
+                        value={promoForm.tipo} 
+                        onChange={e => setPromoForm({ ...promoForm, tipo: e.target.value.toLowerCase().replace(/\s+/g, '_') })} 
+                      />
+                    )}
+                  </div>
                 </div>
 
                 {/* Valor (solo si aplica) */}

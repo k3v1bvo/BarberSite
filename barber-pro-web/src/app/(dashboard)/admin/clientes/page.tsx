@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { formatCurrency } from '@/lib/utils'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useToast } from '@/components/ui/Toast'
 import {
   Users, Search, TrendingUp, DollarSign, Calendar,
   Star, Crown, X, ChevronRight, Phone, Mail,
@@ -28,6 +29,8 @@ interface Cliente {
   total_gastado: number
   nivel_fidelidad: string | null
   created_at: string
+  cumpleanos: string | null
+  ultima_visita: string | null
 }
 
 interface Cita {
@@ -72,6 +75,8 @@ const TIPO_ICON: Record<string, { icon: any; color: string }> = {
 export default function ClientesAdminPage() {
   const supabase = createClient()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { success: toastSuccess, error: toastError } = useToast()
 
   const [loading, setLoading] = useState(true)
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -86,6 +91,16 @@ export default function ClientesAdminPage() {
   const [transacciones, setTransacciones] = useState<Transaccion[]>([])
   const [loadingDetalle, setLoadingDetalle] = useState(false)
   const [tabDetalle, setTabDetalle] = useState<'actividad' | 'citas'>('actividad')
+
+  // Referidos
+  const [showReferralModal, setShowReferralModal] = useState(false)
+  const [submittingReferral, setSubmittingReferral] = useState(false)
+  const [referralData, setReferralData] = useState({
+    nombre: '',
+    telefono: '',
+    email: '',
+    monto_bono: '20'
+  })
 
   // Stats generales
   const [stats, setStats] = useState({ total: 0, conEmail: 0, totalGastado: 0, nuevosHoy: 0, nuevosSemana: 0, nuevosMes: 0 })
@@ -108,11 +123,17 @@ export default function ClientesAdminPage() {
 
     const { data } = await supabase
       .from('clientes')
-      .select('id, nombre, email, telefono, ci, total_visitas, total_gastado, nivel_fidelidad, created_at')
+      .select('id, nombre, email, telefono, ci, total_visitas, total_gastado, nivel_fidelidad, created_at, cumpleanos, ultima_visita')
       .order('created_at', { ascending: false })
 
     const lista = (data || []) as Cliente[]
     setClientes(lista)
+
+    const urlId = searchParams.get('id')
+    if (urlId) {
+      const paramCliente = lista.find(c => c.id === urlId)
+      if (paramCliente) abrirDetalle(paramCliente)
+    }
 
     const hoy = new Date()
     const hoyStr = hoy.toISOString().split('T')[0]
@@ -220,6 +241,39 @@ export default function ClientesAdminPage() {
     en_proceso: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     cancelado:  'bg-red-500/10 text-red-400 border-red-500/20',
     pendiente:  'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
+  }
+
+  const handleRegistrarReferido = async () => {
+    if (!clienteSeleccionado) return
+    if (!referralData.nombre.trim()) return toastError('El nombre del amigo es obligatorio.')
+    
+    setSubmittingReferral(true)
+    try {
+      const res = await fetch('/api/admin/referrals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_recomendante_id: clienteSeleccionado.id,
+          cliente_recomendante_nombre: clienteSeleccionado.nombre,
+          nuevo_cliente_nombre: referralData.nombre,
+          nuevo_cliente_telefono: referralData.telefono,
+          nuevo_cliente_email: referralData.email,
+          monto_bono: Number(referralData.monto_bono) || 20
+        })
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al procesar referido')
+
+      toastSuccess('Referido registrado exitosamente. Se ha enviado la invitación.')
+      setShowReferralModal(false)
+      setReferralData({ nombre: '', telefono: '', email: '', monto_bono: '20' })
+      loadClientes() // Recargar datos
+    } catch (e: any) {
+      toastError(e.message)
+    } finally {
+      setSubmittingReferral(false)
+    }
   }
 
   if (loading) return (
@@ -384,10 +438,13 @@ export default function ClientesAdminPage() {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 mt-0.5">
+                        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                           {c.ci && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><CreditCard className="w-3 h-3" />{c.ci}</span>}
                           {c.telefono && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><Phone className="w-3 h-3" />{c.telefono}</span>}
-                          {!c.telefono && !c.ci && <span className="text-[11px] text-zinc-600 italic">Sin datos de contacto</span>}
+                          {c.email && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><Mail className="w-3 h-3" />{c.email}</span>}
+                          {c.cumpleanos && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><Calendar className="w-3 h-3" />{formatFecha(c.cumpleanos)}</span>}
+                          {c.ultima_visita && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><Clock className="w-3 h-3" />Últ. visita: {formatFecha(c.ultima_visita)}</span>}
+                          {!c.telefono && !c.ci && !c.email && <span className="text-[11px] text-zinc-600 italic">Sin datos de contacto</span>}
                         </div>
                       </div>
 
@@ -431,21 +488,33 @@ export default function ClientesAdminPage() {
                       })()}
                     </div>
                   </div>
-                  <button
-                    onClick={() => setClienteSeleccionado(null)}
-                    className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      size="sm" 
+                      onClick={() => setShowReferralModal(true)}
+                      className="bg-amber-500 hover:bg-amber-600 text-black font-bold h-8 text-xs"
+                    >
+                      <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                      Registrar Referido
+                    </Button>
+                    <button
+                      onClick={() => setClienteSeleccionado(null)}
+                      className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Datos de contacto */}
-                <div className="grid grid-cols-2 gap-2 mt-4 pb-4">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mt-4 pb-4">
                   {[
                     { icon: CreditCard, value: clienteSeleccionado.ci,     label: 'Carnet' },
                     { icon: Phone,      value: clienteSeleccionado.telefono, label: 'Teléfono' },
                     { icon: Mail,       value: clienteSeleccionado.email,   label: 'Correo' },
-                    { icon: Calendar,   value: formatFecha(clienteSeleccionado.created_at), label: 'Desde' },
+                    { icon: Calendar,   value: clienteSeleccionado.cumpleanos ? formatFecha(clienteSeleccionado.cumpleanos + 'T12:00:00') : null, label: 'Cumpleaños' },
+                    { icon: Clock,      value: clienteSeleccionado.ultima_visita ? formatFecha(clienteSeleccionado.ultima_visita) : null, label: 'Última Visita' },
+                    { icon: Star,       value: formatFecha(clienteSeleccionado.created_at), label: 'Cliente Desde' },
                   ].map(item => (
                     <div key={item.label} className="flex items-center gap-2 text-xs">
                       <item.icon className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
@@ -575,6 +644,75 @@ export default function ClientesAdminPage() {
           </div>
         )}
       </div>
+    {/* MODAL REFERIDO */}
+    {showReferralModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+        <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+          <div className="flex items-center justify-between p-5 border-b border-white/5">
+            <div>
+              <h3 className="text-lg font-black text-white">Registrar Referido</h3>
+              <p className="text-xs text-zinc-400 mt-0.5">Recomendado por: <span className="text-amber-400 font-bold">{clienteSeleccionado?.nombre}</span></p>
+            </div>
+            <button onClick={() => setShowReferralModal(false)} className="text-zinc-500 hover:text-white transition-colors p-1">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="p-5 space-y-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Nombre del Amigo *</label>
+              <Input 
+                value={referralData.nombre} 
+                onChange={e => setReferralData(p => ({ ...p, nombre: e.target.value }))}
+                className="bg-zinc-800 border-white/10" 
+                placeholder="Ej. Carlos Mendoza" 
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Teléfono</label>
+              <Input 
+                value={referralData.telefono} 
+                onChange={e => setReferralData(p => ({ ...p, telefono: e.target.value }))}
+                className="bg-zinc-800 border-white/10" 
+                placeholder="Ej. 78912345" 
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Correo Electrónico (Para Invitación)</label>
+              <Input 
+                value={referralData.email} 
+                onChange={e => setReferralData(p => ({ ...p, email: e.target.value }))}
+                className="bg-zinc-800 border-white/10" 
+                placeholder="Ej. carlos@gmail.com" 
+                type="email"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1 text-amber-500">
+                <DollarSign className="w-3 h-3" /> Monto de Bono (Para {clienteSeleccionado?.nombre})
+              </label>
+              <Input 
+                value={referralData.monto_bono} 
+                onChange={e => setReferralData(p => ({ ...p, monto_bono: e.target.value }))}
+                className="bg-amber-500/10 border-amber-500/30 text-amber-400 font-bold" 
+                type="number"
+                min="0"
+              />
+            </div>
+          </div>
+          
+          <div className="flex gap-3 p-5 bg-black/20 border-t border-white/5">
+            <Button variant="outline" className="flex-1 bg-transparent border-white/10 hover:bg-white/5" onClick={() => setShowReferralModal(false)}>
+              Cancelar
+            </Button>
+            <Button className="flex-1 bg-amber-500 hover:bg-amber-600 text-black font-bold" onClick={handleRegistrarReferido} disabled={submittingReferral}>
+              {submittingReferral ? 'Registrando...' : 'Confirmar y Enviar'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+
     </div>
   )
 }

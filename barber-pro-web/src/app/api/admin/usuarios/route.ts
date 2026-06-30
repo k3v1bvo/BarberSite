@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { email, full_name, phone, ci, role, comision_porcentaje, avatar_url } = body
+    const { email, full_name, phone, ci, role, avatar_url } = body
 
     if (!email || !full_name) {
       return NextResponse.json({ error: 'Email y nombre son requeridos' }, { status: 400 })
@@ -37,7 +37,6 @@ export async function POST(request: Request) {
         role: role || 'barbero',
         phone: phone || null,
         ci: ci || null,
-        comision_porcentaje: comision_porcentaje || 0,
         avatar_url: avatar_url || null,
       })
       .eq('id', authData.user.id)

@@ -14,7 +14,7 @@ export interface Profile {
   created_at: string
 }
 
-export type ComisionTipo = 'porcentaje' | 'fija' | 'ninguna' | 'global'
+export type ComisionTipo = 'porcentaje' | 'fija' | 'ninguna'
 
 export interface Servicio {
   id: string

@@ -35,13 +35,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Servicio no encontrado' }, { status: 404 })
     }
 
-    const { data: barbero } = await supabase
-      .from('profiles')
-      .select('comision_porcentaje')
-      .eq('id', barbero_id)
-      .single()
-
-    const comisionPorcentaje = barbero?.comision_porcentaje || 0
+    // Ya no se usa la comisión de perfil
     let comisionBarbero = 0
 
     if (servicio.comision_activa !== false && servicio.comision_tipo !== 'ninguna') {
@@ -49,9 +43,6 @@ export async function POST(request: Request) {
         comisionBarbero = servicio.comision_valor || 0
       } else if (servicio.comision_tipo === 'porcentaje') {
         comisionBarbero = (servicio.precio * (servicio.comision_valor || 0)) / 100
-      } else {
-        // global o sin definir
-        comisionBarbero = (servicio.precio * comisionPorcentaje) / 100
       }
     }
 

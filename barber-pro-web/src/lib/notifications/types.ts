@@ -10,6 +10,8 @@ export type NotificationCategory =
   | 'sistema'
   | 'pago_pendiente'
   | 'pago_verificado'
+  | 'invitacion_2x1'
+  | 'invitacion_referido'
 
 export type NotificationTipo = 'info' | 'success' | 'warning' | 'danger'
 
@@ -20,8 +22,11 @@ export interface NotificationPayload {
   clienteId?: string
   clienteNombre?: string
   clienteEmail?: string
+  acompananteNombre?: string
+  montoBono?: string
   barberoNombre?: string
   barberoEmail?: string
+  acompananteEmail?: string
   servicioNombre?: string
   fecha?: string
   hora?: string
@@ -39,6 +44,7 @@ export interface DispatchInput {
   payload: NotificationPayload
   /** Permite disparo desde reserva pública sin sesión */
   allowPublic?: boolean
+  userEmail?: string
 }
 
 export interface InAppNotificationInsert {
