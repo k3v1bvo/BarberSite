@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
-import { cookies } from 'next/headers'
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient(cookies())
+    const supabase = await createServerSupabaseClient()
     
     // Verificar auth y rol
     const { data: { user } } = await supabase.auth.getUser()
