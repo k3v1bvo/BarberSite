@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { formatCurrency } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit, Trash2, Scissors, ArrowLeft, X, Save, Clock, Palette } from 'lucide-react'
+import { Plus, Edit, Trash2, Scissors, ArrowLeft, X, Save, Clock, Palette, UserX, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/Toast'
 import type { ComisionTipo } from '@/types'
@@ -25,11 +25,19 @@ interface Servicio {
   comision_tipo?: ComisionTipo
   comision_valor?: number
   comision_acumulable?: boolean
+  barberos_excluidos?: string[]
+}
+
+interface Barbero {
+  id: string
+  full_name: string
+  avatar_url: string | null
 }
 
 export default function ServiciosPage() {
   const { error: toastError, success: toastSuccess } = useToast()
   const [servicios, setServicios] = useState<Servicio[]>([])
+  const [barberos, setBarberos] = useState<Barbero[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingServicio, setEditingServicio] = useState<Servicio | null>(null)
@@ -43,6 +51,7 @@ export default function ServiciosPage() {
     comision_tipo: 'porcentaje' as ComisionTipo,
     comision_valor: 30,
     comision_acumulable: false,
+    barberos_excluidos: [] as string[],
   })
   const router = useRouter()
   const supabase = createClient()
@@ -56,12 +65,13 @@ export default function ServiciosPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return router.push('/login')
 
-      const { data: serviciosData } = await supabase
-        .from('servicios')
-        .select('*')
-        .order('nombre')
+      const [resServicios, resBarberos] = await Promise.all([
+        supabase.from('servicios').select('*').order('nombre'),
+        supabase.from('profiles').select('id, full_name, avatar_url').eq('role', 'barbero').eq('is_active', true)
+      ])
 
-      setServicios(serviciosData as Servicio[] || [])
+      setServicios(resServicios.data as Servicio[] || [])
+      setBarberos(resBarberos.data as Barbero[] || [])
     } catch (error) {
       console.error('Error:', error)
     } finally {
@@ -85,6 +95,7 @@ export default function ServiciosPage() {
             comision_tipo: formData.comision_tipo,
             comision_valor: formData.comision_valor,
             comision_acumulable: formData.comision_acumulable,
+            barberos_excluidos: formData.barberos_excluidos,
           })
           .eq('id', editingServicio.id)
 
@@ -103,6 +114,7 @@ export default function ServiciosPage() {
             comision_tipo: formData.comision_tipo,
             comision_valor: formData.comision_valor,
             comision_acumulable: formData.comision_acumulable,
+            barberos_excluidos: formData.barberos_excluidos,
           })
 
         if (error) throw error
@@ -120,6 +132,7 @@ export default function ServiciosPage() {
         comision_tipo: 'porcentaje' as ComisionTipo,
         comision_valor: 30,
         comision_acumulable: false,
+        barberos_excluidos: [],
       })
       toastSuccess(editingServicio ? 'Servicio actualizado con éxito' : 'Servicio creado con éxito')
       loadServicios()
@@ -220,6 +233,14 @@ export default function ServiciosPage() {
                         : `${servicio.comision_valor ?? 30}%`}
                     {servicio.comision_acumulable ? ' · acumulable' : ''}
                   </p>
+                  {(servicio.barberos_excluidos?.length ?? 0) > 0 && (
+                    <div className="flex items-center gap-1 mt-2">
+                      <UserX size={11} className="text-red-400" />
+                      <span className="text-[10px] font-black uppercase text-red-400">
+                        {servicio.barberos_excluidos!.length} barbero{servicio.barberos_excluidos!.length > 1 ? 's' : ''} excluido{servicio.barberos_excluidos!.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -238,6 +259,7 @@ export default function ServiciosPage() {
                         comision_tipo: servicio.comision_tipo ?? 'porcentaje',
                         comision_valor: servicio.comision_valor ?? 30,
                         comision_acumulable: servicio.comision_acumulable ?? false,
+                        barberos_excluidos: servicio.barberos_excluidos ?? [],
                       })
                       setShowModal(true)
                     }}
@@ -385,6 +407,61 @@ export default function ServiciosPage() {
                     />
                     Comisión acumulable (incluye propinas)
                   </label>
+                </div>
+
+                {/* Barberos que pueden hacer este servicio */}
+                <div className="border-t border-white/5 pt-6 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <UserX size={16} className="text-red-400" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-red-400">Barberos Excluidos</p>
+                  </div>
+                  <p className="text-[10px] text-zinc-500 -mt-2">
+                    Desmarca a los barberos que <strong>NO</strong> saben hacer este servicio. Por defecto todos pueden hacerlo.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {barberos.map(b => {
+                      const isExcluded = formData.barberos_excluidos.includes(b.id)
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              barberos_excluidos: isExcluded
+                                ? prev.barberos_excluidos.filter(id => id !== b.id)
+                                : [...prev.barberos_excluidos, b.id]
+                            }))
+                          }}
+                          className={cn(
+                            'flex items-center gap-2 p-3 rounded-xl border text-left transition-all text-sm',
+                            isExcluded
+                              ? 'border-red-500/40 bg-red-500/10 text-red-400'
+                              : 'border-green-500/30 bg-green-500/5 text-green-400'
+                          )}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden">
+                            {b.avatar_url ? (
+                              <img src={b.avatar_url} alt={b.full_name} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-xs font-bold">{b.full_name.charAt(0)}</span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-xs truncate">{b.full_name}</p>
+                            <p className="text-[9px] uppercase tracking-widest font-black">
+                              {isExcluded ? '✗ No puede' : '✓ Puede'}
+                            </p>
+                          </div>
+                          {isExcluded ? (
+                            <UserX size={14} className="shrink-0" />
+                          ) : (
+                            <CheckCircle size={14} className="shrink-0" />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               </CardContent>
               <div className="p-8 bg-zinc-900/30 border-t border-white/5 flex gap-4">

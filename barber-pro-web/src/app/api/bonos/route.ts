@@ -132,6 +132,58 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
+// ── PUT: Editar bono no pagado ──────────────────────────────────────────
+export async function PUT(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (!['admin', 'coordinador'].includes(profile?.role || '')) {
+      return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const {
+      id, barbero_id, tipo, descripcion, monto,
+      periodo_tipo = 'mensual', semana,
+      fecha_inicio, fecha_fin, pagado
+    } = body
+
+    if (!id || !barbero_id || !tipo || !monto) {
+      return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
+    }
+
+    const { data: bono, error: findError } = await supabase.from('bonos').select('pagado').eq('id', id).single()
+    if (findError || !bono) return NextResponse.json({ error: 'Bono no encontrado' }, { status: 404 })
+    if (bono.pagado && pagado === undefined) return NextResponse.json({ error: 'No se puede editar un bono ya pagado' }, { status: 400 })
+
+    const refDate = fecha_inicio ? new Date(fecha_inicio) : new Date()
+    const mes = refDate.getMonth() + 1
+    const anio = refDate.getFullYear()
+
+    const { data: updated, error } = await supabase
+      .from('bonos')
+      .update({
+        barbero_id, tipo, descripcion,
+        monto: Number(monto),
+        periodo_tipo, semana: semana ?? null,
+        fecha_inicio: fecha_inicio || null,
+        fecha_fin: fecha_fin || null,
+        mes, anio
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(updated, { status: 200 })
+  } catch {
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 })
+  }
+}
+
 // ── DELETE: eliminar bono no pagado ─────────────────────────────────────
 export async function DELETE(request: NextRequest) {
   try {

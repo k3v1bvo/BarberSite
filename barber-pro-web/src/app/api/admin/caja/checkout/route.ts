@@ -9,7 +9,6 @@ interface ProductoCarrito {
   nombre: string
   precio: number
   cantidad: number
-  para_tienda?: boolean
 }
 
 export async function POST(request: NextRequest) {
@@ -33,10 +32,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { 
       cliente_id, nombre, email, telefono, ci,
-      servicio_id, barbero_id, 
+      servicio_id, barbero_id, cita_id,
       metodo_pago, propinas, estado, notas,
       productos_carrito,
       descuento, promo_id, referral_ids, comprobante_url,
+      reserva_fecha, reserva_hora,
       acompanante_2x1
     } = body
     const descuentoTotal = Number(descuento) || 0
@@ -163,7 +163,17 @@ export async function POST(request: NextRequest) {
     let citaId: string | null = null
 
     if (servicio_id && serv) {
-      const inicio = new Date(ahora.getTime() - (serv.duracion_minutos || 30) * 60000)
+      // Determine the datetime to use
+      let baseDate = ahora
+      if (reserva_fecha && reserva_hora) {
+        baseDate = new Date(`${reserva_fecha}T${reserva_hora}:00`)
+      }
+
+      // If completed immediately, the start was 'duracion' minutes ago. 
+      // If scheduled (reserva) or 'en_proceso' now, start is the baseDate.
+      const inicio = estado === 'completado' && !(reserva_fecha && reserva_hora)
+        ? new Date(baseDate.getTime() - (serv.duracion_minutos || 30) * 60000)
+        : baseDate
 
       let finalNotas = notas || 'Venta desde Caja'
       if (acompanante_2x1 && acompanante_2x1.nombre) {
@@ -174,7 +184,7 @@ export async function POST(request: NextRequest) {
         cliente_id: finalClienteId,
         barbero_id,
         servicio_id,
-        fecha_hora: estado === 'completado' ? inicio.toISOString() : ahora.toISOString(),
+        fecha_hora: inicio.toISOString(),
         precio: precioBase,
         duracion_real_minutos: serv.duracion_minutos || 30,
         estado: estado || 'en_proceso',
@@ -187,16 +197,39 @@ export async function POST(request: NextRequest) {
         insertData.propinas = propinas || 0
         insertData.comision_barbero = comisionTotal
         if (descuentoTotal > 0) insertData.descuento = descuentoTotal
-        if (comprobante_url) insertData.comprobante_url = comprobante_url
+        if (comprobante_url) {
+          insertData.notas = `${insertData.notas}\n[Comprobante]: ${comprobante_url}`
+        }
       }
 
-      const { data: citaNueva, error: citaError } = await supabase
-        .from('citas')
-        .insert(insertData)
-        .select('id')
-        .single()
+      let citaNueva, citaError
+      
+      if (cita_id) {
+        // Solo no sobrescribir fecha original si NO estamos reprogramando (reserva_fecha vacía)
+        if (!reserva_fecha || !reserva_hora) {
+          delete insertData.fecha_hora
+        }
+        
+        const res = await supabase
+          .from('citas')
+          .update(insertData)
+          .eq('id', cita_id)
+          .select('id')
+          .single()
+        citaNueva = res.data
+        citaError = res.error
+      } else {
+        const res = await supabase
+          .from('citas')
+          .insert(insertData)
+          .select('id')
+          .single()
+        citaNueva = res.data
+        citaError = res.error
+      }
 
       if (citaError) throw citaError
+      if (!citaNueva) throw new Error('Error guardando cita')
       citaId = citaNueva.id
     } else if (productosCarrito.length > 0 && !servicio_id) {
       // Si solo hay productos sin servicio, crear una cita "virtual" para registro
@@ -251,29 +284,26 @@ export async function POST(request: NextRequest) {
           })
         } catch (e) { console.error('Error registrando movimiento inventario:', e) }
 
-        const esTienda = item.para_tienda === true
-
         // Registrar transacción contable por producto
         await adminSupabase
           .from('transactions')
           .insert({
-            libro: esTienda ? 'USO_TIENDA' : 'VENTAS',
+            libro: 'VENTAS',
             fecha: ahora.toISOString().split('T')[0],
             ci: ci || '0000000',
-            nombre: esTienda ? 'Uso Interno Tienda' : (nombre || 'Cliente en Caja'),
-            cuenta_codigo: esTienda ? '5.1.1' : '4.1.2',
+            nombre: nombre || 'Cliente en Caja',
+            cuenta_codigo: '4.1.2',
             cuenta_detalle: item.nombre,
             producto_id: item.id,
-            glosa: esTienda
-              ? `Uso Tienda - ${item.cantidad}x ${item.nombre} (precio especial)`
-              : `Venta POS - ${item.cantidad}x ${item.nombre}`,
+            glosa: `Venta POS - ${item.cantidad}x ${item.nombre}`,
             costo: item.precio * item.cantidad,
-            tipo_movimiento: esTienda ? 'USO_TIENDA' : 'VENTA_PRODUCTO',
+            tipo_movimiento: 'INGRESO',
+            subcategoria: 'PRODUCTO_VENTA',
             es_sancion: false,
             empleado_id: barbero_id,
-            cliente_id: esTienda ? null : finalClienteId,
-            metodo_pago: esTienda ? 'descuento_caja' : (metodo_pago || 'efectivo'),
-            comprobante_url: esTienda ? null : (comprobante_url || null),
+            cliente_id: finalClienteId,
+            metodo_pago: metodo_pago || 'efectivo',
+            comprobante_url: comprobante_url || null,
             usuario_registro: profile.full_name || 'Coordinador',
           })
       }
@@ -291,7 +321,6 @@ export async function POST(request: NextRequest) {
       // 5.a Lealtad (solo sumar productos de venta normal, no tienda)
       if (finalClienteId) {
         const totalProductosCliente = productosCarrito
-          .filter(p => !p.para_tienda)
           .reduce((sum, p) => sum + (p.precio * p.cantidad), 0)
 
         const { data: cData } = await supabase.from('clientes').select('total_visitas, total_gastado').eq('id', finalClienteId).single()
@@ -324,7 +353,8 @@ export async function POST(request: NextRequest) {
             cuenta_detalle: 'Ingresos por Servicios (POS)',
             glosa: `Venta desde Caja - Servicio ${serv.nombre} - Barbero: ${barberoProfile?.full_name || 'Desconocido'}`,
             costo: precioBase,
-            tipo_movimiento: 'PAGO_CLIENTE',
+            tipo_movimiento: 'INGRESO',
+            subcategoria: 'SERVICIO',
             es_sancion: false,
             empleado_id: barbero_id,
             cliente_id: finalClienteId,

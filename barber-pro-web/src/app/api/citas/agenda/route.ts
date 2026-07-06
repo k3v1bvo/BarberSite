@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
         duracion_real_minutos,
         estado,
         precio,
+        notas,
         anticipo_monto,
         barbero_id,
         clientes (nombre),
@@ -88,6 +89,10 @@ export async function GET(request: NextRequest) {
 
     const citasTransformadas: AgendaCita[] = (citas || []).map((cita) => {
       const servicioData = Array.isArray(cita.servicios) ? cita.servicios[0] : cita.servicios
+      
+      const comprobanteMatch = (cita.notas as string | null)?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/)
+      const comprobante_url = comprobanteMatch ? comprobanteMatch[1] : undefined
+
       return {
         id: cita.id,
         fecha_hora: cita.fecha_hora,
@@ -100,17 +105,16 @@ export async function GET(request: NextRequest) {
         anticipo_monto: cita.anticipo_monto,
         barbero_id: cita.barbero_id,
         barbero_nombre: pickName(cita.barberos, 'Barbero'),
+        comprobante_url
       }
     })
 
-    const response: AgendaResponse = {
+    return NextResponse.json({
       citas: citasTransformadas,
-      periodo: { inicio: fechaInicio, fin: fechaFin },
-    }
-
-    return NextResponse.json(response)
-  } catch (err) {
-    console.error('Error en agenda API:', err)
+      periodo: { inicio: fechaInicio, fin: fechaFin }
+    })
+  } catch (e) {
+    console.error('Agenda API:', e)
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
 }

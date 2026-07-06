@@ -149,7 +149,8 @@ export default function TiendaPage() {
     }
   }
 
-  const total = cart.reduce((acc, item) => acc + (item.precio_venta * item.cantidad), 0)
+  const descuentoReserva = (metodoEntrega === 'con_reserva' && cart.length > 0) ? 10 : 0
+  const total = Math.max(0, cart.reduce((acc, item) => acc + (item.precio_venta * item.cantidad), 0) - descuentoReserva)
   const productosFiltrados = catActiva === 'Todos' ? productos : productos.filter(p => (p.categoria || 'Otros') === catActiva)
 
   return (
@@ -290,7 +291,12 @@ export default function TiendaPage() {
                         <p className="text-zinc-400">Total a pagar:</p>
                         <p className="text-xs text-zinc-500">{metodoEntrega === 'envio' ? '+ Costo de envío a calcular' : 'Sin recargos extra'}</p>
                       </div>
-                      <p className="text-3xl font-black text-amber-500">{formatCurrency(total)}</p>
+                      <div className="text-right">
+                        {descuentoReserva > 0 && (
+                          <p className="text-amber-500 text-xs font-bold mb-1">- Bs 10 descuento por reserva</p>
+                        )}
+                        <p className="text-3xl font-black text-amber-500">{formatCurrency(total)}</p>
+                      </div>
                     </div>
 
                     <Button type="submit" disabled={submitting} className="w-full bg-amber-500 hover:bg-amber-400 text-black py-6 text-lg rounded-xl shadow-amber-500/20 shadow-lg">
@@ -333,6 +339,9 @@ export default function TiendaPage() {
               <p className="text-zinc-400 text-lg max-w-xl">
                 Los mejores productos para el cuidado de tu barba y cabello, seleccionados por nuestros profesionales.
               </p>
+              <div className="mt-4 inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 px-4 py-2 rounded-xl text-sm font-bold">
+                <Store className="w-4 h-4" /> ¡Lleva productos al reservar y obtén Bs 10 de descuento extra!
+              </div>
             </div>
             
             <button 

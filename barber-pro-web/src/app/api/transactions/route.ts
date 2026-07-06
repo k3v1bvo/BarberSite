@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     const fechaDesde = sp.get('desde')
     const fechaHasta = sp.get('hasta')
     const esSancion = sp.get('sancion')
+    const subcategoria = sp.get('subcategoria')
     const limit = parseInt(sp.get('limit') || '100')
 
     let query = supabase
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
     if (fechaDesde) query = query.gte('fecha', fechaDesde)
     if (fechaHasta) query = query.lte('fecha', fechaHasta)
     if (esSancion === 'true') query = query.eq('es_sancion', true)
+    if (subcategoria) query = query.eq('subcategoria', subcategoria)
 
     const { data, error } = await query
 
@@ -82,6 +84,7 @@ export async function POST(request: NextRequest) {
         glosa: body.glosa,
         costo: body.costo,
         tipo_movimiento: body.tipo_movimiento,
+        subcategoria: body.subcategoria || null,
         es_sancion: body.es_sancion || false,
         empleado_id: body.empleado_id || null,
         cliente_id: body.cliente_id || null,

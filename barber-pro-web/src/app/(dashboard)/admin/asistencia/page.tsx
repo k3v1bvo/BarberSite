@@ -13,6 +13,7 @@ import {
 import { estadoBadgeVariant, estadoLabel, type AsistenciaEstado } from '@/lib/asistencia/helpers'
 import { AUTO_CLOSE_HOUR } from '@/lib/asistencia/constants'
 import { useToast } from '@/components/ui/Toast'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface Registro {
   id: string
@@ -81,7 +82,13 @@ export default function AsistenciaAdminPage() {
 
   // Edición
   const [editando, setEditando] = useState<Registro | null>(null)
+  const [editando, setEditando] = useState<Registro | null>(null)
   const [formEdit, setFormEdit] = useState({ hora_entrada: '', hora_salida: '', notas: '' })
+
+  // Permisos
+  const [showPermiso, setShowPermiso] = useState(false)
+  const [formPermiso, setFormPermiso] = useState({ barbero_id: '', fecha: new Date().toISOString().split('T')[0], notas: '', comprobante_url: '' })
+  const [savingPermiso, setSavingPermiso] = useState(false)
 
   // ─── Load barberos ──────────────────────────────────────────────────
   const loadBarberos = useCallback(async () => {
@@ -202,9 +209,32 @@ export default function AsistenciaAdminPage() {
 
   const celdaColor = (r: Registro | undefined) => {
     if (!r) return 'text-zinc-800'
+    if (r.estado_calculado === 'permiso' as any || r.notas?.includes('PERMISO')) return 'text-purple-400'
     if (!r.hora_salida) return 'text-amber-400'
     if (r.estado_calculado === 'atrasado') return 'text-red-400'
     return 'text-green-400'
+  }
+
+  // ─── Guardar Permiso ──────────────────────────────────────────────────
+  const guardarPermiso = async () => {
+    if (!formPermiso.barbero_id || !formPermiso.fecha) return toastError('Falta empleado o fecha')
+    setSavingPermiso(true)
+    try {
+      const res = await fetch('/api/asistencias/permiso', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formPermiso),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      success('Permiso registrado')
+      setShowPermiso(false)
+      setFormPermiso({ barbero_id: '', fecha: new Date().toISOString().split('T')[0], notas: '', comprobante_url: '' })
+      vista === 'dia' ? loadDia() : loadSemana()
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setSavingPermiso(false)
+    }
   }
 
   return (
@@ -223,6 +253,7 @@ export default function AsistenciaAdminPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="primary" onClick={() => setShowPermiso(true)} className="font-black uppercase text-xs bg-purple-600 hover:bg-purple-500 text-white"><Calendar className="w-4 h-4 mr-2" />Permiso</Button>
           <Button variant="outline" size="md" onClick={vista === 'dia' ? loadDia : loadSemana}><RefreshCw className="w-4 h-4 mr-2" />Actualizar</Button>
           <Button variant="outline" size="lg" onClick={exportarCSV} className="font-black uppercase text-xs"><Download className="w-4 h-4 mr-2" />CSV</Button>
         </div>
@@ -446,11 +477,20 @@ export default function AsistenciaAdminPage() {
                                   {r ? (
                                     <div className="space-y-1">
                                       <div className={`font-black text-xs ${celdaColor(r)}`}>
-                                        {r.horas_trabajadas != null ? `${r.horas_trabajadas}h` : '?'}
+                                        {r.estado_calculado === 'permiso' as any || r.notas?.includes('PERMISO') 
+                                          ? 'PERMISO' 
+                                          : (r.horas_trabajadas != null ? `${r.horas_trabajadas}h` : '?')}
                                       </div>
                                       <div className="text-zinc-700 text-[9px]">
-                                        {horaFmt(r.hora_entrada)}
-                                        {r.hora_salida ? ` → ${horaFmt(r.hora_salida)}` : ' →?'}
+                                        {r.estado_calculado === 'permiso' as any || r.notas?.includes('PERMISO')
+                                          ? 'Justificado'
+                                          : (
+                                            <>
+                                              {horaFmt(r.hora_entrada)}
+                                              {r.hora_salida ? ` → ${horaFmt(r.hora_salida)}` : ' →?'}
+                                            </>
+                                          )
+                                        }
                                       </div>
                                       {r.estado_calculado === 'atrasado' && (
                                         <Badge variant="danger" className="text-[8px] py-0">tarde</Badge>
@@ -535,6 +575,54 @@ export default function AsistenciaAdminPage() {
               <div className="flex gap-3">
                 <Button variant="primary" className="flex-1 font-black uppercase" onClick={guardarEdicion}>Guardar</Button>
                 <Button variant="outline" className="flex-1" onClick={() => setEditando(null)}>Cancelar</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal Registrar Permiso */}
+      {showPermiso && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <Card className="w-full max-w-md border-purple-500/20">
+            <CardHeader><CardTitle className="text-purple-400 flex items-center gap-2"><Calendar className="w-5 h-5" /> Registrar Permiso</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-zinc-500 uppercase">Empleado</label>
+                <select value={formPermiso.barbero_id} onChange={e => setFormPermiso({ ...formPermiso, barbero_id: e.target.value })}
+                  className="w-full mt-1 h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white font-bold">
+                  <option value="">Seleccione...</option>
+                  {barberos.map(b => <option key={b.id} value={b.id}>{b.full_name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-zinc-500 uppercase">Fecha</label>
+                <input type="date" value={formPermiso.fecha} onChange={e => setFormPermiso({ ...formPermiso, fecha: e.target.value })}
+                  className="w-full mt-1 h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-zinc-500 uppercase">Motivo / Notas</label>
+                <textarea value={formPermiso.notas} onChange={e => setFormPermiso({ ...formPermiso, notas: e.target.value })}
+                  placeholder="Ej. Cita médica, Problema familiar..."
+                  className="w-full mt-1 min-h-[80px] bg-zinc-950 border border-white/10 rounded-xl p-3 text-white text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-zinc-500 uppercase block mb-1">Comprobante (Opcional)</label>
+                <div className="bg-zinc-950 border border-white/10 rounded-xl p-2">
+                  <ImageUpload 
+                    onUploadSuccess={(url) => setFormPermiso({ ...formPermiso, comprobante_url: url })}
+                    onUploadError={(err) => toastError(err)}
+                  />
+                  {formPermiso.comprobante_url && (
+                    <p className="text-xs text-green-400 mt-2 font-bold text-center">✓ Imagen subida con éxito</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <Button variant="primary" className="flex-1 font-black uppercase bg-purple-600 hover:bg-purple-500 text-white" onClick={guardarPermiso} disabled={savingPermiso}>
+                  {savingPermiso ? 'Guardando...' : 'Guardar Permiso'}
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={() => setShowPermiso(false)}>Cancelar</Button>
               </div>
             </CardContent>
           </Card>

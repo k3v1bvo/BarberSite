@@ -61,8 +61,8 @@ async function notifyRole(
 }
 
 function agendaLink(barberoId?: string): string {
-  if (barberoId) return `${SITE}/agenda/${barberoId}`
-  return `${SITE}/agenda`
+  if (barberoId) return `/agenda/${barberoId}`
+  return `/agenda`
 }
 
 export async function dispatchNotification(
@@ -338,10 +338,20 @@ export async function dispatchNotification(
         if (p.barberoId) {
           await notifyUser(db, p.barberoId, event, {
             titulo: '⏰ Recordatorio de cita',
-            mensaje: `${p.clienteNombre} · mañana ${p.hora}`,
+            mensaje: `${p.clienteNombre} · en breve a las ${p.hora}`,
             tipo: 'info',
             categoria: event,
             link: agendaLink(p.barberoId),
+            metadata: { cita_id: p.citaId },
+          })
+        }
+        if (p.clienteId) {
+          await notifyUser(db, p.clienteId as string, event, {
+            titulo: '⏰ Recordatorio de cita',
+            mensaje: `En breve tienes cita a las ${p.hora} con ${p.barberoNombre || 'tu barbero'}`,
+            tipo: 'info',
+            categoria: event,
+            link: '/cliente',
             metadata: { cita_id: p.citaId },
           })
         }
@@ -465,6 +475,18 @@ export async function dispatchNotification(
           })
         }
 
+        // Notificación in-app al cliente
+        if (p.clienteId) {
+          await notifyUser(db, p.clienteId as string, event, {
+            titulo: '✅ ¡Reserva Aceptada!',
+            mensaje: `Tu comprobante fue verificado. Te esperamos el ${p.fecha} a las ${p.hora} con ${p.barberoNombre || 'tu barbero'}`,
+            tipo: 'success',
+            categoria: event,
+            link: '/cliente',
+            metadata: meta,
+          })
+        }
+
         // Email al cliente
         if (p.clienteEmail) {
           await sendNotificationEmail(p.clienteEmail, 'pago_verificado_cliente', {
@@ -474,6 +496,7 @@ export async function dispatchNotification(
             fecha: p.fecha,
             hora: p.hora,
             barbero: p.barberoNombre,
+            comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
           })
         }
 
@@ -485,6 +508,7 @@ export async function dispatchNotification(
           fecha: p.fecha,
           hora: p.hora,
           verificadoPor: verificador,
+          comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
         })
         break
       }

@@ -17,7 +17,7 @@ export async function GET() {
       supabase.from('servicios').select('id,nombre,precio,comision_activa,comision_tipo,comision_valor,comision_acumulable,comision_notas,is_active').order('nombre'),
       supabase.from('profiles').select('id,full_name,role,is_active').in('role', ['barbero', 'coordinador']).order('full_name'),
       supabase.from('plan_cuentas').select('*').order('codigo'),
-      supabase.from('configuraciones').select('llave,valor,descripcion').in('llave', ['bonos_config']),
+      supabase.from('configuraciones').select('llave,valor,descripcion').in('llave', ['bonos_config', 'asistencia_config']),
     ])
 
     return NextResponse.json({
@@ -80,6 +80,14 @@ export async function PATCH(request: NextRequest) {
     if (accion === 'update_bonos_config') {
       const { valor } = payload
       const { error } = await supabase.from('configuraciones').upsert({ llave: 'bonos_config', valor, descripcion: 'Configuración de tipos y montos sugeridos de bonos' }, { onConflict: 'llave' })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ success: true })
+    }
+
+    // ── Guardar config de asistencia (tolerancia, etc) ──
+    if (accion === 'update_asistencia_config') {
+      const { valor } = payload
+      const { error } = await supabase.from('configuraciones').upsert({ llave: 'asistencia_config', valor, descripcion: 'Configuración general de asistencia (tolerancia)' }, { onConflict: 'llave' })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ success: true })
     }

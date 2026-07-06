@@ -40,6 +40,8 @@ export default function ReportesPage() {
     resumen: { tendencias: {} },
     finanzasDiarias: [],
     metodosPago: [],
+    ingresosCategoria: [],
+    egresosCategoria: [],
     productividadBarberos: [],
     topServicios: [],
     horasPico: [],
@@ -85,7 +87,7 @@ export default function ReportesPage() {
         supabase.from('citas').select('estado, precio, fecha_hora, barbero_id, servicio_id, metodo_pago')
           .gte('fecha_hora', `${fechaInicio}T00:00:00`)
           .lte('fecha_hora', `${fechaFin}T23:59:59`),
-        supabase.from('transactions').select('tipo_movimiento, costo, fecha, metodo_pago')
+        supabase.from('transactions').select('tipo_movimiento, costo, fecha, metodo_pago, subcategoria, monto_efectivo, monto_qr')
           .gte('fecha', fechaInicio)
           .lte('fecha', fechaFin),
         // Periodo Anterior
@@ -100,7 +102,7 @@ export default function ReportesPage() {
         supabase.from('clientes').select('id, nombre, telefono, total_visitas, total_gastado, created_at, nivel_fidelidad'),
         supabase.from('servicios').select('id, nombre'),
         supabase.from('inventario_movimientos')
-          .select('id, tipo, cantidad, created_at, producto:productos(nombre, precio_venta, precio_tienda)')
+          .select('id, tipo, cantidad, created_at, producto:productos(nombre, precio_venta)')
           .gte('created_at', `${fechaInicio}T00:00:00`)
           .lte('created_at', `${fechaFin}T23:59:59`)
       ])
@@ -143,7 +145,31 @@ export default function ReportesPage() {
         }))
         .sort((a, b) => a.fecha.localeCompare(b.fecha))
 
-      const metodosPago = Object.entries(metodos).map(([name, value]) => ({ name, value }))
+      const metodos: Record<string, number> = { 'efectivo': 0, 'qr': 0, 'tarjeta': 0, 'descuento_caja': 0 }
+      const ingCat: Record<string, number> = {}
+      const egCat: Record<string, number> = {}
+
+      txs.forEach(tx => {
+        const costo = Number(tx.costo)
+        // Metodos de pago precisos
+        if (tx.metodo_pago === 'mixto') {
+          metodos['efectivo'] += Number(tx.monto_efectivo || 0)
+          metodos['qr'] += Number(tx.monto_qr || 0)
+        } else if (tx.metodo_pago) {
+          metodos[tx.metodo_pago] = (metodos[tx.metodo_pago] || 0) + costo
+        }
+
+        const sub = tx.subcategoria || 'OTROS'
+        if (tx.tipo_movimiento === 'INGRESO') {
+          ingCat[sub] = (ingCat[sub] || 0) + costo
+        } else {
+          egCat[sub] = (egCat[sub] || 0) + costo
+        }
+      })
+
+      const metodosPago = Object.entries(metodos).filter(([_,v]) => v > 0).map(([name, value]) => ({ name, value }))
+      const ingresosCategoria = Object.entries(ingCat).sort((a,b) => b[1]-a[1]).map(([name, value]) => ({ name, value }))
+      const egresosCategoria = Object.entries(egCat).sort((a,b) => b[1]-a[1]).map(([name, value]) => ({ name, value }))
 
       // --- TENDENCIAS (Periodo Anterior) ---
       let prevIngresosTotal = 0
@@ -265,8 +291,8 @@ export default function ReportesPage() {
         } else if (m.tipo === 'salida' || m.tipo === 'ajuste') {
            // asumimos salidas y ajustes como uso/pérdida
            invMap[pName].uso += m.cantidad
-           invMap[pName].costoUso += (m.cantidad * (m.producto.precio_tienda || m.producto.precio_venta || 0))
-           totalUsoInv += (m.cantidad * (m.producto.precio_tienda || m.producto.precio_venta || 0))
+           invMap[pName].costoUso += (m.cantidad * (m.producto.precio_venta || 0))
+           totalUsoInv += (m.cantidad * (m.producto.precio_venta || 0))
         }
       })
       
@@ -292,6 +318,8 @@ export default function ReportesPage() {
         },
         finanzasDiarias,
         metodosPago,
+        ingresosCategoria,
+        egresosCategoria,
         productividadBarberos: prodBarberos,
         topServicios,
         horasPico,
@@ -464,6 +492,45 @@ export default function ReportesPage() {
                   <Legend verticalAlign="bottom" height={36} />
                 </PieChart>
               </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Desglose de Ingresos y Egresos */}
+        <Card className="lg:col-span-3 border-white/5 bg-zinc-900 shadow-2xl">
+          <CardHeader>
+            <CardTitle className="text-lg">Desglose por Categoría</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div>
+                <h3 className="text-sm font-bold text-emerald-400 mb-4 uppercase tracking-widest border-b border-white/5 pb-2">Ingresos</h3>
+                <div className="space-y-3">
+                  {data.ingresosCategoria?.map((item: any) => (
+                    <div key={item.name} className="flex justify-between items-center">
+                      <span className="text-zinc-300 text-sm">{item.name.replace('_', ' ')}</span>
+                      <span className="font-bold text-white">{formatCurrency(item.value)}</span>
+                    </div>
+                  ))}
+                  {(!data.ingresosCategoria || data.ingresosCategoria.length === 0) && (
+                    <p className="text-xs text-zinc-500">No hay datos</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-red-400 mb-4 uppercase tracking-widest border-b border-white/5 pb-2">Egresos</h3>
+                <div className="space-y-3">
+                  {data.egresosCategoria?.map((item: any) => (
+                    <div key={item.name} className="flex justify-between items-center">
+                      <span className="text-zinc-300 text-sm">{item.name.replace('_', ' ')}</span>
+                      <span className="font-bold text-white">{formatCurrency(item.value)}</span>
+                    </div>
+                  ))}
+                  {(!data.egresosCategoria || data.egresosCategoria.length === 0) && (
+                    <p className="text-xs text-zinc-500">No hay datos</p>
+                  )}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

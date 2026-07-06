@@ -144,6 +144,47 @@ export async function POST(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    try {
+      // Check for early departure (Salida temprano)
+      const dayOfWeek = now.getDay()
+      const { data: horario } = await supabase
+        .from('barbero_horario_semanal')
+        .select('hora_fin')
+        .eq('barbero_id', user.id)
+        .eq('dia_semana', dayOfWeek)
+        .eq('activo', true)
+        .single()
+
+      if (horario && horario.hora_fin) {
+        const currentHour = now.getHours()
+        const currentMinute = now.getMinutes()
+        const [endHour, endMinute] = horario.hora_fin.split(':').map(Number)
+        
+        const currentTime = currentHour * 60 + currentMinute
+        const endTime = endHour * 60 + endMinute
+        
+        if (currentTime < endTime - 15) { // 15 minutes grace period
+          // Fetch configuraciones and plan_cuentas for sanction type
+          const { data: cuentasSancion } = await supabase.from('plan_cuentas').select('detalle').eq('es_sancion', true)
+          let tipoSancion = 'salida_temprano'
+          if (cuentasSancion && cuentasSancion.length > 0) {
+            const match = cuentasSancion.find((c: any) => c.detalle.toLowerCase().includes('salida') || c.detalle.toLowerCase().includes('temprano'))
+            tipoSancion = match ? match.detalle : cuentasSancion[0].detalle
+          }
+
+          await supabase.from('sanciones').insert({
+            barbero_id: user.id,
+            tipo: tipoSancion,
+            descripcion: `Salida temprano (Salió a las ${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}, turno hasta ${horario.hora_fin})`,
+            monto: 12, // 30% of 40Bs
+            estado: 'pendiente'
+          })
+        }
+      }
+    } catch (e) {
+      console.error('Error evaluating early departure sanction', e)
+    }
+
     return NextResponse.json({ registro: data })
   } catch (err) {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })

@@ -22,6 +22,7 @@ interface CitaDetailModalProps {
 export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }: CitaDetailModalProps) {
   const [verifying, setVerifying] = useState(false)
   const [canceling, setCanceling] = useState(false)
+  const [showImage, setShowImage] = useState(false)
   const { success, error } = useToast()
   if (!cita) return null
 
@@ -100,12 +101,39 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          {(cita.estado === 'pendiente' || cita.estado === 'confirmado') && (
+        {cita.comprobante_url && (
+          <div className="pt-2 border-t border-white/5">
+            <Button
+              onClick={() => setShowImage(true)}
+              variant="outline"
+              className="w-full h-10 uppercase tracking-widest font-black text-xs text-amber-500 border-amber-500/20 hover:bg-amber-500/10"
+            >
+              📷 Ver Comprobante
+            </Button>
+          </div>
+        )}
+
+        {showImage && cita.comprobante_url && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4" onClick={(e) => { e.stopPropagation(); setShowImage(false); }}>
+            <div className="relative max-w-full max-h-full">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowImage(false); }}
+                className="absolute -top-12 right-0 p-2 text-white/50 hover:text-white bg-black/50 rounded-full transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={cita.comprobante_url} alt="Comprobante" className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" />
+            </div>
+          </div>
+        )}
+
+        <div className="pt-2 space-y-2 border-t border-white/5">
+          {(cita.estado === 'pendiente' || cita.estado === 'confirmado' || cita.estado === 'en_proceso') && (
             <Button
               variant="danger"
               size="md"
-              className="flex-1 font-black uppercase tracking-wider"
+              className="w-full font-black uppercase tracking-wider"
               disabled={canceling}
               onClick={async () => {
                 if (!confirm('¿Marcar que el cliente no se presentó a la cita?')) return;

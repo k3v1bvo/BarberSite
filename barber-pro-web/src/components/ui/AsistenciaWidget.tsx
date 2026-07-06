@@ -115,27 +115,13 @@ export function AsistenciaWidget() {
     if (!userId) return
     setSubmitting(true)
     try {
-      const hoy = new Date().toISOString().split('T')[0]
-      const entrada = new Date()
-      const estadoInicial = computeEstadoFromRecord({
-        hora_entrada: entrada.toISOString(),
-        hora_salida: null,
-      })
+      const res = await fetch('/api/asistencias/entrada', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Error al marcar entrada')
 
-      const { data, error } = await supabase
-        .from('asistencias')
-        .insert({
-          profile_id: userId,
-          fecha: hoy,
-          hora_entrada: entrada.toISOString(),
-          estado: estadoInicial === 'atrasado' ? 'atrasado' : 'presente',
-        })
-        .select()
-        .single()
-
-      if (error) throw error
-      setAsistencia(data)
-      success(estadoInicial === 'atrasado' ? 'Entrada registrada (marcada como atrasada)' : '¡Entrada registrada!')
+      const estadoInicial = json.estadoInicial
+      setAsistencia(json.registro)
+      success(estadoInicial === 'atrasado' ? 'Entrada registrada (marcada como atrasada, sanción aplicada)' : '¡Entrada registrada!')
 
       await fetch('/api/notificaciones/dispatch', {
         method: 'POST',

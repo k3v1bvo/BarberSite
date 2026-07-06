@@ -30,6 +30,7 @@ interface Cita {
   comision_barbero: number | null
   fecha_hora: string
   comprobante_url?: string | null
+  notas?: string | null
   clientes?: { nombre: string; telefono: string | null }
   servicios?: { nombre: string }
   productos?: { notas: string }[]
@@ -139,7 +140,7 @@ export default function BarberoPage() {
       let query = supabase
         .from('citas')
         .select(`
-          id, estado, precio, comision_barbero, fecha_hora, comprobante_url,
+          id, estado, precio, comision_barbero, fecha_hora, notas,
           clientes(nombre, telefono),
           servicios(nombre)
         `)
@@ -221,13 +222,18 @@ export default function BarberoPage() {
           if (!raw) return undefined
           return { nombre: raw.nombre }
         }
+
+        // Extraer comprobante_url de las notas si existe
+        const comprobanteMatch = cita.notas?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/)
+        const extractedUrl = comprobanteMatch ? comprobanteMatch[1] : null
+
         return {
           id: cita.id,
           estado: cita.estado,
           precio: cita.precio,
           comision_barbero: cita.comision_barbero,
           fecha_hora: cita.fecha_hora,
-          comprobante_url: cita.comprobante_url,
+          comprobante_url: extractedUrl,
           clientes: getCliente(),
           servicios: getServicio(),
           productos: movimientos.filter(m => m.referencia === cita.id).map(m => ({ notas: m.notas }))
@@ -573,34 +579,57 @@ export default function BarberoPage() {
                     
                     <div className="flex gap-3">
                       {cita.estado === 'pendiente_pago' && (
-                        <div className="flex w-full gap-3">
-                          {cita.comprobante_url && (
-                            <Button
-                              onClick={() => window.open(cita.comprobante_url!, '_blank')}
-                              variant="outline"
-                              className="flex-1 h-12 uppercase tracking-widest font-black text-amber-500 border-amber-500/20 hover:bg-amber-500/10"
+                        <div className="flex flex-col w-full gap-3">
+                          <div className="flex w-full gap-3">
+                            {cita.comprobante_url && (
+                              <Button
+                                onClick={() => window.open(cita.comprobante_url!, '_blank')}
+                                variant="outline"
+                                className="flex-1 h-12 uppercase tracking-widest font-black text-amber-500 border-amber-500/20 hover:bg-amber-500/10"
+                              >
+                                📷 Ver Comprobante
+                              </Button>
+                            )}
+                            <Button 
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch('/api/citas/verificar-pago', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ citaId: cita.id })
+                                  })
+                                  if (!res.ok) throw new Error('Error al verificar')
+                                  success('✅ Pago verificado — cita confirmada')
+                                  loadData()
+                                } catch (e) {
+                                  toastError('No se pudo verificar el pago')
+                                }
+                              }}
+                              className="flex-1 h-12 uppercase tracking-widest font-black bg-amber-500 hover:bg-amber-600 text-black"
                             >
-                              Ver Comprobante
+                              ✅ Aprobar Pago
                             </Button>
-                          )}
+                          </div>
                           <Button 
                             onClick={async () => {
+                              if (!confirm('¿Cancelar esta cita o marcar que no asistió?')) return
                               try {
-                                const res = await fetch('/api/citas/verificar-pago', {
+                                const res = await fetch('/api/citas/cancelar', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ citaId: cita.id })
+                                  body: JSON.stringify({ cita_id: cita.id, motivo: 'No asistió / Comprobante inválido' })
                                 })
-                                if (!res.ok) throw new Error('Error al verificar')
-                                success('Pago verificado y cita confirmada')
+                                if (!res.ok) throw new Error('Error')
+                                success('Cita cancelada correctamente')
                                 loadData()
                               } catch (e) {
-                                toastError('No se pudo verificar el pago')
+                                toastError('No se pudo cancelar la cita')
                               }
                             }}
-                            className="flex-1 h-12 uppercase tracking-widest font-black bg-amber-500 hover:bg-amber-600 text-black"
+                            variant="outline"
+                            className="w-full h-10 uppercase tracking-widest font-black text-xs text-red-500 border-red-500/20 hover:bg-red-500/10"
                           >
-                            ✅ Aprobar Pago
+                            ❌ No Asistió / Cancelar
                           </Button>
                         </div>
                       )}

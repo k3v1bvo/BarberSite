@@ -55,6 +55,10 @@ export async function POST(request: Request) {
       total += (item.precio_venta * item.cantidad)
     }
 
+    if (metodo_entrega === 'con_reserva' && cart.length > 0) {
+      total = Math.max(0, total - 10)
+    }
+
     const { data: pedidoNuevo, error: pedError } = await supabase
       .from('pedidos')
       .insert({

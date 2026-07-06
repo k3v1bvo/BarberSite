@@ -6,5 +6,5 @@ export async function POST() {
   
   await supabase.auth.signOut()
   
-  return NextResponse.redirect(new URL('/login', process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://barber-site-livid.vercel.app'))
+  return NextResponse.redirect(new URL('/login', process.env.NEXT_PUBLIC_SITE_URL || 'https://barber-site-livid.vercel.app'))
 }

@@ -31,6 +31,7 @@ CREATE TABLE public.servicios (
   comision_valor numeric DEFAULT 30,
   comision_acumulable boolean DEFAULT false,
   comision_notas text,
+  barberos_excluidos jsonb DEFAULT '[]'::jsonb,
   CONSTRAINT servicios_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.clientes (
@@ -96,7 +97,6 @@ CREATE TABLE public.productos (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
   image_url text,
-  precio_tienda numeric DEFAULT NULL::numeric,
   CONSTRAINT productos_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.inventario_movimientos (
@@ -347,6 +347,7 @@ CREATE TABLE public.transactions (
   glosa text NOT NULL,
   costo numeric NOT NULL CHECK (costo >= 0::numeric),
   tipo_movimiento character varying NOT NULL,
+  subcategoria text,
   es_sancion boolean DEFAULT false,
   empleado_id uuid,
   cliente_id uuid,
@@ -354,6 +355,8 @@ CREATE TABLE public.transactions (
   producto_id uuid,
   cantidad_producto numeric,
   metodo_pago character varying CHECK (metodo_pago IS NULL OR (metodo_pago::text = ANY (ARRAY['efectivo'::text, 'qr'::text, 'tarjeta'::text, 'mixto'::text, 'descuento_caja'::text]))),
+  monto_efectivo numeric DEFAULT 0,
+  monto_qr numeric DEFAULT 0,
   usuario_registro character varying NOT NULL,
   notas text,
   creado_en timestamp with time zone DEFAULT now(),
@@ -393,11 +396,48 @@ CREATE TABLE public.egresos (
   monto_neto numeric NOT NULL,
   numero_factura text,
   cuenta_codigo character varying,
+  metodo_pago text DEFAULT 'efectivo',
+  monto_efectivo numeric DEFAULT 0,
+  monto_qr numeric DEFAULT 0,
   usuario_registro character varying NOT NULL,
   notas text,
   creado_en timestamp with time zone DEFAULT now(),
   CONSTRAINT egresos_pkey PRIMARY KEY (id),
   CONSTRAINT egresos_cuenta_codigo_fkey FOREIGN KEY (cuenta_codigo) REFERENCES public.plan_cuentas(codigo)
+);
+CREATE TABLE public.consignaciones (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  proveedor_nombre text NOT NULL DEFAULT 'Proveedor Principal',
+  fecha_recepcion date NOT NULL DEFAULT CURRENT_DATE,
+  notas text,
+  estado text DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'pagado_parcial', 'pagado')),
+  total_costo numeric NOT NULL DEFAULT 0,
+  total_pagado numeric DEFAULT 0,
+  creado_en timestamptz DEFAULT now(),
+  CONSTRAINT consignaciones_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.consignacion_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  consignacion_id uuid NOT NULL,
+  producto_id uuid NOT NULL,
+  cantidad_recibida integer NOT NULL,
+  precio_costo_unitario numeric NOT NULL,
+  CONSTRAINT consignacion_items_pkey PRIMARY KEY (id),
+  CONSTRAINT consignacion_items_consignacion_id_fkey FOREIGN KEY (consignacion_id) REFERENCES public.consignaciones(id) ON DELETE CASCADE,
+  CONSTRAINT consignacion_items_producto_id_fkey FOREIGN KEY (producto_id) REFERENCES public.productos(id)
+);
+CREATE TABLE public.consignacion_pagos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  consignacion_id uuid,
+  monto numeric NOT NULL,
+  metodo_pago text DEFAULT 'efectivo' CHECK (metodo_pago IN ('efectivo','qr','mixto','transferencia')),
+  monto_efectivo numeric DEFAULT 0,
+  monto_qr numeric DEFAULT 0,
+  notas text,
+  registrado_por text NOT NULL,
+  pagado_en timestamptz DEFAULT now(),
+  CONSTRAINT consignacion_pagos_pkey PRIMARY KEY (id),
+  CONSTRAINT consignacion_pagos_consignacion_id_fkey FOREIGN KEY (consignacion_id) REFERENCES public.consignaciones(id)
 );
 CREATE TABLE public.referrals (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -456,7 +496,7 @@ CREATE TABLE public.promociones (
   valor numeric DEFAULT 0,
   dias_semana ARRAY DEFAULT '{}'::integer[],
   servicio_id uuid,
-  nivel_requerido text CHECK (nivel_requerido = ANY (ARRAY['BRONCE'::text, 'PLATA'::text, 'ORO'::text])),
+  nivel_requerido text,
   activa boolean DEFAULT true,
   icono text DEFAULT '🎁'::text,
   color text DEFAULT 'amber'::text,
@@ -480,6 +520,22 @@ CREATE TABLE public.cumpleanos_verificados (
   CONSTRAINT cumpleanos_verificados_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id),
   CONSTRAINT cumpleanos_verificados_promo_id_fkey FOREIGN KEY (promo_id) REFERENCES public.promociones(id),
   CONSTRAINT cumpleanos_verificados_verificado_por_fkey FOREIGN KEY (verificado_por) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.sanciones (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  barbero_id uuid NOT NULL,
+  tipo text NOT NULL CHECK (tipo = ANY (ARRAY['llegada_tarde'::text, 'falta'::text, 'salida_temprano'::text, 'otro'::text])),
+  descripcion text,
+  monto numeric NOT NULL,
+  estado text DEFAULT 'pendiente'::text CHECK (estado = ANY (ARRAY['pendiente'::text, 'aplicada'::text, 'perdonada'::text])),
+  cita_id uuid,
+  aplicada_en_pago_id uuid,
+  fecha date NOT NULL DEFAULT CURRENT_DATE,
+  creado_en timestamp with time zone DEFAULT now(),
+  CONSTRAINT sanciones_pkey PRIMARY KEY (id),
+  CONSTRAINT sanciones_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id),
+  CONSTRAINT sanciones_cita_id_fkey FOREIGN KEY (cita_id) REFERENCES public.citas(id),
+  CONSTRAINT sanciones_aplicada_en_pago_id_fkey FOREIGN KEY (aplicada_en_pago_id) REFERENCES public.comisiones_pagos(id)
 );
 CREATE TABLE public.reviews (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

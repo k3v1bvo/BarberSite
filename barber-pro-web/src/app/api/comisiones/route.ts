@@ -54,15 +54,15 @@ export async function GET(req: Request) {
       }
     })
 
-    const { data: txSanciones } = await supabase
-      .from('transactions')
+    const { data: sanciones } = await supabase
+      .from('sanciones')
       .select('*')
-      .eq('empleado_id', barbero_id)
-      .eq('es_sancion', true)
+      .eq('barbero_id', barbero_id)
+      .eq('estado', 'pendiente')
 
-    if (txSanciones) {
-      sanciones_pendientes = txSanciones.filter(s => !(s.notas || '').includes('[PAGADO]'))
-      total_sanciones = sanciones_pendientes.reduce((sum, s) => sum + Number(s.costo), 0)
+    if (sanciones) {
+      sanciones_pendientes = sanciones
+      total_sanciones = sanciones_pendientes.reduce((sum, s) => sum + Number(s.monto), 0)
     }
 
     const { data: pendingBonos } = await supabase

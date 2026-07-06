@@ -203,10 +203,10 @@ export function buildEmail(
 
     case 'recordatorio_cita':
       return {
-        subject: '⏰ Recordatorio: tu cita es mañana',
+        subject: '⏰ Recordatorio: tu cita es en breve',
         html: layout(
           `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">Te recordamos tu cita</h2>
-          <p>Hola ${nombre}, mañana tienes servicio programado.</p>
+          <p>Hola ${nombre}, en breve tienes un servicio programado con nosotros.</p>
           ${detailBox([
             { label: 'Servicio', value: data.servicio || '—' },
             { label: 'Fecha', value: data.fecha || '—' },
@@ -214,7 +214,7 @@ export function buildEmail(
             { label: 'Barbero', value: data.barbero || '—' },
           ])}
           <p style="color:#a1a1aa;font-size:13px;">Si no puedes asistir, avísanos para liberar el horario.</p>`,
-          'Recordatorio de cita mañana'
+          'Recordatorio de cita en breve'
         ),
       }
 
@@ -310,10 +310,10 @@ export function buildEmail(
 
     case 'pago_verificado_cliente':
       return {
-        subject: '✅ Pago verificado — Tu cita está confirmada',
+        subject: '✅ ¡Reserva Aceptada y Verificada! — Te esperamos',
         html: layout(
-          `<h2 style="margin:0 0 8px;color:#22c55e;font-size:20px;">¡Pago confirmado!</h2>
-          <p>Hola <strong>${nombre}</strong>, tu anticipo fue verificado exitosamente. Tu cita quedó confirmada.</p>
+          `<h2 style="margin:0 0 8px;color:#22c55e;font-size:20px;">¡Tu reserva está confirmada!</h2>
+          <p>Hola <strong>${nombre}</strong>, tu comprobante de pago fue revisado y <strong style="color:#22c55e;">aceptado</strong>. Tu cita quedó 100% confirmada.</p>
           ${detailBox([
             { label: 'Servicio', value: data.servicio || '—' },
             { label: 'Anticipo pagado', value: data.anticipo || '—' },
@@ -321,7 +321,9 @@ export function buildEmail(
             { label: 'Hora', value: data.hora || '—' },
             { label: 'Barbero', value: data.barbero || '—' },
           ])}
-          <p>Te esperamos puntual. El saldo restante se paga directamente en la barbería.</p>
+          ${data.comprobante_url ? `<p style="margin-top:12px;"><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📷 Ver tu comprobante de pago</a></p>` : ''}
+          <p style="margin-top:16px;">Te esperamos puntual el <strong>${data.fecha || ''}</strong> a las <strong>${data.hora || ''}</strong> con <strong>${data.barbero || 'tu barbero'}</strong>. El saldo restante se paga directamente en la barbería.</p>
+          <p style="color:#a1a1aa;font-size:13px;margin-top:8px;">Recibirás un recordatorio antes de tu cita. Si no puedes asistir, avísanos con tiempo.</p>
           ${cta(`${SITE}/cliente`, 'Ver mis citas')}`,
           'Tu anticipo fue verificado y la cita confirmada'
         ),
@@ -340,6 +342,7 @@ export function buildEmail(
             { label: 'Fecha', value: data.fecha || '—' },
             { label: 'Hora', value: data.hora || '—' },
           ])}
+          ${data.comprobante_url ? `<p style="margin-top:12px;"><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📷 Ver comprobante de pago</a></p>` : ''}
           ${cta(`${SITE}/admin`, 'Ir al Panel Admin')}`,
           'Un pago QR ha sido verificado y la cita confirmada'
         ),

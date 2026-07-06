@@ -24,7 +24,7 @@ export default function EgresosPage() {
 
   const [form, setForm] = useState({
     concepto: '', proveedor: '', monto_bruto: '', cuenta_codigo: '',
-    tiene_factura: false, numero_factura: '', notas: '',
+    tiene_factura: false, numero_factura: '', notas: '', metodo_pago: 'efectivo', monto_efectivo: '', monto_qr: ''
   })
 
   const loadData = useCallback(async () => {
@@ -56,11 +56,14 @@ export default function EgresosPage() {
         tiene_factura: form.tiene_factura,
         numero_factura: form.numero_factura || null,
         notas: form.notas || null,
+        metodo_pago: form.metodo_pago,
+        monto_efectivo: form.metodo_pago === 'mixto' ? parseFloat(form.monto_efectivo) : 0,
+        monto_qr: form.metodo_pago === 'mixto' ? parseFloat(form.monto_qr) : 0,
       }),
     })
     if (res.ok) {
       setShowForm(false)
-      setForm({ concepto: '', proveedor: '', monto_bruto: '', cuenta_codigo: '', tiene_factura: false, numero_factura: '', notas: '' })
+      setForm({ concepto: '', proveedor: '', monto_bruto: '', cuenta_codigo: '', tiene_factura: false, numero_factura: '', notas: '', metodo_pago: 'efectivo', monto_efectivo: '', monto_qr: '' })
       loadData()
     }
     setSaving(false)
@@ -137,6 +140,27 @@ export default function EgresosPage() {
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Nro. Factura</label>
                   <input value={form.numero_factura} onChange={(e) => setForm({ ...form, numero_factura: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-rose-500/50 outline-none" />
                 </div>
+              )}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Método de Pago</label>
+                <select value={form.metodo_pago} onChange={(e) => setForm({ ...form, metodo_pago: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-rose-500/50 outline-none appearance-none">
+                  <option value="efectivo">Efectivo</option>
+                  <option value="qr">QR / Transferencia</option>
+                  <option value="mixto">Mixto (Efectivo + QR)</option>
+                  <option value="tarjeta">Tarjeta</option>
+                </select>
+              </div>
+              {form.metodo_pago === 'mixto' && (
+                <>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Monto Efectivo (Bs)</label>
+                    <input type="number" step="0.01" min="0" value={form.monto_efectivo} onChange={(e) => setForm({ ...form, monto_efectivo: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-rose-500/50 outline-none" required />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Monto QR (Bs)</label>
+                    <input type="number" step="0.01" min="0" value={form.monto_qr} onChange={(e) => setForm({ ...form, monto_qr: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-rose-500/50 outline-none" required />
+                  </div>
+                </>
               )}
               <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>

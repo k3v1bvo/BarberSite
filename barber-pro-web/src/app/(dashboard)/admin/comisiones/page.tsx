@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import { formatCurrency } from '@/lib/utils'
-import { ArrowLeft, DollarSign, CheckCircle, Filter, Download, Edit, RefreshCw } from 'lucide-react'
+import { ArrowLeft, DollarSign, CheckCircle, Filter, Download, Edit, RefreshCw, AlertTriangle, X, Plus } from 'lucide-react'
 
 export default function AdminComisionesPage() {
   const router = useRouter()
@@ -19,29 +19,47 @@ export default function AdminComisionesPage() {
   const [resumen, setResumen] = useState({ pendiente: 0, pagado: 0, hoy: 0, semana: 0 })
   const [barberoId, setBarberoId] = useState('')
   const [estado, setEstado] = useState('pendiente')
+  const [periodo, setPeriodo] = useState<'diario' | 'semanal' | 'personalizado'>('diario')
   const [metodoPago, setMetodoPago] = useState('efectivo')
-  const [periodo, setPeriodo] = useState<'diario' | 'semanal' | 'personalizado'>('semanal')
+  const [pagoEfectivo, setPagoEfectivo] = useState<number>(0)
+  const [pagoQr, setPagoQr] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [isRecalculating, setIsRecalculating] = useState(false)
+  
+  // Sanciones Modal
+  const [showSancionesModal, setShowSancionesModal] = useState(false)
+  const [nuevaSancion, setNuevaSancion] = useState({ tipo: 'llegada_tarde', monto: 12, descripcion: '' })
+  const [savingSancion, setSavingSancion] = useState(false)
 
   const [finanzas, setFinanzas] = useState({ saldo_adelantos: 0, sanciones_pendientes: [] as any[], total_sanciones: 0, bonos_pendientes: [] as any[], total_bonos: 0 })
   const [descuentoAdelanto, setDescuentoAdelanto] = useState<number>(0)
+  const [sancionesCatalogo, setSancionesCatalogo] = useState<any[]>([])
 
   const load = async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams({ estado })
       if (barberoId) params.set('barbero_id', barberoId)
-      const [cRes, pRes] = await Promise.all([
+      const [cRes, pRes, rRes] = await Promise.all([
         fetch(`/api/comisiones?${params}`),
         fetch('/api/comisiones/pagos'),
+        fetch('/api/reglas-laborales')
       ])
       const cJson = await cRes.json()
       const pJson = await pRes.json()
+      const rJson = rRes.ok ? await rRes.json() : { plan_cuentas: [] }
+      
       setCitas(cJson.citas ?? [])
       setResumen(cJson.resumen ?? { pendiente: 0, pagado: 0, hoy: 0, semana: 0 })
       setFinanzas(cJson.finanzas ?? { saldo_adelantos: 0, sanciones_pendientes: [], total_sanciones: 0, bonos_pendientes: [], total_bonos: 0 })
       setPagos(pJson.pagos ?? [])
+      
+      const cuentasSancion = (rJson.plan_cuentas ?? []).filter((c: any) => c.es_sancion)
+      setSancionesCatalogo(cuentasSancion)
+      if (cuentasSancion.length > 0 && nuevaSancion.tipo === 'llegada_tarde') {
+        setNuevaSancion(prev => ({ ...prev, tipo: cuentasSancion[0].detalle }))
+      }
+      
       setDescuentoAdelanto(0) // Reset descuento on load
     } finally {
       setLoading(false)
@@ -80,6 +98,8 @@ export default function AdminComisionesPage() {
           fecha_inicio: inicio,
           fecha_fin: fin,
           metodo_pago: metodoPago,
+          monto_efectivo: pagoEfectivo,
+          monto_qr: pagoQr,
           descuento_adelanto: descuentoAdelanto,
           sanciones_ids: finanzas.sanciones_pendientes.map((s: any) => s.id),
           bonos_ids: finanzas.bonos_pendientes.map((b: any) => b.id)
@@ -112,6 +132,38 @@ export default function AdminComisionesPage() {
     }
     success('Comisión actualizada')
     load()
+  }
+
+  const crearSancion = async () => {
+    if (!barberoId) return
+    setSavingSancion(true)
+    try {
+      const res = await fetch('/api/admin/sanciones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...nuevaSancion, barbero_id: barberoId })
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      success('Sanción creada correctamente')
+      setNuevaSancion({ tipo: sancionesCatalogo.length > 0 ? sancionesCatalogo[0].detalle : 'llegada_tarde', monto: 12, descripcion: '' })
+      load()
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : 'Error al crear sanción')
+    } finally {
+      setSavingSancion(false)
+    }
+  }
+
+  const eliminarSancion = async (id: string) => {
+    if (!confirm('¿Eliminar esta sanción?')) return
+    try {
+      const res = await fetch(`/api/admin/sanciones?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error((await res.json()).error)
+      success('Sanción eliminada')
+      load()
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : 'Error')
+    }
   }
 
   const recalcularHistorico = async () => {
@@ -211,9 +263,35 @@ export default function AdminComisionesPage() {
             <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white uppercase text-xs font-bold" value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}>
               <option value="efectivo">Efectivo</option>
               <option value="qr">QR / Transferencia</option>
+              <option value="mixto">Mixto (Efec. + QR)</option>
               <option value="tarjeta">Tarjeta</option>
             </select>
           </div>
+
+          {metodoPago === 'mixto' && barberoId && estado === 'pendiente' && (
+            <div className="p-4 rounded-xl border border-white/10 bg-zinc-950 flex gap-4 animate-in fade-in">
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Monto en Efectivo</label>
+                <Input 
+                  type="number" 
+                  min={0}
+                  value={pagoEfectivo || ''} 
+                  onChange={e => setPagoEfectivo(Number(e.target.value) || 0)} 
+                  className="bg-black text-lg h-12"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Monto en QR</label>
+                <Input 
+                  type="number" 
+                  min={0}
+                  value={pagoQr || ''} 
+                  onChange={e => setPagoQr(Number(e.target.value) || 0)} 
+                  className="bg-black text-lg h-12"
+                />
+              </div>
+            </div>
+          )}
 
           {barberoId && estado === 'pendiente' && (
             <div className="p-4 rounded-xl border border-white/10 bg-black/50 space-y-4">
@@ -228,8 +306,15 @@ export default function AdminComisionesPage() {
                   <span className="font-bold text-red-400">{formatCurrency(finanzas.saldo_adelantos)}</span>
                 </div>
                 <div>
-                  <span className="block text-zinc-400 mb-1">Sanciones (se restarán)</span>
-                  <span className="font-bold text-red-400">-{formatCurrency(finanzas.total_sanciones)}</span>
+                  <span className="block text-zinc-400 mb-1 flex items-center gap-2">
+                    Sanciones (se restarán)
+                    <button onClick={() => setShowSancionesModal(true)} className="text-blue-400 hover:text-blue-300">
+                      <Edit className="w-3 h-3" />
+                    </button>
+                  </span>
+                  <span className="font-bold text-red-400 cursor-pointer" onClick={() => setShowSancionesModal(true)}>
+                    -{formatCurrency(finanzas.total_sanciones)} ({finanzas.sanciones_pendientes.length})
+                  </span>
                 </div>
                 <div>
                   <span className="block text-zinc-400 mb-1">Bonos (se sumarán)</span>
@@ -315,6 +400,85 @@ export default function AdminComisionesPage() {
             ))}
           </CardContent>
         </Card>
+      )}
+
+      {showSancionesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto relative">
+            <button onClick={() => setShowSancionesModal(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-white">
+              <X size={20} />
+            </button>
+            <h2 className="text-xl font-black text-white uppercase mb-4 flex items-center gap-2">
+              <AlertTriangle className="text-red-500 w-5 h-5" /> Gestión de Sanciones
+            </h2>
+
+            <div className="space-y-4 mb-8">
+              <h3 className="text-sm font-bold text-zinc-400">Crear Nueva Sanción</h3>
+              {sancionesCatalogo.length > 0 ? (
+                <select 
+                  className="w-full bg-black border border-white/10 rounded-xl px-4 h-12 text-white text-sm"
+                  value={nuevaSancion.tipo}
+                  onChange={e => setNuevaSancion({ ...nuevaSancion, tipo: e.target.value })}
+                >
+                  {sancionesCatalogo.map(c => (
+                    <option key={c.id} value={c.detalle}>{c.detalle}</option>
+                  ))}
+                </select>
+              ) : (
+                <select 
+                  className="w-full bg-black border border-white/10 rounded-xl px-4 h-12 text-white text-sm"
+                  value={nuevaSancion.tipo}
+                  onChange={e => setNuevaSancion({ ...nuevaSancion, tipo: e.target.value })}
+                >
+                  <option value="llegada_tarde">Llegada Tarde</option>
+                  <option value="falta">Falta Injustificada</option>
+                  <option value="salida_temprano">Salida Temprano</option>
+                  <option value="otro">Otro Motivo</option>
+                </select>
+              )}
+              <Input 
+                placeholder="Descripción (opcional)"
+                value={nuevaSancion.descripcion}
+                onChange={e => setNuevaSancion({ ...nuevaSancion, descripcion: e.target.value })}
+              />
+              <div className="flex gap-2 items-center">
+                <Input 
+                  type="number"
+                  placeholder="Monto a descontar (ej. 12)"
+                  value={nuevaSancion.monto}
+                  onChange={e => setNuevaSancion({ ...nuevaSancion, monto: Number(e.target.value) || 0 })}
+                  className="flex-1"
+                />
+                <span className="text-zinc-500 text-sm">Bs.</span>
+              </div>
+              <Button onClick={crearSancion} disabled={savingSancion || nuevaSancion.monto <= 0} variant="primary" className="w-full">
+                <Plus size={16} className="mr-2" /> Agregar Sanción
+              </Button>
+            </div>
+
+            <h3 className="text-sm font-bold text-zinc-400 mb-2">Sanciones Pendientes ({finanzas.sanciones_pendientes.length})</h3>
+            {finanzas.sanciones_pendientes.length === 0 ? (
+              <p className="text-zinc-600 text-sm">No hay sanciones pendientes para descontar.</p>
+            ) : (
+              <div className="space-y-2">
+                {finanzas.sanciones_pendientes.map((s: any) => (
+                  <div key={s.id} className="bg-black/50 border border-red-500/20 p-3 rounded-xl flex justify-between items-center">
+                    <div>
+                      <p className="text-red-400 font-bold text-sm capitalize">{s.tipo.replace('_', ' ')}</p>
+                      <p className="text-zinc-500 text-xs">{s.descripcion}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-black text-white">{formatCurrency(s.monto)}</span>
+                      <button onClick={() => eliminarSancion(s.id)} className="text-zinc-600 hover:text-red-500">
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

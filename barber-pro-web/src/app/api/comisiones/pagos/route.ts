@@ -50,11 +50,11 @@ export async function POST(req: Request) {
   let total_sanciones = 0
   if (sanciones_ids.length > 0) {
     const { data: sanciones } = await supabase
-      .from('transactions')
-      .select('costo')
+      .from('sanciones')
+      .select('monto')
       .in('id', sanciones_ids)
     if (sanciones) {
-      total_sanciones = sanciones.reduce((sum, s) => sum + Number(s.costo), 0)
+      total_sanciones = sanciones.reduce((sum, s) => sum + Number(s.monto), 0)
     }
   }
 
@@ -128,13 +128,28 @@ export async function POST(req: Request) {
 
   // Mark Sanciones as paid
   if (sanciones_ids.length > 0) {
-    const { data: existingSanciones } = await supabase.from('transactions').select('id, notas').in('id', sanciones_ids)
-    if (existingSanciones) {
-      for (const sancion of existingSanciones) {
-        await supabase.from('transactions')
-          .update({ notas: `${sancion.notas || ''} [PAGADO] (Comisión ${pago.id})` })
-          .eq('id', sancion.id)
-      }
+    const { error: sancionError } = await supabase
+      .from('sanciones')
+      .update({ estado: 'aplicada', aplicada_en_pago_id: pago.id })
+      .in('id', sanciones_ids)
+
+    if (sanciones_ids.length > 0) {
+      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', currentUserId).single()
+      await supabase.from('transactions').insert({
+        libro: metodo_pago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
+        fecha: new Date().toISOString().split('T')[0],
+        ci: '0000000',
+        nombre: 'Sanciones aplicadas (vía Comisión)',
+        cuenta_codigo: 'ING-001', // Example generic income code
+        cuenta_detalle: 'Ingresos Varios',
+        glosa: `Sanciones descontadas de comisión (Pago ${pago.id})`,
+        costo: total_sanciones,
+        tipo_movimiento: 'INGRESO',
+        es_sancion: true,
+        empleado_id: barbero_id,
+        metodo_pago: metodo_pago,
+        usuario_registro: profile?.full_name || 'Sistema',
+      })
     }
   }
 
@@ -163,6 +178,9 @@ export async function POST(req: Request) {
       es_sancion: false,
       empleado_id: barbero_id,
       metodo_pago: metodo_pago,
+      subcategoria: 'COMISION_PAGO',
+      monto_efectivo: metodo_pago === 'efectivo' ? monto_total : (metodo_pago === 'mixto' ? Number(body.monto_efectivo) || 0 : 0),
+      monto_qr: metodo_pago === 'qr' ? monto_total : (metodo_pago === 'mixto' ? Number(body.monto_qr) || 0 : 0),
       usuario_registro: adminProfile?.full_name || 'Sistema',
     })
 

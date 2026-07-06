@@ -32,6 +32,7 @@ import {
   RefreshCw,
   Users2,
   UserCog,
+  PackageOpen
 } from 'lucide-react'
 
 export interface NavItem {
@@ -73,6 +74,7 @@ export function getAdminNavSections(agendaHref: string): NavSection[] {
         { label: 'Banco', href: '/coordinador/banco', icon: Landmark, description: 'Depósitos y retiros' },
         { label: 'Arqueo de Caja', href: '/coordinador/arqueo', icon: Scale, description: 'Cierre diario' },
         { label: 'Egresos', href: '/coordinador/egresos', icon: ArrowDownCircle, description: 'Gastos con/sin factura' },
+        { label: 'Consignaciones', href: '/admin/consignaciones', icon: PackageOpen, description: 'Pagos a proveedores' },
       ],
     },
     {
@@ -131,6 +133,7 @@ export function getCoordinadorNavSections(agendaHref: string): NavSection[] {
         { label: 'Banco', href: '/coordinador/banco', icon: Landmark, description: 'Depósitos y retiros' },
         { label: 'Arqueo de Caja', href: '/coordinador/arqueo', icon: Scale, description: 'Cierre diario' },
         { label: 'Egresos', href: '/coordinador/egresos', icon: ArrowDownCircle, description: 'Gastos con/sin factura' },
+        { label: 'Consignaciones', href: '/admin/consignaciones', icon: PackageOpen, description: 'Pagos a proveedores' },
       ],
     },
     {

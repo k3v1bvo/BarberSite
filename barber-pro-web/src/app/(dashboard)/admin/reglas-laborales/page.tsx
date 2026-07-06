@@ -10,7 +10,7 @@ import { formatCurrency } from '@/lib/utils'
 import {
   ArrowLeft, Save, Plus, Trash2, Edit, X, ToggleLeft, ToggleRight,
   Coins, AlertTriangle, Gift, ChevronDown, ChevronUp, Check, DollarSign,
-  CheckCircle2, XCircle, Calendar, Target,
+  CheckCircle2, XCircle, Calendar, Target, Clock,
 } from 'lucide-react'
 
 // ── Tipos ──────────────────────────────────────────────────────────────
@@ -27,9 +27,9 @@ interface BonoActivo {
 }
 
 interface SancionActiva {
-  id: string; fecha: string; nombre: string; cuenta_codigo: string; cuenta_detalle: string
-  glosa: string; costo: number; notas: string | null; creado_en: string
-  empleado?: { id: string; full_name: string; role: string }
+  id: string; barbero_id: string; tipo: string; descripcion: string | null
+  monto: number; estado: string; creado_en: string
+  barbero?: { id: string; full_name: string; role: string }
 }
 
 // ── Constantes ──────────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ export default function ReglasLaboralesPage() {
   const { success, error: toastError } = useToast()
 
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'comisiones' | 'bonos' | 'sanciones'>('comisiones')
+  const [tab, setTab] = useState<'comisiones' | 'bonos' | 'sanciones' | 'asistencia'>('comisiones')
 
   // ─── Comisiones ───────────────────────────────────────────────────────
   const [servicios, setServicios] = useState<Servicio[]>([])
@@ -89,9 +89,8 @@ export default function ReglasLaboralesPage() {
   const [loadingSanc, setLoadingSanc] = useState(false)
   const [filtroSancBarbero, setFiltroSancBarbero] = useState('')
   const [showSancionModal, setShowSancionModal] = useState(false)
-  const [sancionForm, setSancionForm] = useState({ barbero_id: '', cuenta_codigo: '', cuenta_detalle: '', glosa: '', monto: 0, fecha: '' })
+  const [sancionForm, setSancionForm] = useState({ barbero_id: '', tipo: 'llegada_tarde', descripcion: '', monto: 0 })
   const [savingSancion, setSavingSancion] = useState(false)
-  const [catalogoSanciones, setCatalogoSanciones] = useState<{ codigo: string; detalle: string }[]>([])
   const [sancionesBarberos, setSancionesBarberos] = useState<Barbero[]>([])
 
   // ─── Bonos config ─────────────────────────────────────────────────────
@@ -102,6 +101,10 @@ export default function ReglasLaboralesPage() {
     otro: { descripcion: 'Bono especial discrecional', monto_sugerido: 75 },
   })
   const [savingBonos, setSavingBonos] = useState(false)
+
+  // ─── Asistencia config ────────────────────────────────────────────────
+  const [asistenciaConfig, setAsistenciaConfig] = useState({ tolerancia_minutos: 15 })
+  const [savingAsistencia, setSavingAsistencia] = useState(false)
 
   // ─── Bonos activos ────────────────────────────────────────────────────
   const [bonosActivos, setBonosActivos] = useState<BonoActivo[]>([])
@@ -114,6 +117,7 @@ export default function ReglasLaboralesPage() {
     periodo_tipo: 'semanal', fecha_inicio: '', fecha_fin: '', pagado: false,
   })
   const [savingBono, setSavingBono] = useState(false)
+  const [editingBonoId, setEditingBonoId] = useState<string | null>(null)
   const [bonosBarberos, setBonosBarberos] = useState<Barbero[]>([])
 
   // ─── Load base data ───────────────────────────────────────────────────
@@ -127,6 +131,9 @@ export default function ReglasLaboralesPage() {
       setPlanCuentas(data.plan_cuentas ?? [])
       const bonosCfg = data.configuraciones?.find((c: any) => c.llave === 'bonos_config')
       if (bonosCfg?.valor) setBonosConfig(bonosCfg.valor)
+      
+      const asisCfg = data.configuraciones?.find((c: any) => c.llave === 'asistencia_config')
+      if (asisCfg?.valor) setAsistenciaConfig(asisCfg.valor)
 
     } finally {
       setLoading(false)
@@ -152,14 +159,18 @@ export default function ReglasLaboralesPage() {
   const loadSancionesActivas = useCallback(async () => {
     setLoadingSanc(true)
     try {
-      const params = new URLSearchParams({ pagadas: 'false' })
+      const params = new URLSearchParams()
       if (filtroSancBarbero) params.set('barbero_id', filtroSancBarbero)
-      const res = await fetch(`/api/sanciones?${params}`)
+      const res = await fetch(`/api/admin/sanciones?${params}`)
       if (!res.ok) return
       const data = await res.json()
-      setSancionesActivas(data.sanciones ?? [])
-      setCatalogoSanciones(data.catalogo ?? [])
-      setSancionesBarberos(data.barberos ?? [])
+      setSancionesActivas(data.sanciones?.filter((s: any) => s.estado === 'pendiente') ?? [])
+      
+      const resBarberos = await fetch('/api/reglas-laborales')
+      if (resBarberos.ok) {
+        const bData = await resBarberos.json()
+        setSancionesBarberos(bData.barberos ?? [])
+      }
     } finally {
       setLoadingSanc(false)
     }
@@ -214,13 +225,37 @@ export default function ReglasLaboralesPage() {
     setSavingBonos(false)
   }
 
+  // ─── Asistencia config handler ─────────────────────────────────────────
+  const saveAsistencia = async () => {
+    setSavingAsistencia(true)
+    const res = await fetch('/api/reglas-laborales', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'update_asistencia_config', valor: asistenciaConfig }) })
+    if (res.ok) { success('Configuración de asistencia guardada') } else { toastError('Error') }
+    setSavingAsistencia(false)
+  }
+
   // ─── Bono activo handlers ─────────────────────────────────────────────
   const openBonoModal = () => {
     const today = new Date()
     const monday = getMondayOfWeek(today)
     const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6)
     const fmt = (d: Date) => d.toISOString().split('T')[0]
+    setEditingBonoId(null)
     setBonoForm({ barbero_id: '', tipo: 'puntualidad', descripcion: '', monto: 0, periodo_tipo: 'semanal', fecha_inicio: fmt(monday), fecha_fin: fmt(sunday), pagado: false })
+    setShowBonoModal(true)
+  }
+
+  const openEditBonoModal = (b: BonoActivo) => {
+    setEditingBonoId(b.id)
+    setBonoForm({
+      barbero_id: b.barbero_id || '',
+      tipo: b.tipo,
+      descripcion: b.descripcion || '',
+      monto: b.monto,
+      periodo_tipo: b.periodo_tipo || 'mensual',
+      fecha_inicio: b.fecha_inicio || '',
+      fecha_fin: b.fecha_fin || '',
+      pagado: b.pagado || false
+    })
     setShowBonoModal(true)
   }
 
@@ -271,14 +306,14 @@ export default function ReglasLaboralesPage() {
 
   // ─── Sanción activa handlers ──────────────────────────────────────────
   const openSancionModal = () => {
-    setSancionForm({ barbero_id: '', cuenta_codigo: '', cuenta_detalle: '', glosa: '', monto: 0, fecha: new Date().toISOString().split('T')[0] })
+    setSancionForm({ barbero_id: '', tipo: 'llegada_tarde', descripcion: '', monto: 0 })
     setShowSancionModal(true)
   }
 
   const submitSancion = async (e: React.FormEvent) => {
     e.preventDefault(); setSavingSancion(true)
     try {
-      const res = await fetch('/api/sanciones', {
+      const res = await fetch('/api/admin/sanciones', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sancionForm),
       })
@@ -290,9 +325,9 @@ export default function ReglasLaboralesPage() {
   }
 
   const marcarSancionPagada = async (id: string) => {
-    if (!confirm('¿Marcar esta sanción como pagada?')) return
-    const res = await fetch('/api/sanciones', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
-    if (res.ok) { success('Sanción marcada como pagada'); loadSancionesActivas() }
+    if (!confirm('¿Marcar esta sanción como perdonada o eliminada? Las sanciones reales se descuentan al pagar comisiones.')) return
+    const res = await fetch(`/api/admin/sanciones?id=${id}`, { method: 'DELETE' })
+    if (res.ok) { success('Sanción eliminada'); loadSancionesActivas() }
     else { toastError((await res.json()).error || 'Error') }
   }
 
@@ -302,9 +337,9 @@ export default function ReglasLaboralesPage() {
 
   // Totales por barbero (sanciones)
   const totalPorBarbero = sancionesActivas.reduce<Record<string, { nombre: string; total: number }>>((acc, s) => {
-    const id = s.empleado?.id || 'unknown'
-    if (!acc[id]) acc[id] = { nombre: s.empleado?.full_name || s.nombre, total: 0 }
-    acc[id].total += Number(s.costo)
+    const id = s.barbero?.id || 'unknown'
+    if (!acc[id]) acc[id] = { nombre: s.barbero?.full_name || 'Desconocido', total: 0 }
+    acc[id].total += Number(s.monto)
     return acc
   }, {})
 
@@ -336,6 +371,7 @@ export default function ReglasLaboralesPage() {
           { key: 'comisiones', label: 'Comisiones', icon: Coins, color: 'text-amber-500' },
           { key: 'bonos', label: `Bonos (${bonosActivos.filter(b => !b.pagado).length} pendientes)`, icon: Gift, color: 'text-green-500' },
           { key: 'sanciones', label: `Sanciones (${sancionesActivas.length} pendientes)`, icon: AlertTriangle, color: 'text-red-500' },
+          { key: 'asistencia', label: 'Asistencia', icon: Clock, color: 'text-blue-500' },
         ].map(({ key, label, icon: Icon, color }) => (
           <button key={key}
             onClick={() => setTab(key as any)}
@@ -513,6 +549,11 @@ export default function ReglasLaboralesPage() {
                               </Button>
                             )}
                             {!b.pagado && (
+                              <Button size="sm" variant="outline" onClick={() => openEditBonoModal(b)}>
+                                <Edit size={12} className="text-zinc-400" />
+                              </Button>
+                            )}
+                            {!b.pagado && (
                               <Button size="sm" variant="outline" onClick={() => eliminarBono(b.id)}>
                                 <Trash2 size={12} className="text-red-500" />
                               </Button>
@@ -657,17 +698,16 @@ export default function ReglasLaboralesPage() {
                   <tbody>
                     {sancionesActivas.map(s => (
                       <tr key={s.id} className="border-b border-white/5 hover:bg-white/[0.02] group">
-                        <td className="py-3 px-4 font-bold text-white">{s.empleado?.full_name || s.nombre}</td>
+                        <td className="py-3 px-4 font-bold text-white">{s.barbero?.full_name || '—'}</td>
                         <td className="py-3 px-4">
-                          <p className="text-zinc-300 text-xs font-mono">{s.cuenta_codigo}</p>
-                          <p className="text-zinc-600 text-[10px]">{s.cuenta_detalle}</p>
+                          <p className="text-zinc-300 text-xs font-mono uppercase">{s.tipo.replace('_', ' ')}</p>
                         </td>
-                        <td className="py-3 px-4 text-zinc-400 text-xs max-w-[200px] truncate">{s.glosa}</td>
-                        <td className="py-3 px-4 text-zinc-500 text-xs">{new Date(s.fecha).toLocaleDateString('es-BO')}</td>
-                        <td className="py-3 px-4 text-right font-black text-red-400 text-base">{formatCurrency(s.costo)}</td>
+                        <td className="py-3 px-4 text-zinc-400 text-xs max-w-[200px] truncate">{s.descripcion || '—'}</td>
+                        <td className="py-3 px-4 text-zinc-500 text-xs">{new Date(s.creado_en).toLocaleDateString('es-BO')}</td>
+                        <td className="py-3 px-4 text-right font-black text-red-400 text-base">{formatCurrency(s.monto)}</td>
                         <td className="py-3 px-4 text-right">
                           <Button size="sm" variant="outline" className="text-[10px] h-7 px-3" onClick={() => marcarSancionPagada(s.id)}>
-                            <CheckCircle2 size={12} className="mr-1 text-green-500" />Pagada
+                            <XCircle size={12} className="mr-1 text-red-500" />Eliminar
                           </Button>
                         </td>
                       </tr>
@@ -756,12 +796,12 @@ export default function ReglasLaboralesPage() {
         </div>
       )}
 
-      {/* ════════ MODAL: NUEVO BONO ════════ */}
+      {/* ════════ MODAL: NUEVO/EDITAR BONO ════════ */}
       {showBonoModal && (
         <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 overflow-y-auto">
           <div className="w-full max-w-lg bg-zinc-950 border border-white/10 rounded-3xl overflow-hidden shadow-2xl my-auto">
             <div className="p-6 border-b border-white/5 flex items-center justify-between">
-              <h3 className="font-black text-white uppercase">Nuevo Bono</h3>
+              <h3 className="font-black text-white uppercase">{editingBonoId ? 'Editar Bono' : 'Nuevo Bono'}</h3>
               <button onClick={() => setShowBonoModal(false)} className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-zinc-500"><X size={16} /></button>
             </div>
             <form onSubmit={submitBono} className="p-6 space-y-4">
@@ -829,7 +869,7 @@ export default function ReglasLaboralesPage() {
               <div className="flex gap-3 pt-2">
                 <Button type="button" variant="outline" className="flex-1" onClick={() => setShowBonoModal(false)}>Cancelar</Button>
                 <Button type="submit" variant="primary" className="flex-1" disabled={savingBono}>
-                  <Gift size={14} className="mr-2" />{savingBono ? 'Creando...' : 'Crear Bono'}
+                  <Gift size={14} className="mr-2" />{savingBono ? 'Guardando...' : editingBonoId ? 'Guardar Cambios' : 'Crear Bono'}
                 </Button>
               </div>
             </form>
@@ -856,23 +896,19 @@ export default function ReglasLaboralesPage() {
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">Tipo de Sanción *</label>
-                <select required value={sancionForm.cuenta_codigo}
-                  onChange={e => {
-                    const cat = catalogoSanciones.find(c => c.codigo === e.target.value)
-                    setSancionForm({ ...sancionForm, cuenta_codigo: e.target.value, cuenta_detalle: cat?.detalle || '' })
-                  }}
+                <select required value={sancionForm.tipo}
+                  onChange={e => setSancionForm({ ...sancionForm, tipo: e.target.value })}
                   className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm outline-none focus:border-red-500/50">
-                  <option value="">Seleccionar tipo</option>
-                  {catalogoSanciones.map(c => <option key={c.codigo} value={c.codigo}>{c.codigo} — {c.detalle}</option>)}
+                  <option value="llegada_tarde">Llegada Tarde</option>
+                  <option value="falta">Falta Injustificada</option>
+                  <option value="salida_temprano">Salida Temprano</option>
+                  <option value="otro">Otro Motivo</option>
                 </select>
-                {catalogoSanciones.length === 0 && (
-                  <p className="text-red-500 text-xs mt-1">⚠️ No hay tipos de sanción en el catálogo. Crea primero una "Cuenta de Sanción" en el catálogo.</p>
-                )}
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">Descripción / Motivo *</label>
-                <input required type="text" value={sancionForm.glosa}
-                  onChange={e => setSancionForm({ ...sancionForm, glosa: e.target.value })}
+                <input required type="text" value={sancionForm.descripcion}
+                  onChange={e => setSancionForm({ ...sancionForm, descripcion: e.target.value })}
                   placeholder="Ej: Tardanza el lunes 3 de junio"
                   className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm outline-none focus:border-red-500/50" />
               </div>
@@ -885,12 +921,6 @@ export default function ReglasLaboralesPage() {
                       onChange={e => setSancionForm({ ...sancionForm, monto: parseFloat(e.target.value) || 0 })}
                       className="flex-1 bg-transparent text-red-400 font-black text-lg outline-none" />
                   </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">Fecha</label>
-                  <input type="date" value={sancionForm.fecha}
-                    onChange={e => setSancionForm({ ...sancionForm, fecha: e.target.value })}
-                    className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm outline-none focus:border-red-500/50" />
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
@@ -946,6 +976,41 @@ export default function ReglasLaboralesPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {/* ════════ ASISTENCIA ════════ */}
+      {tab === 'asistencia' && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400 border-l-4 border-blue-500 pl-3">Tolerancia de Horario</h2>
+            <p className="text-zinc-600 text-xs mt-1 ml-4">Configura los minutos de gracia antes de aplicar sanción por llegada tarde.</p>
+          </div>
+          
+          <Card className="bg-zinc-900 border-white/5 hover:border-blue-500/20 transition-all max-w-lg">
+            <CardContent className="p-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <Clock className="text-blue-500 w-8 h-8" />
+                <div>
+                  <p className="font-black text-white uppercase">Minutos de Tolerancia</p>
+                  <p className="text-zinc-500 text-xs">Ej. 15 minutos = Si entra a las 9:16 se sanciona.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <input 
+                  type="number" 
+                  min={0} 
+                  max={60} 
+                  value={asistenciaConfig.tolerancia_minutos}
+                  onChange={e => setAsistenciaConfig(p => ({ ...p, tolerancia_minutos: Number(e.target.value) || 0 }))}
+                  className="w-24 h-14 bg-zinc-950 border border-white/10 rounded-xl px-4 text-center text-blue-400 font-black text-2xl outline-none focus:border-blue-500/50" 
+                />
+                <span className="text-zinc-400 font-bold">Minutos</span>
+              </div>
+              <Button variant="primary" className="w-full h-12 font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-500" onClick={saveAsistencia} disabled={savingAsistencia}>
+                <Save size={18} className="mr-2" /> {savingAsistencia ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

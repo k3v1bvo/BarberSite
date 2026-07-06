@@ -89,7 +89,18 @@ export default function NotificacionesPage() {
 
   const openNotif = (n: Notificacion) => {
     if (!n.leido) markRead(n.id)
-    if (n.link) router.push(n.link)
+    if (n.link) {
+      try {
+        if (n.link.startsWith('http')) {
+          const url = new URL(n.link)
+          router.push(url.pathname + url.search)
+        } else {
+          router.push(n.link)
+        }
+      } catch {
+        router.push(n.link)
+      }
+    }
   }
 
   const savePrefs = async () => {

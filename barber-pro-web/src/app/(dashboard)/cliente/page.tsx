@@ -280,10 +280,6 @@ export default function ClientePage() {
                         <p className="text-white/40 text-[9px] uppercase tracking-widest font-bold">Visitas</p>
                         <p className={cn('font-black text-2xl', config.textColor)}>{visitas}</p>
                       </div>
-                      <div>
-                        <p className="text-white/40 text-[9px] uppercase tracking-widest font-bold">Gastado</p>
-                        <p className={cn('font-black text-lg', config.textColor)}>Bs {(cliente?.total_gastado ?? 0).toFixed(0)}</p>
-                      </div>
                     </div>
                   </div>
                 </div>

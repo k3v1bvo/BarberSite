@@ -441,21 +441,12 @@ export default function HomePage() {
                       <p className="text-3xl font-bold text-amber-400">{formatCurrency(servicio.precio)}</p>
                       <p className="text-sm text-gray-500">{servicio.duracion_minutos} min</p>
                     </div>
-                    {user ? (
-                      <Link
-                        href={getPanelUrl(user.role)}
-                        className="px-4 py-2 bg-white text-black rounded-full text-sm font-bold hover:bg-amber-400 transition"
-                      >
-                        Ir al Panel
-                      </Link>
-                    ) : (
-                      <Link
-                        href="/register"
-                        className="px-4 py-2 bg-white text-black rounded-full text-sm font-bold hover:bg-amber-400 transition"
-                      >
-                        Reservar
-                      </Link>
-                    )}
+                    <Link
+                      href={`/reservar?servicio=${servicio.id}`}
+                      className="px-6 py-2 bg-amber-400 text-black rounded-full text-sm font-bold hover:bg-amber-300 hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-amber-400/20"
+                    >
+                      Reservar
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -606,23 +597,13 @@ export default function HomePage() {
                 ))}
               </div>
 
-              {user ? (
-                <Link
-                  href={getPanelUrl(user.role)}
-                  className="inline-flex items-center gap-2 bg-amber-400 text-black px-8 py-4 rounded-full font-bold hover:bg-amber-300 transition"
-                >
-                  Ir al Panel
-                  <ChevronRight className="w-5 h-5" />
-                </Link>
-              ) : (
-                <Link
-                  href="/register"
-                  className="inline-flex items-center gap-2 bg-amber-400 text-black px-8 py-4 rounded-full font-bold hover:bg-amber-300 transition"
-                >
-                  Agenda Tu Cita
-                  <ChevronRight className="w-5 h-5" />
-                </Link>
-              )}
+              <Link
+                href="/reservar"
+                className="inline-flex items-center gap-2 bg-amber-400 text-black px-8 py-4 rounded-full font-bold hover:bg-amber-300 hover:scale-105 transition-all shadow-lg shadow-amber-400/20 uppercase tracking-widest"
+              >
+                Agenda Tu Cita
+                <ChevronRight className="w-5 h-5" />
+              </Link>
             </div>
           </div>
         </div>
@@ -737,6 +718,14 @@ export default function HomePage() {
                       )}
                     </div>
                   )}
+                  <div className="mt-5">
+                    <Link
+                      href="/reservar"
+                      className="inline-flex items-center justify-center px-6 py-2.5 bg-zinc-900 border border-amber-400/30 text-amber-400 font-bold uppercase tracking-widest text-xs rounded-full hover:bg-amber-400 hover:text-black transition-all shadow-lg hover:shadow-amber-400/20"
+                    >
+                      Reservar Cita
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>

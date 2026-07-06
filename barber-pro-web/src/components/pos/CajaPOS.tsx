@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
-import { User, Scissors, DollarSign, Search, CheckCircle, Clock, Package, Plus, Minus, X, Store, Gift, UserPlus, Edit3, Save, Star, Tag, QrCode, AlertTriangle } from 'lucide-react'
+import { User, Scissors, DollarSign, Search, CheckCircle, Clock, Package, Plus, Minus, X, Store, Gift, UserPlus, Edit3, Save, Star, Tag, QrCode, AlertTriangle, Calendar, Zap, CreditCard } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 
@@ -45,6 +45,7 @@ interface Servicio {
   nombre: string
   precio: number
   duracion_minutos: number
+  barberos_excluidos?: string[]
 }
 
 interface Barbero {
@@ -58,7 +59,6 @@ interface Producto {
   id: string
   nombre: string
   precio_venta: number
-  precio_tienda: number | null
   stock_actual: number
   image_url: string | null
   categoria: string | null
@@ -67,7 +67,6 @@ interface Producto {
 interface ProductoCarrito {
   producto: Producto
   cantidad: number
-  paraTienda: boolean
 }
 
 export function CajaPOS() {
@@ -86,17 +85,31 @@ export function CajaPOS() {
   const [referralBonuses, setReferralBonuses] = useState<ReferralBonus[]>([])
   const [clienteDetalle, setClienteDetalle] = useState<Cliente | null>(null)
   const [qrPagoUrl, setQrPagoUrl] = useState<string | null>(null)
+  const [citasPendientes, setCitasPendientes] = useState<any[]>([])
 
   const [searchCliente, setSearchCliente] = useState('')
+  const [searchCi, setSearchCi] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showCiDropdown, setShowCiDropdown] = useState(false)
   const [editingCliente, setEditingCliente] = useState(false)
   const [savingCliente, setSavingCliente] = useState(false)
   const [promoSeleccionada, setPromoSeleccionada] = useState<string>('')
   const [aplicarReferido, setAplicarReferido] = useState(false)
   
   const [acompanante, setAcompanante] = useState({ nombre: '', email: '' })
+
+  // Turno rotation & agenda
+  const [barberoTurno, setBarberoTurno] = useState<string | null>(null)
+  const [modoReserva, setModoReserva] = useState(false)
+  const [reservaFecha, setReservaFecha] = useState('')
+  const [reservaHora, setReservaHora] = useState('')
+  const [horasOcupadas, setHorasOcupadas] = useState<{hora: string, duracion: number}[]>([])
+  const [loadingAgenda, setLoadingAgenda] = useState(false)
+  const [tiempoMinimoReserva, setTiempoMinimoReserva] = useState(60)
+  const [updatingTiempo, setUpdatingTiempo] = useState(false)
   
   const [formData, setFormData] = useState({
+    cita_id: '',
     cliente_id: '',
     nombre: '',
     email: '',
@@ -113,12 +126,13 @@ export function CajaPOS() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [resServicios, resBarberos, resProductos, resPromos, resQr] = await Promise.all([
-          supabase.from('servicios').select('id, nombre, precio, duracion_minutos').eq('is_active', true),
+        const [resServicios, resBarberos, resProductos, resPromos, resQr, resTiempo] = await Promise.all([
+          supabase.from('servicios').select('id, nombre, precio, duracion_minutos, barberos_excluidos').eq('is_active', true),
           supabase.from('profiles').select('id, full_name, email, avatar_url').eq('role', 'barbero').eq('is_active', true),
-          supabase.from('productos').select('id, nombre, precio_venta, precio_tienda, stock_actual, image_url, categoria').eq('is_active', true).gt('stock_actual', 0).order('nombre'),
+          supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url, categoria').eq('is_active', true).gt('stock_actual', 0).order('nombre'),
           supabase.from('promociones').select('id, nombre, tipo, valor, activa, icono, servicio_id, nivel_requerido').eq('activa', true),
-          supabase.from('configuraciones').select('valor').eq('llave', 'qr_pago').maybeSingle()
+          supabase.from('configuraciones').select('valor').eq('llave', 'qr_pago').maybeSingle(),
+          supabase.from('configuraciones').select('valor').eq('llave', 'tiempo_minimo_reserva').maybeSingle()
         ])
 
         setServicios(resServicios.data || [])
@@ -129,6 +143,52 @@ export function CajaPOS() {
         if (resQr.data?.valor?.url) {
           setQrPagoUrl(resQr.data.valor.url)
         }
+        if (resTiempo.data?.valor?.minutos) {
+          setTiempoMinimoReserva(Number(resTiempo.data.valor.minutos))
+        }
+
+        const hoy = new Date().toISOString().split('T')[0]
+        
+        const { data: citasPendientesData } = await supabase
+          .from('citas')
+          .select('id, cliente_id, barbero_id, servicio_id, estado, fecha_hora, notas, clientes(nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
+          .in('estado', ['en_proceso', 'pendiente', 'pendiente_pago', 'confirmado'])
+          .order('fecha_hora', { ascending: true })
+
+        setCitasPendientes(citasPendientesData || [])
+
+        // Calculate barbero rotation (who has the least recent completed appointment today)
+        const { data: citasHoy } = await supabase
+          .from('citas')
+          .select('barbero_id, finished_at')
+          .gte('fecha_hora', `${hoy}T00:00:00`)
+          .lte('fecha_hora', `${hoy}T23:59:59`)
+          .eq('estado', 'completado')
+          .order('finished_at', { ascending: false })
+
+        const barberIds = (resBarberos.data || []).map((b: any) => b.id)
+        if (citasHoy && citasHoy.length > 0) {
+          // Find the barber who hasn't had a client yet, or the one whose last completed cita is the oldest
+          const lastServed = new Map<string, string>()
+          for (const c of citasHoy) {
+            if (!lastServed.has(c.barbero_id)) lastServed.set(c.barbero_id, c.finished_at)
+          }
+          // Barber with no clients today goes first
+          const sinClientes = barberIds.filter((id: string) => !lastServed.has(id))
+          if (sinClientes.length > 0) {
+            setBarberoTurno(sinClientes[0])
+          } else {
+            // Oldest last-served barber goes next
+            let oldest: string | null = null
+            let oldestTime = ''
+            lastServed.forEach((time, id) => {
+              if (!oldest || time < oldestTime) { oldest = id; oldestTime = time }
+            })
+            setBarberoTurno(oldest)
+          }
+        } else if (barberIds.length > 0) {
+          setBarberoTurno(barberIds[0])
+        }
       } catch (err) {
         toastError('Error al cargar datos iniciales.')
       } finally {
@@ -137,6 +197,40 @@ export function CajaPOS() {
     }
     loadData()
   }, [])
+
+  useEffect(() => {
+    if (modoReserva && formData.barbero_id && reservaFecha) {
+      const fetchDisponibilidad = async () => {
+        setLoadingAgenda(true)
+        try {
+          const res = await fetch(`/api/citas/disponibilidad?barbero_id=${formData.barbero_id}&fecha=${reservaFecha}`)
+          const data = await res.json()
+          if (data.ocupados) {
+            setHorasOcupadas(data.ocupados)
+          }
+        } catch (error) {
+          console.error('Error cargando disponibilidad:', error)
+        } finally {
+          setLoadingAgenda(false)
+        }
+      }
+      fetchDisponibilidad()
+    }
+  }, [formData.barbero_id, reservaFecha, modoReserva])
+
+  const handleSaveTiempo = async (minutos: number) => {
+    setUpdatingTiempo(true)
+    try {
+      await supabase.from('configuraciones')
+        .upsert({ llave: 'tiempo_minimo_reserva', valor: { minutos } }, { onConflict: 'llave' })
+      setTiempoMinimoReserva(minutos)
+      toastSuccess(`Tiempo mínimo actualizado a ${minutos} min`)
+    } catch (e: any) {
+      toastError(e.message)
+    } finally {
+      setUpdatingTiempo(false)
+    }
+  }
 
   useEffect(() => {
     if (!searchCliente || searchCliente.trim().length < 2) {
@@ -157,6 +251,26 @@ export function CajaPOS() {
 
     return () => clearTimeout(timeoutId)
   }, [searchCliente, supabase])
+
+  useEffect(() => {
+    if (!searchCi || searchCi.trim().length < 2) {
+      if (searchCliente.trim().length < 2) setClientes([])
+      return
+    }
+
+    const timeoutId = setTimeout(async () => {
+      const q = searchCi.trim()
+      const { data } = await supabase
+        .from('clientes')
+        .select('id, nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado')
+        .ilike('ci', `%${q}%`)
+        .limit(10)
+
+      setClientes(data || [])
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchCi, supabase, searchCliente])
 
   // Fetch referral bonuses when a client is selected
   const fetchClientExtras = useCallback(async (clienteId: string, cliente?: Cliente) => {
@@ -201,7 +315,9 @@ export function CajaPOS() {
       ci: cliente.ci || '',
     }))
     setSearchCliente(cliente.nombre)
+    setSearchCi(cliente.ci || '')
     setShowDropdown(false)
+    setShowCiDropdown(false)
     setEditingCliente(false)
     fetchClientExtras(cliente.id, cliente)
   }
@@ -210,6 +326,7 @@ export function CajaPOS() {
     const val = e.target.value
     setSearchCliente(val)
     setShowDropdown(true)
+    setShowCiDropdown(false)
     
     setFormData(prev => ({ 
       ...prev, 
@@ -219,10 +336,23 @@ export function CajaPOS() {
     }))
   }
 
+  const handleCiSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setSearchCi(val)
+    setShowCiDropdown(true)
+    setShowDropdown(false)
+    
+    setFormData(prev => ({ 
+      ...prev, 
+      cliente_id: '', 
+      ci: val
+    }))
+  }
+
   const clientesFiltrados = clientes
 
   // --- Carrito de productos ---
-  const agregarProducto = (producto: Producto, paraTienda = false) => {
+  const agregarProducto = (producto: Producto) => {
     setCarrito(prev => {
       const existe = prev.find(p => p.producto.id === producto.id)
       if (existe) {
@@ -236,17 +366,11 @@ export function CajaPOS() {
             : p
         )
       }
-      return [...prev, { producto, cantidad: 1, paraTienda }]
+      return [...prev, { producto, cantidad: 1 }]
     })
   }
 
-  const toggleParaTienda = (productoId: string) => {
-    setCarrito(prev => prev.map(p =>
-      p.producto.id === productoId
-        ? { ...p, paraTienda: !p.paraTienda }
-        : p
-    ))
-  }
+
 
   const quitarProducto = (productoId: string) => {
     setCarrito(prev => {
@@ -266,24 +390,27 @@ export function CajaPOS() {
     setCarrito(prev => prev.filter(p => p.producto.id !== productoId))
   }
 
-  const precioItemCarrito = (item: ProductoCarrito) =>
-    item.paraTienda && item.producto.precio_tienda != null
-      ? item.producto.precio_tienda
-      : item.producto.precio_venta
+  const precioItemCarrito = (item: ProductoCarrito) => item.producto.precio_venta
 
   const totalProductos = carrito.reduce((sum, item) => sum + (precioItemCarrito(item) * item.cantidad), 0)
 
-  const handleSubmit = async (estado: 'en_proceso' | 'completado') => {
-    if (!formData.nombre) return toastError('Ingresa o selecciona el nombre del cliente')
-    if (!formData.servicio_id && carrito.length === 0) return toastError('Selecciona un servicio o agrega un producto')
-    if (!formData.barbero_id) return toastError('Selecciona un barbero')
+  const handleFinalizar = async (estado: string = 'completado') => {
+    if (!formData.servicio_id && carrito.length === 0) {
+      toastError('Debes seleccionar un servicio o agregar productos')
+      return
+    }
+    if (!formData.barbero_id) {
+      toastError('Debes seleccionar un barbero')
+      return
+    }
+
+    setSubmitting(true)
 
     const promoActiva = promociones.find(p => p.id === promoSeleccionada)
     if (promoActiva?.tipo === '2x1' && !acompanante.nombre.trim()) {
       return toastError('Debe ingresar el nombre del acompañante para la promoción 2x1')
     }
 
-    setSubmitting(true)
     try {
       const res = await fetch('/api/admin/caja/checkout', {
         method: 'POST',
@@ -291,16 +418,18 @@ export function CajaPOS() {
         body: JSON.stringify({ 
           ...formData, 
           estado,
+          cita_id: formData.cita_id || undefined,
           descuento: descuentoTotal,
           promo_id: promoSeleccionada || null,
           referral_ids: aplicarReferido ? referralBonuses.map(r => r.id) : [],
           comprobante_url: formData.comprobante_url || null,
+          reserva_fecha: modoReserva ? reservaFecha : null,
+          reserva_hora: modoReserva ? reservaHora : null,
           productos_carrito: carrito.map(item => ({
             id: item.producto.id,
             nombre: item.producto.nombre,
             precio: precioItemCarrito(item),
-            cantidad: item.cantidad,
-            para_tienda: item.paraTienda
+            cantidad: item.cantidad
           })),
           acompanante_2x1: promoActiva?.tipo === '2x1' ? acompanante : null
         })
@@ -311,12 +440,21 @@ export function CajaPOS() {
 
       toastSuccess(`Cita registrada como ${estado === 'completado' ? 'Completada y Cobrada' : 'En Proceso'}`)
       
-      // Limpiar Formulario
+      // Refresh pending appointments
+      const hoy = new Date().toISOString().split('T')[0]
+      const { data: citasPendientesData } = await supabase
+        .from('citas')
+        .select('id, cliente_id, barbero_id, servicio_id, estado, fecha_hora, notas, clientes(nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
+        .in('estado', ['en_proceso', 'pendiente', 'pendiente_pago', 'confirmado'])
+        .order('fecha_hora', { ascending: true })
+      setCitasPendientes(citasPendientesData || [])
+      
       setFormData({
-        cliente_id: '', nombre: '', email: '', telefono: '', ci: '',
+        cita_id: '', cliente_id: '', nombre: '', email: '', telefono: '', ci: '',
         servicio_id: '', barbero_id: '', metodo_pago: 'efectivo', propinas: 0, notas: 'Venta desde Caja', comprobante_url: ''
       })
       setSearchCliente('')
+      setSearchCi('')
       setCarrito([])
       setClienteDetalle(null)
       setReferralBonuses([])
@@ -324,11 +462,14 @@ export function CajaPOS() {
       setPromoSeleccionada('')
       setAcompanante({ nombre: '', email: '' })
       setEditingCliente(false)
+      setModoReserva(false)
+      setReservaFecha('')
+      setReservaHora('')
 
       // Recargar productos para reflejar stock actualizado
       const { data: newProductos } = await supabase
         .from('productos')
-        .select('id, nombre, precio_venta, precio_tienda, stock_actual, image_url, categoria')
+        .select('id, nombre, precio_venta, stock_actual, image_url, categoria')
         .eq('is_active', true)
         .gt('stock_actual', 0)
         .order('nombre')
@@ -342,10 +483,6 @@ export function CajaPOS() {
 
   const servicioSeleccionado = servicios.find(s => s.id === formData.servicio_id)
   const subtotalServicio = servicioSeleccionado?.precio || 0
-  const hayItemsTienda = carrito.some(i => i.paraTienda)
-  const todosParaTienda = carrito.length > 0 && carrito.every(i => i.paraTienda) && !formData.servicio_id
-  const totalTienda = carrito.filter(i => i.paraTienda).reduce((s, i) => s + (precioItemCarrito(i) * i.cantidad), 0)
-  const totalClienteProductos = carrito.filter(i => !i.paraTienda).reduce((s, i) => s + (precioItemCarrito(i) * i.cantidad), 0)
 
   // Discount calculations
   const promoActiva = promociones.find(p => p.id === promoSeleccionada)
@@ -361,21 +498,157 @@ export function CajaPOS() {
   const totalBonoReferido = aplicarReferido
     ? referralBonuses.reduce((s, r) => s + Number(r.monto_bono), 0)
     : 0
-  const descuentoTotal = descuentoPromo + totalBonoReferido
+  const descuentoReservaProducto = (formData.servicio_id && carrito.length > 0) ? 10 : 0
+  const descuentoTotal = descuentoPromo + totalBonoReferido + descuentoReservaProducto
   const totalACobrar = Math.max(0, subtotalServicio + totalProductos + Number(formData.propinas || 0) - descuentoTotal)
+
+  const checkDisponibilidad = (hora: string) => {
+    const servicioSeleccionado = servicios.find(s => s.id === formData.servicio_id)
+    if (!servicioSeleccionado) return false
+
+    const getMinutos = (h: string) => {
+      const [hs, ms] = h.split(':').map(Number)
+      return hs * 60 + ms
+    }
+
+    const slotInicio = getMinutos(hora)
+    const slotFin = slotInicio + servicioSeleccionado.duracion_minutos
+
+    return horasOcupadas.some(cita => {
+      const citaInicio = getMinutos(cita.hora)
+      const citaFin = citaInicio + cita.duracion
+      return (slotInicio < citaFin) && (citaInicio < slotFin)
+    })
+  }
+
+  const generarHorarios = () => {
+    const horarios = []
+    for (let h = 9; h <= 20; h++) {
+      horarios.push(`${h.toString().padStart(2, '0')}:00`)
+      if (h < 20) {
+        horarios.push(`${h.toString().padStart(2, '0')}:30`)
+      }
+    }
+    return horarios
+  }
+
+  const hoyLocal = new Date()
+  const hoy = new Date(hoyLocal.getTime() - (hoyLocal.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
 
   if (loading) {
     return <div className="p-8 text-center text-zinc-400">Cargando Caja...</div>
   }
 
+  const handleMarcarNoAsistio = async (citaId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm('¿Marcar esta cita como NO ASISTIÓ / CANCELADA?')) return
+    
+    try {
+      const res = await fetch('/api/citas/cancelar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cita_id: citaId, motivo: 'Cancelado/No asistió (desde Caja POS)' })
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Error al cancelar cita')
+      }
+      
+      toastSuccess('Cita marcada como No Asistió')
+      setCitasPendientes(prev => prev.filter(c => c.id !== citaId))
+      
+      if (formData.cita_id === citaId) {
+        setFormData({
+          cita_id: '', cliente_id: '', nombre: '', email: '', telefono: '', ci: '',
+          servicio_id: '', barbero_id: '', metodo_pago: 'efectivo', propinas: 0, notas: 'Venta desde Caja', comprobante_url: ''
+        })
+        setSearchCliente('')
+      }
+    } catch(err: any) {
+      console.error(err)
+      toastError(err.message || 'Error al actualizar cita')
+    }
+  }
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in zoom-in-95 duration-500">
+    <div className="p-6 max-w-[1600px] mx-auto space-y-6 pb-32 animate-in fade-in zoom-in-95 duration-500">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-400 to-amber-600 bg-clip-text text-transparent">
             Punto de Venta / Caja
           </h1>
           <p className="text-zinc-400">Atiende a clientes que llegan a pie, asigna y cobra al instante.</p>
+        </div>
+        <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 p-2 rounded-xl">
+          <Clock className="w-5 h-5 text-amber-500" />
+          <div className="text-xs flex items-center gap-2">
+            <div>
+              <p className="text-zinc-400">Tiempo Mín. Reserva Web</p>
+              <p className="font-bold text-white text-right">{tiempoMinimoReserva} minutos</p>
+            </div>
+            <div className="h-8 w-px bg-zinc-800 mx-2"></div>
+            <div className="flex gap-1 items-center">
+              <Button 
+                size="sm" 
+                variant={tiempoMinimoReserva === 0 ? 'primary' : 'outline'}
+                className="h-8 text-[10px] px-2 uppercase font-bold"
+                disabled={updatingTiempo}
+                onClick={() => handleSaveTiempo(0)}
+                title="Sin Límite"
+              >
+                0 min
+              </Button>
+              <Button 
+                size="sm" 
+                variant={tiempoMinimoReserva === 60 ? 'primary' : 'outline'}
+                className="h-8 text-[10px] px-2 font-bold"
+                disabled={updatingTiempo}
+                onClick={() => handleSaveTiempo(60)}
+              >
+                1 hr
+              </Button>
+              <Button 
+                size="sm" 
+                variant={tiempoMinimoReserva === 120 ? 'primary' : 'outline'}
+                className="h-8 text-[10px] px-2 font-bold"
+                disabled={updatingTiempo}
+                onClick={() => handleSaveTiempo(120)}
+              >
+                2 hrs
+              </Button>
+              <Button 
+                size="sm" 
+                variant={tiempoMinimoReserva === 180 ? 'primary' : 'outline'}
+                className="h-8 text-[10px] px-2 font-bold"
+                disabled={updatingTiempo}
+                onClick={() => handleSaveTiempo(180)}
+              >
+                3 hrs
+              </Button>
+              <div className="flex items-center bg-zinc-950 border border-white/10 rounded-lg overflow-hidden ml-1 h-8">
+                <input 
+                  type="number" 
+                  className="w-12 h-full bg-transparent text-center text-xs text-white outline-none" 
+                  placeholder="Min" 
+                  min="0"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const val = parseInt(e.currentTarget.value)
+                      if (!isNaN(val)) handleSaveTiempo(val)
+                    }
+                  }}
+                />
+                <button className="px-2 h-full bg-amber-500 text-black hover:bg-amber-400" onClick={(e) => {
+                  const input = e.currentTarget.previousElementSibling as HTMLInputElement
+                  const val = parseInt(input.value)
+                  if (!isNaN(val)) handleSaveTiempo(val)
+                }}>
+                  <Save size={12} />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -384,6 +657,66 @@ export function CajaPOS() {
         {/* LADO IZQUIERDO: SELECCIÓN DE DATOS */}
         <div className="lg:col-span-8 space-y-6">
           
+          {citasPendientes.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-zinc-400 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-500" /> Citas Pendientes de Cobro (Hoy y Anteriores)
+              </h3>
+              <div className="flex gap-3 overflow-x-auto pb-2 snap-x">
+                {citasPendientes.map((cita) => (
+                  <div key={cita.id} className="relative shrink-0 snap-start w-64">
+                    <button
+                      className={`w-full text-left bg-zinc-900 border transition-all rounded-xl p-4 hover:border-amber-500/50 ${formData.cita_id === cita.id ? 'border-amber-500 ring-1 ring-amber-500' : 'border-zinc-800'}`}
+                      onClick={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        cita_id: cita.id,
+                        cliente_id: cita.cliente_id || '',
+                        nombre: cita.clientes?.nombre || 'Cliente',
+                        email: cita.clientes?.email || '',
+                        telefono: cita.clientes?.telefono || '',
+                        ci: cita.clientes?.ci || '',
+                        servicio_id: cita.servicio_id || '',
+                        barbero_id: cita.barbero_id || ''
+                      }))
+                      setSearchCliente(cita.clientes?.nombre || 'Cliente')
+                      setSearchCi(cita.clientes?.ci || '')
+                      if (cita.cliente_id && cita.clientes) {
+                        fetchClientExtras(cita.cliente_id, {
+                           id: cita.cliente_id, 
+                           nombre: cita.clientes.nombre,
+                           email: cita.clientes.email,
+                           telefono: cita.clientes.telefono,
+                           ci: cita.clientes.ci,
+                           nivel_fidelidad: cita.clientes.nivel_fidelidad,
+                           total_visitas: cita.clientes.total_visitas,
+                           total_gastado: cita.clientes.total_gastado
+                        })
+                      }
+                    }}
+                  >
+                    <div className="flex justify-between items-start mb-2 pr-6">
+                      <p className="font-bold text-white truncate text-sm">{cita.clientes?.nombre || 'Sin nombre'}</p>
+                      <Badge variant={cita.estado === 'en_proceso' ? 'info' : 'warning'} className="text-[10px] uppercase">{cita.estado.replace('_', ' ')}</Badge>
+                    </div>
+                    <p className="text-xs text-zinc-400 truncate mb-1">{cita.servicios?.nombre}</p>
+                    <p className="text-[10px] text-zinc-500 uppercase font-black">
+                      {cita.profiles?.full_name} • {new Date(cita.fecha_hora).toLocaleDateString()}
+                    </p>
+                  </button>
+                  <button 
+                    onClick={(e) => handleMarcarNoAsistio(cita.id, e)}
+                    className="absolute top-2 right-2 p-1 text-zinc-500 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
+                    title="Marcar como No Asistió / Cancelar"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* CLIENTE */}
           <Card className="bg-zinc-900 border-zinc-800">
             <CardContent className="pt-6 space-y-4">
@@ -437,11 +770,54 @@ export function CajaPOS() {
                   onChange={e => setFormData(p => ({...p, nombre: e.target.value}))} 
                   required
                 />
-                <Input 
-                  label="Carnet / CI" 
-                  value={formData.ci} 
-                  onChange={e => setFormData(p => ({...p, ci: e.target.value}))} 
-                />
+                <div className="space-y-1 relative">
+                  <Input 
+                    label="Carnet / CI" 
+                    value={formData.ci || searchCi} 
+                    onChange={handleCiSearchChange} 
+                    onFocus={() => setShowCiDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowCiDropdown(false), 200)}
+                  />
+                  {showCiDropdown && searchCi && (
+                    <div className="absolute z-10 w-full mt-1 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {clientesFiltrados.length > 0 ? (
+                        clientesFiltrados.map(c => (
+                          <div 
+                            key={c.id} 
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              handleSelectCliente(c)
+                            }}
+                            className="px-4 py-2 hover:bg-zinc-800 cursor-pointer flex justify-between items-center"
+                          >
+                            <div>
+                              <p className="font-semibold">{c.ci}</p>
+                              <p className="text-xs text-zinc-400">{c.nombre}</p>
+                            </div>
+                            <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-1 rounded-full">Seleccionar</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-zinc-400 text-sm">
+                          CI no encontrado.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {!formData.ci ? (
+                    <p className="text-[11px] text-amber-500/90 leading-tight flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> Faltan datos del CI. Pregúntale al cliente si desea completarlo para facturación o registro.
+                    </p>
+                  ) : formData.cliente_id && clientes.find(c => c.id === formData.cliente_id)?.ci === formData.ci ? (
+                    <p className="text-[11px] text-emerald-500/80 leading-tight flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" /> CI guardado correctamente en sistema.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-emerald-500/80 leading-tight flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" /> CI listo para ser guardado/usado.
+                    </p>
+                  )}
+                </div>
                 <div className="space-y-1">
                   <Input 
                     label="Correo Electrónico (Para invitar al sistema)" 
@@ -523,7 +899,6 @@ export function CajaPOS() {
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Visitas</p>
                     <p className="text-sm font-black text-white">{clienteDetalle.total_visitas || 0} visitas</p>
-                    <p className="text-[10px] text-zinc-500">Gastado: {formatCurrency(clienteDetalle.total_gastado || 0)}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -649,21 +1024,41 @@ export function CajaPOS() {
           {/* BARBERO */}
           <Card className="bg-zinc-900 border-zinc-800">
             <CardContent className="pt-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <User className="w-5 h-5 text-amber-500" /> 3. Asignar Barbero
-              </h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <User className="w-5 h-5 text-amber-500" /> 3. Asignar Barbero
+                </h2>
+                {!formData.servicio_id && (
+                  <span className="text-xs text-amber-500/70">Seleccione un servicio primero</span>
+                )}
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {barberos.map((b) => (
+                {barberos
+                  .filter(b => {
+                    // Filter out excluded barbers for the selected service
+                    if (!formData.servicio_id) return true
+                    const servicio = servicios.find(s => s.id === formData.servicio_id)
+                    if (!servicio?.barberos_excluidos?.length) return true
+                    return !servicio.barberos_excluidos.includes(b.id)
+                  })
+                  .map((b) => (
                   <div
                     key={b.id}
                     onClick={() => setFormData({ ...formData, barbero_id: b.id })}
-                    className={`flex flex-col items-center gap-2 p-3 border rounded-xl cursor-pointer transition ${
+                    className={`relative flex flex-col items-center gap-2 p-3 border rounded-xl cursor-pointer transition ${
                       formData.barbero_id === b.id
                         ? 'border-amber-400 bg-amber-500/10'
-                        : 'border-white/10 hover:border-amber-400/40 bg-black/20'
+                        : barberoTurno === b.id
+                          ? 'border-emerald-500/50 bg-emerald-500/5 hover:border-amber-400/40'
+                          : 'border-white/10 hover:border-amber-400/40 bg-black/20'
                     }`}
                   >
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0">
+                    {barberoTurno === b.id && (
+                      <div className="absolute -top-2.5 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.3)]">
+                        Próximo Turno
+                      </div>
+                    )}
+                    <div className={`w-12 h-12 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0 ${barberoTurno === b.id && formData.barbero_id !== b.id ? 'ring-2 ring-emerald-500/50' : ''}`}>
                       {b.avatar_url ? (
                         <img src={b.avatar_url} alt={b.full_name} className="w-full h-full object-cover" />
                       ) : (
@@ -674,6 +1069,86 @@ export function CajaPOS() {
                   </div>
                 ))}
               </div>
+
+              {/* MODO RESERVA (AGENDA) */}
+              {formData.barbero_id && formData.servicio_id && (
+                <div className="mt-6 pt-6 border-t border-white/5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-amber-500" /> Modalidad de Atención
+                      </h3>
+                      <p className="text-[11px] text-zinc-500 mt-0.5">Puedes pasarlo directo o agendarlo para después.</p>
+                    </div>
+                    <div className="flex bg-black/50 p-1 rounded-lg border border-white/10">
+                      <button
+                        onClick={() => {
+                          setModoReserva(false)
+                          setReservaFecha('')
+                          setReservaHora('')
+                        }}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${!modoReserva ? 'bg-amber-500 text-black shadow-sm' : 'text-zinc-400 hover:text-white'}`}
+                      >
+                        Atención Inmediata
+                      </button>
+                      <button
+                        onClick={() => setModoReserva(true)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${modoReserva ? 'bg-amber-500 text-black shadow-sm' : 'text-zinc-400 hover:text-white'}`}
+                      >
+                        Programar Cita
+                      </button>
+                    </div>
+                  </div>
+
+                  {modoReserva && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Fecha</label>
+                        <Input
+                          type="date"
+                          min={hoy}
+                          value={reservaFecha}
+                          onChange={(e) => {
+                            setReservaFecha(e.target.value)
+                            setReservaHora('')
+                          }}
+                          className="bg-black/50"
+                        />
+                      </div>
+                      
+                      {reservaFecha && (
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                            Hora <span className="font-normal normal-case text-[10px] ml-1">(No respeta tiempo mín.)</span>
+                          </label>
+                          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                            {generarHorarios().map(hora => {
+                              const ocupado = checkDisponibilidad(hora)
+                              return (
+                                <button
+                                  key={hora}
+                                  onClick={() => !ocupado && setReservaHora(hora)}
+                                  disabled={ocupado || loadingAgenda}
+                                  className={`py-1.5 text-xs font-bold rounded-md transition ${
+                                    reservaHora === hora
+                                      ? 'bg-amber-500 text-black'
+                                      : ocupado
+                                        ? 'bg-zinc-800/30 text-zinc-600 cursor-not-allowed line-through'
+                                        : 'bg-black/50 border border-white/5 text-zinc-300 hover:border-amber-500/50 hover:text-amber-500'
+                                  }`}
+                                >
+                                  {hora}
+                                </button>
+                              )
+                            })}
+                          </div>
+                          {loadingAgenda && <p className="text-[10px] text-zinc-500 animate-pulse">Consultando agenda...</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -718,12 +1193,6 @@ export function CajaPOS() {
                             <p className="text-[10px] text-zinc-500">Stock: {p.stock_actual}</p>
                             <p className="font-bold text-violet-400 text-sm">{formatCurrency(p.precio_venta)}</p>
                           </div>
-                          {p.precio_tienda != null && (
-                            <div className="flex justify-between items-center">
-                              <p className="text-[9px] text-violet-500/60">Precio tienda:</p>
-                              <p className="text-[11px] font-bold text-violet-300">{formatCurrency(p.precio_tienda)}</p>
-                            </div>
-                          )}
                         </div>
                         
                         {enCarrito ? (
@@ -743,18 +1212,6 @@ export function CajaPOS() {
                                 <Plus className="w-3 h-3" />
                               </button>
                             </div>
-                            {p.precio_tienda != null && (
-                              <button
-                                onClick={() => toggleParaTienda(p.id)}
-                                className={`w-full py-1 text-[10px] font-bold uppercase tracking-wide rounded-lg transition flex items-center justify-center gap-1 ${
-                                  enCarrito.paraTienda
-                                    ? 'bg-violet-600 text-white'
-                                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                                }`}
-                              >
-                                ⚡ {enCarrito.paraTienda ? `Tienda: ${formatCurrency(p.precio_tienda)}` : 'Precio normal'}
-                              </button>
-                            )}
                           </div>
                         ) : (
                           <button
@@ -819,9 +1276,6 @@ export function CajaPOS() {
                             </button>
                             <div className="min-w-0">
                               <span className="text-zinc-300 truncate text-xs block">{item.cantidad}x {item.producto.nombre}</span>
-                              {item.paraTienda && (
-                                <span className="text-[9px] font-bold text-violet-400 uppercase tracking-wide">⚡ precio tienda</span>
-                              )}
                             </div>
                           </div>
                           <span className="text-violet-400 font-medium shrink-0 ml-2">{formatCurrency(precioItemCarrito(item) * item.cantidad)}</span>
@@ -832,20 +1286,7 @@ export function CajaPOS() {
                         <span className="text-zinc-400 text-xs">Subtotal Productos</span>
                         <span className="text-violet-400 font-semibold">{formatCurrency(totalProductos)}</span>
                       </div>
-                      {hayItemsTienda && (
-                        <div className="mt-2 p-2.5 bg-violet-500/10 rounded-lg border border-violet-500/20">
-                          <div className="flex justify-between items-center text-sm">
-                            <div className="flex items-center gap-1.5">
-                              <Store className="w-3.5 h-3.5 text-violet-400" />
-                              <span className="text-violet-300 text-xs font-semibold">Uso Tienda</span>
-                            </div>
-                            <span className="text-violet-400 font-bold">{formatCurrency(totalTienda)}</span>
-                          </div>
-                          <p className="text-[9px] text-violet-500/70 mt-1 leading-tight">
-                            Se descuenta de la caja del día (no es pago del cliente)
-                          </p>
-                        </div>
-                      )}
+
                     </div>
                   )}
 
@@ -859,10 +1300,14 @@ export function CajaPOS() {
                     />
                   </div>
                   
-                  {hayItemsTienda && (
+
+
+                  {descuentoReservaProducto > 0 && (
                     <div className="flex justify-between items-center text-sm mb-2">
-                      <span className="text-zinc-500 text-xs">Descuento Caja (tienda)</span>
-                      <span className="text-red-400 font-semibold">-{formatCurrency(totalTienda)}</span>
+                      <span className="text-amber-500 text-xs flex items-center gap-1">
+                        <Tag className="w-3 h-3" /> Promo Producto + Servicio
+                      </span>
+                      <span className="text-amber-400 font-semibold">-{formatCurrency(descuentoReservaProducto)}</span>
                     </div>
                   )}
 
@@ -885,27 +1330,14 @@ export function CajaPOS() {
                   )}
 
                   <div className="flex justify-between items-center pt-4 border-t border-zinc-800">
-                    <span className="text-lg font-bold">{todosParaTienda ? 'Total Uso Tienda' : 'Total a Cobrar'}</span>
+                    <span className="text-lg font-bold">Total a Cobrar</span>
                     <span className="text-2xl font-black text-amber-400">
-                      {formatCurrency(todosParaTienda ? totalTienda : totalACobrar)}
+                      {formatCurrency(totalACobrar)}
                     </span>
                   </div>
-                  {todosParaTienda && (
-                    <p className="text-[10px] text-violet-400 mt-1 text-center font-semibold">
-                      ⚡ Todo es uso interno — se descuenta de la caja
-                    </p>
-                  )}
                 </div>
 
                 <div className="space-y-3 pt-6">
-                  {todosParaTienda ? (
-                    <div className="p-3 bg-violet-600/10 border border-violet-500/30 rounded-xl text-center">
-                      <Store className="w-5 h-5 mx-auto text-violet-400 mb-1" />
-                      <p className="text-xs text-violet-300 font-bold uppercase tracking-wider">Descuento de Caja</p>
-                      <p className="text-[10px] text-violet-500 mt-0.5">No requiere pago en efectivo ni QR</p>
-                    </div>
-                  ) : (
-                    <>
                       <label className="text-sm text-zinc-400">Método de Pago</label>
                       <div className="grid grid-cols-3 gap-2">
                         {(['efectivo', 'qr', 'mixto'] as const).map((m) => (
@@ -972,8 +1404,6 @@ export function CajaPOS() {
                           />
                         </div>
                       )}
-                    </>
-                  )}
                 </div>
 
                 <div className="pt-6 space-y-3">
@@ -991,20 +1421,20 @@ export function CajaPOS() {
                   )}
 
                   <Button 
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-12 text-lg shadow-[0_0_20px_rgba(16,185,129,0.3)]"
-                    disabled={submitting || !formData.nombre || (!formData.servicio_id && carrito.length === 0) || !formData.barbero_id}
-                    onClick={() => handleSubmit('completado')}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-12 text-lg shadow-[0_0_20px_rgba(16,185,129,0.3)] disabled:opacity-50"
+                    disabled={submitting || !formData.nombre || (!formData.servicio_id && carrito.length === 0) || !formData.barbero_id || (modoReserva && (!reservaFecha || !reservaHora))}
+                    onClick={() => handleFinalizar('completado')}
                   >
-                    <CheckCircle className="w-5 h-5 mr-2" /> Cobrar y Completar
+                    <CheckCircle className="w-5 h-5 mr-2" /> {modoReserva ? 'Agendar y Cobrar' : 'Cobrar y Completar'}
                   </Button>
                   
                   <Button 
                     variant="outline"
-                    className="w-full border-amber-500/50 text-amber-500 hover:bg-amber-500/10 h-10"
-                    disabled={submitting || !formData.nombre || (!formData.servicio_id && carrito.length === 0) || !formData.barbero_id}
-                    onClick={() => handleSubmit('en_proceso')}
+                    className="w-full border-amber-500/50 text-amber-500 hover:bg-amber-500/10 h-10 disabled:opacity-50"
+                    disabled={submitting || !formData.nombre || (!formData.servicio_id && carrito.length === 0) || !formData.barbero_id || (modoReserva && (!reservaFecha || !reservaHora))}
+                    onClick={() => handleFinalizar(modoReserva ? 'pendiente' : 'en_proceso')}
                   >
-                    <Clock className="w-4 h-4 mr-2" /> Iniciar Servicio (Paga después)
+                    <Clock className="w-4 h-4 mr-2" /> {modoReserva ? 'Reprogramar / Agendar (Paga después)' : 'Iniciar Servicio (Paga después)'}
                   </Button>
                 </div>
               </div>

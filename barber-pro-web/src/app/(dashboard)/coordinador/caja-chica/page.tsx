@@ -430,7 +430,11 @@ export default function CajaChicaPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right font-black text-white">{formatCurrency(tx.costo)}</td>
+                      <td className="px-4 py-3 text-right font-black">
+                        <span className={tx.tipo_movimiento === 'INGRESO' ? 'text-emerald-400' : tx.tipo_movimiento === 'EGRESO' ? 'text-red-400' : 'text-white'}>
+                          {tx.tipo_movimiento === 'EGRESO' ? '-' : (tx.tipo_movimiento === 'INGRESO' ? '+' : '')} {formatCurrency(tx.costo)}
+                        </span>
+                      </td>
                     </tr>
                   ))
                 )}

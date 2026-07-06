@@ -21,7 +21,6 @@ interface Producto {
   stock_minimo: number
   precio_costo: number | null
   precio_venta: number
-  precio_tienda: number | null
   categoria: string | null
   image_url: string | null
   is_active: boolean
@@ -41,7 +40,6 @@ export default function ProductosPage() {
     stock_minimo: 5,
     precio_costo: 0,
     precio_venta: 0,
-    precio_tienda: '' as string | number,
     categoria: '',
     image_url: '',
   })
@@ -88,7 +86,6 @@ export default function ProductosPage() {
             stock_minimo: formData.stock_minimo,
             precio_costo: formData.precio_costo,
             precio_venta: formData.precio_venta,
-            precio_tienda: formData.precio_tienda !== '' ? Number(formData.precio_tienda) : null,
             categoria: formData.categoria,
             image_url: formData.image_url,
           })
@@ -106,7 +103,6 @@ export default function ProductosPage() {
             stock_minimo: formData.stock_minimo,
             precio_costo: formData.precio_costo,
             precio_venta: formData.precio_venta,
-            precio_tienda: formData.precio_tienda !== '' ? Number(formData.precio_tienda) : null,
             categoria: formData.categoria,
             image_url: formData.image_url,
             is_active: true,
@@ -125,7 +121,6 @@ export default function ProductosPage() {
         stock_minimo: 5,
         precio_costo: 0,
         precio_venta: 0,
-        precio_tienda: '',
         categoria: '',
         image_url: '',
       })
@@ -270,7 +265,7 @@ export default function ProductosPage() {
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Stock Disponible</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Precio Costo</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Venta Unit.</th>
-                  <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Precio Tienda</th>
+
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Disponibilidad</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-right">Manejo</th>
                 </tr>
@@ -328,16 +323,7 @@ export default function ProductosPage() {
                       <td className="py-6 px-6 text-center">
                          <p className="text-lg font-black text-amber-500 tracking-tighter">{formatCurrency(producto.precio_venta)}</p>
                       </td>
-                      <td className="py-6 px-6 text-center">
-                        {producto.precio_tienda != null ? (
-                          <div className="flex flex-col items-center gap-0.5">
-                            <p className="text-sm font-black text-violet-400">{formatCurrency(producto.precio_tienda)}</p>
-                            <span className="text-[9px] uppercase font-bold text-violet-500/60 tracking-widest">especial</span>
-                          </div>
-                        ) : (
-                          <span className="text-zinc-700 text-xs">—</span>
-                        )}
-                      </td>
+
                       <td className="py-6 px-6 text-center">
                         <Badge variant={status.variant} className="uppercase font-black text-[10px] tracking-widest px-3">
                            {status.text}
@@ -359,7 +345,6 @@ export default function ProductosPage() {
                                 stock_minimo: producto.stock_minimo,
                                 precio_costo: producto.precio_costo || 0,
                                 precio_venta: producto.precio_venta,
-                                precio_tienda: producto.precio_tienda ?? '',
                                 categoria: producto.categoria || '',
                                 image_url: producto.image_url || '',
                               })
@@ -492,20 +477,7 @@ export default function ProductosPage() {
                     required
                     className="bg-zinc-900"
                   />
-                  <div className="space-y-1">
-                    <Input
-                      label="Precio Especial Tienda"
-                      type="number"
-                      placeholder="Dejar vacío si no aplica"
-                      value={formData.precio_tienda}
-                      onChange={(e) => setFormData({ ...formData, precio_tienda: e.target.value })}
-                      className="bg-zinc-900 border-violet-500/30 focus:border-violet-500/60"
-                    />
-                    <p className="text-[10px] text-violet-500/70 leading-tight">
-                      ⚡ Solo para compras internas de la tienda. Por defecto se usa el precio público.
-                    </p>
                   </div>
-                </div>
               </CardContent>
               <div className="p-8 bg-zinc-900/30 border-t border-white/5 flex gap-4">
                 <Button 

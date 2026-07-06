@@ -63,6 +63,10 @@ export async function POST(request: NextRequest) {
     const it = body.tiene_factura ? montoBruto * 0.03 : 0
     const montoNeto = montoBruto - iva - it
 
+    const metodoPago = body.metodo_pago || 'efectivo'
+    const montoEfectivo = metodoPago === 'mixto' ? (Number(body.monto_efectivo) || 0) : (metodoPago === 'efectivo' ? montoNeto : 0)
+    const montoQr = metodoPago === 'mixto' ? (Number(body.monto_qr) || 0) : (metodoPago === 'qr' ? montoNeto : 0)
+
     const { data, error } = await supabase
       .from('egresos')
       .insert({
@@ -76,6 +80,9 @@ export async function POST(request: NextRequest) {
         monto_neto: montoNeto,
         numero_factura: body.numero_factura || null,
         cuenta_codigo: body.cuenta_codigo || null,
+        metodo_pago: metodoPago,
+        monto_efectivo: montoEfectivo,
+        monto_qr: montoQr,
         usuario_registro: profile?.full_name || user.email || 'Sistema',
         notas: body.notas || null,
       })
@@ -83,8 +90,32 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Insertar en transactions para el reporte financiero
+    const { error: txError } = await supabase.from('transactions').insert({
+      libro: metodoPago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
+      fecha: body.fecha || new Date().toISOString().split('T')[0],
+      ci: '0000000',
+      nombre: body.proveedor || 'Egreso General',
+      cuenta_codigo: body.cuenta_codigo || 'EGR-GEN',
+      cuenta_detalle: body.concepto,
+      glosa: body.notas || body.concepto,
+      costo: montoBruto,
+      tipo_movimiento: 'EGRESO',
+      es_sancion: false,
+      metodo_pago: metodoPago,
+      subcategoria: 'GASTO_GENERAL',
+      monto_efectivo: montoEfectivo,
+      monto_qr: montoQr,
+      usuario_registro: profile?.full_name || user.email || 'Sistema',
+    })
+
+    if (txError) {
+      console.error("Error inserting into transactions for egreso:", txError)
+    }
+
     return NextResponse.json(data, { status: 201 })
-  } catch {
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Error interno' }, { status: 500 })
   }
 }

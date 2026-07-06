@@ -20,10 +20,9 @@ export async function GET(request: NextRequest) {
 
     const fecha = request.nextUrl.searchParams.get('fecha') || new Date().toISOString().split('T')[0]
 
-    // Traer todas las transacciones del día
     const { data: txDia } = await supabase
       .from('transactions')
-      .select('libro, costo, metodo_pago, es_sancion')
+      .select('libro, costo, metodo_pago, es_sancion, tipo_movimiento, monto_efectivo, monto_qr')
       .eq('fecha', fecha)
 
     const resumen = {
@@ -41,20 +40,38 @@ export async function GET(request: NextRequest) {
       sanciones: 0,
       movimientos: txDia?.length || 0,
     }
-
-    txDia?.forEach((t) => {
+    txDia?.forEach((t: any) => {
       const costo = Number(t.costo)
-      if (t.libro === 'CAJA_CHICA') resumen.caja_chica += costo
-      else if (t.libro === 'VENTAS') resumen.ventas += costo
-      else if (t.libro === 'SERVICIOS') resumen.servicios += costo
-      else if (t.libro === 'BANCO') resumen.banco += costo
-      else if (t.libro === 'USO_TIENDA') resumen.uso_tienda += costo
-      resumen.total_registrado += costo
+      const isIngreso = t.tipo_movimiento === 'INGRESO'
+      const isEgreso = t.tipo_movimiento === 'EGRESO'
+
+      if (t.libro === 'CAJA_CHICA') resumen.caja_chica += (isIngreso ? costo : -costo)
+      else if (t.libro === 'VENTAS') resumen.ventas += (isIngreso ? costo : -costo)
+      else if (t.libro === 'SERVICIOS') resumen.servicios += (isIngreso ? costo : -costo)
+      else if (t.libro === 'BANCO') resumen.banco += (isIngreso ? costo : -costo)
+      else if (t.libro === 'USO_TIENDA') resumen.uso_tienda += (isIngreso ? costo : -costo)
+      
+      if (isIngreso) {
+        resumen.total_registrado += costo
+      } else if (isEgreso) {
+        resumen.total_registrado -= costo
+      }
+
       if (t.es_sancion) resumen.sanciones += costo
-      if (t.metodo_pago === 'efectivo') resumen.total_efectivo += costo
-      else if (t.metodo_pago === 'qr') resumen.total_qr += costo
-      else if (t.metodo_pago === 'tarjeta') resumen.total_tarjeta += costo
-      else if (t.metodo_pago === 'descuento_caja') resumen.total_descuento_caja += costo
+      
+      // Manejar métodos de pago con montos mixtos
+      const mEfectivo = t.metodo_pago === 'mixto' ? Number(t.monto_efectivo || 0) : (t.metodo_pago === 'efectivo' ? costo : 0)
+      const mQr = t.metodo_pago === 'mixto' ? Number(t.monto_qr || 0) : (t.metodo_pago === 'qr' ? costo : 0)
+      
+      if (isIngreso) {
+        resumen.total_efectivo += mEfectivo
+        resumen.total_qr += mQr
+        if (t.metodo_pago === 'tarjeta') resumen.total_tarjeta += costo
+      } else if (isEgreso) {
+        resumen.total_efectivo -= mEfectivo
+        resumen.total_qr -= mQr
+        if (t.metodo_pago === 'tarjeta') resumen.total_tarjeta -= costo
+      }
     })
 
     // Traer cierre existente

@@ -28,6 +28,8 @@ export default function VentasPage() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [filtroLibro, setFiltroLibro] = useState<'VENTAS' | 'USO_TIENDA' | 'TODOS'>('TODOS')
+  const [buscandoCi, setBuscandoCi] = useState(false)
+  const [cumpleanosMsg, setCumpleanosMsg] = useState<string | null>(null)
   const hoy = new Date().toISOString().split('T')[0]
 
   const [form, setForm] = useState({
@@ -35,6 +37,48 @@ export default function VentasPage() {
     metodo_pago: 'efectivo', notas: '',
     mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '',
   })
+
+  // Timeout para debounce
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+
+  const handleCiChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const ci = e.target.value
+    setForm(prev => ({ ...prev, ci }))
+    
+    if (searchTimeout) clearTimeout(searchTimeout)
+    setCumpleanosMsg(null)
+    
+    if (ci.length >= 4) {
+      setSearchTimeout(setTimeout(async () => {
+        setBuscandoCi(true)
+        try {
+          const supabase = createClient()
+          const { data: cliente } = await supabase
+            .from('clientes')
+            .select('nombre, cumpleanos')
+            .eq('ci', ci)
+            .single()
+
+          if (cliente) {
+            setForm(prev => ({ ...prev, nombre: cliente.nombre }))
+            
+            // Check birthday
+            if (cliente.cumpleanos) {
+              const cumple = new Date(cliente.cumpleanos)
+              const today = new Date()
+              if (cumple.getMonth() === today.getMonth() && cumple.getDate() === today.getDate()) {
+                setCumpleanosMsg(`Hoy es el cumpleaños de ${cliente.nombre}. Puedes ofrecerle un corte gratis o un producto sorpresa.`)
+              }
+            }
+          }
+        } catch (error) {
+          // Ignore errors
+        } finally {
+          setBuscandoCi(false)
+        }
+      }, 800))
+    }
+  }
 
   const loadData = useCallback(async () => {
     const supabase = createClient()
@@ -181,10 +225,24 @@ export default function VentasPage() {
       {showForm && (
         <Card className="border-green-500/30 bg-zinc-900/80 animate-in slide-in-from-top-2 duration-300">
           <CardContent className="p-6">
+            {/* 🎂 BANNER DE CUMPLEAÑOS 🎂 */}
+            {cumpleanosMsg && (
+              <div className="mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-start gap-3 animate-in fade-in zoom-in">
+                <span className="text-2xl mt-1">🎂</span>
+                <div>
+                  <h3 className="font-black text-amber-500 uppercase tracking-widest text-sm">¡Feliz Cumpleaños!</h3>
+                  <p className="text-amber-200/80 text-xs mt-1">{cumpleanosMsg}</p>
+                </div>
+              </div>
+            )}
+            
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">C.I.</label>
-                <input value={form.ci} onChange={(e) => setForm({ ...form, ci: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-green-500/50 outline-none" required />
+                <div className="relative">
+                  <input value={form.ci} onChange={handleCiChange} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-green-500/50 outline-none" required placeholder="Carnet de Identidad..." />
+                  {buscandoCi && <div className="absolute right-3 top-3 w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>}
+                </div>
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Nombre</label>

@@ -4,7 +4,7 @@ import { getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
 
 /**
- * Envía recordatorios para citas en las próximas 24h.
+ * Envía recordatorios para citas en las próximas 2h.
  * Proteger con CRON_SECRET en producción (Vercel Cron / cron-job.org).
  */
 export async function GET(request: NextRequest) {
@@ -19,13 +19,13 @@ export async function GET(request: NextRequest) {
   const db = getNotificationDbClient(serverDb)
 
   const now = new Date()
-  const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+  const in2h = new Date(now.getTime() + 2 * 60 * 60 * 1000)
 
   const { data: citas, error } = await db
     .from('citas')
-    .select('id, barbero_id, fecha_hora, estado, clientes(nombre, email), servicios(nombre)')
+    .select('id, barbero_id, cliente_id, fecha_hora, estado, clientes(nombre, email), servicios(nombre)')
     .gte('fecha_hora', now.toISOString())
-    .lte('fecha_hora', in24h.toISOString())
+    .lte('fecha_hora', in2h.toISOString())
     .in('estado', ['pendiente', 'confirmado'])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
       payload: {
         citaId: cita.id,
         barberoId: cita.barbero_id,
+        clienteId: cita.cliente_id,
         clienteNombre: cliente?.nombre,
         clienteEmail: cliente?.email ?? undefined,
         barberoNombre: barbero?.full_name,

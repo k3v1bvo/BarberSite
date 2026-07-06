@@ -9,6 +9,7 @@ export interface AgendaCita {
   precio: number
   barbero_id: string
   barbero_nombre: string
+  comprobante_url?: string
 }
 
 export interface AgendaResponse {

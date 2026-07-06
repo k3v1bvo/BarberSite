@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     // Obtener rol del usuario
     const { data: profile } = await serverDb
       .from('profiles')
-      .select('rol, full_name')
+      .select('role, full_name')
       .eq('id', user.id)
       .single()
 
@@ -31,10 +31,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 403 })
     }
 
-    // Obtener la cita
+    // Obtener la cita con notas (donde se guarda el comprobante_url)
     const { data: cita, error: citaError } = await serverDb
       .from('citas')
-      .select('id, barbero_id, estado, anticipo_monto, fecha_hora, clientes(nombre, email), servicios(nombre)')
+      .select('id, barbero_id, cliente_id, estado, anticipo_monto, fecha_hora, notas, clientes(nombre, email), servicios(nombre)')
       .eq('id', citaId)
       .single()
 
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
 
     // Verificar si tiene permiso: Admin, Coordinador, o el Barbero asignado
     const isAllowed =
-      profile.rol === 'admin' || profile.rol === 'coordinador' || cita.barbero_id === user.id
+      profile.role === 'admin' || profile.role === 'coordinador' || cita.barbero_id === user.id
     if (!isAllowed) {
       return NextResponse.json(
         { error: 'No tienes permiso para verificar este pago' },
@@ -75,6 +75,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Error al verificar pago' }, { status: 500 })
     }
 
+    // Obtener nombre del barbero
+    let barberoNombre = 'Equipo'
+    if (cita.barbero_id) {
+      const { data: barberoProfile } = await serverDb
+        .from('profiles')
+        .select('full_name')
+        .eq('id', cita.barbero_id)
+        .single()
+      barberoNombre = barberoProfile?.full_name || 'Equipo'
+    }
+
+    // Extraer comprobante_url de notas
+    const comprobanteMatch = (cita.notas as string | null)?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/)
+    const comprobante_url = comprobanteMatch ? comprobanteMatch[1] : undefined
+
     // Disparar notificaciones
     const cliente = cita.clientes as { nombre?: string; email?: string } | null
     const servicio = cita.servicios as { nombre?: string } | null
@@ -85,14 +100,17 @@ export async function POST(request: Request) {
       event: 'pago_verificado',
       payload: {
         citaId,
+        clienteId: cita.cliente_id,
         barberoId: cita.barbero_id,
+        barberoNombre,
         clienteNombre: cliente?.nombre,
         clienteEmail: cliente?.email ?? undefined,
         servicioNombre: servicio?.nombre,
         monto: cita.anticipo_monto,
         fecha: fh.toLocaleDateString('es-BO'),
         hora: fh.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }),
-        motivo: profile.full_name, // Lo usamos para pasar el nombre del verificador
+        motivo: profile.full_name,
+        comprobante_url,
       },
     })
 
