@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createAdminSupabaseClient()
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database client could not be initialized' }, { status: 500 })
+    }
 
     // 1. Llamar a la lógica de resumen-semanal
     const hoy = new Date()
