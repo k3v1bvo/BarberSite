@@ -120,7 +120,6 @@ export default function ReportesPage() {
       let ingresosTotal = 0
       let egresosTotal = 0
       const finanzasPorDia: Record<string, { ingresos: number, egresos: number }> = {}
-      const metodos: Record<string, number> = {}
 
       txs.forEach(tx => {
         const d = tx.fecha
@@ -129,7 +128,6 @@ export default function ReportesPage() {
         if (tx.tipo_movimiento === 'INGRESO') {
           finanzasPorDia[d].ingresos += Number(tx.costo)
           ingresosTotal += Number(tx.costo)
-          if (tx.metodo_pago) metodos[tx.metodo_pago] = (metodos[tx.metodo_pago] || 0) + Number(tx.costo)
         } else {
           finanzasPorDia[d].egresos += Number(tx.costo)
           egresosTotal += Number(tx.costo)

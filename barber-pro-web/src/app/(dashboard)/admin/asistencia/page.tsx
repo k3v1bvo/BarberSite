@@ -82,7 +82,6 @@ export default function AsistenciaAdminPage() {
 
   // Edición
   const [editando, setEditando] = useState<Registro | null>(null)
-  const [editando, setEditando] = useState<Registro | null>(null)
   const [formEdit, setFormEdit] = useState({ hora_entrada: '', hora_salida: '', notas: '' })
 
   // Permisos
