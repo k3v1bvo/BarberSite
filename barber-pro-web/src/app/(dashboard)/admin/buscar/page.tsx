@@ -104,7 +104,7 @@ export default function BuscarPage() {
         .limit(15)
 
       setClientes(clientesData || [])
-      setCitas(citasData || [])
+      setCitas((citasData as any) || [])
       setTransacciones(txData || [])
     } finally {
       setLoading(false)
