@@ -5,9 +5,10 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
-import { ArrowDownCircle, Plus, X, FileText } from 'lucide-react'
+import { ArrowDownCircle, Plus, X, FileText, Search } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
-interface PlanCuenta { codigo: string; detalle: string; tipo: string }
+interface PlanCuenta { id?: string; codigo: string; detalle: string; tipo: string }
 interface Egreso {
   id: string; fecha: string; concepto: string; proveedor: string | null
   monto_bruto: number; tiene_factura: boolean; iva: number; it: number
@@ -26,6 +27,15 @@ export default function EgresosPage() {
     concepto: '', proveedor: '', monto_bruto: '', cuenta_codigo: '',
     tiene_factura: false, numero_factura: '', notas: '', metodo_pago: 'efectivo', monto_efectivo: '', monto_qr: ''
   })
+  
+  const [searchCategoria, setSearchCategoria] = useState('')
+  const [showCategoriaDropdown, setShowCategoriaDropdown] = useState(false)
+  const [showNewCategoria, setShowNewCategoria] = useState(false)
+  const [newCategoriaNombre, setNewCategoriaNombre] = useState('')
+  const [newCategoriaCodigo, setNewCategoriaCodigo] = useState('')
+  const [savingCategoria, setSavingCategoria] = useState(false)
+  
+  const supabase = createClient()
 
   const loadData = useCallback(async () => {
     const [eRes, ctasRes] = await Promise.all([
@@ -41,6 +51,94 @@ export default function EgresosPage() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  const getNivel = (codigo: string) => codigo.split('.').length
+  const getGrupo = (codigo: string): string => {
+    const first = codigo.charAt(0)
+    if (first === '4' || codigo.toUpperCase().startsWith('ING')) return 'INGRESO'
+    if (first === '5' || codigo.toUpperCase().startsWith('EGR')) return 'EGRESO'
+    if (first === '1') return 'ACTIVO'
+    if (first === '2') return 'PASIVO'
+    if (first === '3') return 'PATRIMONIO'
+    return 'OTRO'
+  }
+
+  const getGrupoColor = (grupo: string) => {
+    switch(grupo) {
+      case 'INGRESO': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+      case 'EGRESO': return 'text-red-400 bg-red-500/10 border-red-500/30'
+      case 'ACTIVO': return 'text-blue-400 bg-blue-500/10 border-blue-500/30'
+      default: return 'text-zinc-400 bg-zinc-500/10 border-zinc-500/30'
+    }
+  }
+
+  const categoriasFiltradas = cuentas
+    .filter((c) => {
+      if (!searchCategoria) return true
+      return c.detalle.toLowerCase().includes(searchCategoria.toLowerCase()) ||
+             c.codigo.toLowerCase().includes(searchCategoria.toLowerCase())
+    })
+    .sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }))
+
+  const selectCategoria = (cat: PlanCuenta) => {
+    setForm({ ...form, cuenta_codigo: cat.codigo })
+    setSearchCategoria(`${cat.codigo} — ${cat.detalle}`)
+    setShowCategoriaDropdown(false)
+  }
+
+  const generarSiguienteCodigo = (parentCodigo: string) => {
+    const hijos = cuentas
+      .filter(c => c.codigo.startsWith(parentCodigo + '.') && c.codigo.split('.').length === parentCodigo.split('.').length + 1)
+      .map(c => {
+        const parts = c.codigo.split('.')
+        return parseInt(parts[parts.length - 1]) || 0
+      })
+    const siguiente = hijos.length > 0 ? Math.max(...hijos) + 1 : 1
+    return `${parentCodigo}.${siguiente}`
+  }
+
+  const crearNuevaCategoria = async () => {
+    if (!newCategoriaNombre.trim()) return
+    setSavingCategoria(true)
+    try {
+      let codigo = newCategoriaCodigo.trim()
+      if (!codigo) {
+        codigo = generarSiguienteCodigo('5')
+      }
+      const grupo = getGrupo(codigo)
+      const tipo = grupo === 'INGRESO' ? 'INGRESO' : grupo === 'EGRESO' ? 'EGRESO' : grupo
+      const nivel = codigo.split('.').length
+
+      const { data: nueva, error: err } = await supabase
+        .from('plan_cuentas')
+        .insert({ codigo, detalle: newCategoriaNombre.trim(), tipo, nivel, es_sancion: false })
+        .select('*')
+        .single()
+      if (err) throw err
+      setCuentas(prev => [...prev, nueva])
+      selectCategoria(nueva)
+      setShowNewCategoria(false)
+      setNewCategoriaNombre('')
+      setNewCategoriaCodigo('')
+    } catch (err) {
+      console.error(err)
+      alert('Error al crear categoría')
+    } finally {
+      setSavingCategoria(false)
+    }
+  }
+
+  const eliminarCategoria = async (id: string, detalle: string) => {
+    if (!confirm(`¿Estás seguro de eliminar la categoría "${detalle}"?`)) return
+    try {
+      const { error } = await supabase.from('plan_cuentas').delete().eq('id', id)
+      if (error) throw error
+      setCuentas(prev => prev.filter(c => c.id !== id))
+    } catch (e) {
+      console.error(e)
+      alert('Error al eliminar, asegúrate que no esté en uso.')
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,6 +162,7 @@ export default function EgresosPage() {
     if (res.ok) {
       setShowForm(false)
       setForm({ concepto: '', proveedor: '', monto_bruto: '', cuenta_codigo: '', tiene_factura: false, numero_factura: '', notas: '', metodo_pago: 'efectivo', monto_efectivo: '', monto_qr: '' })
+      setSearchCategoria('')
       loadData()
     }
     setSaving(false)
@@ -113,12 +212,101 @@ export default function EgresosPage() {
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Proveedor</label>
                 <input value={form.proveedor} onChange={(e) => setForm({ ...form, proveedor: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-rose-500/50 outline-none" />
               </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Cuenta</label>
-                <select value={form.cuenta_codigo} onChange={(e) => setForm({ ...form, cuenta_codigo: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-rose-500/50 outline-none appearance-none">
-                  <option value="">Seleccionar...</option>
-                  {cuentas.map((c) => <option key={c.codigo} value={c.codigo}>{c.codigo} — {c.detalle}</option>)}
-                </select>
+              <div className="relative">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Categoría / Cuenta</label>
+                  <button type="button" onClick={() => setShowNewCategoria(!showNewCategoria)}
+                    className="text-[10px] font-bold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition-colors">
+                    <Plus size={10} /> Nueva Categoría
+                  </button>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <input
+                    className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl pl-9 pr-8 text-sm text-white focus:border-rose-500/50 outline-none"
+                    placeholder="Buscar por código o nombre de cuenta..."
+                    value={searchCategoria}
+                    onChange={e => {
+                      setSearchCategoria(e.target.value)
+                      setShowCategoriaDropdown(true)
+                      if (!e.target.value) setForm({ ...form, cuenta_codigo: '' })
+                    }}
+                    onFocus={() => setShowCategoriaDropdown(true)}
+                    required
+                  />
+                  {searchCategoria && (
+                    <button type="button" onClick={() => { setSearchCategoria(''); setForm({ ...form, cuenta_codigo: '' }) }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white">
+                      <X size={14} />
+                    </button>
+                  )}
+                  {showCategoriaDropdown && (
+                    <div className="absolute z-20 w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-72 overflow-y-auto">
+                      {categoriasFiltradas.length > 0 ? (
+                        categoriasFiltradas.map(cat => {
+                          const nivel = getNivel(cat.codigo)
+                          const grupo = getGrupo(cat.codigo)
+                          const grupoColor = getGrupoColor(grupo)
+                          const indent = Math.min((nivel - 1) * 16, 48)
+                          return (
+                            <div key={cat.id || cat.codigo} className={`group flex items-center gap-2 pr-1 hover:bg-white/5 transition-colors ${
+                                form.cuenta_codigo === cat.codigo ? 'bg-rose-500/10 border-l-2 border-rose-500' : ''
+                              }`}
+                              style={{ paddingLeft: `${12 + indent}px` }}
+                            >
+                              <button type="button" onClick={() => selectCategoria(cat)}
+                                className="flex-1 flex items-center gap-2 py-2 text-left min-w-0"
+                              >
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border shrink-0 ${grupoColor}`}>
+                                  {grupo === 'INGRESO' ? '↑' : grupo === 'EGRESO' ? '↓' : '•'}
+                                </span>
+                                <span className="text-zinc-500 text-[11px] font-mono shrink-0 w-20">{cat.codigo}</span>
+                                <span className={`text-sm truncate ${nivel <= 2 ? 'font-black text-white' : 'font-medium text-zinc-300'}`}>{cat.detalle}</span>
+                              </button>
+                              {cat.id && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); eliminarCategoria(cat.id!, cat.detalle) }}
+                                  className="opacity-0 group-hover:opacity-100 p-1 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded transition-all shrink-0"
+                                  title={`Eliminar "${cat.detalle}"`}
+                                >
+                                  <X size={12} />
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })
+                      ) : (
+                        <div className="px-4 py-3 text-zinc-500 text-sm">
+                          Sin resultados.{' '}
+                          <button type="button" onClick={() => { setShowNewCategoria(true); setNewCategoriaNombre(searchCategoria) }}
+                            className="text-amber-500 font-bold hover:underline">
+                            Crear "{searchCategoria}"
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Crear nueva categoría inline */}
+                {showNewCategoria && (
+                  <div className="mt-3 p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-black uppercase text-amber-500 tracking-widest">Nueva Categoría</p>
+                      <button type="button" onClick={() => setShowNewCategoria(false)} className="text-zinc-500 hover:text-white"><X size={14} /></button>
+                    </div>
+                    <input placeholder="Nombre de la categoría *" value={newCategoriaNombre} onChange={e => setNewCategoriaNombre(e.target.value)}
+                      className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white outline-none focus:border-amber-500/50" />
+                    <input placeholder="Código contable (ej: 5.1.1)" value={newCategoriaCodigo} onChange={e => setNewCategoriaCodigo(e.target.value)}
+                      className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white font-mono outline-none focus:border-amber-500/50" />
+                    <p className="text-[10px] text-zinc-500">💡 Usa código 5.x para egresos.</p>
+                    <Button type="button" onClick={crearNuevaCategoria} disabled={savingCategoria || !newCategoriaNombre.trim()}
+                      className="w-full bg-amber-600 hover:bg-amber-500 text-black font-black h-10 text-xs uppercase tracking-widest">
+                      <Plus size={14} className="mr-2" /> {savingCategoria ? 'Creando...' : 'Crear y Seleccionar'}
+                    </Button>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Monto Bruto (Bs)</label>

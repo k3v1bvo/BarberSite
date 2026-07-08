@@ -33,6 +33,8 @@ export default function SincronizarHistorialPage() {
   const [nombreAntiguo, setNombreAntiguo] = useState('')
   const [operadoresAntiguos, setOperadoresAntiguos] = useState<string[]>([])
   const [showOperadoresDropdown, setShowOperadoresDropdown] = useState(false)
+  const [searchBarbero, setSearchBarbero] = useState('')
+  const [showBarberoDropdown, setShowBarberoDropdown] = useState(false)
   
   // States Cliente
   const [clienteAntiguoId, setClienteAntiguoId] = useState('')
@@ -169,6 +171,9 @@ export default function SincronizarHistorialPage() {
       setClienteNuevoId('')
       setSearchClienteAntiguo('')
       setSearchClienteNuevo('')
+      setSearchBarbero('')
+      setSelectedBarbero('')
+      setNombreAntiguo('')
       loadDatos() // recargar clientes
       
     } catch (err: any) {
@@ -255,26 +260,31 @@ export default function SincronizarHistorialPage() {
                     />
                     
                     {/* Dropdown Operadores */}
-                    {showOperadoresDropdown && operadoresAntiguos.length > 0 && (
+                    {showOperadoresDropdown && (
                       <div className="absolute z-50 w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
-                        {operadoresAntiguos
-                          .filter(op => op.toUpperCase().includes(nombreAntiguo.toUpperCase()))
-                          .map((op, idx) => (
+                        {clientes
+                          .filter(c => c.nombre.toUpperCase().includes(nombreAntiguo.toUpperCase()) || c.ci?.includes(nombreAntiguo) || c.telefono?.includes(nombreAntiguo))
+                          .slice(0, 50)
+                          .map((c) => (
                             <button
-                              key={idx}
+                              key={c.id}
                               type="button"
-                              className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-amber-500/10 hover:text-amber-400 transition-colors border-b border-white/5 last:border-0 uppercase"
+                              className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-amber-500/10 hover:text-amber-400 transition-colors border-b border-white/5 last:border-0"
                               onMouseDown={(e) => {
                                 e.preventDefault()
-                                setNombreAntiguo(op.toUpperCase())
+                                setNombreAntiguo(c.nombre)
                                 setShowOperadoresDropdown(false)
                               }}
                             >
-                              {op}
+                              <div className="font-bold uppercase text-white">{c.nombre}</div>
+                              <div className="text-[10px] text-zinc-500 mt-0.5">
+                                {c.ci && <span className="mr-2">CI: {c.ci}</span>}
+                                {c.telefono && <span className="mr-2">Tel: {c.telefono}</span>}
+                              </div>
                             </button>
                           ))}
-                        {operadoresAntiguos.filter(op => op.toUpperCase().includes(nombreAntiguo.toUpperCase())).length === 0 && (
-                          <div className="px-4 py-3 text-sm text-zinc-500 text-center">No hay operadores importados con ese nombre</div>
+                        {clientes.filter(c => c.nombre.toUpperCase().includes(nombreAntiguo.toUpperCase()) || c.ci?.includes(nombreAntiguo) || c.telefono?.includes(nombreAntiguo)).length === 0 && (
+                          <div className="px-4 py-3 text-sm text-zinc-500 text-center">No hay coincidencias en clientes importados</div>
                         )}
                       </div>
                     )}
@@ -292,18 +302,44 @@ export default function SincronizarHistorialPage() {
                 <div className="space-y-2">
                   <label className="text-xs text-zinc-400 font-bold uppercase">Selecciona el Barbero</label>
                   <div className="relative">
-                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                    <select
+                    <input
+                      type="text"
                       required
-                      value={selectedBarbero}
-                      onChange={(e) => setSelectedBarbero(e.target.value)}
-                      className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-green-500/50 outline-none transition-all appearance-none"
-                    >
-                      <option value="">-- Seleccionar --</option>
-                      {barberos.map(b => (
-                        <option key={b.id} value={b.id}>{b.full_name} ({b.email})</option>
-                      ))}
-                    </select>
+                      placeholder="Buscar Barbero Actual..."
+                      value={searchBarbero}
+                      onChange={(e) => {
+                        setSearchBarbero(e.target.value)
+                        setSelectedBarbero('')
+                        setShowBarberoDropdown(true)
+                      }}
+                      onFocus={() => setShowBarberoDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowBarberoDropdown(false), 200)}
+                      className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-green-500/50 outline-none transition-all uppercase"
+                    />
+                    
+                    {/* Dropdown Barbero Actual */}
+                    {showBarberoDropdown && (
+                      <div className="absolute z-50 w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
+                        {barberos
+                          .filter(b => b.full_name.toUpperCase().includes(searchBarbero.toUpperCase()) || b.email.toUpperCase().includes(searchBarbero.toUpperCase()))
+                          .map((b) => (
+                            <button
+                              key={b.id}
+                              type="button"
+                              className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-green-500/10 hover:text-green-400 transition-colors border-b border-white/5 last:border-0"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                setSelectedBarbero(b.id)
+                                setSearchBarbero(`${b.full_name} (${b.email})`)
+                                setShowBarberoDropdown(false)
+                              }}
+                            >
+                              <div className="font-bold uppercase text-white">{b.full_name}</div>
+                              <div className="text-[10px] text-zinc-500 mt-0.5">{b.email}</div>
+                            </button>
+                          ))}
+                      </div>
+                    )}
                   </div>
                   <p className="text-[10px] text-zinc-600 mt-1">Este es el perfil de Supabase al que se le asignarán las citas.</p>
                 </div>
