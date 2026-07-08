@@ -70,6 +70,7 @@ export default function BarberoPage() {
   })
   const [walkinProductos, setWalkinProductos] = useState<{id:string, nombre:string, precio:number, cantidad:number}[]>([])
   const [submittingWalkin, setSubmittingWalkin] = useState(false)
+  const [selectedCita, setSelectedCita] = useState<Cita | null>(null)
   const [metaServicios, setMetaServicios] = useState<number>(30)
   const router = useRouter()
   const supabase = createClient()
@@ -234,6 +235,7 @@ export default function BarberoPage() {
           comision_barbero: cita.comision_barbero,
           fecha_hora: cita.fecha_hora,
           comprobante_url: extractedUrl,
+          notas: cita.notas,
           clientes: getCliente(),
           servicios: getServicio(),
           productos: movimientos.filter(m => m.referencia === cita.id).map(m => ({ notas: m.notas }))
@@ -550,8 +552,8 @@ export default function BarberoPage() {
             <CardContent className="space-y-4 pt-6">
               {citas.length > 0 ? (
                 citas.map((cita) => (
-                  <div key={cita.id} className="group bg-white/5 border border-white/5 rounded-2xl p-6 transition-all hover:border-amber-500/30 card-hover">
-                    <div className="flex justify-between items-start mb-6">
+                  <div key={cita.id} onClick={() => setSelectedCita(cita)} className="group bg-white/5 border border-white/5 rounded-2xl p-6 transition-all hover:border-amber-500/30 card-hover cursor-pointer">
+                    <div className="flex justify-between items-start">
                       <div className="space-y-1">
                         <p className="text-4xl font-black text-white tracking-tighter">
                           {new Date(cita.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
@@ -575,87 +577,6 @@ export default function BarberoPage() {
                            ))}
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="flex gap-3">
-                      {cita.estado === 'pendiente_pago' && (
-                        <div className="flex flex-col w-full gap-3">
-                          <div className="flex w-full gap-3">
-                            {cita.comprobante_url && (
-                              <Button
-                                onClick={() => window.open(cita.comprobante_url!, '_blank')}
-                                variant="outline"
-                                className="flex-1 h-12 uppercase tracking-widest font-black text-amber-500 border-amber-500/20 hover:bg-amber-500/10"
-                              >
-                                📷 Ver Comprobante
-                              </Button>
-                            )}
-                            <Button 
-                              onClick={async () => {
-                                try {
-                                  const res = await fetch('/api/citas/verificar-pago', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ citaId: cita.id })
-                                  })
-                                  if (!res.ok) throw new Error('Error al verificar')
-                                  success('✅ Pago verificado — cita confirmada')
-                                  loadData()
-                                } catch (e) {
-                                  toastError('No se pudo verificar el pago')
-                                }
-                              }}
-                              className="flex-1 h-12 uppercase tracking-widest font-black bg-amber-500 hover:bg-amber-600 text-black"
-                            >
-                              ✅ Aprobar Pago
-                            </Button>
-                          </div>
-                          <Button 
-                            onClick={async () => {
-                              if (!confirm('¿Cancelar esta cita o marcar que no asistió?')) return
-                              try {
-                                const res = await fetch('/api/citas/cancelar', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ cita_id: cita.id, motivo: 'No asistió / Comprobante inválido' })
-                                })
-                                if (!res.ok) throw new Error('Error')
-                                success('Cita cancelada correctamente')
-                                loadData()
-                              } catch (e) {
-                                toastError('No se pudo cancelar la cita')
-                              }
-                            }}
-                            variant="outline"
-                            className="w-full h-10 uppercase tracking-widest font-black text-xs text-red-500 border-red-500/20 hover:bg-red-500/10"
-                          >
-                            ❌ No Asistió / Cancelar
-                          </Button>
-                        </div>
-                      )}
-                      {cita.estado === 'pendiente' && (
-                        <Button 
-                          onClick={() => iniciarServicio(cita.id)}
-                          className="flex-1 h-12 uppercase tracking-widest font-black"
-                          variant="primary"
-                        >
-                          Iniciar Servicio
-                        </Button>
-                      )}
-                      {cita.estado === 'en_proceso' && (
-                        <Button 
-                          variant="success" 
-                          onClick={() => finalizarServicio(cita.id)}
-                          className="flex-1 h-12 uppercase tracking-widest font-black shadow-lg shadow-green-500/10"
-                        >
-                          Finalizar y Cobrar
-                        </Button>
-                      )}
-                      {cita.estado === 'completado' && (
-                        <div className="flex-1 h-12 flex items-center justify-center bg-green-500/10 text-green-500 rounded-xl font-black uppercase text-xs tracking-widest border border-green-500/20">
-                          Servicio Finalizado
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))
@@ -760,7 +681,7 @@ export default function BarberoPage() {
 
       {/* Walk-in Modal */}
       {showWalkinModal && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
           <Card className="w-full max-w-md shadow-2xl border-amber-500/20">
             <CardHeader className="flex flex-row items-center justify-between border-b-0">
               <CardTitle className="text-amber-500">Venta Rápida (Walk-in)</CardTitle>
@@ -878,6 +799,107 @@ export default function BarberoPage() {
               </form>
             </CardContent>
           </Card>
+        </div>
+      )}
+      {/* Modal Detalles Cita */}
+      {selectedCita && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto bg-black/70 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setSelectedCita(null)}>
+          <div className="w-[95%] md:w-full max-w-md max-h-[90vh] overflow-y-auto bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-black text-white uppercase tracking-tight">Detalle de cita</h3>
+                <p className="text-sm text-zinc-500 mt-1">{new Date(selectedCita.fecha_hora).toLocaleDateString('es-MX')} {new Date(selectedCita.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</p>
+              </div>
+              <button onClick={() => setSelectedCita(null)} className="p-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between gap-4"><span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Cliente</span><span className="text-white font-bold text-right">{selectedCita.clientes?.nombre}</span></div>
+              {selectedCita.clientes?.telefono && <div className="flex justify-between gap-4"><span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Teléfono</span><span className="text-white font-bold text-right">{selectedCita.clientes.telefono}</span></div>}
+              <div className="flex justify-between gap-4"><span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Servicio</span><span className="text-amber-400 font-bold text-right">{selectedCita.servicios?.nombre || '—'}</span></div>
+              <div className="flex justify-between gap-4 items-center"><span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Estado</span><Badge variant={getEstadoBadge(selectedCita.estado)} className="uppercase text-xs">{selectedCita.estado.replace('_', ' ')}</Badge></div>
+              <div className="flex justify-between gap-4"><span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Precio</span><span className="text-white font-black">{formatCurrency(selectedCita.precio)}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Comisión Barbero</span><span className="text-white font-black">{formatCurrency(selectedCita.comision_barbero || 0)}</span></div>
+            </div>
+
+            <div className="p-4 bg-zinc-950 rounded-xl border border-white/5 space-y-2">
+              <span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Notas del cliente / Reserva</span>
+              <p className="text-zinc-300 text-sm whitespace-pre-wrap">{selectedCita.notas ? selectedCita.notas.replace(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/, '') : 'Sin notas registradas.'}</p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-3 pt-4 border-t border-white/10">
+              {selectedCita.estado === 'pendiente_pago' && (
+                <div className="flex flex-col w-full gap-3">
+                  <div className="flex w-full gap-3">
+                    {selectedCita.comprobante_url && (
+                      <Button onClick={() => window.open(selectedCita.comprobante_url!, '_blank')} variant="outline" className="flex-1 h-12 uppercase tracking-widest font-black text-amber-500 border-amber-500/20 hover:bg-amber-500/10">
+                        📷 Comprobante
+                      </Button>
+                    )}
+                    <Button 
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/citas/verificar-pago', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ citaId: selectedCita.id }) })
+                          if (!res.ok) throw new Error('Error al verificar')
+                          success('✅ Pago verificado')
+                          setSelectedCita(null)
+                          loadData()
+                        } catch (e) { toastError('No se pudo verificar el pago') }
+                      }}
+                      className="flex-1 h-12 uppercase tracking-widest font-black bg-amber-500 hover:bg-amber-600 text-black"
+                    >
+                      ✅ Aprobar Pago
+                    </Button>
+                  </div>
+                  <Button 
+                    onClick={async () => {
+                      if (!confirm('¿Cancelar esta cita o marcar que no asistió?')) return
+                      try {
+                        const res = await fetch('/api/citas/cancelar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cita_id: selectedCita.id, motivo: 'No asistió / Comprobante inválido' }) })
+                        if (!res.ok) throw new Error('Error')
+                        success('Cita cancelada correctamente')
+                        setSelectedCita(null)
+                        loadData()
+                      } catch (e) { toastError('No se pudo cancelar la cita') }
+                    }}
+                    variant="outline" className="w-full h-10 uppercase tracking-widest font-black text-xs text-red-500 border-red-500/20 hover:bg-red-500/10"
+                  >
+                    ❌ No Asistió / Cancelar
+                  </Button>
+                </div>
+              )}
+              {selectedCita.estado === 'pendiente' && (
+                <div className="flex gap-2 w-full">
+                  <Button onClick={() => { iniciarServicio(selectedCita.id); setSelectedCita(null) }} className="flex-1 h-12 uppercase tracking-widest font-black" variant="primary">
+                    ▶ Iniciar Servicio
+                  </Button>
+                  <Button onClick={async () => {
+                    if (!confirm('¿Cancelar esta cita o marcar que no asistió?')) return
+                    try {
+                      const res = await fetch('/api/citas/cancelar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cita_id: selectedCita.id, motivo: 'No asistió' }) })
+                      if (!res.ok) throw new Error('Error')
+                      success('Cita cancelada correctamente')
+                      setSelectedCita(null)
+                      loadData()
+                    } catch (e) { toastError('No se pudo cancelar la cita') }
+                  }} variant="outline" className="h-12 uppercase tracking-widest font-black text-red-500 border-red-500/20 hover:bg-red-500/10 px-3">
+                    ❌ Cancelar
+                  </Button>
+                </div>
+              )}
+              {selectedCita.estado === 'en_proceso' && (
+                <Button variant="success" onClick={() => { finalizarServicio(selectedCita.id); setSelectedCita(null) }} className="w-full h-12 uppercase tracking-widest font-black shadow-lg shadow-green-500/10">
+                  ✔ Finalizar y Cobrar
+                </Button>
+              )}
+              {selectedCita.estado === 'completado' && (
+                <div className="w-full h-12 flex items-center justify-center bg-green-500/10 text-green-500 rounded-xl font-black uppercase text-xs tracking-widest border border-green-500/20">
+                  Servicio Finalizado
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

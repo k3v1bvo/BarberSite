@@ -5,7 +5,9 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
-import { Receipt, Plus, X, Store, Filter } from 'lucide-react'
+import { Receipt, Plus, X, Store, Filter, ArrowUpDown, ArrowUp, ArrowDown, Search, Wallet, ShoppingBag } from 'lucide-react'
+import { useToast } from '@/components/ui/Toast'
+import Link from 'next/link'
 
 import { createClient } from '@/lib/supabase/client'
 
@@ -14,12 +16,16 @@ interface Transaction {
   id: string; fecha: string; ci: string; nombre: string
   cuenta_codigo: string; cuenta_detalle: string; glosa: string
   costo: number; tipo_movimiento: string; metodo_pago: string | null
-  creado_en: string
+  creado_en: string; notas: string | null
 }
 interface Servicio { id: string; nombre: string; precio: number }
 interface Producto { id: string; nombre: string; precio_venta: number }
 
+type SortKey = 'fecha' | 'nombre' | 'cuenta_detalle' | 'costo' | 'metodo_pago'
+type SortDir = 'asc' | 'desc'
+
 export default function VentasPage() {
+  const { success: toastSuccess, error: toastError } = useToast()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [cuentas, setCuentas] = useState<PlanCuenta[]>([])
   const [servicios, setServicios] = useState<Servicio[]>([])
@@ -30,6 +36,9 @@ export default function VentasPage() {
   const [filtroLibro, setFiltroLibro] = useState<'VENTAS' | 'USO_TIENDA' | 'TODOS'>('TODOS')
   const [buscandoCi, setBuscandoCi] = useState(false)
   const [cumpleanosMsg, setCumpleanosMsg] = useState<string | null>(null)
+  const [searchText, setSearchText] = useState('')
+  const [sortKey, setSortKey] = useState<SortKey>('fecha')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
   const hoy = new Date().toISOString().split('T')[0]
 
   const [form, setForm] = useState({
@@ -82,18 +91,17 @@ export default function VentasPage() {
 
   const loadData = useCallback(async () => {
     const supabase = createClient()
-    const libroParam = filtroLibro === 'TODOS' ? 'VENTAS&libro=USO_TIENDA' : filtroLibro
     const [txRes, ctasRes, { data: sData }, { data: pData }] = await Promise.all([
       filtroLibro === 'TODOS'
         ? Promise.all([
-            fetch(`/api/transactions?libro=VENTAS&limit=50`),
-            fetch(`/api/transactions?libro=USO_TIENDA&limit=50`),
+            fetch(`/api/transactions?libro=VENTAS&limit=200`),
+            fetch(`/api/transactions?libro=USO_TIENDA&limit=200`),
           ]).then(async ([r1, r2]) => {
             const d1 = r1.ok ? await r1.json() : []
             const d2 = r2.ok ? await r2.json() : []
-            return [...d1, ...d2].sort((a: any, b: any) => new Date(b.creado_en).getTime() - new Date(a.creado_en).getTime()).slice(0, 100)
+            return [...d1, ...d2].sort((a: any, b: any) => new Date(b.creado_en).getTime() - new Date(a.creado_en).getTime()).slice(0, 300)
           })
-        : fetch(`/api/transactions?libro=${filtroLibro}&limit=50`).then(r => r.ok ? r.json() : []),
+        : fetch(`/api/transactions?libro=${filtroLibro}&limit=200`).then(r => r.ok ? r.json() : []),
       fetch('/api/plan-cuentas'),
       supabase.from('servicios').select('id, nombre, precio').eq('is_active', true),
       supabase.from('productos').select('id, nombre, precio_venta').eq('is_active', true)
@@ -141,7 +149,8 @@ export default function VentasPage() {
         cuenta_detalle: realCuentaDetalle,
         producto_id: productoId,
         glosa: form.glosa, costo: parseFloat(form.costo),
-        tipo_movimiento: 'VENTA_SERVICIO',
+        tipo_movimiento: 'INGRESO',
+        subcategoria: 'SERVICIO',
         metodo_pago: form.metodo_pago,
         notas: form.metodo_pago === 'mixto'
           ? `Efectivo: Bs ${form.mixto_efectivo || 0} | QR: Bs ${form.mixto_qr || 0} | Tarjeta: Bs ${form.mixto_tarjeta || 0}${form.notas ? ' | ' + form.notas : ''}`
@@ -149,15 +158,54 @@ export default function VentasPage() {
       }),
     })
     if (res.ok) {
+      toastSuccess('Venta registrada con éxito ✅')
       setShowForm(false)
       setForm({ ci: '', nombre: '', cuenta_codigo: '', glosa: '', costo: '', metodo_pago: 'efectivo', notas: '', mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '' })
       loadData()
+    } else {
+      toastError('Error al registrar la venta')
     }
     setSaving(false)
   }
 
+  // Sorting
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDir(key === 'costo' ? 'desc' : 'asc')
+    }
+  }
+
+  const SortIcon = ({ col }: { col: SortKey }) => {
+    if (sortKey !== col) return <ArrowUpDown className="w-3 h-3 text-zinc-700 ml-1 inline" />
+    return sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-amber-400 ml-1 inline" /> : <ArrowDown className="w-3 h-3 text-amber-400 ml-1 inline" />
+  }
+
+  // Filter and sort
+  const filtered = transactions.filter(tx => {
+    if (!searchText) return true
+    const q = searchText.toLowerCase()
+    return (tx.nombre || '').toLowerCase().includes(q)
+      || (tx.ci || '').toLowerCase().includes(q)
+      || (tx.glosa || '').toLowerCase().includes(q)
+      || (tx.cuenta_detalle || '').toLowerCase().includes(q)
+  })
+
+  const sorted = [...filtered].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    if (sortKey === 'fecha') return dir * (a.fecha.localeCompare(b.fecha))
+    if (sortKey === 'nombre') return dir * ((a.nombre || '').localeCompare(b.nombre || ''))
+    if (sortKey === 'cuenta_detalle') return dir * ((a.cuenta_detalle || '').localeCompare(b.cuenta_detalle || ''))
+    if (sortKey === 'costo') return dir * (Number(a.costo) - Number(b.costo))
+    if (sortKey === 'metodo_pago') return dir * ((a.metodo_pago || '').localeCompare(b.metodo_pago || ''))
+    return 0
+  })
+
   const totalHoy = transactions.filter((t) => t.fecha === hoy && t.tipo_movimiento !== 'USO_TIENDA').reduce((s, t) => s + Number(t.costo), 0)
   const totalTiendaHoy = transactions.filter((t) => t.fecha === hoy && t.tipo_movimiento === 'USO_TIENDA').reduce((s, t) => s + Number(t.costo), 0)
+  const totalGeneral = transactions.reduce((s, t) => s + Number(t.costo), 0)
   const ventasCuentas = cuentas.filter((c) => c.codigo.startsWith('4.1'))
 
   if (loading) {
@@ -165,61 +213,101 @@ export default function VentasPage() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20 lg:pb-0">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20 lg:pb-0">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-white/5 pb-6">
         <div>
           <h1 className="text-4xl font-black tracking-tight text-white uppercase">
             Ventas / <span className="text-green-500">Servicios</span>
           </h1>
-          <p className="text-zinc-500 font-medium mt-1">Pagos de clientes por cortes, barba y productos</p>
+          <p className="text-zinc-500 font-medium mt-1">Pagos de clientes por cortes, barba y productos · {sorted.length} registros</p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <Card className="border-white/5 bg-zinc-900/80">
-            <CardContent className="px-4 py-3 flex items-center gap-3">
-              <Receipt className="w-5 h-5 text-green-500" />
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Ventas Hoy</p>
-                <p className="text-lg font-black text-white">{formatCurrency(totalHoy)}</p>
-              </div>
-            </CardContent>
-          </Card>
-          {totalTiendaHoy > 0 && (
-            <Card className="border-violet-500/20 bg-zinc-900/80">
-              <CardContent className="px-4 py-3 flex items-center gap-3">
-                <Store className="w-5 h-5 text-violet-400" />
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Uso Tienda Hoy</p>
-                  <p className="text-lg font-black text-violet-400">{formatCurrency(totalTiendaHoy)}</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          <Button variant="primary" onClick={() => setShowForm(!showForm)} className="gap-2 font-black uppercase tracking-wider">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link href="/coordinador/caja">
+            <Button variant="primary" className="text-xs font-black uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 gap-1">
+              <ShoppingBag className="w-3.5 h-3.5" /> Caja POS
+            </Button>
+          </Link>
+          <Link href="/coordinador/caja-chica">
+            <Button variant="outline" className="text-xs font-black uppercase tracking-wider border-amber-500/30 text-amber-500 hover:bg-amber-500/10 gap-1">
+              <Wallet className="w-3.5 h-3.5" /> Caja Chica
+            </Button>
+          </Link>
+          <Button variant="primary" onClick={() => setShowForm(!showForm)} className="gap-2 font-black uppercase tracking-wider bg-green-600 hover:bg-green-500 text-xs">
             {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {showForm ? 'Cerrar' : 'Nuevo'}
+            {showForm ? 'Cerrar' : 'Nueva Venta'}
           </Button>
         </div>
       </div>
 
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <Card className="border-green-500/20 bg-green-500/5">
+          <CardContent className="px-4 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 bg-green-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <Receipt className="w-4 h-4 text-green-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-green-500/70">Ventas hoy</p>
+              <p className="text-base font-black text-green-400">{formatCurrency(totalHoy)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        {totalTiendaHoy > 0 && (
+          <Card className="border-violet-500/20 bg-violet-500/5">
+            <CardContent className="px-4 py-3 flex items-center gap-3">
+              <div className="w-9 h-9 bg-violet-500/20 rounded-xl flex items-center justify-center shrink-0">
+                <Store className="w-4 h-4 text-violet-400" />
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-violet-500/70">Uso tienda hoy</p>
+                <p className="text-base font-black text-violet-400">{formatCurrency(totalTiendaHoy)}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        <Card className="border-white/10 bg-zinc-900/50">
+          <CardContent className="px-4 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 bg-amber-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <Wallet className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Total periodo</p>
+              <p className="text-base font-black text-white">{formatCurrency(totalGeneral)}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* FILTROS */}
-      <div className="flex items-center gap-2">
-        <Filter className="w-4 h-4 text-zinc-500" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mr-2">Filtrar:</span>
-        {(['TODOS', 'VENTAS', 'USO_TIENDA'] as const).map(f => (
-          <button
-            key={f}
-            onClick={() => setFiltroLibro(f)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${
-              filtroLibro === f
-                ? f === 'USO_TIENDA'
-                  ? 'bg-violet-600 text-white'
-                  : 'bg-amber-500 text-black'
-                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-            }`}
-          >
-            {f === 'TODOS' ? 'Todas' : f === 'VENTAS' ? 'Ventas' : '⚡ Uso Tienda'}
-          </button>
-        ))}
+      <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-zinc-500" />
+          {(['TODOS', 'VENTAS', 'USO_TIENDA'] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFiltroLibro(f)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${
+                filtroLibro === f
+                  ? f === 'USO_TIENDA'
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-amber-500 text-black'
+                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+              }`}
+            >
+              {f === 'TODOS' ? 'Todas' : f === 'VENTAS' ? 'Ventas' : '⚡ Uso Tienda'}
+            </button>
+          ))}
+        </div>
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre, CI o glosa..."
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            className="w-full h-9 bg-zinc-950 border border-white/10 rounded-lg pl-9 pr-3 text-xs text-white focus:border-green-500/50 outline-none"
+          />
+        </div>
       </div>
 
       {showForm && (
@@ -305,33 +393,18 @@ export default function VentasPage() {
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">💵 Efectivo (Bs)</label>
-                        <input
-                          type="number" step="0.01" min="0"
-                          value={form.mixto_efectivo}
-                          onChange={(e) => setForm({ ...form, mixto_efectivo: e.target.value })}
-                          placeholder="0.00"
-                          className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
-                        />
+                        <input type="number" step="0.01" min="0" value={form.mixto_efectivo} onChange={(e) => setForm({ ...form, mixto_efectivo: e.target.value })} placeholder="0.00"
+                          className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none" />
                       </div>
                       <div>
                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">📱 QR / Transf. (Bs)</label>
-                        <input
-                          type="number" step="0.01" min="0"
-                          value={form.mixto_qr}
-                          onChange={(e) => setForm({ ...form, mixto_qr: e.target.value })}
-                          placeholder="0.00"
-                          className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
-                        />
+                        <input type="number" step="0.01" min="0" value={form.mixto_qr} onChange={(e) => setForm({ ...form, mixto_qr: e.target.value })} placeholder="0.00"
+                          className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none" />
                       </div>
                       <div>
                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">💳 Tarjeta (Bs)</label>
-                        <input
-                          type="number" step="0.01" min="0"
-                          value={form.mixto_tarjeta}
-                          onChange={(e) => setForm({ ...form, mixto_tarjeta: e.target.value })}
-                          placeholder="0.00"
-                          className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
-                        />
+                        <input type="number" step="0.01" min="0" value={form.mixto_tarjeta} onChange={(e) => setForm({ ...form, mixto_tarjeta: e.target.value })} placeholder="0.00"
+                          className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none" />
                       </div>
                     </div>
                     {form.costo && (parseFloat(form.mixto_efectivo || '0') + parseFloat(form.mixto_qr || '0') + parseFloat(form.mixto_tarjeta || '0')) !== parseFloat(form.costo) && (
@@ -344,53 +417,80 @@ export default function VentasPage() {
               )}
               <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-                <Button type="submit" variant="primary" disabled={saving} className="font-black uppercase tracking-wider">{saving ? 'Guardando...' : 'Registrar Venta'}</Button>
+                <Button type="submit" variant="primary" disabled={saving} className="font-black uppercase tracking-wider bg-green-600 hover:bg-green-500">{saving ? 'Guardando...' : '💰 Registrar Venta'}</Button>
               </div>
             </form>
           </CardContent>
         </Card>
       )}
 
+      {/* Tabla con columnas ordenables */}
       <Card className="border-white/5 bg-zinc-900/50 overflow-hidden">
         <CardContent className="p-0">
+          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+              {sorted.length} registro{sorted.length !== 1 ? 's' : ''} · Click en columna para ordenar
+            </p>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-left">
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Fecha</th>
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">C.I.</th>
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Nombre</th>
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Servicio</th>
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Glosa</th>
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Pago</th>
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">Monto</th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('fecha')}>
+                    Fecha <SortIcon col="fecha" />
+                  </th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500">C.I.</th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('nombre')}>
+                    Nombre <SortIcon col="nombre" />
+                  </th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('cuenta_detalle')}>
+                    Servicio / Producto <SortIcon col="cuenta_detalle" />
+                  </th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500">Detalle</th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('metodo_pago')}>
+                    Pago <SortIcon col="metodo_pago" />
+                  </th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-right cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('costo')}>
+                    Monto <SortIcon col="costo" />
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {transactions.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-zinc-600">No hay ventas registradas</td></tr>
+                {sorted.length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-16 text-center text-zinc-600">
+                    <div className="flex flex-col items-center gap-2">
+                      <Receipt className="w-8 h-8 text-zinc-700" />
+                      <p className="font-bold">Sin ventas registradas</p>
+                      <p className="text-xs text-zinc-700">Usa el botón &quot;Nueva Venta&quot; para agregar una</p>
+                    </div>
+                  </td></tr>
                 ) : (
-                  transactions.map((tx) => (
+                  sorted.map((tx) => (
                     <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{tx.fecha}</td>
-                      <td className="px-4 py-3 text-zinc-300 font-mono text-xs">{tx.ci}</td>
-                      <td className="px-4 py-3 text-white font-bold">{tx.nombre}</td>
-                      <td className="px-4 py-3 text-zinc-400 text-xs">{tx.cuenta_detalle}</td>
-                      <td className="px-4 py-3 text-zinc-300">{tx.glosa}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2.5 text-zinc-500 whitespace-nowrap text-xs font-mono">{tx.fecha}</td>
+                      <td className="px-3 py-2.5 text-zinc-400 font-mono text-[11px]">{tx.ci || '—'}</td>
+                      <td className="px-3 py-2.5 text-white font-semibold text-xs">{tx.nombre}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-col">
+                          <span className="text-zinc-300 text-xs font-medium">{tx.cuenta_detalle}</span>
+                          <span className="text-[10px] text-zinc-600 font-mono">{tx.cuenta_codigo}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-zinc-400 text-xs max-w-[180px] truncate">{tx.glosa}</td>
+                      <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5">
                           <Badge 
                             variant={tx.metodo_pago === 'descuento_caja' ? 'warning' : tx.metodo_pago === 'qr' ? 'info' : 'default'} 
-                            className={`text-[10px] uppercase ${tx.metodo_pago === 'descuento_caja' ? 'bg-violet-500/20 text-violet-400 border-violet-500/30' : ''}`}
+                            className={`text-[9px] uppercase whitespace-nowrap ${tx.metodo_pago === 'descuento_caja' ? 'bg-violet-500/20 text-violet-400 border-violet-500/30' : ''}`}
                           >
-                            {tx.metodo_pago === 'descuento_caja' ? 'Desc. Caja' : (tx.metodo_pago || '—')}
+                            {tx.metodo_pago === 'efectivo' ? '💵 Efect.' : tx.metodo_pago === 'qr' ? '📱 QR' : tx.metodo_pago === 'tarjeta' ? '💳 Tarj.' : tx.metodo_pago === 'descuento_caja' ? '⚡ Desc.' : tx.metodo_pago === 'mixto' ? '🔄 Mix' : tx.metodo_pago || '—'}
                           </Badge>
                           {tx.tipo_movimiento === 'USO_TIENDA' && (
-                            <Badge className="text-[9px] uppercase bg-violet-600/20 text-violet-300 border-violet-500/30">TIENDA</Badge>
+                            <Badge className="text-[8px] uppercase bg-violet-600/20 text-violet-300 border-violet-500/30">TIENDA</Badge>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right font-black text-green-400">{formatCurrency(tx.costo)}</td>
+                      <td className="px-3 py-2.5 text-right font-black text-sm text-green-400">+{formatCurrency(tx.costo)}</td>
                     </tr>
                   ))
                 )}

@@ -6,7 +6,8 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
-import { UserPlus, Gift, Check, Search, X, Users } from 'lucide-react'
+import { UserPlus, Gift, Check, Search, X, Users, Settings2 } from 'lucide-react'
+import { Input } from '@/components/ui/Input'
 
 interface Cliente {
   id: string
@@ -34,6 +35,9 @@ export default function ReferidosPage() {
   const [saving, setSaving] = useState(false)
   const [searchRecomendante, setSearchRecomendante] = useState('')
   const [searchRecomendado, setSearchRecomendado] = useState('')
+  
+  const [montoBonoConfig, setMontoBonoConfig] = useState('10')
+  const [savingConfig, setSavingConfig] = useState(false)
 
   const [form, setForm] = useState({
     cliente_recomendante_id: '',
@@ -42,12 +46,17 @@ export default function ReferidosPage() {
   })
 
   const loadData = useCallback(async () => {
-    const [refRes, clientesRes] = await Promise.all([
+    const [refRes, clientesRes, configRes] = await Promise.all([
       fetch('/api/referidos'),
       supabase.from('clientes').select('id, nombre, ci, telefono').order('nombre'),
+      supabase.from('configuraciones').select('valor').eq('llave', 'monto_bono_referido').single()
     ])
     if (refRes.ok) setReferrals(await refRes.json())
     if (clientesRes.data) setClientes(clientesRes.data as Cliente[])
+    if (configRes.data) {
+      setMontoBonoConfig(configRes.data.valor)
+      setForm(f => ({ ...f, monto_bono: configRes.data.valor }))
+    }
     setLoading(false)
   }, [supabase])
 
@@ -88,6 +97,21 @@ export default function ReferidosPage() {
     loadData()
   }
 
+  const handleUpdateConfig = async () => {
+    setSavingConfig(true)
+    try {
+      const { error } = await supabase
+        .from('configuraciones')
+        .upsert({ llave: 'monto_bono_referido', valor: montoBonoConfig }, { onConflict: 'llave' })
+      if (error) throw error
+      alert('Configuración guardada exitosamente')
+    } catch (e: any) {
+      alert('Error al guardar configuración: ' + e.message)
+    } finally {
+      setSavingConfig(false)
+    }
+  }
+
   const filteredRecomendantes = clientes.filter(c =>
     c.nombre.toLowerCase().includes(searchRecomendante.toLowerCase()) ||
     (c.ci && c.ci.includes(searchRecomendante))
@@ -124,7 +148,7 @@ export default function ReferidosPage() {
       />
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-white/5 bg-zinc-900/80">
           <CardContent className="px-5 py-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20">
@@ -158,6 +182,30 @@ export default function ReferidosPage() {
             </div>
           </CardContent>
         </Card>
+        <Card className="border-white/5 bg-zinc-900/80">
+          <CardContent className="px-5 py-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20">
+                <Settings2 className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">Monto por Defecto (Bs)</p>
+                <div className="flex items-center gap-2">
+                  <Input 
+                    type="number" 
+                    value={montoBonoConfig} 
+                    onChange={e => setMontoBonoConfig(e.target.value)}
+                    className="w-20 h-8 text-center font-bold bg-black/50 border-white/10"
+                  />
+                  <Button size="sm" onClick={handleUpdateConfig} disabled={savingConfig} className="h-8">
+                    Guardar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
       </div>
 
       {/* Formulario */}

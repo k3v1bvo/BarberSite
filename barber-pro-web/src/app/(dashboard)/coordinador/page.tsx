@@ -18,7 +18,8 @@ import {
   Package,
   ArrowRight,
   BarChart3,
-  Users
+  Users,
+  ShoppingBag
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
@@ -204,11 +205,11 @@ export default function CoordinadorDashboard() {
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
+            { label: 'Caja / POS', href: '/coordinador/caja', icon: ShoppingBag, color: 'hover:border-emerald-500/50 hover:bg-emerald-500/5' },
             { label: 'Caja Chica', href: '/coordinador/caja-chica', icon: Wallet, color: 'hover:border-amber-500/50 hover:bg-amber-500/5' },
-            { label: 'Venta', href: '/coordinador/ventas', icon: Receipt, color: 'hover:border-green-500/40 hover:bg-green-500/5' },
+            { label: 'Ventas', href: '/coordinador/ventas', icon: Receipt, color: 'hover:border-green-500/40 hover:bg-green-500/5' },
             { label: 'Sanciones', href: '/coordinador/sanciones', icon: AlertTriangle, color: 'hover:border-red-500/40 hover:bg-red-500/5' },
             { label: 'Banco', href: '/coordinador/banco', icon: Landmark, color: 'hover:border-blue-500/40 hover:bg-blue-500/5' },
-            { label: 'Comisiones', href: '/admin/comisiones', icon: Coins, color: 'hover:border-purple-500/40 hover:bg-purple-500/5' },
             { label: 'Arqueo', href: '/coordinador/arqueo', icon: Scale, color: 'hover:border-orange-500/40 hover:bg-orange-500/5' },
           ].map((item) => (
             <Link

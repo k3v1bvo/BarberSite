@@ -226,7 +226,7 @@ export default function TiendaPage() {
 
         {/* Checkout Modal */}
         {isCheckoutOpen && !orderSuccess && (
-          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto backdrop-blur-md">
             <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
@@ -311,7 +311,7 @@ export default function TiendaPage() {
 
         {/* Success Modal */}
         {orderSuccess && (
-          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-md">
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto backdrop-blur-md">
             <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-md p-8 text-center animate-in zoom-in">
               <div className="w-20 h-20 bg-green-500/20 text-green-400 rounded-full flex items-center justify-center mx-auto mb-6 border border-green-500/50">
                   <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -333,7 +333,7 @@ export default function TiendaPage() {
 
         {/* Main Content */}
         <main className="max-w-7xl mx-auto px-4 py-12">
-          <div className="flex flex-col md:flex-row justify-between items-end mb-12 border-b border-white/10 pb-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 border-b border-white/10 pb-6">
             <div>
               <h1 className="text-4xl md:text-5xl font-black mb-4">Tienda <span className="text-amber-500">Exclusiva</span></h1>
               <p className="text-zinc-400 text-lg max-w-xl">

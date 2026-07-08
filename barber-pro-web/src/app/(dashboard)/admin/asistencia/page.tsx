@@ -357,8 +357,8 @@ export default function AsistenciaAdminPage() {
 
           {/* Tabla día */}
           <Card className="border-white/5 overflow-hidden">
-            <CardContent className="p-0 overflow-x-auto">
-              <table className="w-full text-left">
+            <CardContent className="p-0 overflow-x-auto w-full">
+              <table className="w-full text-left min-w-[800px]">
                 <thead>
                   <tr className="bg-zinc-950/80">
                     <th className="py-4 px-6 text-[10px] font-black uppercase text-zinc-500">Empleado</th>
@@ -434,7 +434,7 @@ export default function AsistenciaAdminPage() {
 
           {/* Grid semanal */}
           <Card className="border-white/5 overflow-hidden">
-            <CardContent className="p-0 overflow-x-auto">
+            <CardContent className="p-0 overflow-x-auto w-full">
               {loading ? (
                 <div className="flex justify-center py-16"><Clock className="w-10 h-10 text-amber-500 animate-spin" /></div>
               ) : (
@@ -552,7 +552,7 @@ export default function AsistenciaAdminPage() {
 
       {/* Modal edición */}
       {editando && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto bg-black/70 backdrop-blur-sm">
           <Card className="w-full max-w-md border-amber-500/20">
             <CardHeader><CardTitle>Editar asistencia — {editando.profiles?.full_name}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
@@ -582,7 +582,7 @@ export default function AsistenciaAdminPage() {
 
       {/* Modal Registrar Permiso */}
       {showPermiso && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto bg-black/70 backdrop-blur-sm">
           <Card className="w-full max-w-md border-purple-500/20">
             <CardHeader><CardTitle className="text-purple-400 flex items-center gap-2"><Calendar className="w-5 h-5" /> Registrar Permiso</CardTitle></CardHeader>
             <CardContent className="space-y-4">

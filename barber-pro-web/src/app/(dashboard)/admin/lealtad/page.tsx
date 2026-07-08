@@ -371,8 +371,8 @@ export default function AdminLealtadPage() {
               <option value="ORO">Oro</option>
             </select>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-sm min-w-[800px]">
               <thead>
                 <tr className="text-zinc-500 uppercase text-[10px] tracking-widest border-b border-white/5">
                   <th className="text-left py-3 px-4">Cliente</th>
@@ -520,8 +520,8 @@ export default function AdminLealtadPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto mt-4">
-            <table className="w-full text-sm text-left">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-sm text-left min-w-[800px]">
               <thead>
                 <tr className="text-zinc-500 uppercase text-[10px] tracking-widest border-b border-white/5">
                   <th className="py-3 px-4">Recomendante (Premio)</th>
@@ -571,7 +571,7 @@ export default function AdminLealtadPage() {
 
       {/* ══ MODAL META ══ */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/90 flex items-start justify-center z-[100] p-4 pt-12 overflow-y-auto">
           <Card className="w-full max-w-lg bg-zinc-950 border-white/10 my-auto">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -627,7 +627,7 @@ export default function AdminLealtadPage() {
 
       {/* ══ MODAL PROMO ══ */}
       {showPromoModal && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/90 flex items-start justify-center z-[100] p-4 pt-12 overflow-y-auto">
           <Card className="w-full max-w-xl bg-zinc-950 border-white/10 my-auto">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -739,7 +739,7 @@ export default function AdminLealtadPage() {
 
       {/* ══ MODAL EDITAR CLIENTE ══ */}
       {showClienteModal && editingCliente && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowClienteModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowClienteModal(false)}>
           <div className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-2xl p-6" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black uppercase text-white">Editar Cliente</h3>

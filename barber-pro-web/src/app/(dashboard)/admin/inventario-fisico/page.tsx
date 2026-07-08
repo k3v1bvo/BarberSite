@@ -215,8 +215,8 @@ export default function InventarioFisicoPage() {
       {tab === 'conteo' ? (
         <Card className="border-white/5 bg-zinc-900/50 overflow-hidden">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-sm min-w-[800px]">
                 <thead>
                   <tr className="border-b border-white/10 text-left">
                     <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Producto</th>
@@ -322,8 +322,8 @@ export default function InventarioFisicoPage() {
         /* Historial de movimientos */
         <Card className="border-white/5 bg-zinc-900/50 overflow-hidden">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-sm min-w-[800px]">
                 <thead>
                   <tr className="border-b border-white/10 text-left">
                     <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Fecha</th>

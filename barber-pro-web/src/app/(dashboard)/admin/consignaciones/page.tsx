@@ -158,8 +158,8 @@ export default function ConsignacionesPage() {
             <History className="w-5 h-5 text-zinc-400" /> Historial de Lotes en Consignación
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <table className="w-full text-left">
+        <CardContent className="p-0 overflow-x-auto w-full">
+          <table className="w-full text-left min-w-[800px]">
             <thead>
               <tr className="bg-zinc-950 text-zinc-500 text-xs uppercase tracking-wider">
                 <th className="py-4 px-6 font-semibold">Fecha Lote</th>
@@ -204,7 +204,7 @@ export default function ConsignacionesPage() {
 
       {/* Modal de Pago */}
       {showPagoModal && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/90 flex items-start justify-center z-50 p-4 pt-12 overflow-y-auto">
           <Card className="w-full max-w-md bg-zinc-900 border-zinc-700 shadow-2xl">
             <CardHeader className="border-b border-zinc-800 pb-4">
               <CardTitle className="text-xl font-bold flex items-center gap-2">

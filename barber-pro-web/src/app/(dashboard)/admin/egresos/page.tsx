@@ -153,10 +153,33 @@ export default function EgresosPage() {
     }
   }
 
+  const eliminarCategoria = async (catId: string, catNombre: string) => {
+    if (!confirm(`¿Eliminar la categoría "${catNombre}"? Esta acción no se puede deshacer.`)) return
+    try {
+      const { error: err } = await supabase
+        .from('plan_cuentas')
+        .delete()
+        .eq('id', catId)
+      if (err) throw err
+      setCategorias(prev => prev.filter(c => c.id !== catId))
+      if (selectedCategoriaId === catId) {
+        setSelectedCategoriaId('')
+        setFormData(prev => ({ ...prev, concepto: '' }))
+        setSearchCategoria('')
+      }
+      success(`Categoría "${catNombre}" eliminada 🗑️`)
+    } catch (err: any) {
+      error(err.message || 'Error al eliminar')
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.concepto || !formData.monto_neto) {
-      return error('El concepto y el monto son requeridos')
+    if (!selectedCategoriaId || !formData.concepto) {
+      return error('Debes seleccionar una categoría de gasto')
+    }
+    if (!formData.monto_neto) {
+      return error('El monto es requerido')
     }
     setSubmitting(true)
     try {
@@ -239,63 +262,118 @@ export default function EgresosPage() {
             <CardContent className="pt-6">
               <form onSubmit={handleSubmit} className="space-y-4">
                 
-                {/* BUSCADOR DE CATEGORÍAS CON AUTOCOMPLETADO */}
+                {/* SELECTOR DE CATEGORÍAS VISUAL CON ICONOS */}
                 <div className="space-y-2" ref={categoriaRef}>
                    <div className="flex items-center justify-between">
                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Categoría del Gasto</label>
                      <button type="button" onClick={() => setShowNewCategoria(!showNewCategoria)}
                        className="text-[10px] font-bold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition-colors">
-                       <Plus size={10} /> Nueva Categoría
+                       <Plus size={10} /> Nueva
                      </button>
                    </div>
                    
+                   {/* Barra de búsqueda */}
                    <div className="relative">
-                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600" />
                      <input 
-                       className="w-full bg-black/50 border border-white/10 rounded-xl pl-9 pr-8 py-3 text-sm text-white focus:border-red-400/50 outline-none transition-all placeholder:text-zinc-600"
+                       className="w-full bg-black/50 border border-white/10 rounded-xl pl-9 pr-8 py-2.5 text-xs text-white focus:border-red-400/50 outline-none transition-all placeholder:text-zinc-600"
                        placeholder="Buscar categoría..."
                        value={searchCategoria}
                        onChange={e => {
                          setSearchCategoria(e.target.value)
-                         setFormData(prev => ({ ...prev, concepto: e.target.value }))
-                         setShowCategoriaDropdown(true)
-                         if (!e.target.value) setSelectedCategoriaId('')
+                         if (!e.target.value) { setSelectedCategoriaId(''); setFormData(prev => ({ ...prev, concepto: '' })) }
                        }}
-                       onFocus={() => setShowCategoriaDropdown(true)}
-                       required
                      />
                      {searchCategoria && (
                        <button type="button" onClick={() => { setSearchCategoria(''); setFormData(prev => ({ ...prev, concepto: '' })); setSelectedCategoriaId('') }}
                          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white">
-                         <X size={14} />
+                         <X size={12} />
                        </button>
                      )}
-                     
-                     {showCategoriaDropdown && searchCategoria && (
-                       <div className="absolute z-20 w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-h-48 overflow-y-auto">
-                         {categoriasFiltradas.length > 0 ? (
-                           categoriasFiltradas.map(cat => (
-                             <button key={cat.id} type="button" onClick={() => selectCategoria(cat)}
-                               className={`w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors flex items-center justify-between gap-2 ${selectedCategoriaId === cat.id ? 'bg-red-500/10 border-l-2 border-red-500' : ''}`}>
-                               <div>
-                                 <p className="text-white text-sm font-semibold">{cat.detalle}</p>
-                                 <p className="text-zinc-600 text-[10px] font-mono">{cat.codigo}</p>
-                               </div>
-                               {selectedCategoriaId === cat.id && <Check size={14} className="text-red-400" />}
-                             </button>
-                           ))
-                         ) : (
-                           <div className="px-4 py-3 text-zinc-500 text-sm">
-                             Sin resultados.{' '}
-                             <button type="button" onClick={() => { setShowNewCategoria(true); setNewCategoriaNombre(searchCategoria) }}
-                               className="text-amber-500 font-bold hover:underline">
-                               Crear &quot;{searchCategoria}&quot;
-                             </button>
-                           </div>
-                         )}
-                       </div>
-                     )}
                    </div>
+
+                   {/* Grid de categorías con iconos */}
+                   <div className="grid grid-cols-2 gap-1.5 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin">
+                     {categoriasFiltradas.map(cat => {
+                       const iconMap: Record<string, { emoji: string; color: string }> = {
+                         'pago diario': { emoji: '💈', color: 'border-amber-500/30 bg-amber-500/5' },
+                         'barbero': { emoji: '💈', color: 'border-amber-500/30 bg-amber-500/5' },
+                         'insumos': { emoji: '🧴', color: 'border-blue-500/30 bg-blue-500/5' },
+                         'tienda': { emoji: '🛍️', color: 'border-violet-500/30 bg-violet-500/5' },
+                         'uso interno': { emoji: '🔧', color: 'border-cyan-500/30 bg-cyan-500/5' },
+                         'servicios': { emoji: '💡', color: 'border-yellow-500/30 bg-yellow-500/5' },
+                         'luz': { emoji: '💡', color: 'border-yellow-500/30 bg-yellow-500/5' },
+                         'agua': { emoji: '💧', color: 'border-sky-500/30 bg-sky-500/5' },
+                         'internet': { emoji: '📶', color: 'border-indigo-500/30 bg-indigo-500/5' },
+                         'alquiler': { emoji: '🏠', color: 'border-orange-500/30 bg-orange-500/5' },
+                         'publicidad': { emoji: '📢', color: 'border-pink-500/30 bg-pink-500/5' },
+                         'marketing': { emoji: '📢', color: 'border-pink-500/30 bg-pink-500/5' },
+                         'otros': { emoji: '📦', color: 'border-zinc-500/30 bg-zinc-500/5' },
+                         'comida': { emoji: '🍔', color: 'border-green-500/30 bg-green-500/5' },
+                         'refrigerio': { emoji: '🍔', color: 'border-green-500/30 bg-green-500/5' },
+                         'transporte': { emoji: '🚕', color: 'border-lime-500/30 bg-lime-500/5' },
+                         'limpieza': { emoji: '🧹', color: 'border-teal-500/30 bg-teal-500/5' },
+                         'mantenimiento': { emoji: '🔧', color: 'border-cyan-500/30 bg-cyan-500/5' },
+                         'impuestos': { emoji: '📋', color: 'border-red-500/30 bg-red-500/5' },
+                       }
+                       
+                       const detalleLower = cat.detalle.toLowerCase()
+                       const match = Object.entries(iconMap).find(([key]) => detalleLower.includes(key))
+                       const emoji = match ? match[1].emoji : '💸'
+                       const colorClass = match ? match[1].color : 'border-red-500/20 bg-red-500/5'
+                       const isSelected = selectedCategoriaId === cat.id
+
+                       return (
+                          <div
+                            key={cat.id}
+                            className={`group relative text-left p-2.5 rounded-xl border transition-all ${
+                              isSelected 
+                                ? 'border-red-500 bg-red-500/10 ring-1 ring-red-500/50' 
+                                : `${colorClass} hover:border-white/20 hover:scale-[1.02]`
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => selectCategoria(cat)}
+                              className="w-full flex items-start gap-2"
+                            >
+                              <span className="text-lg mt-0.5">{emoji}</span>
+                              <div className="flex-1 min-w-0 text-left">
+                                <p className={`text-[11px] font-bold truncate ${isSelected ? 'text-red-400' : 'text-white'}`}>{cat.detalle}</p>
+                                <p className="text-[9px] font-mono text-zinc-600 mt-0.5">{cat.codigo}</p>
+                              </div>
+                              {isSelected && <Check size={12} className="text-red-400 mt-1 shrink-0" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); eliminarCategoria(cat.id, cat.detalle) }}
+                              className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-all"
+                              title={`Eliminar "${cat.detalle}"`}
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                       )
+                     })}
+                   </div>
+
+                   {categoriasFiltradas.length === 0 && searchCategoria && (
+                     <div className="text-center py-4 text-zinc-500 text-xs">
+                       Sin resultados para &quot;{searchCategoria}&quot;.{' '}
+                       <button type="button" onClick={() => { setShowNewCategoria(true); setNewCategoriaNombre(searchCategoria) }}
+                         className="text-amber-500 font-bold hover:underline">
+                         Crear nueva categoría
+                       </button>
+                     </div>
+                   )}
+
+                   {/* Selected indicator */}
+                   {selectedCategoriaId && (
+                     <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+                       <Check size={12} className="text-red-400" />
+                       <span className="text-[10px] font-bold text-red-300">Seleccionada: {searchCategoria}</span>
+                     </div>
+                   )}
                 </div>
 
                 {/* CREAR NUEVA CATEGORÍA INLINE */}

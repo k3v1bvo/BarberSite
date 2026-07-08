@@ -760,8 +760,8 @@ export default function ReportesPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="overflow-x-auto">
-             <table className="w-full text-left border-collapse">
+           <div className="overflow-x-auto w-full">
+             <table className="w-full text-left border-collapse min-w-[1000px]">
                <thead>
                  <tr className="border-b border-white/5">
                    <th className="py-3 text-[10px] font-black uppercase text-zinc-500 tracking-widest">Producto</th>

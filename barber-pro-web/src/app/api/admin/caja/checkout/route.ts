@@ -37,7 +37,8 @@ export async function POST(request: NextRequest) {
       productos_carrito,
       descuento, promo_id, referral_ids, comprobante_url,
       reserva_fecha, reserva_hora,
-      acompanante_2x1
+      acompanante_2x1,
+      referido_por_id
     } = body
     const descuentoTotal = Number(descuento) || 0
     const referralIdsToMark: string[] = referral_ids || []
@@ -122,6 +123,24 @@ export async function POST(request: NextRequest) {
           } catch(e) {}
        }
     }
+    
+    // Asignar referidor si se pasó y no lo tiene aún
+    if (finalClienteId && referido_por_id) {
+      const { data: currentClient } = await supabase.from('clientes').select('referido_por').eq('id', finalClienteId).single()
+      if (!currentClient?.referido_por) {
+        await adminSupabase.from('clientes').update({ referido_por: referido_por_id }).eq('id', finalClienteId)
+        
+        const { data: confMonto } = await adminSupabase.from('configuraciones').select('valor').eq('llave', 'monto_bono_referido').single()
+        const montoReferido = Number(confMonto?.valor?.monto) || 10
+        
+        await adminSupabase.from('referrals').insert({
+          cliente_recomendante_id: referido_por_id,
+          cliente_recomendado_id: finalClienteId,
+          monto_bono: montoReferido,
+          bono_otorgado: false // Se procesará más abajo
+        })
+      }
+    }
 
     // 2. Obtener precio del servicio y calcular comisión si aplica
     let serv: any = null
@@ -192,7 +211,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (estado === 'completado') {
-        insertData.finished_at = ahora.toISOString()
+        insertData.updated_at = ahora.toISOString()
         insertData.metodo_pago = metodo_pago || 'efectivo'
         insertData.propinas = propinas || 0
         insertData.comision_barbero = comisionTotal
@@ -309,10 +328,43 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Mark referral bonuses as paid
+    // Mark referral bonuses as used (when the referrer USES their bonus)
     if (referralIdsToMark.length > 0 && estado === 'completado') {
       for (const refId of referralIdsToMark) {
-        await adminSupabase.from('referrals').update({ bono_otorgado: true }).eq('id', refId)
+        await adminSupabase.from('referrals').update({ bono_usado: true }).eq('id', refId)
+      }
+    }
+
+    // Auto-complete pending referral bonus for the referrer (when the referred client COMPLETES their first service)
+    if (finalClienteId && estado === 'completado') {
+      const { data: pendingReferral } = await adminSupabase
+        .from('referrals')
+        .select('id, cliente_recomendante_id, monto_bono, recomendante:clientes!cliente_recomendante_id(nombre, email)')
+        .eq('cliente_recomendado_id', finalClienteId)
+        .eq('bono_otorgado', false)
+        .maybeSingle()
+        
+      if (pendingReferral) {
+        await adminSupabase.from('referrals').update({ bono_otorgado: true }).eq('id', pendingReferral.id)
+        
+        try {
+          // Type cast to any because Supabase may infer `never` depending on how joins are typed in the DB types
+          const recInfo: any = pendingReferral.recomendante
+          const recEmail = Array.isArray(recInfo) ? recInfo[0]?.email : recInfo?.email
+          const recNombre = Array.isArray(recInfo) ? recInfo[0]?.nombre : recInfo?.nombre
+          
+          if (recEmail) {
+            await dispatchNotification(adminSupabase, {
+              event: 'invitacion_referido',
+              payload: {
+                acompananteNombre: recNombre || 'Amigo',
+                clienteNombre: (nombre as string) || 'Tu amigo',
+                montoBono: pendingReferral.monto_bono.toString()
+              },
+              userEmail: recEmail
+            })
+          }
+        } catch (e) { console.error('Error dispatching referral bonus notification', e) }
       }
     }
 

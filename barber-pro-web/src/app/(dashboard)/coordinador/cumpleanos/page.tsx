@@ -240,7 +240,7 @@ export default function CumpleanosPage() {
 
       {/* Modal de verificación */}
       {showModal && clienteSeleccionado && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4">
+        <div className="fixed inset-0 bg-black/90 flex items-start justify-center z-[100] p-4 pt-12 overflow-y-auto">
           <div className="w-full max-w-lg bg-zinc-950 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
             {/* Header del modal */}
             <div className="bg-gradient-to-r from-amber-600 to-orange-500 p-6 flex items-center justify-between">

@@ -419,7 +419,7 @@ export default function AdminEquipoPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-4 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/95 flex items-start justify-center z-[100] p-4 pt-12 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
           <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto">
             <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-8 bg-zinc-900/50">
               <div>

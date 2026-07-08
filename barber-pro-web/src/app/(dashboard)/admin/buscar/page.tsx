@@ -35,6 +35,16 @@ export default function BuscarPage() {
     servicios?: { nombre: string }
     barberos?: { full_name: string }
   }>>([])
+  const [transacciones, setTransacciones] = useState<Array<{
+    id: string
+    fecha: string
+    nombre: string
+    ci: string
+    glosa: string
+    costo: number
+    tipo_movimiento: string
+    libro: string
+  }>>([])
   const router = useRouter()
   const supabase = createClient()
 
@@ -63,7 +73,8 @@ export default function BuscarPage() {
         .or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,email.ilike.%${q}%,ci.ilike.%${q}%`)
         .limit(15)
 
-      const { data: citasData } = await supabase
+      // Buscar citas para esos clientes, o si 'q' es un UUID, buscar la cita directamente
+      let citasQuery = supabase
         .from('citas')
         .select(`
           id, fecha_hora, precio, estado,
@@ -74,16 +85,27 @@ export default function BuscarPage() {
         .order('fecha_hora', { ascending: false })
         .limit(20)
 
-      const citasFiltradas = (citasData || []).filter((c: any) => {
-        const cliente = Array.isArray(c.clientes) ? c.clientes[0] : c.clientes
-        const servicio = Array.isArray(c.servicios) ? c.servicios[0] : c.servicios
-        const barbero = Array.isArray(c.barberos) ? c.barberos[0] : c.barberos
-        const texto = `${cliente?.nombre || ''} ${servicio?.nombre || ''} ${barbero?.full_name || ''} ${c.id}`.toLowerCase()
-        return texto.includes(q.toLowerCase())
-      })
+      if (q.length === 36 && q.includes('-')) {
+        citasQuery = citasQuery.eq('id', q)
+      } else if (clientesData && clientesData.length > 0) {
+        citasQuery = citasQuery.in('cliente_id', clientesData.map(c => c.id))
+      } else {
+        // Truco para no traer nada si no hay clientes coincidentes y no es UUID
+        citasQuery = citasQuery.eq('id', '00000000-0000-0000-0000-000000000000') 
+      }
+
+      const { data: citasData } = await citasQuery
+
+      const { data: txData } = await supabase
+        .from('transactions')
+        .select('id, fecha, nombre, ci, glosa, costo, tipo_movimiento, libro')
+        .or(`nombre.ilike.%${q}%,ci.ilike.%${q}%,glosa.ilike.%${q}%`)
+        .order('creado_en', { ascending: false })
+        .limit(15)
 
       setClientes(clientesData || [])
-      setCitas(citasFiltradas as unknown as typeof citas)
+      setCitas(citasData || [])
+      setTransacciones(txData || [])
     } finally {
       setLoading(false)
     }
@@ -223,7 +245,52 @@ export default function BuscarPage() {
         </Card>
       )}
 
-      {!loading && query.length >= 2 && clientes.length === 0 && citas.length === 0 && (
+      {transacciones.length > 0 && (
+        <Card className="border-white/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <CreditCard className="w-5 h-5 text-amber-500" />
+              Transacciones de Caja ({transacciones.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 divide-y divide-white/5">
+            {transacciones.map((tx) => (
+              <div key={tx.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-white/5 transition-colors cursor-pointer" onClick={() => router.push(`/coordinador/caja-chica`)}>
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-white/5 flex items-center justify-center shrink-0">
+                    <CreditCard className="w-5 h-5 text-zinc-400" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-white text-sm">{tx.nombre}</p>
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-500 flex-wrap">
+                      <span className="text-amber-500 font-medium">{tx.libro}</span>
+                      <span>·</span>
+                      <span>{formatFecha(tx.fecha)}</span>
+                      {tx.ci && (
+                        <>
+                          <span>·</span>
+                          <span>C.I. {tx.ci}</span>
+                        </>
+                      )}
+                      <span>·</span>
+                      <span className="truncate max-w-[200px]">{tx.glosa}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right sm:shrink-0 flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center">
+                  <p className="font-black text-white">{formatCurrency(tx.costo)}</p>
+                  <Badge variant={
+                    tx.tipo_movimiento === 'INGRESO' || tx.tipo_movimiento === 'VENTA' || tx.tipo_movimiento === 'SERVICIO' ? 'success' :
+                    tx.tipo_movimiento === 'EGRESO' || tx.tipo_movimiento === 'SANCCION' ? 'danger' : 'default'
+                  } className="text-[9px] uppercase">{tx.tipo_movimiento}</Badge>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {!loading && query.length >= 2 && clientes.length === 0 && citas.length === 0 && transacciones.length === 0 && (
         <p className="text-center text-zinc-500 py-12">No se encontraron resultados</p>
       )}
     </div>

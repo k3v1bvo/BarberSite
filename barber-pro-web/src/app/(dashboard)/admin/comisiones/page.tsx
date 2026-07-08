@@ -349,8 +349,8 @@ export default function AdminComisionesPage() {
         </CardContent>
       </Card>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto w-full">
+        <table className="w-full text-sm min-w-[800px]">
           <thead>
             <tr className="text-zinc-500 uppercase text-[10px] tracking-widest border-b border-white/5">
               <th className="text-left py-3 px-4">Fecha</th>
@@ -403,7 +403,7 @@ export default function AdminComisionesPage() {
       )}
 
       {showSancionesModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 backdrop-blur-sm p-4 pt-12 overflow-y-auto">
           <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto relative">
             <button onClick={() => setShowSancionesModal(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-white">
               <X size={20} />

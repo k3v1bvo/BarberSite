@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       .from('citas')
       .update({ 
         estado: 'completado',
-        finished_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         metodo_pago,
         propinas: propinas || 0,
         comision_barbero: comisionTotal,
@@ -104,7 +104,8 @@ export async function POST(request: Request) {
         cuenta_detalle: 'Ingresos por Servicios',
         glosa: `Pago por servicio ${(cita.servicios as any)?.nombre || ''} - Barbero: ${barberoProfile?.full_name || 'Desconocido'}`,
         costo: cita.precio,
-        tipo_movimiento: 'PAGO_CLIENTE',
+        tipo_movimiento: 'INGRESO',
+        subcategoria: 'SERVICIO',
         es_sancion: false,
         empleado_id: cita.barbero_id,
         cliente_id: cita.cliente_id,

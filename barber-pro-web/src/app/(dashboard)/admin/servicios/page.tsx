@@ -168,7 +168,7 @@ export default function ServiciosPage() {
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-20 lg:pb-0">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/5 pb-8">
+      <div className="flex flex-col md:flex-row justify-between items-stretch md:items-end gap-4 border-b border-white/5 pb-8">
         <div className="flex items-center gap-6">
           <button onClick={() => router.push('/admin')} className="p-4 hover:bg-white/5 border border-white/5 bg-zinc-950 rounded-2xl transition-all btn-press group">
             <ArrowLeft className="w-5 h-5 text-zinc-500 group-hover:text-amber-500" />
@@ -289,7 +289,7 @@ export default function ServiciosPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-4 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/95 flex items-start justify-center z-[100] p-4 pt-12 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
           <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto">
             <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-8 bg-zinc-900/50">
               <div>

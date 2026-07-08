@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     const fechaHasta = sp.get('hasta')
     const esSancion = sp.get('sancion')
     const subcategoria = sp.get('subcategoria')
+    const search = sp.get('search')
     const limit = parseInt(sp.get('limit') || '100')
 
     let query = supabase
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
     if (fechaHasta) query = query.lte('fecha', fechaHasta)
     if (esSancion === 'true') query = query.eq('es_sancion', true)
     if (subcategoria) query = query.eq('subcategoria', subcategoria)
+    if (search) query = query.or(`nombre.ilike.%${search}%,glosa.ilike.%${search}%`)
 
     const { data, error } = await query
 

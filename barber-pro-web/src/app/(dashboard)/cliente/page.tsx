@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation'
 import {
   Scissors, Calendar, Clock, CheckCircle, XCircle,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
-  Trophy, Zap, Shield, Crown, Flame
+  Trophy, Zap, Shield, Crown, Flame, Users
 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 
@@ -20,6 +20,7 @@ interface CardData {
     id: string; nombre: string; cumpleanos: string | null
     total_visitas: number; total_gastado: number; nivel_fidelidad: string
     ultima_visita: string | null; ci: string | null
+    referral_code?: string; numero_cliente?: number
   } | null
   esCumpleanos: boolean
   cumpleVerificado: boolean
@@ -29,6 +30,7 @@ interface CardData {
   canjes: any[]
   promosHoy: any[]
   ultimasCitas: any[]
+  misReferidos?: any[]
 }
 
 interface Cita {
@@ -67,6 +69,8 @@ export default function ClientePage() {
 
   const router = useRouter()
   const supabase = createClient()
+
+
 
   useEffect(() => {
     loadData()
@@ -159,9 +163,18 @@ export default function ClientePage() {
   const visitas = cliente?.total_visitas ?? 0
   const proximaMeta = cardData?.proximaMeta
   const progreso = proximaMeta ? Math.min((visitas / proximaMeta.visitas_requeridas) * 100, 100) : 100
+  
+  const totalBonosDisponibles = (cardData?.misReferidos || [])
+    .filter((r: any) => r.bono_otorgado && !r.bono_usado)
+    .reduce((sum: number, r: any) => sum + Number(r.monto_bono), 0)
   const nombre = cardData?.profile?.full_name ?? cliente?.nombre ?? 'Cliente'
   const nombreCorto = nombre.split(' ').slice(0, 2).join(' ').toUpperCase()
-  const memberNum = cliente?.ci ? cliente.ci.replace(/\D/g, '').slice(-8).padStart(8, '0') : '00000001'
+  const memberNum = cliente?.numero_cliente 
+    ? cliente.numero_cliente.toString().padStart(8, '0') 
+    : cliente?.ci 
+      ? cliente.ci.replace(/\D/g, '').slice(-8).padStart(8, '0') 
+      : '00000001'
+  const referralCode = cliente?.referral_code || `REF-${memberNum.slice(-4)}`
 
   return (
     <div className="min-h-screen space-y-8 animate-in fade-in duration-700 pb-24 lg:pb-8">
@@ -216,7 +229,7 @@ export default function ClientePage() {
         <div className="xl:col-span-3 space-y-6">
 
           {/* ——— TARJETA DIGITAL PREMIUM ——— */}
-          <div className="perspective-1000">
+          <div className="perspective-1000" id="print-card-wrapper">
             <div className={cn(
               'relative rounded-3xl overflow-hidden shadow-2xl',
               `bg-gradient-to-br ${config.gradient}`,
@@ -276,6 +289,10 @@ export default function ClientePage() {
                   </div>
                   <div className="text-right">
                     <div className="flex gap-4">
+                      <div className="text-right">
+                        <p className="text-white/40 text-[9px] uppercase tracking-widest font-bold">Cód. Referido</p>
+                        <p className={cn('font-bold text-sm tracking-widest', config.textColor)}>{referralCode}</p>
+                      </div>
                       <div>
                         <p className="text-white/40 text-[9px] uppercase tracking-widest font-bold">Visitas</p>
                         <p className={cn('font-black text-2xl', config.textColor)}>{visitas}</p>
@@ -289,6 +306,29 @@ export default function ClientePage() {
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/40 to-transparent" />
             </div>
           </div>
+          
+          <div className="flex justify-end mt-2 print:hidden">
+            <Button 
+              variant="outline" 
+              className="border-white/10 hover:bg-white/5 text-xs font-bold"
+              onClick={() => window.print()}
+            >
+              🖨️ Imprimir Tarjeta
+            </Button>
+          </div>
+
+          <style jsx global>{`
+            @media print {
+              body * { visibility: hidden; }
+              #print-card-wrapper, #print-card-wrapper * { visibility: visible !important; }
+              #print-card-wrapper { 
+                position: absolute; 
+                left: 50%; top: 50%; 
+                transform: translate(-50%, -50%);
+                width: 100%; max-width: 500px;
+              }
+            }
+          `}</style>
 
           {/* ——— PROGRESO DE LEALTAD (CICLO DE 10 VISITAS) ——— */}
           <Card className="bg-zinc-900 border-white/5 overflow-hidden">
@@ -438,6 +478,77 @@ export default function ClientePage() {
               <p className="text-zinc-600 text-xs mt-1">Los martes hay 2x1 ✂️</p>
             </div>
           )}
+
+          {/* ——— REFERIR AMIGOS ——— */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 mt-8 print:hidden">
+            <div className="flex items-center gap-3 mb-4">
+              <Users size={18} className="text-green-500" />
+              <h3 className="text-sm font-black uppercase tracking-widest text-white">Programa de Referidos</h3>
+            </div>
+            <p className="text-sm text-zinc-400 mb-6">
+              Invita a tus amigos con tu código único. Cuando tu amigo se registre y complete su primer servicio, <strong className="text-green-400">¡recibirás crédito a favor en tu cuenta para tu próxima visita!</strong>
+            </p>
+            
+            <div className="bg-black/50 border border-zinc-800 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+              <div>
+                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Tu Código de Referido</p>
+                <p className="text-2xl font-black text-white font-mono tracking-wider">{referralCode}</p>
+              </div>
+              <Button 
+                onClick={() => {
+                  navigator.clipboard.writeText(`¡Hola! Regístrate en Barber Pro con mi código ${referralCode} en ${window.location.origin}/register?ref=${referralCode}`);
+                  success('Mensaje copiado al portapapeles. ¡Pégalo en WhatsApp!');
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold w-full md:w-auto"
+              >
+                Copiar Enlace para Compartir
+              </Button>
+            </div>
+
+            {totalBonosDisponibles > 0 && (
+              <div className="bg-gradient-to-r from-green-600/20 to-emerald-900/20 border border-green-500/30 rounded-2xl p-4 flex items-center justify-between mb-6">
+                <div>
+                  <p className="text-green-500 text-xs font-black uppercase tracking-widest mb-0.5 flex items-center gap-2">
+                    <Gift className="w-4 h-4" /> Bonos Disponibles
+                  </p>
+                  <p className="text-white font-bold text-sm">
+                    Tienes {formatCurrency(totalBonosDisponibles)} de descuento para tu próxima cita gracias a tus referidos.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {cardData?.misReferidos && cardData.misReferidos.length > 0 && (
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">Tus Amigos Referidos</p>
+                <div className="space-y-2">
+                  {cardData.misReferidos.map((ref: any) => (
+                    <div key={ref.id} className="flex items-center justify-between bg-zinc-800/50 rounded-lg p-3">
+                      <div>
+                        <p className="font-bold text-white text-sm">{ref.recomendado?.nombre || 'Amigo'}</p>
+                        <p className="text-[10px] text-zinc-500">{new Date(ref.creado_en).toLocaleDateString()}</p>
+                      </div>
+                      <div>
+                        {ref.bono_usado ? (
+                          <Badge variant="outline" className="text-zinc-500 border-zinc-700">
+                            Bono Usado
+                          </Badge>
+                        ) : ref.bono_otorgado ? (
+                          <Badge className="bg-green-500/20 text-green-400 hover:bg-green-500/20 border-0">
+                            Disponible (+{ref.monto_bono} Bs)
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-amber-500 border-amber-500/30">
+                            Pendiente (+{ref.monto_bono} Bs)
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ══════════ COLUMNA DERECHA: CITAS ══════════ */}

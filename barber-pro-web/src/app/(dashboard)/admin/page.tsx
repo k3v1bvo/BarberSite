@@ -372,8 +372,8 @@ export default function AdminPage() {
               </Button>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left min-w-[800px]">
                   <thead>
                     <tr className="bg-white/5">
                       <th className="py-3 px-5 text-[10px] font-black uppercase text-zinc-500 tracking-widest">

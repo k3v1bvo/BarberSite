@@ -53,8 +53,15 @@ export async function POST(request: NextRequest) {
       if (upError) {
         return NextResponse.json({ error: 'Error al registrar el permiso' }, { status: 500 })
       }
+      
+      // Eliminar sanciones si existían para esa fecha
+      await supabase.from('sanciones').delete().eq('barbero_id', barbero_id).eq('fecha', fecha)
+      
       return NextResponse.json({ success: true, registro: upData })
     }
+
+    // Eliminar sanciones si existían para esa fecha
+    await supabase.from('sanciones').delete().eq('barbero_id', barbero_id).eq('fecha', fecha)
 
     return NextResponse.json({ success: true, registro: data })
   } catch (err) {

@@ -87,7 +87,7 @@ export async function POST(request: Request) {
         barbero_id: user.id,
         servicio_id,
         fecha_hora: inicio.toISOString(),
-        finished_at: ahora.toISOString(),
+        updated_at: ahora.toISOString(),
         precio: precioBase,
         duracion_real_minutos: 30,
         estado: 'completado',

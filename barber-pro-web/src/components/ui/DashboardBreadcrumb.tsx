@@ -16,6 +16,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/clientes': 'Clientes',
   '/agenda': 'Agenda',
   '/coordinador': 'Panel Coordinación',
+  '/coordinador/caja': 'Caja / POS',
   '/coordinador/caja-chica': 'Caja Chica',
   '/coordinador/ventas': 'Ventas / Servicios',
   '/coordinador/banco': 'Banco',

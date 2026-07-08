@@ -500,8 +500,8 @@ export default function ReglasLaboralesPage() {
                 <p className="text-zinc-600 font-black uppercase tracking-widest text-xs">No hay bonos para los filtros seleccionados</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-sm min-w-[800px]">
                   <thead>
                     <tr className="text-zinc-600 text-[10px] uppercase tracking-widest border-b border-white/5">
                       <th className="text-left py-3 px-4">Barbero</th>
@@ -683,8 +683,8 @@ export default function ReglasLaboralesPage() {
                 <p className="text-zinc-600 font-black uppercase tracking-widest text-xs">¡Sin sanciones pendientes! 🎉</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-sm min-w-[800px]">
                   <thead>
                     <tr className="text-zinc-600 text-[10px] uppercase tracking-widest border-b border-white/5">
                       <th className="text-left py-3 px-4">Barbero</th>
@@ -731,8 +731,8 @@ export default function ReglasLaboralesPage() {
               <Button variant="primary" onClick={() => openCuenta()}><Plus size={14} className="mr-2" /> Nueva Cuenta</Button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-sm min-w-[800px]">
                 <thead>
                   <tr className="text-zinc-600 text-[10px] uppercase tracking-widest border-b border-white/5">
                     <th className="text-left py-3 px-4">Código</th>
@@ -765,8 +765,8 @@ export default function ReglasLaboralesPage() {
             {cuentasNormales.length > 0 && (
               <>
                 <h3 className="text-xs font-black uppercase tracking-widest text-zinc-600 border-l-4 border-zinc-700 pl-3 mt-6">Resto del Plan de Cuentas</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-sm min-w-[800px]">
                     <thead>
                       <tr className="text-zinc-600 text-[10px] uppercase tracking-widest border-b border-white/5">
                         <th className="text-left py-3 px-4">Código</th>
@@ -798,7 +798,7 @@ export default function ReglasLaboralesPage() {
 
       {/* ════════ MODAL: NUEVO/EDITAR BONO ════════ */}
       {showBonoModal && (
-        <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/90 z-[100] flex items-start justify-center p-4 pt-12 overflow-y-auto">
           <div className="w-full max-w-lg bg-zinc-950 border border-white/10 rounded-3xl overflow-hidden shadow-2xl my-auto">
             <div className="p-6 border-b border-white/5 flex items-center justify-between">
               <h3 className="font-black text-white uppercase">{editingBonoId ? 'Editar Bono' : 'Nuevo Bono'}</h3>
@@ -879,7 +879,7 @@ export default function ReglasLaboralesPage() {
 
       {/* ════════ MODAL: NUEVA SANCIÓN ════════ */}
       {showSancionModal && (
-        <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/90 z-[100] flex items-start justify-center p-4 pt-12 overflow-y-auto">
           <div className="w-full max-w-lg bg-zinc-950 border border-red-500/20 rounded-3xl overflow-hidden shadow-2xl my-auto">
             <div className="p-6 border-b border-white/5 flex items-center justify-between">
               <h3 className="font-black text-white uppercase">Registrar Sanción</h3>
@@ -936,7 +936,7 @@ export default function ReglasLaboralesPage() {
 
       {/* ════════ MODAL: CUENTA CONTABLE ════════ */}
       {showCuentaModal && (
-        <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/90 z-[100] flex items-start justify-center p-4 pt-12 overflow-y-auto">
           <div className="w-full max-w-lg bg-zinc-950 border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
             <div className="p-6 border-b border-white/5 flex items-center justify-between">
               <h3 className="font-black text-white uppercase">{editingCuenta ? 'Editar Cuenta' : 'Nueva Cuenta Contable'}</h3>

@@ -97,6 +97,14 @@ export function CajaPOS() {
   const [aplicarReferido, setAplicarReferido] = useState(false)
   
   const [acompanante, setAcompanante] = useState({ nombre: '', email: '' })
+  const [showAcompananteDropdown, setShowAcompananteDropdown] = useState(false)
+  const [acompanantesOptions, setAcompanantesOptions] = useState<Cliente[]>([])
+  
+  const [referidoPorSearch, setReferidoPorSearch] = useState('')
+  const [showReferidoDropdown, setShowReferidoDropdown] = useState(false)
+  const [referidoPorId, setReferidoPorId] = useState<string>('')
+  const [referidoPorNombre, setReferidoPorNombre] = useState<string>('')
+  const [referidoresOptions, setReferidoresOptions] = useState<Cliente[]>([])
 
   // Turno rotation & agenda
   const [barberoTurno, setBarberoTurno] = useState<string | null>(null)
@@ -107,6 +115,7 @@ export function CajaPOS() {
   const [loadingAgenda, setLoadingAgenda] = useState(false)
   const [tiempoMinimoReserva, setTiempoMinimoReserva] = useState(60)
   const [updatingTiempo, setUpdatingTiempo] = useState(false)
+  const [citaSeleccionadaFechaHora, setCitaSeleccionadaFechaHora] = useState<string | null>(null)
   
   const [formData, setFormData] = useState({
     cita_id: '',
@@ -160,18 +169,18 @@ export function CajaPOS() {
         // Calculate barbero rotation (who has the least recent completed appointment today)
         const { data: citasHoy } = await supabase
           .from('citas')
-          .select('barbero_id, finished_at')
+          .select('barbero_id, updated_at')
           .gte('fecha_hora', `${hoy}T00:00:00`)
           .lte('fecha_hora', `${hoy}T23:59:59`)
           .eq('estado', 'completado')
-          .order('finished_at', { ascending: false })
+          .order('updated_at', { ascending: false })
 
         const barberIds = (resBarberos.data || []).map((b: any) => b.id)
         if (citasHoy && citasHoy.length > 0) {
           // Find the barber who hasn't had a client yet, or the one whose last completed cita is the oldest
           const lastServed = new Map<string, string>()
           for (const c of citasHoy) {
-            if (!lastServed.has(c.barbero_id)) lastServed.set(c.barbero_id, c.finished_at)
+            if (!lastServed.has(c.barbero_id)) lastServed.set(c.barbero_id, c.updated_at)
           }
           // Barber with no clients today goes first
           const sinClientes = barberIds.filter((id: string) => !lastServed.has(id))
@@ -251,6 +260,46 @@ export function CajaPOS() {
 
     return () => clearTimeout(timeoutId)
   }, [searchCliente, supabase])
+
+  useEffect(() => {
+    if (!acompanante.nombre || acompanante.nombre.trim().length < 2) {
+      setAcompanantesOptions([])
+      return
+    }
+
+    const timeoutId = setTimeout(async () => {
+      const q = acompanante.nombre.trim()
+      const { data } = await supabase
+        .from('clientes')
+        .select('id, nombre, email, telefono, ci')
+        .or(`nombre.ilike.%${q}%,email.ilike.%${q}%,ci.ilike.%${q}%`)
+        .limit(5)
+
+      setAcompanantesOptions(data || [])
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [acompanante.nombre, supabase])
+
+  useEffect(() => {
+    if (!referidoPorSearch || referidoPorSearch.trim().length < 2) {
+      setReferidoresOptions([])
+      return
+    }
+
+    const timeoutId = setTimeout(async () => {
+      const q = referidoPorSearch.trim()
+      const { data } = await supabase
+        .from('clientes')
+        .select('id, nombre, email, telefono, ci')
+        .or(`nombre.ilike.%${q}%,email.ilike.%${q}%,ci.ilike.%${q}%`)
+        .limit(5)
+
+      setReferidoresOptions(data || [])
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [referidoPorSearch, supabase])
 
   useEffect(() => {
     if (!searchCi || searchCi.trim().length < 2) {
@@ -419,6 +468,7 @@ export function CajaPOS() {
           ...formData, 
           estado,
           cita_id: formData.cita_id || undefined,
+          referido_por_id: referidoPorId || undefined,
           descuento: descuentoTotal,
           promo_id: promoSeleccionada || null,
           referral_ids: aplicarReferido ? referralBonuses.map(r => r.id) : [],
@@ -465,6 +515,7 @@ export function CajaPOS() {
       setModoReserva(false)
       setReservaFecha('')
       setReservaHora('')
+      setCitaSeleccionadaFechaHora(null)
 
       // Recargar productos para reflejar stock actualizado
       const { data: newProductos } = await supabase
@@ -693,6 +744,8 @@ export function CajaPOS() {
                            total_gastado: cita.clientes.total_gastado
                         })
                       }
+                      toastSuccess(`Cita de ${cita.clientes?.nombre || 'cliente'} seleccionada · Puedes editar servicio o agregar productos`)
+                      setCitaSeleccionadaFechaHora(cita.fecha_hora || null)
                     }}
                   >
                     <div className="flex justify-between items-start mb-2 pr-6">
@@ -714,6 +767,37 @@ export function CajaPOS() {
                 </div>
                 ))}
               </div>
+              
+              {/* Banner de cita seleccionada */}
+              {formData.cita_id && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <Edit3 className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-amber-400 font-black text-xs uppercase tracking-widest">✏️ Editando Cita Seleccionada</p>
+                    {citaSeleccionadaFechaHora && (
+                      <p className="text-amber-300/60 text-[10px] mt-0.5 font-mono">
+                        📅 Original: {new Date(citaSeleccionadaFechaHora).toLocaleDateString('es-BO', { weekday: 'short', day: '2-digit', month: 'short' })} · {new Date(citaSeleccionadaFechaHora).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    )}
+                    <p className="text-amber-200/70 text-[11px] mt-1">
+                      Puedes <strong>cambiar el servicio</strong>, <strong>agregar productos</strong>, <strong>reprogramar fecha/hora</strong> (activar &quot;Programar Cita&quot; abajo) y <strong>modificar el método de pago</strong> antes de cobrar.
+                    </p>
+                  </div>
+                  <button onClick={() => {
+                    setFormData({
+                      cita_id: '', cliente_id: '', nombre: '', email: '', telefono: '', ci: '',
+                      servicio_id: '', barbero_id: '', metodo_pago: 'efectivo', propinas: 0, notas: 'Venta desde Caja', comprobante_url: ''
+                    })
+                    setSearchCliente('')
+                    setSearchCi('')
+                    setCarrito([])
+                    setClienteDetalle(null)
+                    setCitaSeleccionadaFechaHora(null)
+                  }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded-md transition-colors shrink-0" title="Deseleccionar cita">
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -863,6 +947,63 @@ export function CajaPOS() {
                   )}
                 </div>
               )}
+
+              {/* ASIGNAR REFERIDO */}
+              <div className="mt-6 p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl relative">
+                <h3 className="text-amber-500 font-black text-xs uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                  <UserPlus className="w-4 h-4" /> Asignar Referido (Opcional)
+                </h3>
+                <p className="text-[10px] text-zinc-400 mb-3 leading-tight">
+                  Si este cliente vino recomendado por alguien, busca a esa persona. Se le otorgará el bono de referido al completar este pago.
+                </p>
+                
+                {referidoPorId ? (
+                  <div className="flex items-center justify-between bg-zinc-900/50 p-3 rounded-lg border border-amber-500/30">
+                    <div>
+                      <p className="text-xs text-zinc-400">Referido por:</p>
+                      <p className="font-bold text-amber-500">{referidoPorNombre}</p>
+                    </div>
+                    <button 
+                      onClick={() => { setReferidoPorId(''); setReferidoPorNombre(''); setReferidoPorSearch(''); }}
+                      className="text-zinc-500 hover:text-red-400 transition"
+                      title="Quitar referidor"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Input
+                      placeholder="Buscar referidor por nombre, CI o correo..."
+                      value={referidoPorSearch}
+                      onChange={(e) => {
+                        setReferidoPorSearch(e.target.value)
+                        setShowReferidoDropdown(true)
+                      }}
+                      onFocus={() => setShowReferidoDropdown(true)}
+                      className="bg-black/50 border-white/10 text-sm h-9"
+                    />
+                    {showReferidoDropdown && referidoresOptions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                        {referidoresOptions.map(c => (
+                          <button
+                            key={c.id}
+                            onClick={() => {
+                              setReferidoPorId(c.id)
+                              setReferidoPorNombre(c.nombre)
+                              setShowReferidoDropdown(false)
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-zinc-800 flex flex-col transition"
+                          >
+                            <span className="font-semibold text-white text-sm">{c.nombre}</span>
+                            <span className="text-xs text-zinc-500">{c.email || c.telefono || 'Sin correo'} {c.ci && `| CI: ${c.ci}`}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -968,19 +1109,45 @@ export function CajaPOS() {
 
                 {promociones.find(p => p.id === promoSeleccionada)?.tipo === '2x1' && (
                   <div className="mt-4 p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                    <h4 className="text-amber-500 font-black text-xs uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
+                    <h4 className="text-amber-500 font-black text-xs uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
                       <UserPlus className="w-3.5 h-3.5" />
-                      Datos del Acompañante 2x1 (Requerido)
+                      Pareja / Acompañante (Promo 2x1)
                     </h4>
+                    <p className="text-[10px] text-amber-500/80 mb-3 leading-tight font-medium">
+                      Ambos reciben el mismo servicio y pagan la mitad. Si proporcionas el correo, le enviaremos una notificación oficial de la Barbería para que se registre o use la promo hoy mismo.
+                    </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      <div className="relative">
+                        <Input
+                          placeholder="Nombre completo, correo o CI *"
+                          value={acompanante.nombre}
+                          onChange={(e) => {
+                            setAcompanante({ ...acompanante, nombre: e.target.value })
+                            setShowAcompananteDropdown(true)
+                          }}
+                          onFocus={() => setShowAcompananteDropdown(true)}
+                          className="bg-black/50 border-white/10 text-sm h-9"
+                        />
+                        {showAcompananteDropdown && acompanantesOptions.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                            {acompanantesOptions.map(c => (
+                              <button
+                                key={c.id}
+                                onClick={() => {
+                                  setAcompanante({ nombre: c.nombre, email: c.email || '' })
+                                  setShowAcompananteDropdown(false)
+                                }}
+                                className="w-full text-left px-4 py-2 hover:bg-zinc-800 flex flex-col transition"
+                              >
+                                <span className="font-semibold text-white text-sm">{c.nombre}</span>
+                                <span className="text-xs text-zinc-500">{c.email || c.telefono || 'Sin datos extra'} {c.ci && `| CI: ${c.ci}`}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <Input
-                        placeholder="Nombre completo *"
-                        value={acompanante.nombre}
-                        onChange={(e) => setAcompanante({ ...acompanante, nombre: e.target.value })}
-                        className="bg-black/50 border-white/10 text-sm h-9"
-                      />
-                      <Input
-                        placeholder="Correo (opcional, para invitación)"
+                        placeholder="Correo de la pareja (opcional)"
                         type="email"
                         value={acompanante.email}
                         onChange={(e) => setAcompanante({ ...acompanante, email: e.target.value })}

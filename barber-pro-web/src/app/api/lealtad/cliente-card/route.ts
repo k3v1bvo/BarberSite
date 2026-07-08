@@ -17,7 +17,7 @@ export async function GET() {
     // 2. Datos del cliente (tabla clientes) vinculado por email
     const { data: cliente } = await supabase
       .from('clientes')
-      .select('id, nombre, cumpleanos, total_visitas, total_gastado, nivel_fidelidad, ultima_visita, ci')
+      .select('id, nombre, cumpleanos, total_visitas, total_gastado, nivel_fidelidad, ultima_visita, ci, referral_code, numero_cliente')
       .eq('email', user.email)
       .single()
 
@@ -97,6 +97,19 @@ export async function GET() {
       .eq('estado', 'completado')
       .order('fecha_hora', { ascending: false })
       .limit(3)
+    // 9. Referidos
+    let misReferidos: any[] = []
+    if (cliente?.id) {
+      const { data: refs } = await supabase
+        .from('referrals')
+        .select(`
+          id, monto_bono, bono_otorgado, bono_usado, creado_en,
+          recomendado:clientes!cliente_recomendado_id(nombre)
+        `)
+        .eq('cliente_recomendante_id', cliente.id)
+        .order('creado_en', { ascending: false })
+      misReferidos = refs || []
+    }
 
     return NextResponse.json({
       profile,
@@ -110,6 +123,7 @@ export async function GET() {
       canjes: canjes ?? [],
       promosHoy,
       ultimasCitas: ultimasCitas ?? [],
+      misReferidos,
     })
   } catch (err) {
     console.error('Error cliente-card:', err)

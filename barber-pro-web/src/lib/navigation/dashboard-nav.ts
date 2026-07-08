@@ -120,7 +120,7 @@ export function getCoordinadorNavSections(agendaHref: string): NavSection[] {
       items: [
         { label: 'Panel', href: '/coordinador', icon: LayoutDashboard, description: 'Resumen del día' },
         { label: 'Agenda', href: agendaHref, icon: Calendar, description: 'Citas y disponibilidad' },
-        { label: 'Caja / POS', href: '/admin/caja', icon: ShoppingBag, description: 'Nueva cita o venta rápida' },
+        { label: 'Caja / POS', href: '/coordinador/caja', icon: ShoppingBag, description: 'Nueva cita o venta rápida' },
         { label: 'Asistencia', href: '/admin/asistencia', icon: Clock, description: 'Turnos del personal' },
         { label: 'Notificaciones', href: '/notificaciones', icon: Bell, description: 'Alertas e historial' },
       ],

@@ -256,8 +256,8 @@ export default function ProductosPage() {
       {/* Inventario Table */}
       <Card className="border-white/5 bg-zinc-900 shadow-2xl overflow-hidden">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left min-w-[800px]">
               <thead>
                 <tr className="bg-zinc-950/50">
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest">Articulo / Categoría</th>
@@ -382,7 +382,7 @@ export default function ProductosPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-4 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/95 flex items-start justify-center z-[100] p-4 pt-12 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
           <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto">
             <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-8 bg-zinc-900/50">
               <div>

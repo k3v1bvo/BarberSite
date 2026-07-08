@@ -6,12 +6,16 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { PasswordInput } from '@/components/ui/PasswordInput'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useToast } from '@/components/ui/Toast'
-import { Scissors } from 'lucide-react'
+import { Scissors, Gift } from 'lucide-react'
+import { Suspense } from 'react'
 
-export default function RegisterPage() {
+function RegisterContent() {
+  const searchParams = useSearchParams()
+  const refCode = searchParams.get('ref')
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -55,6 +59,21 @@ export default function RegisterPage() {
         return
       }
 
+      let referidoPorId = null
+      let recomendanteNombre = ''
+      if (refCode) {
+        const { data: refData } = await supabase
+          .from('clientes')
+          .select('id, nombre')
+          .eq('referral_code', refCode)
+          .single()
+        
+        if (refData) {
+          referidoPorId = refData.id
+          recomendanteNombre = refData.nombre
+        }
+      }
+
       const { error: clienteError } = await supabase.from('clientes').insert({
         id: authData.user.id,
         nombre: formData.full_name,
@@ -62,10 +81,24 @@ export default function RegisterPage() {
         email: formData.email,
         total_visitas: 0,
         total_gastado: 0,
+        referido_por: referidoPorId,
       })
 
       if (clienteError) {
         console.warn('Error creando cliente:', clienteError.message)
+      }
+
+      if (referidoPorId) {
+        // Obtenemos la config del monto de bono si existe, o por defecto 10
+        const { data: config } = await supabase.from('configuraciones').select('valor').eq('llave', 'monto_bono_referido').single()
+        const montoBono = config ? parseFloat(config.valor) : 10
+
+        await supabase.from('referrals').insert({
+          cliente_recomendante_id: referidoPorId,
+          cliente_recomendado_id: authData.user.id,
+          monto_bono: montoBono,
+          bono_otorgado: false
+        })
       }
 
       if (authData.session) {
@@ -126,9 +159,15 @@ export default function RegisterPage() {
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">
             Únete a Barber Pro
           </CardTitle>
-          <p className="text-zinc-400 text-sm">
+          <p className="text-zinc-400 text-sm mb-4">
             Crea tu cuenta y reserva en segundos
           </p>
+          
+          {refCode && (
+            <div className="bg-green-500/10 border border-green-500/20 text-green-400 px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mb-2">
+              <Gift size={16} /> Fuiste invitado por un amigo. ¡Regístrate ahora!
+            </div>
+          )}
         </CardHeader>
 
         <CardContent>
@@ -195,5 +234,13 @@ export default function RegisterPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-zinc-950 flex items-center justify-center text-amber-500">Cargando...</div>}>
+      <RegisterContent />
+    </Suspense>
   )
 }

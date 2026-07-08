@@ -23,6 +23,12 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
   const [verifying, setVerifying] = useState(false)
   const [canceling, setCanceling] = useState(false)
   const [showImage, setShowImage] = useState(false)
+  
+  const [showReprogramar, setShowReprogramar] = useState(false)
+  const [newDate, setNewDate] = useState('')
+  const [newTime, setNewTime] = useState('')
+  const [reprogramming, setReprogramming] = useState(false)
+  
   const { success, error } = useToast()
   if (!cita) return null
 
@@ -38,11 +44,11 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl p-6 space-y-5"
+        className="w-[95%] md:w-full max-w-md max-h-[90vh] overflow-y-auto bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl p-6 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
@@ -129,42 +135,111 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
         )}
 
         <div className="pt-2 space-y-2 border-t border-white/5">
-          {(cita.estado === 'pendiente' || cita.estado === 'confirmado' || cita.estado === 'en_proceso') && (
-            <Button
-              variant="danger"
-              size="md"
-              className="w-full font-black uppercase tracking-wider"
-              disabled={canceling}
-              onClick={async () => {
-                if (!confirm('¿Marcar que el cliente no se presentó a la cita?')) return;
-                setCanceling(true)
-                try {
-                  const supabase = createClient()
-                  const { error: err } = await supabase
-                    .from('citas')
-                    .update({ estado: 'no_presento', updated_at: new Date().toISOString() })
-                    .eq('id', cita.id)
-                  if (err) throw err
-                  success('Cita marcada como No Asistió')
-                  if (onUpdate) onUpdate()
-                  else window.location.reload()
-                  onClose()
-                } catch (e) {
-                  error('Error al actualizar la cita')
-                } finally {
-                  setCanceling(false)
-                }
-              }}
-            >
-              {canceling ? 'Actualizando...' : 'No Asistió'}
-            </Button>
-          )}
+          {showReprogramar ? (
+            <div className="bg-zinc-950 p-4 rounded-xl border border-white/10 space-y-4">
+              <h4 className="text-xs font-black uppercase text-amber-500 tracking-widest">Reprogramar Cita</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-1 block">Nueva Fecha</label>
+                  <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
+                    className="w-full h-10 bg-zinc-900 border border-white/10 rounded-lg px-3 text-sm text-white focus:border-amber-500/50 outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-1 block">Nueva Hora</label>
+                  <input type="time" value={newTime} onChange={e => setNewTime(e.target.value)}
+                    className="w-full h-10 bg-zinc-900 border border-white/10 rounded-lg px-3 text-sm text-white focus:border-amber-500/50 outline-none" />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowReprogramar(false)}>Cancelar</Button>
+                <Button variant="primary" size="sm" className="flex-1 font-black" disabled={reprogramming || !newDate || !newTime}
+                  onClick={async () => {
+                    setReprogramming(true)
+                    try {
+                      const res = await fetch(`/api/citas/${cita.id}/reprogramar`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ newDate, newTime, durationMinutes: cita.duracion_minutos })
+                      })
+                      if (!res.ok) throw new Error('Error al reprogramar')
+                      success('Cita reprogramada con éxito')
+                      if (onUpdate) onUpdate()
+                      else window.location.reload()
+                      onClose()
+                    } catch (e) {
+                      error('No se pudo reprogramar la cita')
+                    } finally {
+                      setReprogramming(false)
+                    }
+                  }}>
+                  {reprogramming ? 'Guardando...' : 'Confirmar'}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {(cita.estado === 'pendiente' || cita.estado === 'confirmado' || cita.estado === 'en_proceso') && (
+                <>
+                  <Link href="/coordinador/caja" className="w-full">
+                    <Button
+                      variant="primary"
+                      size="md"
+                      className="w-full font-black uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 gap-2"
+                    >
+                      💰 Cobrar en POS
+                    </Button>
+                  </Link>
+                  <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="md"
+                    className="flex-1 font-black uppercase tracking-wider text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 border-amber-500/20"
+                    onClick={() => {
+                      const d = parseISO(cita.fecha_hora)
+                      setNewDate(format(d, 'yyyy-MM-dd'))
+                      setNewTime(format(d, 'HH:mm'))
+                      setShowReprogramar(true)
+                    }}
+                  >
+                    Reprogramar
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="md"
+                    className="flex-1 font-black uppercase tracking-wider"
+                    disabled={canceling}
+                    onClick={async () => {
+                      if (!confirm('¿Marcar que el cliente no se presentó a la cita?')) return;
+                      setCanceling(true)
+                      try {
+                        const supabase = createClient()
+                        const { error: err } = await supabase
+                          .from('citas')
+                          .update({ estado: 'no_presento', updated_at: new Date().toISOString() })
+                          .eq('id', cita.id)
+                        if (err) throw err
+                        success('Cita marcada como No Asistió')
+                        if (onUpdate) onUpdate()
+                        else window.location.reload()
+                        onClose()
+                      } catch (e) {
+                        error('Error al actualizar la cita')
+                      } finally {
+                        setCanceling(false)
+                      }
+                    }}
+                  >
+                    {canceling ? '...' : 'No Asistió'}
+                  </Button>
+                  </div>
+                </>
+              )}
 
           {cita.estado === 'pendiente_pago' ? (
              <Button 
                variant="warning" 
                size="md" 
-               className="flex-1 font-black uppercase tracking-wider"
+               className="w-full font-black uppercase tracking-wider"
                disabled={verifying}
                onClick={async () => {
                  setVerifying(true)
@@ -189,15 +264,17 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                {verifying ? 'Verificando...' : '✅ Verificar Pago'}
              </Button>
           ) : (
-            <Link href="/coordinador" className="flex-1">
+            <Link href="/coordinador" className="w-full">
               <Button variant="primary" size="md" className="w-full font-black uppercase tracking-wider hidden">
                 Ir a coordinación
               </Button>
             </Link>
           )}
-          <Button variant="outline" size="md" className="flex-1" onClick={onClose}>
+          <Button variant="outline" size="md" className="w-full" onClick={onClose}>
             Cerrar
           </Button>
+            </>
+          )}
         </div>
       </div>
     </div>
