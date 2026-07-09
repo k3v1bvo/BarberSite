@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -20,6 +20,7 @@ interface BarberoOption {
 
 export default function AgendaGeneralPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
   const [authLoading, setAuthLoading] = useState(true)
   const [authorized, setAuthorized] = useState(false)
@@ -30,6 +31,46 @@ export default function AgendaGeneralPage() {
   const [selectedCita, setSelectedCita] = useState<AgendaCita | null>(null)
 
   const { citas, loading, error } = useAgendaCitas(view, selectedDate, null, authorized)
+
+  useEffect(() => {
+    const citaId = searchParams.get('cita_id')
+    if (citaId && !selectedCita) {
+      const fetchCita = async () => {
+        const { data: cita } = await supabase
+          .from('citas')
+          .select(`
+            id, fecha_hora, duracion_real_minutos, estado, anticipo_monto, precio, notas,
+            clientes (nombre),
+            servicios (nombre),
+            barberos:profiles!barbero_id (id, full_name)
+          `)
+          .eq('id', citaId)
+          .single()
+
+        if (cita) {
+          const cliente = Array.isArray(cita.clientes) ? cita.clientes[0] : cita.clientes
+          const servicio = Array.isArray(cita.servicios) ? cita.servicios[0] : cita.servicios
+          const barbero = Array.isArray(cita.barberos) ? cita.barberos[0] : cita.barberos
+          const comprobanteMatch = cita.notas?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/)
+
+          setSelectedCita({
+            id: cita.id,
+            fecha_hora: cita.fecha_hora,
+            duracion_minutos: cita.duracion_real_minutos || 30,
+            estado: cita.estado as any,
+            anticipo_monto: cita.anticipo_monto,
+            precio: cita.precio,
+            cliente_nombre: cliente?.nombre || 'Desconocido',
+            servicio_nombre: servicio?.nombre || 'Desconocido',
+            barbero_id: barbero?.id || '',
+            barbero_nombre: barbero?.full_name || 'Sin asignar',
+            comprobante_url: comprobanteMatch ? comprobanteMatch[1] : undefined
+          })
+        }
+      }
+      fetchCita()
+    }
+  }, [searchParams, supabase])
 
   useEffect(() => {
     const checkAuth = async () => {

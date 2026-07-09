@@ -129,7 +129,7 @@ export async function dispatchNotification(
           mensaje: msg + (p.barberoNombre ? ` · ${p.barberoNombre}` : ''),
           tipo: 'info',
           categoria: event,
-          link: '/agenda',
+          link: '/agenda' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
           metadata: meta,
         })
 
@@ -138,7 +138,7 @@ export async function dispatchNotification(
           mensaje: msg,
           tipo: 'info',
           categoria: event,
-          link: '/coordinador',
+          link: '/agenda' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
           metadata: meta,
         })
 
@@ -412,7 +412,7 @@ export async function dispatchNotification(
               mensaje: msg,
               tipo: 'warning',
               categoria: event,
-              link: '/barbero',
+              link: '/barbero' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
               metadata: meta,
             },
             p.barberoEmail
@@ -441,7 +441,7 @@ export async function dispatchNotification(
             mensaje: msg + (p.barberoNombre ? ` · Barbero: ${p.barberoNombre}` : ''),
             tipo: 'warning',
             categoria: event,
-            link: '/admin',
+            link: '/agenda' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
             metadata: meta,
           },
           {
@@ -466,7 +466,7 @@ export async function dispatchNotification(
             mensaje: msg,
             tipo: 'warning',
             categoria: event,
-            link: '/coordinador',
+            link: '/agenda' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
             metadata: meta,
           },
           {
@@ -481,6 +481,22 @@ export async function dispatchNotification(
             }
           }
         )
+
+        // Email al cliente indicando que su QR está pendiente
+        if (p.clienteEmail) {
+          const emailRes = await sendNotificationEmail(p.clienteEmail, 'pago_pendiente_cliente', {
+            nombre: p.clienteNombre,
+            servicio: p.servicioNombre,
+            anticipo,
+            fecha: p.fecha,
+            hora: p.hora,
+            barbero: p.barberoNombre,
+            comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
+          })
+          if (!emailRes.ok) {
+            console.error('[dispatch] Error enviando email pago_pendiente_cliente a', p.clienteEmail, emailRes.error)
+          }
+        }
         break
       }
 
@@ -499,11 +515,38 @@ export async function dispatchNotification(
             mensaje: msg,
             tipo: 'success',
             categoria: event,
-            link: '/admin',
+            link: '/agenda' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
             metadata: meta,
           },
           {
             template: 'pago_verificado_admin',
+            data: {
+              nombre: p.clienteNombre,
+              servicio: p.servicioNombre,
+              anticipo,
+              fecha: p.fecha,
+              hora: p.hora,
+              barbero: p.barberoNombre,
+              verificadoPor: verificador,
+              comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
+            }
+          }
+        )
+
+        // Notificar al coordinador
+        await notifyRole(
+          db, 
+          'coordinador', 
+          {
+            titulo: '✅ Reserva confirmada + pago verificado',
+            mensaje: msg,
+            tipo: 'success',
+            categoria: event,
+            link: '/agenda' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
+            metadata: meta,
+          },
+          {
+            template: 'pago_verificado_admin', // Reusamos la misma plantilla del admin
             data: {
               nombre: p.clienteNombre,
               servicio: p.servicioNombre,
@@ -524,7 +567,7 @@ export async function dispatchNotification(
             mensaje: `Cita confirmada con ${p.clienteNombre} — ${anticipo} anticipo verificado`,
             tipo: 'success',
             categoria: event,
-            link: '/barbero',
+            link: '/barbero' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
             metadata: meta,
           })
         }

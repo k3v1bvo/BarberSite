@@ -267,6 +267,27 @@ export function buildEmail(
         ),
       }
 
+    case 'pago_pendiente_cliente':
+      return {
+        subject: '⏳ Tu comprobante QR está en revisión — Barber Pro',
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Recibimos tu comprobante, ${nombre}!</h2>
+          <p>Tu pago QR fue registrado exitosamente. Nuestro equipo lo está revisando para confirmar tu reserva.</p>
+          ${detailBox([
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Anticipo enviado', value: data.anticipo || '—' },
+            { label: 'Fecha', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+            { label: 'Barbero', value: data.barbero || '—' },
+          ])}
+          ${data.comprobante_url ? `<p style="margin-top:12px;"><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📷 Ver tu comprobante enviado</a></p>` : ''}
+          <p style="margin-top:16px;">Te enviaremos un correo de <strong style="color:#22c55e;">confirmación</strong> en cuanto verifiquemos el depósito. ¡No te preocupes, será rápido!</p>
+          <p style="color:#a1a1aa;font-size:13px;margin-top:8px;">Si tienes alguna duda, contáctanos por WhatsApp o redes sociales.</p>
+          ${cta(`${SITE}/cliente`, 'Ver estado de mi reserva')}`,
+          'Tu comprobante QR está siendo revisado'
+        ),
+      }
+
     case 'pago_pendiente_equipo':
       return {
         subject: `💰 Anticipo QR pendiente — ${nombre}`,
