@@ -236,33 +236,45 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
               )}
 
           {cita.estado === 'pendiente_pago' ? (
-             <Button 
-               variant="warning" 
-               size="md" 
-               className="w-full font-black uppercase tracking-wider"
-               disabled={verifying}
-               onClick={async () => {
-                 setVerifying(true)
-                 try {
-                   const res = await fetch('/api/citas/verificar-pago', {
-                     method: 'POST',
-                     headers: { 'Content-Type': 'application/json' },
-                     body: JSON.stringify({ citaId: cita.id })
-                   })
-                   if (!res.ok) throw new Error('Error al verificar')
-                   success('Pago verificado')
-                   if (onUpdate) onUpdate()
-                   else window.location.reload()
-                   onClose()
-                 } catch (e) {
-                   error('No se pudo verificar el pago')
-                 } finally {
-                   setVerifying(false)
-                 }
-               }}
-             >
-               {verifying ? 'Verificando...' : '✅ Verificar Pago'}
-             </Button>
+             <div className="flex w-full gap-2">
+               {cita.comprobante_url && (
+                 <Button 
+                   onClick={() => window.open(cita.comprobante_url!, '_blank')} 
+                   variant="outline" 
+                   size="md"
+                   className="flex-1 font-black uppercase tracking-wider text-amber-500 border-amber-500/20 hover:bg-amber-500/10"
+                 >
+                   📷 Comprobante
+                 </Button>
+               )}
+               <Button 
+                 variant="warning" 
+                 size="md" 
+                 className="flex-1 font-black uppercase tracking-wider"
+                 disabled={verifying}
+                 onClick={async () => {
+                   setVerifying(true)
+                   try {
+                     const res = await fetch('/api/citas/verificar-pago', {
+                       method: 'POST',
+                       headers: { 'Content-Type': 'application/json' },
+                       body: JSON.stringify({ citaId: cita.id })
+                     })
+                     if (!res.ok) throw new Error('Error al verificar')
+                     success('Pago verificado')
+                     if (onUpdate) onUpdate()
+                     else window.location.reload()
+                     onClose()
+                   } catch (e) {
+                     error('No se pudo verificar el pago')
+                   } finally {
+                     setVerifying(false)
+                   }
+                 }}
+               >
+                 {verifying ? 'Verificando...' : '✅ Verificar Pago'}
+               </Button>
+             </div>
           ) : (
             <Link href="/coordinador" className="w-full">
               <Button variant="primary" size="md" className="w-full font-black uppercase tracking-wider hidden">
