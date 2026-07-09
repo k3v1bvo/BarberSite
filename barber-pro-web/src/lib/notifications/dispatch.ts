@@ -484,19 +484,36 @@ export async function dispatchNotification(
 
       case 'pago_verificado': {
         const anticipo = p.monto != null ? `Bs ${Number(p.monto).toFixed(2)}` : '—'
-        const verificador = p.motivo || 'Equipo' // usamos motivo para pasar el nombre del verificador
+        const verificador = p.motivo || 'Equipo'
         const msg = `✅ Pago verificado por ${verificador} — ${p.clienteNombre || 'Cliente'} · ${anticipo}`
         const meta = { cita_id: p.citaId }
 
-        // Notificar al admin
-        await notifyRole(db, 'admin', {
-          titulo: '✅ Reserva confirmada + pago verificado',
-          mensaje: msg,
-          tipo: 'success',
-          categoria: event,
-          link: '/admin',
-          metadata: meta,
-        })
+        // Notificar al admin (in-app y email a todos los admins)
+        await notifyRole(
+          db, 
+          'admin', 
+          {
+            titulo: '✅ Reserva confirmada + pago verificado',
+            mensaje: msg,
+            tipo: 'success',
+            categoria: event,
+            link: '/admin',
+            metadata: meta,
+          },
+          {
+            template: 'pago_verificado_admin',
+            data: {
+              nombre: p.clienteNombre,
+              servicio: p.servicioNombre,
+              anticipo,
+              fecha: p.fecha,
+              hora: p.hora,
+              barbero: p.barberoNombre,
+              verificadoPor: verificador,
+              comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
+            }
+          }
+        )
 
         // Notificar al barbero (si no fue él quien verificó)
         if (p.barberoId) {
@@ -534,17 +551,6 @@ export async function dispatchNotification(
             comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
           })
         }
-
-        // Email al admin
-        await sendAdminEmail('pago_verificado_admin', {
-          nombre: p.clienteNombre,
-          servicio: p.servicioNombre,
-          anticipo,
-          fecha: p.fecha,
-          hora: p.hora,
-          verificadoPor: verificador,
-          comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
-        })
         break
       }
       case 'invitacion_2x1': {
