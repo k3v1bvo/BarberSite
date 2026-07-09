@@ -190,6 +190,17 @@ function ReservarContent() {
 
       if (user) {
         clienteId = user.id
+        // Verificar que el registro en "clientes" realmente exista (por si fue borrado en un truncate)
+        const { data: clienteVerificado } = await supabase.from('clientes').select('id').eq('id', user.id).single()
+        if (!clienteVerificado) {
+          const { error: insertErr } = await supabase.from('clientes').insert({
+            id: user.id,
+            nombre: formData.nombre || user.full_name || 'Sin Nombre',
+            email: formData.email || user.email,
+            telefono: formData.telefono || user.phone || null,
+          })
+          if (insertErr) throw new Error('No se pudo restaurar el registro del cliente: ' + insertErr.message)
+        }
       } else {
         const { data: clienteExistente } = await supabase
           .from('clientes')
