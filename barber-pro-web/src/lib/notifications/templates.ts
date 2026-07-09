@@ -1,5 +1,5 @@
 const BRAND = 'Barber Pro'
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://barber-site-livid.vercel.app'
+const SITE = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
 function layout(content: string, preheader: string): string {
   return `<!DOCTYPE html>

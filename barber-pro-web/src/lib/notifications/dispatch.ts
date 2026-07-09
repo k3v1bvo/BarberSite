@@ -8,7 +8,7 @@ import type {
 import { sendAdminEmail, sendNotificationEmail } from './email'
 import { getUserPreferences, shouldSendEmail, shouldSendPush } from './preferences'
 
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://barber-site-livid.vercel.app'
+const SITE = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
 async function insertNotifications(
   db: SupabaseClient,
@@ -55,9 +55,24 @@ async function notifyUser(
 async function notifyRole(
   db: SupabaseClient,
   rol: string,
-  inApp: InAppNotificationInsert
+  inApp: InAppNotificationInsert,
+  emailConfig?: { template: string; data: Record<string, string | undefined> }
 ): Promise<void> {
   await insertNotifications(db, [{ ...inApp, rol_destino: rol }])
+  
+  if (emailConfig) {
+    const { data: users } = await db.from('profiles').select('id, email').eq('role', rol).eq('is_active', true)
+    if (users && users.length > 0) {
+      for (const u of users) {
+        if (u.email) {
+          const prefs = await getUserPreferences(db, u.id)
+          if (shouldSendEmail(prefs, inApp.categoria)) {
+            await sendNotificationEmail(u.email, emailConfig.template, emailConfig.data)
+          }
+        }
+      }
+    }
+  }
 }
 
 function agendaLink(barberoId?: string): string {
@@ -416,34 +431,54 @@ export async function dispatchNotification(
         }
 
         // Notificar al admin
-        await notifyRole(db, 'admin', {
-          titulo: '💰 Anticipo QR pendiente',
-          mensaje: msg + (p.barberoNombre ? ` · Barbero: ${p.barberoNombre}` : ''),
-          tipo: 'warning',
-          categoria: event,
-          link: '/admin',
-          metadata: meta,
-        })
+        await notifyRole(
+          db, 
+          'admin', 
+          {
+            titulo: '💰 Anticipo QR pendiente',
+            mensaje: msg + (p.barberoNombre ? ` · Barbero: ${p.barberoNombre}` : ''),
+            tipo: 'warning',
+            categoria: event,
+            link: '/admin',
+            metadata: meta,
+          },
+          {
+            template: 'pago_pendiente_equipo',
+            data: {
+              nombre: p.clienteNombre,
+              servicio: p.servicioNombre,
+              anticipo,
+              fecha: p.fecha,
+              hora: p.hora,
+              comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
+            }
+          }
+        )
 
         // Notificar al coordinador
-        await notifyRole(db, 'coordinador', {
-          titulo: '💰 Anticipo QR pendiente',
-          mensaje: msg,
-          tipo: 'warning',
-          categoria: event,
-          link: '/coordinador',
-          metadata: meta,
-        })
-
-        // Email al admin
-        await sendAdminEmail('pago_pendiente_equipo', {
-          nombre: p.clienteNombre,
-          servicio: p.servicioNombre,
-          anticipo,
-          fecha: p.fecha,
-          hora: p.hora,
-          comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
-        })
+        await notifyRole(
+          db, 
+          'coordinador', 
+          {
+            titulo: '💰 Anticipo QR pendiente',
+            mensaje: msg,
+            tipo: 'warning',
+            categoria: event,
+            link: '/coordinador',
+            metadata: meta,
+          },
+          {
+            template: 'pago_pendiente_equipo',
+            data: {
+              nombre: p.clienteNombre,
+              servicio: p.servicioNombre,
+              anticipo,
+              fecha: p.fecha,
+              hora: p.hora,
+              comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
+            }
+          }
+        )
         break
       }
 
