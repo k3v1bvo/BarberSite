@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Input } from '@/components/ui/Input'
 import { formatCurrency } from '@/lib/utils'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   DollarSign, Clock, TrendingUp,
   Plus, X, Scissors, Calendar, BarChart3, CalendarDays, Package, Minus, ShoppingCart
@@ -73,12 +73,55 @@ export default function BarberoPage() {
   const [selectedCita, setSelectedCita] = useState<Cita | null>(null)
   const [metaServicios, setMetaServicios] = useState<number>(30)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 400)
     return () => clearTimeout(timer)
   }, [search])
+
+  useEffect(() => {
+    const citaId = searchParams.get('cita_id')
+    if (citaId && !selectedCita) {
+      const fetchCita = async () => {
+        const { data: cita } = await supabase
+          .from('citas')
+          .select('id, estado, precio, comision_barbero, fecha_hora, notas, clientes(nombre, telefono), servicios(nombre)')
+          .eq('id', citaId)
+          .single()
+          
+        if (cita) {
+          const getCliente = () => {
+            if (!cita.clientes) return undefined
+            const raw = Array.isArray(cita.clientes) ? cita.clientes[0] : cita.clientes
+            if (!raw) return undefined
+            return { nombre: raw.nombre, telefono: raw.telefono ?? null }
+          }
+          const getServicio = () => {
+            if (!cita.servicios) return undefined
+            const raw = Array.isArray(cita.servicios) ? cita.servicios[0] : cita.servicios
+            if (!raw) return undefined
+            return { nombre: raw.nombre }
+          }
+          const comprobanteMatch = cita.notas?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/)
+          setSelectedCita({
+            id: cita.id,
+            estado: cita.estado,
+            precio: cita.precio,
+            comision_barbero: cita.comision_barbero,
+            fecha_hora: cita.fecha_hora,
+            comprobante_url: comprobanteMatch ? comprobanteMatch[1] : null,
+            notas: cita.notas,
+            clientes: getCliente(),
+            servicios: getServicio(),
+            productos: []
+          })
+        }
+      }
+      fetchCita()
+    }
+  }, [searchParams, supabase])
 
   useEffect(() => {
     loadData()

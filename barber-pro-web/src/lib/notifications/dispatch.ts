@@ -48,7 +48,8 @@ async function notifyUser(
   await insertNotifications(db, rows)
 
   if (email && shouldSendEmail(prefs, category)) {
-    await sendNotificationEmail(email.to, email.template, email.data)
+    const res = await sendNotificationEmail(email.to, email.template, email.data)
+    if (!res.ok) console.error('[notifyUser] Error email:', res.error)
   }
 }
 
@@ -67,7 +68,8 @@ async function notifyRole(
         if (u.email) {
           const prefs = await getUserPreferences(db, u.id)
           if (shouldSendEmail(prefs, inApp.categoria)) {
-            await sendNotificationEmail(u.email, emailConfig.template, emailConfig.data)
+            const res = await sendNotificationEmail(u.email, emailConfig.template, emailConfig.data)
+            if (!res.ok) console.error(`[notifyRole ${rol}] Error email:`, res.error)
           }
         }
       }
@@ -541,7 +543,7 @@ export async function dispatchNotification(
 
         // Email al cliente
         if (p.clienteEmail) {
-          await sendNotificationEmail(p.clienteEmail, 'pago_verificado_cliente', {
+          const emailRes = await sendNotificationEmail(p.clienteEmail, 'pago_verificado_cliente', {
             nombre: p.clienteNombre,
             servicio: p.servicioNombre,
             anticipo,
@@ -550,6 +552,9 @@ export async function dispatchNotification(
             barbero: p.barberoNombre,
             comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
           })
+          if (!emailRes.ok) {
+            console.error('[dispatch] Error enviando email pago_verificado_cliente a', p.clienteEmail, emailRes.error)
+          }
         }
         break
       }
