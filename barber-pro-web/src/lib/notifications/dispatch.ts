@@ -623,6 +623,59 @@ export async function dispatchNotification(
         break
       }
 
+      case 'reprogramacion_solicitada': {
+        const msg = `Cliente solicita reprogramar a: ${p.nuevaFecha} ${p.nuevaHora}`
+        if (p.barberoId) {
+          await notifyUser(db, p.barberoId, event, {
+            titulo: '🔄 Solicitud de Reprogramación',
+            mensaje: msg,
+            tipo: 'warning',
+            categoria: event,
+            link: agendaLink(p.barberoId),
+            metadata: { cita_id: p.citaId },
+          })
+        }
+        await notifyRole(db, 'admin', {
+          titulo: '🔄 Solicitud de Reprogramación',
+          mensaje: msg,
+          tipo: 'info',
+          categoria: event,
+          link: '/agenda',
+        })
+        break
+      }
+
+      case 'reprogramacion_aceptada': {
+        const msg = `Tu solicitud para el ${p.nuevaFecha} fue ACEPTADA.`
+        if (p.clienteId) {
+          await notifyUser(db, p.clienteId as string, event, {
+            titulo: '✅ Reprogramación Aceptada',
+            mensaje: msg,
+            tipo: 'success',
+            categoria: event,
+            link: '/cliente',
+            metadata: { cita_id: p.citaId },
+          })
+        }
+        // Send basic email if needed (can be implemented later)
+        break
+      }
+
+      case 'reprogramacion_rechazada': {
+        const msg = `Tu solicitud para el ${p.nuevaFecha} fue RECHAZADA. Se mantiene horario original: ${p.fechaOriginal}.`
+        if (p.clienteId) {
+          await notifyUser(db, p.clienteId as string, event, {
+            titulo: '❌ Reprogramación Rechazada',
+            mensaje: msg,
+            tipo: 'danger',
+            categoria: event,
+            link: '/cliente',
+            metadata: { cita_id: p.citaId },
+          })
+        }
+        break
+      }
+
       default:
         errors.push(`Evento desconocido: ${event}`)
     }

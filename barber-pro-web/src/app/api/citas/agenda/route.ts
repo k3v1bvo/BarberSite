@@ -61,6 +61,8 @@ export async function GET(request: NextRequest) {
         fecha_hora,
         duracion_real_minutos,
         estado,
+        reprogramacion_estado,
+        fecha_hora_solicitada,
         precio,
         notas,
         anticipo_monto,
@@ -99,6 +101,8 @@ export async function GET(request: NextRequest) {
         duracion_minutos:
           cita.duracion_real_minutos || servicioData?.duracion_minutos || 30,
         estado: cita.estado,
+        reprogramacion_estado: cita.reprogramacion_estado,
+        fecha_hora_solicitada: cita.fecha_hora_solicitada,
         cliente_nombre: pickName(cita.clientes, 'Cliente'),
         servicio_nombre: pickName(cita.servicios, 'Servicio'),
         precio: cita.precio,

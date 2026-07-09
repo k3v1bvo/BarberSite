@@ -12,6 +12,9 @@ export type NotificationCategory =
   | 'pago_verificado'
   | 'invitacion_2x1'
   | 'invitacion_referido'
+  | 'reprogramacion_solicitada'
+  | 'reprogramacion_aceptada'
+  | 'reprogramacion_rechazada'
 
 export type NotificationTipo = 'info' | 'success' | 'warning' | 'danger'
 
@@ -36,6 +39,8 @@ export interface NotificationPayload {
   motivo?: string
   link?: string
   comprobante_url?: string
+  nuevaFecha?: string
+  nuevaHora?: string
   [key: string]: string | number | undefined
 }
 

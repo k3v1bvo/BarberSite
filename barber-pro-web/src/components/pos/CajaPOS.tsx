@@ -744,6 +744,16 @@ export function CajaPOS() {
                            total_gastado: cita.clientes.total_gastado
                         })
                       }
+                      
+                      // Cargar la fecha y hora guardadas para permitir reprogramar fácilmente
+                      if (cita.fecha_hora) {
+                        const d = new Date(cita.fecha_hora)
+                        const pad = (n: number) => n.toString().padStart(2, '0')
+                        setReservaFecha(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`)
+                        setReservaHora(`${pad(d.getHours())}:${pad(d.getMinutes())}`)
+                        setModoReserva(true)
+                      }
+                      
                       toastSuccess(`Cita de ${cita.clientes?.nombre || 'cliente'} seleccionada · Puedes editar servicio o agregar productos`)
                       setCitaSeleccionadaFechaHora(cita.fecha_hora || null)
                     }}

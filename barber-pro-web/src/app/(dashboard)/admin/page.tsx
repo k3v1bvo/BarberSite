@@ -26,6 +26,55 @@ import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts'
 
+type DateRangeOption = 'hoy' | 'ayer' | 'esta_semana' | 'este_mes' | 'mes_pasado' | 'este_año' | 'personalizado'
+
+const getDateRange = (option: DateRangeOption, customStart?: string, customEnd?: string) => {
+  const hoy = new Date()
+  let start = new Date(hoy)
+  let end = new Date(hoy)
+
+  switch (option) {
+    case 'hoy':
+      break
+    case 'ayer':
+      start.setDate(start.getDate() - 1)
+      end.setDate(end.getDate() - 1)
+      break
+    case 'esta_semana':
+      const day = start.getDay()
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1) // Ajustar al lunes
+      start.setDate(diff)
+      break
+    case 'este_mes':
+      start = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
+      break
+    case 'mes_pasado':
+      start = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)
+      end = new Date(hoy.getFullYear(), hoy.getMonth(), 0)
+      break
+    case 'este_año':
+      start = new Date(hoy.getFullYear(), 0, 1)
+      break
+    case 'personalizado':
+      if (customStart) start = new Date(customStart + 'T00:00:00')
+      if (customEnd) end = new Date(customEnd + 'T23:59:59')
+      break
+  }
+  
+  const formatYMD = (d: Date) => {
+    // Para evitar problemas de zona horaria, extraemos año, mes y dia locales
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  
+  return {
+    start: formatYMD(start),
+    end: formatYMD(end),
+  }
+}
+
 interface Stats {
   ventasHoy: number
   citasHoy: number
@@ -57,6 +106,12 @@ export default function AdminPage() {
   const [topBarberos, setTopBarberos] = useState<{nombre: string, ventas: number, citas: number}[]>([])
   const [usoTiendaHoy, setUsoTiendaHoy] = useState(0)
   const [loading, setLoading] = useState(true)
+  
+  // Date range state
+  const [rangoSeleccionado, setRangoSeleccionado] = useState<DateRangeOption>('hoy')
+  const [fechaInicioStr, setFechaInicioStr] = useState(new Date().toISOString().split('T')[0])
+  const [fechaFinStr, setFechaFinStr] = useState(new Date().toISOString().split('T')[0])
+  
   const router = useRouter()
   const supabase = createClient()
 
@@ -67,7 +122,7 @@ export default function AdminPage() {
       } = await supabase.auth.getUser()
       if (!user) return router.push('/login')
 
-      const hoy = new Date().toISOString().split('T')[0]
+      const { start, end } = getDateRange(rangoSeleccionado, fechaInicioStr, fechaFinStr)
 
       const [
         { data: ventasData },
@@ -81,13 +136,13 @@ export default function AdminPage() {
           .from('citas')
           .select('precio')
           .eq('estado', 'completado')
-          .gte('fecha_hora', `${hoy}T00:00:00`)
-          .lte('fecha_hora', `${hoy}T23:59:59`),
+          .gte('fecha_hora', `${start}T00:00:00`)
+          .lte('fecha_hora', `${end}T23:59:59`),
         supabase
           .from('citas')
           .select('*', { count: 'exact', head: true })
-          .gte('fecha_hora', `${hoy}T00:00:00`)
-          .lte('fecha_hora', `${hoy}T23:59:59`),
+          .gte('fecha_hora', `${start}T00:00:00`)
+          .lte('fecha_hora', `${end}T23:59:59`),
         supabase.from('clientes').select('*', { count: 'exact', head: true }),
         supabase.from('productos').select('id').lte('stock_actual', 5),
         supabase
@@ -107,29 +162,41 @@ export default function AdminPage() {
           servicios (nombre)
         `
           )
-          .gte('fecha_hora', `${hoy}T00:00:00`)
+          .gte('fecha_hora', `${start}T00:00:00`)
+          .lte('fecha_hora', `${end}T23:59:59`)
           .order('fecha_hora', { ascending: false })
-          .limit(8),
+          .limit(10), // Limit increased slightly to show more if range is larger
       ])
 
       // Data for charts
-      const hace7Dias = new Date()
-      hace7Dias.setDate(hace7Dias.getDate() - 7)
-      
       const { data: citasMes } = await supabase
         .from('citas')
         .select('precio, fecha_hora, barberos:profiles!barbero_id(full_name)')
         .eq('estado', 'completado')
-        .gte('fecha_hora', hace7Dias.toISOString())
+        .gte('fecha_hora', `${start}T00:00:00`)
+        .lte('fecha_hora', `${end}T23:59:59`)
 
-      // Agrupar ventas de los últimos 7 días
+      // Check if range spans more than 31 days to determine grouping (by month or by day)
+      const startDate = new Date(`${start}T00:00:00`)
+      const endDate = new Date(`${end}T23:59:59`)
+      const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+      const groupByMonth = diffDays > 31
+
+      // Agrupar ventas del periodo
       const ventasPorDia: Record<string, number> = {}
       // Agrupar top barberos
       const barberosStats: Record<string, { ventas: number, citas: number }> = {}
 
       if (citasMes) {
         citasMes.forEach((c: any) => {
-          const fechaStr = new Date(c.fecha_hora).toLocaleDateString('es-BO', { weekday: 'short' })
+          let fechaStr = ''
+          const d = new Date(c.fecha_hora)
+          if (groupByMonth) {
+            fechaStr = d.toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
+          } else {
+            fechaStr = d.toLocaleDateString('es-BO', { day: 'numeric', month: 'short' })
+          }
+          
           ventasPorDia[fechaStr] = (ventasPorDia[fechaStr] || 0) + c.precio
 
           const barberoNombre = c.barberos?.full_name || 'Sin asignar'
@@ -160,6 +227,7 @@ export default function AdminPage() {
       })
 
       // Uso tienda hoy
+      const hoy = new Date().toISOString().split('T')[0]
       const { data: txTienda } = await supabase
         .from('transactions')
         .select('costo')
@@ -179,7 +247,7 @@ export default function AdminPage() {
     loadData()
     const interval = setInterval(loadData, 45_000)
     return () => clearInterval(interval)
-  }, [loadData])
+  }, [loadData, rangoSeleccionado, fechaInicioStr, fechaFinStr])
 
   const getEstadoBadge = (estado: string) => {
     const variants: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
@@ -208,27 +276,62 @@ export default function AdminPage() {
         highlight="Admin"
         description="Resumen del día: ventas, citas, equipo y alertas en un solo lugar."
         actions={
-          <>
-            <Button variant="secondary" size="md" onClick={() => router.push('/admin/reportes')}>
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Reportes
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              className="shadow-lg shadow-amber-500/20 font-black uppercase tracking-wider"
-              onClick={() => router.push('/admin/buscar')}
-            >
-              <Search className="w-4 h-4 mr-2" />
-              Buscar
-            </Button>
-          </>
+          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+            <div className="flex items-center gap-2 bg-zinc-900 border border-white/10 rounded-xl px-2 py-1 overflow-x-auto w-full max-w-full sm:w-auto">
+              <select 
+                className="bg-transparent text-sm font-bold text-zinc-300 outline-none p-2 cursor-pointer border-none min-w-[120px]"
+                value={rangoSeleccionado}
+                onChange={(e) => setRangoSeleccionado(e.target.value as DateRangeOption)}
+              >
+                <option value="hoy" className="bg-zinc-900">Hoy</option>
+                <option value="ayer" className="bg-zinc-900">Ayer</option>
+                <option value="esta_semana" className="bg-zinc-900">Esta Semana</option>
+                <option value="este_mes" className="bg-zinc-900">Este Mes</option>
+                <option value="mes_pasado" className="bg-zinc-900">Mes Pasado</option>
+                <option value="este_año" className="bg-zinc-900">Este Año</option>
+                <option value="personalizado" className="bg-zinc-900">Personalizado...</option>
+              </select>
+              {rangoSeleccionado === 'personalizado' && (
+                <div className="flex items-center gap-2 pl-2 border-l border-white/10 shrink-0">
+                  <input 
+                    type="date" 
+                    className="bg-transparent text-sm text-zinc-300 outline-none cursor-pointer" 
+                    value={fechaInicioStr} 
+                    onChange={e => setFechaInicioStr(e.target.value)} 
+                  />
+                  <span className="text-zinc-500">-</span>
+                  <input 
+                    type="date" 
+                    className="bg-transparent text-sm text-zinc-300 outline-none cursor-pointer" 
+                    value={fechaFinStr} 
+                    onChange={e => setFechaFinStr(e.target.value)} 
+                  />
+                </div>
+              )}
+            </div>
+            
+            <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
+              <Button variant="secondary" size="md" onClick={() => router.push('/admin/reportes')}>
+                <BarChart3 className="w-4 h-4 mr-2 hidden sm:block" />
+                Reportes
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                className="shadow-lg shadow-amber-500/20 font-black uppercase tracking-wider"
+                onClick={() => router.push('/admin/buscar')}
+              >
+                <Search className="w-4 h-4 mr-2 hidden sm:block" />
+                Buscar
+              </Button>
+            </div>
+          </div>
         }
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
-          label="Ventas de hoy"
+          label="Ventas del período"
           value={formatCurrency(stats.ventasHoy)}
           icon={DollarSign}
           variant="primary"
@@ -236,7 +339,7 @@ export default function AdminPage() {
           onClick={() => router.push('/admin/reportes')}
         />
         <StatCard
-          label="Citas hoy"
+          label="Citas del período"
           value={stats.citasHoy}
           icon={Calendar}
           delay={75}
@@ -295,7 +398,7 @@ export default function AdminPage() {
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-amber-500" />
-              Ingresos Últimos 7 Días
+              Ingresos del Período
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -329,7 +432,7 @@ export default function AdminPage() {
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <Users className="w-4 h-4 text-purple-500" />
-              Top Barberos (Semana)
+              Top Barberos del Período
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -359,7 +462,7 @@ export default function AdminPage() {
             <CardHeader className="flex flex-row items-center justify-between py-4">
               <CardTitle className="text-base flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-amber-500" />
-                Citas de hoy
+                Citas del período
               </CardTitle>
               <Button
                 variant="ghost"

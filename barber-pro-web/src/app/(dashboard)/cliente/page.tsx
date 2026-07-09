@@ -35,6 +35,7 @@ interface CardData {
 
 interface Cita {
   id: string; estado: string; precio: number; fecha_hora: string; notas: string | null
+  reprogramacion_estado?: string | null; fecha_hora_solicitada?: string | null
   servicios?: { nombre: string; descripcion: string | null }
   barberos?: { full_name: string }
 }
@@ -66,6 +67,11 @@ export default function ClientePage() {
   const [reviewModal, setReviewModal] = useState<{ open: boolean; citaId: string | null; barberoId: string | null }>({ open: false, citaId: null, barberoId: null })
   const [reviewData, setReviewData] = useState({ estrellas: 5, comentario: '' })
   const [submittingReview, setSubmittingReview] = useState(false)
+  
+  // Reprogramar
+  const [reprogramarModal, setReprogramarModal] = useState<{ open: boolean; citaId: string | null }>({ open: false, citaId: null })
+  const [reprogramarData, setReprogramarData] = useState({ fecha: '', hora: '' })
+  const [submittingReprogramar, setSubmittingReprogramar] = useState(false)
 
   const router = useRouter()
   const supabase = createClient()
@@ -139,6 +145,34 @@ export default function ClientePage() {
       toastError('Error enviando reseña')
     } finally {
       setSubmittingReview(false)
+    }
+  }
+
+  const submitReprogramacion = async () => {
+    if (!reprogramarData.fecha || !reprogramarData.hora) {
+      toastError('Selecciona una nueva fecha y hora')
+      return
+    }
+    setSubmittingReprogramar(true)
+    try {
+      const res = await fetch('/api/citas/solicitar-reprogramacion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          cita_id: reprogramarModal.citaId, 
+          nueva_fecha: reprogramarData.fecha, 
+          nueva_hora: reprogramarData.hora 
+        })
+      })
+      if (!res.ok) throw new Error('Error al solicitar reprogramación')
+      success('Solicitud enviada al barbero. Se te notificará cuando responda.')
+      setReprogramarModal({ open: false, citaId: null })
+      setReprogramarData({ fecha: '', hora: '' })
+      loadData()
+    } catch (e: any) {
+      toastError('Error al solicitar reprogramación')
+    } finally {
+      setSubmittingReprogramar(false)
     }
   }
 
@@ -603,12 +637,37 @@ export default function ClientePage() {
                         </div>
                       </div>
                       {(cita.estado === 'pendiente' || cita.estado === 'confirmado') && (
-                        <button
-                          className="mt-3 w-full text-[11px] font-black uppercase tracking-widest text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-all py-2.5 rounded-xl border border-red-500/20 active:scale-95 shadow-sm shadow-red-500/5"
-                          onClick={() => cancelarCita(cita.id)}
-                        >
-                          Cancelar cita
-                        </button>
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            className="flex-1 text-[11px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/10 hover:bg-amber-500 hover:text-white transition-all py-2.5 rounded-xl border border-amber-500/20 active:scale-95 shadow-sm shadow-amber-500/5"
+                            onClick={() => setReprogramarModal({ open: true, citaId: cita.id })}
+                            disabled={cita.reprogramacion_estado === 'pendiente_aprobacion'}
+                          >
+                            Reprogramar
+                          </button>
+                          <button
+                            className="flex-1 text-[11px] font-black uppercase tracking-widest text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-all py-2.5 rounded-xl border border-red-500/20 active:scale-95 shadow-sm shadow-red-500/5"
+                            onClick={() => cancelarCita(cita.id)}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      )}
+
+                      {cita.reprogramacion_estado === 'pendiente_aprobacion' && (
+                        <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/10 py-1.5 px-3 rounded-lg border border-amber-500/20 text-center">
+                          Reprogramación en evaluación
+                        </div>
+                      )}
+                      {cita.reprogramacion_estado === 'aceptada' && (
+                        <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-emerald-500 bg-emerald-500/10 py-1.5 px-3 rounded-lg border border-emerald-500/20 text-center animate-pulse">
+                          ✓ Reprogramación Aceptada
+                        </div>
+                      )}
+                      {cita.reprogramacion_estado === 'rechazada' && (
+                        <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-500/10 py-1.5 px-3 rounded-lg border border-red-500/20 text-center">
+                          ✗ Reprogramación Rechazada
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -733,6 +792,51 @@ export default function ClientePage() {
                   disabled={submittingReview}
                 >
                   {submittingReview ? 'Enviando...' : 'Enviar Reseña'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal de Reprogramación */}
+      {reprogramarModal.open && (
+        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-4 backdrop-blur-md animate-in fade-in duration-300">
+          <Card className="w-full max-w-sm border-white/10 shadow-2xl bg-zinc-950">
+            <div className="p-6">
+              <h3 className="text-xl font-black uppercase text-amber-500 mb-4">Solicitar Reprogramación</h3>
+              <p className="text-xs text-zinc-400 mb-4 leading-tight">
+                Elige la nueva fecha y hora. El barbero deberá aprobar este cambio. Si rechaza, la cita se mantendrá en su horario original.
+              </p>
+              
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-1 block">Nueva Fecha</label>
+                  <input type="date" min={new Date().toISOString().split('T')[0]} value={reprogramarData.fecha} onChange={e => setReprogramarData({ ...reprogramarData, fecha: e.target.value })}
+                    className="w-full h-10 bg-zinc-900 border border-white/10 rounded-lg px-3 text-sm text-white focus:border-amber-500/50 outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-1 block">Nueva Hora</label>
+                  <input type="time" value={reprogramarData.hora} onChange={e => setReprogramarData({ ...reprogramarData, hora: e.target.value })}
+                    className="w-full h-10 bg-zinc-900 border border-white/10 rounded-lg px-3 text-sm text-white focus:border-amber-500/50 outline-none" />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1 border-white/10 text-zinc-400"
+                  onClick={() => setReprogramarModal({ open: false, citaId: null })}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-1 font-black uppercase tracking-widest text-xs"
+                  onClick={submitReprogramacion}
+                  disabled={submittingReprogramar}
+                >
+                  {submittingReprogramar ? 'Enviando...' : 'Solicitar'}
                 </Button>
               </div>
             </div>

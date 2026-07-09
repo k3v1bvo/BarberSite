@@ -8,7 +8,7 @@ import { es } from 'date-fns/locale'
 import { X } from 'lucide-react'
 import type { AgendaCita } from '@/lib/agenda/types'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useToast } from './Toast'
 import { createClient } from '@/lib/supabase/client'
 
@@ -28,6 +28,20 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
   const [newDate, setNewDate] = useState('')
   const [newTime, setNewTime] = useState('')
   const [reprogramming, setReprogramming] = useState(false)
+  const [userRole, setUserRole] = useState<string | null>(null)
+  const [responding, setResponding] = useState(false)
+
+  useEffect(() => {
+    const fetchRole = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+        if (data) setUserRole(data.role)
+      }
+    }
+    fetchRole()
+  }, [])
   
   const { success, error } = useToast()
   if (!cita) return null
@@ -135,6 +149,72 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
         )}
 
         <div className="pt-2 space-y-2 border-t border-white/5">
+          {userRole === 'barbero' && cita.reprogramacion_estado === 'pendiente_aprobacion' && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl space-y-3 mb-4">
+              <h4 className="text-xs font-black uppercase text-amber-500 tracking-widest flex items-center gap-2">
+                Solicitud de Reprogramación
+              </h4>
+              <p className="text-xs text-zinc-300">
+                El cliente solicita cambiar la cita para el:<br/>
+                <span className="font-black text-white">
+                  {cita.fecha_hora_solicitada ? format(parseISO(cita.fecha_hora_solicitada), "EEEE d 'de' MMMM, HH:mm", { locale: es }) : 'Fecha desconocida'}
+                </span>
+              </p>
+              <div className="flex gap-2 pt-2">
+                <Button 
+                  variant="primary" 
+                  size="sm" 
+                  className="flex-1"
+                  disabled={responding}
+                  onClick={async () => {
+                    setResponding(true)
+                    try {
+                      const res = await fetch('/api/citas/responder-reprogramacion', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ citaId: cita.id, respuesta: 'aceptar' })
+                      })
+                      if (!res.ok) throw new Error('Error al aceptar')
+                      success('Reprogramación aceptada')
+                      if (onUpdate) onUpdate()
+                      else window.location.reload()
+                      onClose()
+                    } catch (e) {
+                      error('No se pudo aceptar la reprogramación')
+                    } finally {
+                      setResponding(false)
+                    }
+                  }}
+                >Aceptar</Button>
+                <Button 
+                  variant="danger" 
+                  size="sm" 
+                  className="flex-1"
+                  disabled={responding}
+                  onClick={async () => {
+                    setResponding(true)
+                    try {
+                      const res = await fetch('/api/citas/responder-reprogramacion', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ citaId: cita.id, respuesta: 'rechazar' })
+                      })
+                      if (!res.ok) throw new Error('Error al rechazar')
+                      success('Reprogramación rechazada')
+                      if (onUpdate) onUpdate()
+                      else window.location.reload()
+                      onClose()
+                    } catch (e) {
+                      error('No se pudo rechazar la reprogramación')
+                    } finally {
+                      setResponding(false)
+                    }
+                  }}
+                >Rechazar</Button>
+              </div>
+            </div>
+          )}
+
           {showReprogramar ? (
             <div className="bg-zinc-950 p-4 rounded-xl border border-white/10 space-y-4">
               <h4 className="text-xs font-black uppercase text-amber-500 tracking-widest">Reprogramar Cita</h4>
@@ -190,19 +270,21 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                     </Button>
                   </Link>
                   <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="md"
-                    className="flex-1 font-black uppercase tracking-wider text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 border-amber-500/20"
-                    onClick={() => {
-                      const d = parseISO(cita.fecha_hora)
-                      setNewDate(format(d, 'yyyy-MM-dd'))
-                      setNewTime(format(d, 'HH:mm'))
-                      setShowReprogramar(true)
-                    }}
-                  >
-                    Reprogramar
-                  </Button>
+                  {(userRole === 'admin' || userRole === 'coordinador') && (
+                    <Button
+                      variant="outline"
+                      size="md"
+                      className="flex-1 font-black uppercase tracking-wider text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 border-amber-500/20"
+                      onClick={() => {
+                        const d = parseISO(cita.fecha_hora)
+                        setNewDate(format(d, 'yyyy-MM-dd'))
+                        setNewTime(format(d, 'HH:mm'))
+                        setShowReprogramar(true)
+                      }}
+                    >
+                      Reprogramar
+                    </Button>
+                  )}
                   <Button
                     variant="danger"
                     size="md"
