@@ -28,16 +28,17 @@ export async function GET(request: NextRequest) {
     const search = sp.get('search')
     const limit = parseInt(sp.get('limit') || '100')
 
-    if (fecha) {
-      const dObj = new Date(`${fecha}T12:00:00Z`)
+    const targetFecha = fecha || (fechaDesde && fechaHasta && fechaDesde === fechaHasta ? fechaDesde : null)
+    if (targetFecha) {
+      const dObj = new Date(`${targetFecha}T12:00:00Z`)
       const nextObj = new Date(dObj.getTime() + 86400000)
       const nextDayStr = nextObj.toISOString().split('T')[0]
       await supabase
         .from('transactions')
-        .update({ fecha })
-        .gte('creado_en', `${fecha}T04:00:00Z`)
+        .update({ fecha: targetFecha })
+        .gte('creado_en', `${targetFecha}T04:00:00Z`)
         .lte('creado_en', `${nextDayStr}T03:59:59Z`)
-        .neq('fecha', fecha)
+        .neq('fecha', targetFecha)
     }
 
     let query = supabase
@@ -117,5 +118,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(data, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role !== 'admin' && profile?.role !== 'coordinador') {
+      return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const { id, comprobante_url } = body
+    if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .update({ comprobante_url })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return NextResponse.json({ success: true, data })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

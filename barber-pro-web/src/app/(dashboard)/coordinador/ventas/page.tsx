@@ -5,8 +5,9 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
-import { Receipt, Plus, X, Store, Filter, ArrowUpDown, ArrowUp, ArrowDown, Search, Wallet, ShoppingBag } from 'lucide-react'
+import { Receipt, Plus, X, Store, Filter, ArrowUpDown, ArrowUp, ArrowDown, Search, Wallet, ShoppingBag, Image as ImageIcon } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 import Link from 'next/link'
 
 import { createClient } from '@/lib/supabase/client'
@@ -16,7 +17,7 @@ interface Transaction {
   id: string; fecha: string; ci: string; nombre: string
   cuenta_codigo: string; cuenta_detalle: string; glosa: string
   costo: number; tipo_movimiento: string; metodo_pago: string | null
-  creado_en: string; notas: string | null
+  creado_en: string; notas: string | null; comprobante_url?: string | null
 }
 interface Servicio { id: string; nombre: string; precio: number }
 interface Producto { id: string; nombre: string; precio_venta: number }

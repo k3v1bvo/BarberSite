@@ -111,6 +111,26 @@ export default function CajaChicaPage() {
     mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '',
     comprobante_url: '' as string | null,
   })
+  const [editingComprobanteTx, setEditingComprobanteTx] = useState<any | null>(null)
+
+  const updateTxComprobante = async (txId: string, url: string) => {
+    try {
+      const res = await fetch('/api/transactions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: txId, comprobante_url: url })
+      })
+      if (res.ok) {
+        toastSuccess('Comprobante adjuntado correctamente ✅')
+        setEditingComprobanteTx(null)
+        loadData()
+      } else {
+        toastError('Error al adjuntar el comprobante')
+      }
+    } catch (e: any) {
+      toastError(e.message)
+    }
+  }
 
   // Derivar dirección del código contable
   const getDireccionFromCodigo = (codigo: string): 'INGRESO' | 'EGRESO' | '' => {
@@ -777,11 +797,18 @@ export default function CajaChicaPage() {
                   {/* Método de Pago */}
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1 block">Método de Pago</label>
-                    <select value={form.metodo_pago} onChange={(e) => setForm({ ...form, metodo_pago: e.target.value })}
+                    <select value={form.metodo_pago} onChange={(e) => {
+                      const mp = e.target.value
+                      setForm({
+                        ...form,
+                        metodo_pago: mp,
+                        libro: mp === 'efectivo' ? 'CAJA_CHICA' : mp === 'qr' || mp === 'tarjeta' ? 'BANCO' : 'CAJA_CHICA'
+                      })
+                    }}
                       className="w-full h-11 bg-zinc-950 border border-amber-500/30 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none appearance-none font-bold">
-                      <option value="efectivo">💵 Efectivo</option>
-                      <option value="qr">📱 QR / Transferencia</option>
-                      <option value="tarjeta">💳 Tarjeta</option>
+                      <option value="efectivo">💵 Efectivo (Caja Chica)</option>
+                      <option value="qr">📱 QR / Transferencia (Banco)</option>
+                      <option value="tarjeta">💳 Tarjeta (Banco)</option>
                       <option value="mixto">🔄 Mixto</option>
                     </select>
                   </div>
@@ -944,11 +971,20 @@ export default function CajaChicaPage() {
                           <div className="flex flex-col max-w-[200px]">
                             {tx.glosa && <span className="text-zinc-400 text-xs truncate">{tx.es_sancion ? '⚠ ' : ''}{tx.glosa}</span>}
                             {tx.notas && <span className="text-[10px] text-zinc-600 truncate">{tx.notas}</span>}
-                            {tx.comprobante_url && (
-                              <a href={tx.comprobante_url} target="_blank" rel="noreferrer" className="text-[9px] text-amber-500 hover:text-amber-400 flex items-center gap-0.5 font-bold mt-0.5 w-fit">
-                                <ImageIcon className="w-2.5 h-2.5" /> Comprobante
-                              </a>
-                            )}
+                            {tx.comprobante_url ? (
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <a href={tx.comprobante_url} target="_blank" rel="noreferrer" className="text-[9px] text-amber-500 hover:text-amber-400 flex items-center gap-0.5 font-bold">
+                                  <ImageIcon className="w-2.5 h-2.5" /> Ver
+                                </a>
+                                <button type="button" onClick={() => setEditingComprobanteTx(tx)} className="text-[9px] text-zinc-400 hover:text-white underline">
+                                  Editar
+                                </button>
+                              </div>
+                            ) : (tx.metodo_pago === 'qr' || tx.metodo_pago === 'mixto' || tx.metodo_pago === 'tarjeta') ? (
+                              <button type="button" onClick={() => setEditingComprobanteTx(tx)} className="text-[9px] text-amber-400 hover:text-amber-300 font-bold mt-0.5 flex items-center gap-0.5">
+                                📎 Adjuntar Comprobante
+                              </button>
+                            ) : null}
                           </div>
                         </td>
                         {/* Método de pago */}
@@ -975,6 +1011,25 @@ export default function CajaChicaPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal para adjuntar o editar comprobante */}
+      {editingComprobanteTx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 max-w-md w-full">
+            <h3 className="text-sm font-black uppercase text-amber-500 tracking-wider mb-2">📸 Adjuntar Comprobante QR</h3>
+            <p className="text-xs text-zinc-400 mb-4">
+              Movimiento: <span className="text-white font-bold">{editingComprobanteTx.glosa || editingComprobanteTx.cuenta_detalle}</span> (Bs. {editingComprobanteTx.costo})
+            </p>
+            <ImageUpload
+              defaultImage={editingComprobanteTx.comprobante_url || ''}
+              onUploadSuccess={(url) => updateTxComprobante(editingComprobanteTx.id, url)}
+            />
+            <div className="flex justify-end mt-4">
+              <Button variant="outline" size="sm" onClick={() => setEditingComprobanteTx(null)}>Cerrar</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -819,10 +819,19 @@ function ReservarContent() {
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500/0 via-amber-500 to-amber-500/0"></div>
                         <p className="text-sm font-black text-center text-amber-500 mb-4 uppercase tracking-[0.2em]">Escanea y Sube tu Comprobante</p>
                         {qrPago ? (
-                          <div className="flex justify-center mb-6">
-                            <div className="p-3 bg-white rounded-2xl shadow-lg shadow-white/5">
+                          <div className="flex flex-col items-center mb-6">
+                            <div className="p-3 bg-white rounded-2xl shadow-lg shadow-white/5 mb-3">
                               <img src={qrPago} alt="QR de Pago" className="w-56 h-56 object-contain rounded-xl" />
                             </div>
+                            <a
+                              href={qrPago}
+                              download="QR_Pago_Barberia.png"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black text-xs font-black uppercase tracking-wider rounded-xl transition shadow-lg"
+                            >
+                              📥 Descargar QR para Pagar
+                            </a>
                           </div>
                         ) : (
                           <div className="w-48 h-48 bg-zinc-900 rounded-2xl mx-auto flex items-center justify-center border-2 border-dashed border-zinc-800 mb-6">
