@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, getTodayBolivia } from '@/lib/utils'
 import { Scale, CheckCircle, AlertCircle, Store } from 'lucide-react'
 
 interface Resumen {
@@ -20,6 +20,7 @@ interface Resumen {
   total_descuento_caja: number
   sanciones: number
   movimientos: number
+  cantidad_servicios?: number
 }
 
 interface Cierre {
@@ -40,7 +41,7 @@ export default function ArqueoPage() {
   const [efectivoFisico, setEfectivoFisico] = useState('')
   const [qrFisico, setQrFisico] = useState('')
   const [observaciones, setObservaciones] = useState('')
-  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const hoy = getTodayBolivia()
 
   const loadData = useCallback(async () => {
     const res = await fetch(`/api/arqueo?fecha=${hoy}`)
@@ -123,7 +124,14 @@ export default function ArqueoPage() {
         ].map((item) => (
           <Card key={item.label} className={`border-white/5 bg-zinc-900/80 ${item.label === 'Uso Tienda' && resumen.uso_tienda > 0 ? 'border-violet-500/20' : ''}`}>
             <CardContent className="p-4">
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">{item.label}</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">{item.label}</p>
+                {item.label === 'Servicios' && resumen.cantidad_servicios !== undefined && (
+                  <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    {resumen.cantidad_servicios} {resumen.cantidad_servicios === 1 ? 'hecho' : 'hechos'}
+                  </span>
+                )}
+              </div>
               <p className={`text-xl font-black ${item.color}`}>{formatCurrency(item.value)}</p>
             </CardContent>
           </Card>

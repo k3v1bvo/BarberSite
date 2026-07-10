@@ -76,6 +76,7 @@ export default function CajaChicaPage() {
 
   // Calcular rango de fechas según periodo
   const getDateRange = (): { desde?: string, hasta?: string } => {
+    const now = new Date()
     const todayStr = getTodayBolivia()
     if (periodo === 'todos') return {} // sin filtro de fecha
     if (periodo === 'hoy') return { desde: todayStr, hasta: todayStr }

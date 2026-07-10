@@ -37,6 +37,17 @@ export async function GET(request: NextRequest) {
       .select('libro, costo, metodo_pago, es_sancion, tipo_movimiento, monto_efectivo, monto_qr')
       .eq('fecha', fecha)
 
+    const { data: citasDia } = await supabase
+      .from('citas')
+      .select('id')
+      .gte('fecha_hora', `${fecha}T00:00:00`)
+      .lte('fecha_hora', `${fecha}T23:59:59`)
+      .eq('estado', 'completada')
+
+    const txServiciosCount = txDia?.filter(t => t.libro === 'SERVICIOS' && t.tipo_movimiento === 'INGRESO').length || 0
+    const citasCompletadasCount = citasDia?.length || 0
+    const cantidad_servicios = Math.max(citasCompletadasCount, txServiciosCount)
+
     const resumen = {
       fecha,
       caja_chica: 0,
@@ -51,6 +62,7 @@ export async function GET(request: NextRequest) {
       total_descuento_caja: 0,
       sanciones: 0,
       movimientos: txDia?.length || 0,
+      cantidad_servicios,
     }
     txDia?.forEach((t: any) => {
       const costo = Number(t.costo)
