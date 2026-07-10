@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('transactions')
       .select('*')
+      .order('fecha', { ascending: false })
       .order('creado_en', { ascending: false })
       .limit(limit)
 

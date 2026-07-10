@@ -405,7 +405,11 @@ export default function CajaChicaPage() {
 
   const txFiltradas = [...txBuscadas].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1
-    if (sortKey === 'fecha') return dir * (a.fecha.localeCompare(b.fecha))
+    if (sortKey === 'fecha') {
+      const diff = dir * a.fecha.localeCompare(b.fecha)
+      if (diff !== 0) return diff
+      return dir * ((a.creado_en || '').localeCompare(b.creado_en || ''))
+    }
     if (sortKey === 'nombre') return dir * ((a.nombre || '').localeCompare(b.nombre || ''))
     if (sortKey === 'cuenta_detalle') return dir * ((a.cuenta_detalle || '').localeCompare(b.cuenta_detalle || ''))
     if (sortKey === 'costo') return dir * (Number(a.costo) - Number(b.costo))
