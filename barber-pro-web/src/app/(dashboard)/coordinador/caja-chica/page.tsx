@@ -979,8 +979,10 @@ export default function CajaChicaPage() {
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('cuenta_detalle')}>Categoría <SortIcon col="cuenta_detalle" /></th>
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('nombre')}>Nombre <SortIcon col="nombre" /></th>
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500">Detalle</th>
-                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 w-[80px] cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('metodo_pago')}>Pago <SortIcon col="metodo_pago" /></th>
-                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-right w-[100px] cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('costo')}>Monto <SortIcon col="costo" /></th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 w-[70px]">Pago</th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-right w-[95px]">Efectivo</th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-right w-[95px]">QR / Banco</th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-right w-[95px] cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('costo')}>Total <SortIcon col="costo" /></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -996,6 +998,10 @@ export default function CajaChicaPage() {
                   txFiltradas.map((tx) => {
                     const ingreso = esIngreso(tx)
                     const tipoLabel = tx.subcategoria || tx.tipo_movimiento || (ingreso ? 'INGRESO' : 'EGRESO')
+                    const mpLower = String(tx.metodo_pago || 'efectivo').toLowerCase()
+                    const efMonto = mpLower === 'efectivo' ? Number(tx.costo || 0) : (mpLower === 'mixto' ? Number(tx.monto_efectivo || 0) : 0)
+                    const qrMonto = ['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower) ? Number(tx.costo || 0) : (mpLower === 'mixto' ? Number(tx.monto_qr || 0) : 0)
+
                     return (
                       <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors group">
                         {/* Tipo Ingreso/Egreso */}
@@ -1067,7 +1073,27 @@ export default function CajaChicaPage() {
                             {tx.metodo_pago === 'efectivo' ? '💵 Efect.' : tx.metodo_pago === 'qr' ? '📱 QR' : tx.metodo_pago === 'tarjeta' ? '💳 Tarj.' : tx.metodo_pago === 'mixto' ? '🔄 Mixto' : tx.metodo_pago || '—'}
                           </Badge>
                         </td>
-                        {/* Monto */}
+                        {/* Monto Efectivo */}
+                        <td className="px-3 py-2.5 text-right">
+                          {efMonto > 0 ? (
+                            <span className={`font-mono font-bold text-xs ${ingreso ? 'text-amber-400' : 'text-red-400'}`}>
+                              {ingreso ? '+' : '-'}{formatCurrency(efMonto)}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-600 text-xs">—</span>
+                          )}
+                        </td>
+                        {/* Monto QR / Banco */}
+                        <td className="px-3 py-2.5 text-right">
+                          {qrMonto > 0 ? (
+                            <span className={`font-mono font-bold text-xs ${ingreso ? 'text-blue-400' : 'text-red-400'}`}>
+                              {ingreso ? '+' : '-'}{formatCurrency(qrMonto)}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-600 text-xs">—</span>
+                          )}
+                        </td>
+                        {/* Monto Total */}
                         <td className="px-3 py-2.5 text-right">
                           <span className={`font-black text-sm ${ingreso ? 'text-emerald-400' : 'text-red-400'}`}>
                             {ingreso ? '+' : '-'}{formatCurrency(tx.costo)}
