@@ -25,7 +25,23 @@ export async function GET(request: NextRequest) {
         .order('fecha', { ascending: false })
         .limit(50)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json(closures || [])
+
+      // Consultar también si tienen comprobante en transactions de cierre (EGR-CIE) por fecha
+      const fechas = (closures || []).map((c: any) => c.fecha)
+      const { data: txCierres } = await supabase
+        .from('transactions')
+        .select('fecha, comprobante_url')
+        .eq('cuenta_codigo', 'EGR-CIE')
+        .in('fecha', fechas)
+
+      const txMap = new Map((txCierres || []).map((t: any) => [t.fecha, t.comprobante_url]))
+
+      const enriched = (closures || []).map((c: any) => ({
+        ...c,
+        comprobante_url: c.comprobante_url || txMap.get(c.fecha) || null,
+      }))
+
+      return NextResponse.json(enriched)
     }
 
     const fecha = request.nextUrl.searchParams.get('fecha') || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
@@ -274,5 +290,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result, { status: existing ? 200 : 201 })
   } catch {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
+  }
+}
+
+// PATCH /api/arqueo — actualizar comprobante_url de un cierre diario
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    const body = await request.json()
+    const { id, fecha, comprobante_url } = body
+
+    if (id) {
+      await supabase.from('daily_closures').update({ comprobante_url }).eq('id', id)
+    }
+
+    if (fecha) {
+      await supabase
+        .from('transactions')
+        .update({ comprobante_url })
+        .eq('fecha', fecha)
+        .eq('cuenta_codigo', 'EGR-CIE')
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
