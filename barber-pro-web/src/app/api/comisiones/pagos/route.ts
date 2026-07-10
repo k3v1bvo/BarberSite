@@ -18,7 +18,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const supabase = await createServerSupabaseClient()
   const body = await req.json()
-  const { barbero_id, periodo_tipo, fecha_inicio, fecha_fin, metodo_pago, descuento_adelanto = 0, sanciones_ids = [], bonos_ids = [] } = body
+  const { barbero_id, periodo_tipo, fecha_inicio, fecha_fin, metodo_pago, descuento_adelanto = 0, sanciones_ids = [], bonos_ids = [], comprobante_url } = body
 
   if (!barbero_id || !fecha_inicio || !fecha_fin) {
     return NextResponse.json({ error: 'Datos requeridos faltantes' }, { status: 400 })
@@ -182,6 +182,7 @@ export async function POST(req: Request) {
       monto_efectivo: metodo_pago === 'efectivo' ? monto_total : (metodo_pago === 'mixto' ? Number(body.monto_efectivo) || 0 : 0),
       monto_qr: metodo_pago === 'qr' ? monto_total : (metodo_pago === 'mixto' ? Number(body.monto_qr) || 0 : 0),
       usuario_registro: adminProfile?.full_name || 'Sistema',
+      comprobante_url: comprobante_url || null,
     })
 
     if (egresoError) {

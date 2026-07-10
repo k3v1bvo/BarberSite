@@ -24,7 +24,7 @@ export default function BuscarPage() {
   const [clientes, setClientes] = useState<Array<{ 
     id: string; nombre: string; telefono: string | null; email: string | null; ci: string | null;
     total_visitas: number; total_gastado: number; nivel_fidelidad: string | null;
-    cumpleanos: string | null; ultima_visita: string | null;
+    cumpleanos: string | null; ultima_visita: string | null; codigo_tarjeta: string | null;
   }>>([])
   const [citas, setCitas] = useState<Array<{
     id: string
@@ -69,8 +69,8 @@ export default function BuscarPage() {
 
       const { data: clientesData } = await supabase
         .from('clientes')
-        .select('id, nombre, telefono, email, ci, total_visitas, total_gastado, nivel_fidelidad, cumpleanos, ultima_visita')
-        .or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,email.ilike.%${q}%,ci.ilike.%${q}%`)
+        .select('id, nombre, telefono, email, ci, total_visitas, total_gastado, nivel_fidelidad, cumpleanos, ultima_visita, codigo_tarjeta')
+        .or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,email.ilike.%${q}%,ci.ilike.%${q}%,codigo_tarjeta.ilike.%${q}%`)
         .limit(15)
 
       // Buscar citas para esos clientes, o si 'q' es un UUID, buscar la cita directamente
@@ -177,6 +177,7 @@ export default function BuscarPage() {
                     </div>
                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                       {c.ci && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><CreditCard className="w-3 h-3" />{c.ci}</span>}
+                      {c.codigo_tarjeta && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><Star className="w-3 h-3" />{c.codigo_tarjeta}</span>}
                       {c.telefono && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><Phone className="w-3 h-3" />{c.telefono}</span>}
                       {c.email && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><Mail className="w-3 h-3" />{c.email}</span>}
                       {c.cumpleanos && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><Calendar className="w-3 h-3" />{formatFecha(c.cumpleanos)}</span>}

@@ -8,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import { formatCurrency } from '@/lib/utils'
-import { ArrowDownCircle, ArrowLeft, FileText, Wallet, Check, Plus, Search, X } from 'lucide-react'
+import { ArrowDownCircle, ArrowLeft, FileText, Wallet, Check, Plus, Search, X, Image as ImageIcon, ExternalLink } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface PlanCuenta {
   id: string
@@ -50,6 +51,7 @@ export default function EgresosPage() {
     metodo_pago: 'efectivo',
     monto_efectivo: '',
     monto_qr: '',
+    comprobante_url: '',
   })
 
   // Categorías filtradas para autocompletado
@@ -197,7 +199,8 @@ export default function EgresosPage() {
         monto_efectivo: formData.metodo_pago === 'mixto' ? Number(formData.monto_efectivo) : (formData.metodo_pago === 'efectivo' ? Number(formData.monto_neto) : 0),
         monto_qr: formData.metodo_pago === 'mixto' ? Number(formData.monto_qr) : (formData.metodo_pago === 'qr' ? Number(formData.monto_neto) : 0),
         usuario_registro: userName,
-        notas: formData.notas || null
+        notas: formData.notas || null,
+        comprobante_url: formData.comprobante_url || null
       })
       if (egresoError) throw egresoError
 
@@ -216,12 +219,13 @@ export default function EgresosPage() {
         metodo_pago: formData.metodo_pago,
         monto_efectivo: formData.metodo_pago === 'mixto' ? Number(formData.monto_efectivo) : (formData.metodo_pago === 'efectivo' ? Number(formData.monto_neto) : 0),
         monto_qr: formData.metodo_pago === 'mixto' ? Number(formData.monto_qr) : (formData.metodo_pago === 'qr' ? Number(formData.monto_neto) : 0),
-        usuario_registro: userName
+        usuario_registro: userName,
+        comprobante_url: formData.comprobante_url || null
       })
       if (txError) throw txError
 
       success('Egreso registrado correctamente')
-      setFormData({ concepto: '', proveedor: '', monto_neto: '', notas: '', metodo_pago: 'efectivo', monto_efectivo: '', monto_qr: '' })
+      setFormData({ concepto: '', proveedor: '', monto_neto: '', notas: '', metodo_pago: 'efectivo', monto_efectivo: '', monto_qr: '', comprobante_url: '' })
       setSearchCategoria('')
       setSelectedCategoriaId('')
       loadEgresos()
@@ -428,6 +432,17 @@ export default function EgresosPage() {
                   </div>
                 )}
 
+                {(formData.metodo_pago === 'qr' || formData.metodo_pago === 'mixto') && (
+                  <div className="p-3 bg-zinc-900 border border-white/5 rounded-xl">
+                    <ImageUpload
+                      label="Comprobante de Pago (Captura QR/Transferencia)"
+                      defaultImage={formData.comprobante_url || undefined}
+                      onUploadSuccess={(url) => setFormData({...formData, comprobante_url: url})}
+                      onUploadError={(err) => error(err)}
+                    />
+                  </div>
+                )}
+
                 <div className="space-y-2">
                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Proveedor / Destinatario (Opcional)</label>
                    <Input className="bg-black/50" placeholder="Ej: Juan Perez (Barbero) o CRE"
@@ -493,6 +508,12 @@ export default function EgresosPage() {
                           </div>
                           {egreso.notas && (
                             <p className="text-xs text-zinc-500 mt-1.5 italic line-clamp-1">{egreso.notas}</p>
+                          )}
+                          {egreso.comprobante_url && (
+                            <a href={egreso.comprobante_url} target="_blank" rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[10px] text-amber-500 hover:text-amber-400 font-bold mt-1 transition">
+                              <ImageIcon className="w-3 h-3" /> Ver Comprobante <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
                           )}
                         </div>
                       </div>

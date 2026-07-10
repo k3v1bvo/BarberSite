@@ -48,7 +48,12 @@ CREATE TABLE public.clientes (
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
   ci character varying,
   nivel_fidelidad text DEFAULT 'BRONCE'::text,
-  CONSTRAINT clientes_pkey PRIMARY KEY (id)
+  numero_cliente integer NOT NULL DEFAULT nextval('clientes_numero_cliente_seq'::regclass),
+  referral_code text UNIQUE,
+  referido_por uuid,
+  codigo_tarjeta text UNIQUE,
+  CONSTRAINT clientes_pkey PRIMARY KEY (id),
+  CONSTRAINT clientes_referido_por_fkey FOREIGN KEY (referido_por) REFERENCES public.clientes(id)
 );
 CREATE TABLE public.citas (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -76,6 +81,8 @@ CREATE TABLE public.citas (
   anticipo_verificado boolean DEFAULT false,
   anticipo_verificado_por uuid,
   anticipo_verificado_at timestamp with time zone,
+  reprogramacion_estado text,
+  fecha_hora_solicitada timestamp with time zone,
   CONSTRAINT citas_pkey PRIMARY KEY (id),
   CONSTRAINT citas_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id),
   CONSTRAINT citas_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id),
@@ -358,6 +365,7 @@ CREATE TABLE public.transactions (
   usuario_registro character varying NOT NULL,
   notas text,
   creado_en timestamp with time zone DEFAULT now(),
+  comprobante_url text,
   CONSTRAINT transactions_pkey PRIMARY KEY (id),
   CONSTRAINT transactions_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id),
   CONSTRAINT transactions_cita_id_fkey FOREIGN KEY (cita_id) REFERENCES public.citas(id),
@@ -397,6 +405,7 @@ CREATE TABLE public.egresos (
   usuario_registro character varying NOT NULL,
   notas text,
   creado_en timestamp with time zone DEFAULT now(),
+  comprobante_url text,
   CONSTRAINT egresos_pkey PRIMARY KEY (id),
   CONSTRAINT egresos_cuenta_codigo_fkey FOREIGN KEY (cuenta_codigo) REFERENCES public.plan_cuentas(codigo)
 );
@@ -408,6 +417,7 @@ CREATE TABLE public.referrals (
   bono_otorgado boolean DEFAULT false,
   monto_bono numeric DEFAULT 0,
   creado_en timestamp with time zone DEFAULT now(),
+  bono_usado boolean DEFAULT false,
   CONSTRAINT referrals_pkey PRIMARY KEY (id),
   CONSTRAINT referrals_cliente_recomendante_id_fkey FOREIGN KEY (cliente_recomendante_id) REFERENCES public.clientes(id),
   CONSTRAINT referrals_cliente_recomendado_id_fkey FOREIGN KEY (cliente_recomendado_id) REFERENCES public.clientes(id)
@@ -482,22 +492,6 @@ CREATE TABLE public.cumpleanos_verificados (
   CONSTRAINT cumpleanos_verificados_promo_id_fkey FOREIGN KEY (promo_id) REFERENCES public.promociones(id),
   CONSTRAINT cumpleanos_verificados_verificado_por_fkey FOREIGN KEY (verificado_por) REFERENCES public.profiles(id)
 );
-CREATE TABLE public.sanciones (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  barbero_id uuid NOT NULL,
-  tipo text NOT NULL,
-  descripcion text,
-  monto numeric NOT NULL,
-  estado text DEFAULT 'pendiente'::text,
-  cita_id uuid,
-  aplicada_en_pago_id uuid,
-  fecha date NOT NULL DEFAULT CURRENT_DATE,
-  creado_en timestamp with time zone DEFAULT now(),
-  CONSTRAINT sanciones_pkey PRIMARY KEY (id),
-  CONSTRAINT sanciones_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id),
-  CONSTRAINT sanciones_cita_id_fkey FOREIGN KEY (cita_id) REFERENCES public.citas(id),
-  CONSTRAINT sanciones_aplicada_en_pago_id_fkey FOREIGN KEY (aplicada_en_pago_id) REFERENCES public.comisiones_pagos(id)
-);
 CREATE TABLE public.reviews (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   cliente_id uuid,
@@ -511,4 +505,23 @@ CREATE TABLE public.reviews (
   CONSTRAINT reviews_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.profiles(id),
   CONSTRAINT reviews_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id),
   CONSTRAINT reviews_cita_id_fkey FOREIGN KEY (cita_id) REFERENCES public.citas(id)
+);
+CREATE TABLE public.comisiones_pendientes (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  barbero_id uuid,
+  cita_id uuid,
+  servicio_id uuid,
+  monto_servicio numeric NOT NULL,
+  porcentaje_comision numeric NOT NULL DEFAULT 30.00,
+  monto_comision numeric NOT NULL,
+  estado text DEFAULT 'pendiente'::text CHECK (estado = ANY (ARRAY['pendiente'::text, 'pagado'::text])),
+  fecha_generacion timestamp with time zone DEFAULT now(),
+  fecha_pago timestamp with time zone,
+  metodo_pago text,
+  comprobante_url text,
+  notas text,
+  CONSTRAINT comisiones_pendientes_pkey PRIMARY KEY (id),
+  CONSTRAINT comisiones_pendientes_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id),
+  CONSTRAINT comisiones_pendientes_cita_id_fkey FOREIGN KEY (cita_id) REFERENCES public.citas(id),
+  CONSTRAINT comisiones_pendientes_servicio_id_fkey FOREIGN KEY (servicio_id) REFERENCES public.servicios(id)
 );

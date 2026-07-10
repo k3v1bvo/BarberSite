@@ -31,6 +31,7 @@ interface Cliente {
   created_at: string
   cumpleanos: string | null
   ultima_visita: string | null
+  codigo_tarjeta: string | null
 }
 
 interface Cita {
@@ -123,7 +124,7 @@ export default function ClientesAdminPage() {
 
     const { data } = await supabase
       .from('clientes')
-      .select('id, nombre, email, telefono, ci, total_visitas, total_gastado, nivel_fidelidad, created_at, cumpleanos, ultima_visita')
+      .select('id, nombre, email, telefono, ci, total_visitas, total_gastado, nivel_fidelidad, created_at, cumpleanos, ultima_visita, codigo_tarjeta')
       .order('created_at', { ascending: false })
 
     const lista = (data || []) as Cliente[]
@@ -181,7 +182,8 @@ export default function ClientesAdminPage() {
         c.nombre.toLowerCase().includes(q) ||
         c.email?.toLowerCase().includes(q) ||
         c.telefono?.includes(q) ||
-        c.ci?.toLowerCase().includes(q)
+        c.ci?.toLowerCase().includes(q) ||
+        c.codigo_tarjeta?.toLowerCase().includes(q)
       )
     }
 
@@ -510,6 +512,7 @@ export default function ClientesAdminPage() {
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mt-4 pb-4">
                   {[
                     { icon: CreditCard, value: clienteSeleccionado.ci,     label: 'Carnet' },
+                    { icon: Star,       value: clienteSeleccionado.codigo_tarjeta, label: 'Cód. Tarjeta' },
                     { icon: Phone,      value: clienteSeleccionado.telefono, label: 'Teléfono' },
                     { icon: Mail,       value: clienteSeleccionado.email,   label: 'Correo' },
                     { icon: Calendar,   value: clienteSeleccionado.cumpleanos ? formatFecha(clienteSeleccionado.cumpleanos + 'T12:00:00') : null, label: 'Cumpleaños' },

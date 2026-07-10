@@ -53,7 +53,7 @@ export default function CajaChicaPage() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
-  const [periodo, setPeriodo] = useState<'todos' | 'hoy' | 'semana' | 'mes' | 'custom'>('todos')
+  const [periodo, setPeriodo] = useState<'todos' | 'hoy' | 'semana' | 'mes' | 'custom'>('hoy')
   const [customDesde, setCustomDesde] = useState('')
   const [customHasta, setCustomHasta] = useState('')
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'INGRESO' | 'EGRESO'>('todos')

@@ -20,6 +20,7 @@ interface Cliente {
   nivel_fidelidad?: string
   total_visitas?: number
   total_gastado?: number
+  codigo_tarjeta?: string | null
 }
 
 interface Promocion {
@@ -31,6 +32,15 @@ interface Promocion {
   icono: string
   servicio_id: string | null
   nivel_requerido: string | null
+}
+
+interface LealtadMeta {
+  id: string
+  nombre: string
+  visitas_requeridas: number
+  tipo_recompensa: string
+  valor_recompensa: number
+  is_active: boolean
 }
 
 interface ReferralBonus {
@@ -82,6 +92,7 @@ export function CajaPOS() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [carrito, setCarrito] = useState<ProductoCarrito[]>([])
   const [promociones, setPromociones] = useState<Promocion[]>([])
+  const [lealtadMetas, setLealtadMetas] = useState<LealtadMeta[]>([])
   const [referralBonuses, setReferralBonuses] = useState<ReferralBonus[]>([])
   const [clienteDetalle, setClienteDetalle] = useState<Cliente | null>(null)
   const [qrPagoUrl, setQrPagoUrl] = useState<string | null>(null)
@@ -130,24 +141,28 @@ export function CajaPOS() {
     propinas: 0,
     notas: 'Venta desde Caja',
     comprobante_url: '',
+    monto_efectivo: 0,
+    monto_qr: 0,
   })
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [resServicios, resBarberos, resProductos, resPromos, resQr, resTiempo] = await Promise.all([
+        const [resServicios, resBarberos, resProductos, resPromos, resQr, resTiempo, resMetas] = await Promise.all([
           supabase.from('servicios').select('id, nombre, precio, duracion_minutos, barberos_excluidos').eq('is_active', true),
           supabase.from('profiles').select('id, full_name, email, avatar_url').eq('role', 'barbero').eq('is_active', true),
           supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url, categoria').eq('is_active', true).gt('stock_actual', 0).order('nombre'),
           supabase.from('promociones').select('id, nombre, tipo, valor, activa, icono, servicio_id, nivel_requerido').eq('activa', true),
           supabase.from('configuraciones').select('valor').eq('llave', 'qr_pago').maybeSingle(),
-          supabase.from('configuraciones').select('valor').eq('llave', 'tiempo_minimo_reserva').maybeSingle()
+          supabase.from('configuraciones').select('valor').eq('llave', 'tiempo_minimo_reserva').maybeSingle(),
+          supabase.from('lealtad_metas').select('id, nombre, visitas_requeridas, tipo_recompensa, valor_recompensa, is_active').eq('is_active', true)
         ])
 
         setServicios(resServicios.data || [])
         setBarberos(resBarberos.data || [])
         setProductos(resProductos.data || [])
         setPromociones(resPromos.data || [])
+        setLealtadMetas(resMetas.data || [])
         
         if (resQr.data?.valor?.url) {
           setQrPagoUrl(resQr.data.valor.url)
@@ -160,7 +175,7 @@ export function CajaPOS() {
         
         const { data: citasPendientesData } = await supabase
           .from('citas')
-          .select('id, cliente_id, barbero_id, servicio_id, estado, fecha_hora, notas, clientes(nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
+          .select('id, cliente_id, barbero_id, servicio_id, estado, fecha_hora, notas, clientes(nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado, codigo_tarjeta), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
           .in('estado', ['en_proceso', 'pendiente', 'pendiente_pago', 'confirmado'])
           .order('fecha_hora', { ascending: true })
 
@@ -251,8 +266,8 @@ export function CajaPOS() {
       const q = searchCliente.trim()
       const { data } = await supabase
         .from('clientes')
-        .select('id, nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado')
-        .or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,email.ilike.%${q}%,ci.ilike.%${q}%`)
+        .select('id, nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado, codigo_tarjeta')
+        .or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,email.ilike.%${q}%,ci.ilike.%${q}%,codigo_tarjeta.ilike.%${q}%`)
         .limit(15)
 
       setClientes(data || [])
@@ -311,8 +326,8 @@ export function CajaPOS() {
       const q = searchCi.trim()
       const { data } = await supabase
         .from('clientes')
-        .select('id, nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado')
-        .ilike('ci', `%${q}%`)
+        .select('id, nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado, codigo_tarjeta')
+        .or(`ci.ilike.%${q}%,codigo_tarjeta.ilike.%${q}%`)
         .limit(10)
 
       setClientes(data || [])
@@ -494,7 +509,7 @@ export function CajaPOS() {
       const hoy = new Date().toISOString().split('T')[0]
       const { data: citasPendientesData } = await supabase
         .from('citas')
-        .select('id, cliente_id, barbero_id, servicio_id, estado, fecha_hora, notas, clientes(nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
+        .select('id, cliente_id, barbero_id, servicio_id, estado, fecha_hora, notas, clientes(nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado, codigo_tarjeta), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
         .in('estado', ['en_proceso', 'pendiente', 'pendiente_pago', 'confirmado'])
         .order('fecha_hora', { ascending: true })
       setCitasPendientes(citasPendientesData || [])
@@ -549,8 +564,30 @@ export function CajaPOS() {
   const totalBonoReferido = aplicarReferido
     ? referralBonuses.reduce((s, r) => s + Number(r.monto_bono), 0)
     : 0
+
+  // Descuento automático por lealtad (metas de visitas)
+  let descuentoLealtad = 0
+  let metaAlcanzadaNombre = ''
+  if (clienteDetalle && lealtadMetas.length > 0) {
+    const proximasVisitas = (clienteDetalle.total_visitas || 0) + 1
+    // Buscar la meta más alta que cumpla la visita actual
+    const metasCumplidas = lealtadMetas.filter(m => proximasVisitas % m.visitas_requeridas === 0)
+    if (metasCumplidas.length > 0) {
+      // Tomar la que requiere más visitas
+      const meta = metasCumplidas.sort((a, b) => b.visitas_requeridas - a.visitas_requeridas)[0]
+      metaAlcanzadaNombre = meta.nombre
+      if (meta.tipo_recompensa === 'porcentaje') {
+        descuentoLealtad = (subtotalServicio * meta.valor_recompensa) / 100
+      } else if (meta.tipo_recompensa === 'monto_fijo') {
+        descuentoLealtad = meta.valor_recompensa
+      } else if (meta.tipo_recompensa === 'servicio_gratis') {
+        descuentoLealtad = subtotalServicio
+      }
+    }
+  }
+
   const descuentoReservaProducto = (formData.servicio_id && carrito.length > 0) ? 10 : 0
-  const descuentoTotal = descuentoPromo + totalBonoReferido + descuentoReservaProducto
+  const descuentoTotal = descuentoPromo + totalBonoReferido + descuentoReservaProducto + descuentoLealtad
   const totalACobrar = Math.max(0, subtotalServicio + totalProductos + Number(formData.propinas || 0) - descuentoTotal)
 
   const checkDisponibilidad = (hora: string) => {
@@ -741,7 +778,8 @@ export function CajaPOS() {
                            ci: cita.clientes.ci,
                            nivel_fidelidad: cita.clientes.nivel_fidelidad,
                            total_visitas: cita.clientes.total_visitas,
-                           total_gastado: cita.clientes.total_gastado
+                           total_gastado: cita.clientes.total_gastado,
+                           codigo_tarjeta: cita.clientes.codigo_tarjeta
                         })
                       }
                       
@@ -842,8 +880,8 @@ export function CajaPOS() {
                           className="px-4 py-2 hover:bg-zinc-800 cursor-pointer flex justify-between items-center"
                         >
                           <div>
-                            <p className="font-semibold">{c.nombre}</p>
-                            <p className="text-xs text-zinc-400">{c.ci ? `C.I. ${c.ci} · ` : ''}{c.email || 'Sin correo'} · {c.telefono || 'Sin tel'}</p>
+                            <p className="font-semibold">{c.nombre} {c.codigo_tarjeta ? `(Cód: ${c.codigo_tarjeta})` : ''}</p>
+                            <p className="text-xs text-zinc-400">CI: {c.ci || 'N/A'} • {c.telefono || 'Sin cel'}</p>
                           </div>
                           <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-1 rounded-full">Seleccionar</span>
                         </div>
@@ -866,7 +904,7 @@ export function CajaPOS() {
                 />
                 <div className="space-y-1 relative">
                   <Input 
-                    label="Carnet / CI" 
+                    label="Carnet / CI / Cód. Tarjeta" 
                     value={formData.ci || searchCi} 
                     onChange={handleCiSearchChange} 
                     onFocus={() => setShowCiDropdown(true)}
@@ -885,7 +923,7 @@ export function CajaPOS() {
                             className="px-4 py-2 hover:bg-zinc-800 cursor-pointer flex justify-between items-center"
                           >
                             <div>
-                              <p className="font-semibold">{c.ci}</p>
+                              <p className="font-semibold">{c.ci || 'Sin CI'} {c.codigo_tarjeta ? `| Cód: ${c.codigo_tarjeta}` : ''}</p>
                               <p className="text-xs text-zinc-400">{c.nombre}</p>
                             </div>
                             <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-1 rounded-full">Seleccionar</span>
@@ -984,7 +1022,7 @@ export function CajaPOS() {
                 ) : (
                   <div className="relative">
                     <Input
-                      placeholder="Buscar referidor por nombre, CI o correo..."
+                      placeholder="Buscar referidor por nombre, CI o Cód. Tarjeta..."
                       value={referidoPorSearch}
                       onChange={(e) => {
                         setReferidoPorSearch(e.target.value)
@@ -1506,6 +1544,15 @@ export function CajaPOS() {
                     </div>
                   )}
 
+                  {descuentoLealtad > 0 && (
+                    <div className="flex justify-between items-center text-sm mb-2">
+                      <span className="text-pink-500 text-xs flex items-center gap-1">
+                        <Star className="w-3 h-3" /> Recompensa: {metaAlcanzadaNombre}
+                      </span>
+                      <span className="text-pink-400 font-semibold">-{formatCurrency(descuentoLealtad)}</span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-center pt-4 border-t border-zinc-800">
                     <span className="text-lg font-bold">Total a Cobrar</span>
                     <span className="text-2xl font-black text-amber-400">
@@ -1535,14 +1582,14 @@ export function CajaPOS() {
                               <label className="text-[9px] font-bold uppercase text-zinc-500 block mb-0.5">Efectivo</label>
                               <input type="number" step="0.01" min="0" placeholder="0" id="mixto-efectivo"
                                 className="w-full h-9 bg-zinc-950 border border-amber-500/30 rounded-lg px-2 text-sm text-white outline-none"
-                                onChange={(e) => setFormData(p => ({...p, notas: `Efectivo: Bs ${e.target.value} | QR: Bs ${(document.querySelector('[data-mixto-qr]') as HTMLInputElement)?.value || 0}`}))}
+                                onChange={(e) => setFormData(p => ({...p, monto_efectivo: Number(e.target.value) || 0, notas: `Efectivo: Bs ${e.target.value} | QR: Bs ${p.monto_qr}`}))}
                               />
                             </div>
                             <div>
                               <label className="text-[9px] font-bold uppercase text-zinc-500 block mb-0.5">QR</label>
                               <input type="number" step="0.01" min="0" placeholder="0" data-mixto-qr
                                 className="w-full h-9 bg-zinc-950 border border-amber-500/30 rounded-lg px-2 text-sm text-white outline-none"
-                                onChange={(e) => setFormData(p => ({...p, notas: `Efectivo: Bs ${(document.getElementById('mixto-efectivo') as HTMLInputElement)?.value || 0} | QR: Bs ${e.target.value}`}))}
+                                onChange={(e) => setFormData(p => ({...p, monto_qr: Number(e.target.value) || 0, notas: `Efectivo: Bs ${p.monto_efectivo} | QR: Bs ${e.target.value}`}))}
                               />
                             </div>
                           </div>

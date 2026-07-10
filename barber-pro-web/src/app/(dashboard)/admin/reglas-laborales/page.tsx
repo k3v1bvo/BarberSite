@@ -899,10 +899,16 @@ export default function ReglasLaboralesPage() {
                 <select required value={sancionForm.tipo}
                   onChange={e => setSancionForm({ ...sancionForm, tipo: e.target.value })}
                   className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm outline-none focus:border-red-500/50">
-                  <option value="llegada_tarde">Llegada Tarde</option>
-                  <option value="falta">Falta Injustificada</option>
-                  <option value="salida_temprano">Salida Temprano</option>
-                  <option value="otro">Otro Motivo</option>
+                  {sanciones.length > 0 ? (
+                    sanciones.map(s => <option key={s.id} value={s.detalle}>{s.detalle}</option>)
+                  ) : (
+                    <>
+                      <option value="llegada_tarde">Llegada Tarde</option>
+                      <option value="falta">Falta Injustificada</option>
+                      <option value="salida_temprano">Salida Temprano</option>
+                      <option value="otro">Otro Motivo</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div>
@@ -912,15 +918,27 @@ export default function ReglasLaboralesPage() {
                   placeholder="Ej: Tardanza el lunes 3 de junio"
                   className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm outline-none focus:border-red-500/50" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">Monto (Bs) *</label>
-                  <div className="flex items-center gap-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-2">
-                    <span className="text-zinc-500 font-bold">Bs</span>
-                    <input required type="number" min={0.5} step={0.5} value={sancionForm.monto || ''}
-                      onChange={e => setSancionForm({ ...sancionForm, monto: parseFloat(e.target.value) || 0 })}
-                      className="flex-1 bg-transparent text-red-400 font-black text-lg outline-none" />
-                  </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">Monto (Bs) *</label>
+                <div className="flex items-center gap-2 bg-zinc-900 border border-white/10 rounded-xl px-4 py-2">
+                  <span className="text-zinc-500 font-bold">Bs</span>
+                  <input required type="number" min={0.5} step={0.5} value={sancionForm.monto || ''}
+                    onChange={e => setSancionForm({ ...sancionForm, monto: parseFloat(e.target.value) || 0 })}
+                    className="flex-1 bg-transparent text-red-400 font-black text-lg outline-none" />
+                </div>
+                <p className="text-[10px] text-zinc-600 mt-1.5">Usar precio del servicio como referencia:</p>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {servicios.filter(s => s.is_active).map(s => (
+                    <button key={s.id} type="button"
+                      onClick={() => setSancionForm({ ...sancionForm, monto: s.precio })}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                        sancionForm.monto === s.precio 
+                          ? 'bg-red-500/20 border-red-500/40 text-red-400' 
+                          : 'bg-zinc-900 border-white/5 text-zinc-400 hover:border-red-500/30 hover:text-red-300'
+                      }`}>
+                      {s.nombre}: {formatCurrency(s.precio)}
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="flex gap-3 pt-2">

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import { formatCurrency } from '@/lib/utils'
 import { ArrowLeft, DollarSign, CheckCircle, Filter, Download, Edit, RefreshCw, AlertTriangle, X, Plus } from 'lucide-react'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 export default function AdminComisionesPage() {
   const router = useRouter()
@@ -23,6 +24,7 @@ export default function AdminComisionesPage() {
   const [metodoPago, setMetodoPago] = useState('efectivo')
   const [pagoEfectivo, setPagoEfectivo] = useState<number>(0)
   const [pagoQr, setPagoQr] = useState<number>(0)
+  const [comprobanteUrl, setComprobanteUrl] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [isRecalculating, setIsRecalculating] = useState(false)
   
@@ -102,11 +104,13 @@ export default function AdminComisionesPage() {
           monto_qr: pagoQr,
           descuento_adelanto: descuentoAdelanto,
           sanciones_ids: finanzas.sanciones_pendientes.map((s: any) => s.id),
-          bonos_ids: finanzas.bonos_pendientes.map((b: any) => b.id)
+          bonos_ids: finanzas.bonos_pendientes.map((b: any) => b.id),
+          comprobante_url: comprobanteUrl
         }),
       })
       if (!res.ok) throw new Error((await res.json()).error)
       success('Comisiones marcadas como pagadas')
+      setComprobanteUrl('')
       load()
     } catch (e) {
       toastError(e instanceof Error ? e.message : 'Error')
@@ -321,6 +325,17 @@ export default function AdminComisionesPage() {
                   <span className="font-bold text-green-400">+{formatCurrency(finanzas.total_bonos)}</span>
                 </div>
               </div>
+
+              {(metodoPago === 'qr' || metodoPago === 'mixto' || metodoPago === 'tarjeta') && (
+                <div className="pt-2">
+                  <ImageUpload
+                    label="Comprobante de Pago"
+                    defaultImage={comprobanteUrl || undefined}
+                    onUploadSuccess={(url) => setComprobanteUrl(url)}
+                    onUploadError={(err) => toastError(err)}
+                  />
+                </div>
+              )}
               
               <div className="flex flex-col md:flex-row items-center gap-4 pt-4 border-t border-white/5">
                 <div className="flex-1">
