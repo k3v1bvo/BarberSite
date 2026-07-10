@@ -178,20 +178,23 @@ export default function CajaChicaPage() {
     if (desde) {
       const { data: antTx } = await supabase
         .from('transactions')
-        .select('costo, tipo_movimiento, metodo_pago, monto_efectivo, monto_qr')
+        .select('costo, tipo_movimiento, metodo_pago, notas')
         .lt('fecha', desde)
       if (antTx) {
         antTx.forEach(tx => {
           const ing = tx.tipo_movimiento === 'INGRESO'
+          const mpLower = String(tx.metodo_pago || 'efectivo').toLowerCase()
           let ef = 0
           let qr = 0
-          if (tx.metodo_pago === 'efectivo' || !tx.metodo_pago) {
+          if (mpLower === 'efectivo') {
             ef = Number(tx.costo || 0)
-          } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(String(tx.metodo_pago).toLowerCase())) {
+          } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)) {
             qr = Number(tx.costo || 0)
-          } else if (tx.metodo_pago === 'mixto') {
-            ef = Number(tx.monto_efectivo || 0)
-            qr = Number(tx.monto_qr || 0)
+          } else if (mpLower === 'mixto') {
+            const efMatch = String(tx.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
+            const qrMatch = String(tx.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
+            ef = efMatch ? parseFloat(efMatch[1]) : 0
+            qr = qrMatch ? parseFloat(qrMatch[1]) : Number(tx.costo || 0)
           }
           if (ing) {
             antEf += ef
@@ -380,6 +383,24 @@ export default function CajaChicaPage() {
     setForm({ ...form, empleado_id: id, nombre: b?.full_name || form.nombre })
   }
 
+  const getMontosTx = (tx: any) => {
+    const mpLower = String(tx.metodo_pago || 'efectivo').toLowerCase()
+    if (mpLower === 'efectivo') return { ef: Number(tx.costo || 0), qr: 0 }
+    if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)) return { ef: 0, qr: Number(tx.costo || 0) }
+    if (mpLower === 'mixto') {
+      if (tx.monto_efectivo !== undefined || tx.monto_qr !== undefined) {
+        return { ef: Number(tx.monto_efectivo || 0), qr: Number(tx.monto_qr || 0) }
+      }
+      const efMatch = String(tx.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
+      const qrMatch = String(tx.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
+      return {
+        ef: efMatch ? parseFloat(efMatch[1]) : 0,
+        qr: qrMatch ? parseFloat(qrMatch[1]) : Number(tx.costo || 0)
+      }
+    }
+    return { ef: Number(tx.costo || 0), qr: 0 }
+  }
+
   // Determinar si un movimiento es ingreso o egreso
   const esIngreso = (tx: Transaction) => {
     if (tx.tipo_movimiento === 'INGRESO') return true
@@ -449,16 +470,7 @@ export default function CajaChicaPage() {
 
   transactions.forEach((tx) => {
     const ing = esIngreso(tx)
-    let ef = 0
-    let qr = 0
-    if (tx.metodo_pago === 'efectivo' || !tx.metodo_pago) {
-      ef = Number(tx.costo || 0)
-    } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(String(tx.metodo_pago).toLowerCase())) {
-      qr = Number(tx.costo || 0)
-    } else if (tx.metodo_pago === 'mixto') {
-      ef = Number(tx.monto_efectivo || 0)
-      qr = Number(tx.monto_qr || 0)
-    }
+    const { ef, qr } = getMontosTx(tx)
     if (ing) {
       ingresosEfectivo += ef
       ingresosQR += qr
@@ -998,9 +1010,7 @@ export default function CajaChicaPage() {
                   txFiltradas.map((tx) => {
                     const ingreso = esIngreso(tx)
                     const tipoLabel = tx.subcategoria || tx.tipo_movimiento || (ingreso ? 'INGRESO' : 'EGRESO')
-                    const mpLower = String(tx.metodo_pago || 'efectivo').toLowerCase()
-                    const efMonto = mpLower === 'efectivo' ? Number(tx.costo || 0) : (mpLower === 'mixto' ? Number(tx.monto_efectivo || 0) : 0)
-                    const qrMonto = ['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower) ? Number(tx.costo || 0) : (mpLower === 'mixto' ? Number(tx.monto_qr || 0) : 0)
+                    const { ef: efMonto, qr: qrMonto } = getMontosTx(tx)
 
                     return (
                       <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors group">

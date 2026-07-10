@@ -145,9 +145,8 @@ export async function POST(request: NextRequest) {
       es_sancion: false,
       metodo_pago: metodoPago,
       subcategoria: 'GASTO_GENERAL',
-      monto_efectivo: montoEfectivo,
-      monto_qr: montoQr,
-      usuario_registro: profile?.full_name || user.email || 'Sistema',
+      notas: metodoPago === 'mixto' ? `Efectivo: Bs ${montoEfectivo} | QR: Bs ${montoQr}` : null,
+      usuario_registro: profile?.full_name || 'Sistema',
       comprobante_url: body.comprobante_url || null,
     })
 

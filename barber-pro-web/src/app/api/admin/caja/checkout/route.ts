@@ -345,8 +345,7 @@ export async function POST(request: NextRequest) {
             empleado_id: barbero_id,
             cliente_id: finalClienteId,
             metodo_pago: metodo_pago || 'efectivo',
-            monto_efectivo: metodo_pago === 'mixto' ? Number(monto_efectivo || 0) : (metodo_pago === 'efectivo' ? item.precio * item.cantidad : 0),
-            monto_qr: metodo_pago === 'mixto' ? Number(monto_qr || 0) : (metodo_pago === 'qr' ? item.precio * item.cantidad : 0),
+            notas: metodo_pago === 'mixto' ? `Efectivo: Bs ${Number(monto_efectivo || 0)} | QR: Bs ${Number(monto_qr || 0)}` : null,
             comprobante_url: comprobante_url || null,
             usuario_registro: profile.full_name || 'Coordinador',
           })
@@ -436,8 +435,7 @@ export async function POST(request: NextRequest) {
             empleado_id: barbero_id,
             cliente_id: finalClienteId,
             metodo_pago: metodo_pago || 'efectivo',
-            monto_efectivo: metodo_pago === 'mixto' ? Number(monto_efectivo || 0) : (metodo_pago === 'efectivo' ? precioBase : 0),
-            monto_qr: metodo_pago === 'mixto' ? Number(monto_qr || 0) : (metodo_pago === 'qr' ? precioBase : 0),
+            notas: metodo_pago === 'mixto' ? `Efectivo: Bs ${Number(monto_efectivo || 0)} | QR: Bs ${Number(monto_qr || 0)}` : null,
             comprobante_url: comprobante_url || null,
             usuario_registro: profile.full_name || 'Coordinador',
           })

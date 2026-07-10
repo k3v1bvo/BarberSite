@@ -91,8 +91,6 @@ export async function POST(request: NextRequest) {
       es_sancion: true,
       empleado_id: barbero_id,
       metodo_pago: mpLower,
-      monto_efectivo: mpLower === 'efectivo' ? Number(monto) : 0,
-      monto_qr: esDigital ? Number(monto) : 0,
       usuario_registro: profile?.full_name || user.email || 'Sistema',
     }).select().single()
 

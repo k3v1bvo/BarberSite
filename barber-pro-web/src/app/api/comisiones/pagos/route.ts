@@ -144,8 +144,7 @@ export async function POST(req: Request) {
       empleado_id: barbero_id,
       metodo_pago: mpLower,
       subcategoria: 'COMISION_PAGO',
-      monto_efectivo: mpLower === 'efectivo' ? monto_total : (mpLower === 'mixto' ? Number(body.monto_efectivo) || 0 : 0),
-      monto_qr: esDigital ? monto_total : (mpLower === 'mixto' ? Number(body.monto_qr) || 0 : 0),
+      notas: mpLower === 'mixto' ? `Efectivo: Bs ${Number(body.monto_efectivo) || 0} | QR: Bs ${Number(body.monto_qr) || 0}` : null,
       usuario_registro: adminProfile?.full_name || 'Sistema',
       comprobante_url: comprobante_url || null,
     })
