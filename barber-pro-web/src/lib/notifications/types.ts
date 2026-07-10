@@ -16,6 +16,7 @@ export type NotificationCategory =
   | 'reprogramacion_solicitada'
   | 'reprogramacion_aceptada'
   | 'reprogramacion_rechazada'
+  | 'bienvenida_nuevo_usuario'
 
 export type NotificationTipo = 'info' | 'success' | 'warning' | 'danger'
 
