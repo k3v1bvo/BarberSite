@@ -558,15 +558,16 @@ export default function BarberoPage() {
       </Card>
 
       {/* Filters & Control */}
+      {/* Filters & Control */}
       <Card className="border-white/5 bg-zinc-900/30">
-        <CardContent className="p-6">
-          <div className="flex flex-wrap gap-6 items-end">
-            <div className="w-48 space-y-2">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-stretch sm:items-end">
+            <div className="w-full sm:w-48 space-y-1.5">
               <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Período</label>
               <select 
                 value={filtroFecha}
                 onChange={(e) => setFiltroFecha(e.target.value)}
-                className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
               >
                 <option value="hoy">Hoy</option>
                 <option value="semana">Esta semana</option>
@@ -575,12 +576,12 @@ export default function BarberoPage() {
               </select>
             </div>
             
-            <div className="w-48 space-y-2">
+            <div className="w-full sm:w-48 space-y-1.5">
               <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Estado</label>
               <select 
                 value={filtroEstado}
                 onChange={(e) => setFiltroEstado(e.target.value)}
-                className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
               >
                 <option value="todos">Todos</option>
                 <option value="pendiente_pago">Pendiente Pago</option>
@@ -591,7 +592,7 @@ export default function BarberoPage() {
               </select>
             </div>
 
-            <div className="flex-1 min-w-[300px]">
+            <div className="w-full sm:flex-1 sm:min-w-[200px]">
               <Input
                 label="Búsqueda rápida"
                 placeholder="Cliente o servicio..."
@@ -607,47 +608,55 @@ export default function BarberoPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 space-y-6">
           <Card className="border-white/5">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>📅 Citas Programadas</CardTitle>
-              <Badge variant="outline" className="border-zinc-800 text-zinc-600 font-black uppercase text-[10px] tracking-widest px-3">
+            <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
+              <CardTitle className="text-lg sm:text-xl">📅 Citas Programadas</CardTitle>
+              <Badge variant="outline" className="border-zinc-800 text-zinc-400 font-black uppercase text-[10px] tracking-widest px-3">
                 {citas.length} Servicios
               </Badge>
             </CardHeader>
-            <CardContent className="space-y-4 pt-6">
+            <CardContent className="space-y-3 p-4 sm:p-6 pt-0 sm:pt-0">
               {citas.length > 0 ? (
                 citas.map((cita) => (
-                  <div key={cita.id} onClick={() => setSelectedCita(cita)} className="group bg-white/5 border border-white/5 rounded-2xl p-6 transition-all hover:border-amber-500/30 card-hover cursor-pointer">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <p className="text-4xl font-black text-white tracking-tighter">
-                          {new Date(cita.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                        <p className="text-xl font-bold text-zinc-200">{cita.clientes?.nombre}</p>
-                        <Badge variant={getEstadoBadge(cita.estado)} className="uppercase font-black text-[10px] tracking-widest px-3 mt-2">
-                           {cita.estado}
-                        </Badge>
+                  <div key={cita.id} onClick={() => setSelectedCita(cita)} className="group bg-white/5 border border-white/5 rounded-2xl p-4 sm:p-6 transition-all hover:border-amber-500/30 card-hover cursor-pointer">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between sm:justify-start gap-3">
+                          <p className="text-3xl sm:text-4xl font-black text-white tracking-tighter">
+                            {new Date(cita.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                          <Badge variant={getEstadoBadge(cita.estado)} className="uppercase font-black text-[10px] tracking-widest px-2.5 py-1">
+                            {cita.estado}
+                          </Badge>
+                        </div>
+                        <p className="text-lg sm:text-xl font-bold text-zinc-100">{cita.clientes?.nombre || 'Cliente'}</p>
+                        {cita.clientes?.telefono && (
+                          <p className="text-xs text-zinc-400 font-medium">📞 {cita.clientes.telefono}</p>
+                        )}
                       </div>
-                      <div className="text-right">
-                        <p className="text-3xl font-black text-amber-500 tracking-tighter">{formatCurrency(cita.precio)}</p>
-                        <p className="text-[10px] font-black text-amber-500/60 uppercase tracking-widest mt-1">Comisión {formatCurrency(cita.comision_barbero || 0)}</p>
-                        <div className="mt-4 flex flex-col items-end gap-1 text-zinc-500 text-[10px] uppercase font-black">
-                           {cita.servicios?.nombre && (
-                             <span className="flex items-center gap-1"><Scissors size={12}/> {cita.servicios.nombre}</span>
-                           )}
-                           {cita.productos?.map((p, idx) => (
-                             <span key={idx} className="flex items-center gap-1 text-violet-400">
-                               <Package size={12}/> {p.notas.replace('Venta POS - ', '')}
-                             </span>
-                           ))}
+
+                      <div className="sm:text-right flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start border-t border-white/5 sm:border-none pt-3 sm:pt-0">
+                        <div>
+                          <p className="text-2xl sm:text-3xl font-black text-amber-500 tracking-tighter">{formatCurrency(cita.precio)}</p>
+                          <p className="text-[10px] font-black text-amber-500/70 uppercase tracking-widest mt-0.5">Comisión {formatCurrency(cita.comision_barbero || 0)}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 text-zinc-400 text-[10px] uppercase font-black">
+                          {cita.servicios?.nombre && (
+                            <span className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-lg"><Scissors size={12} className="text-amber-400"/> {cita.servicios.nombre}</span>
+                          )}
+                          {cita.productos?.map((p, idx) => (
+                            <span key={idx} className="flex items-center gap-1 text-violet-400 bg-violet-500/10 px-2 py-1 rounded-lg">
+                              <Package size={12}/> {p.notas.replace('Venta POS - ', '')}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="text-center py-20 bg-white/5 rounded-2xl border border-dashed border-white/10">
-                   <Clock className="w-16 h-16 text-zinc-800 mx-auto mb-4" />
-                   <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm">No hay citas en este período</p>
+                <div className="text-center py-16 bg-white/5 rounded-2xl border border-dashed border-white/10">
+                   <Clock className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
+                   <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">No hay citas en este período</p>
                 </div>
               )}
             </CardContent>

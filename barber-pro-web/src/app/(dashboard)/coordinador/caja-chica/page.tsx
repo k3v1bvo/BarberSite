@@ -33,6 +33,9 @@ interface Transaction {
   es_sancion: boolean
   metodo_pago: string | null
   comprobante_url: string | null
+  mixto_efectivo?: number
+  mixto_qr?: number
+  mixto_tarjeta?: number
   usuario_registro: string
   libro: string
   subcategoria: string | null
@@ -392,6 +395,8 @@ export default function CajaChicaPage() {
     if (sortKey === 'fecha') {
       const diff = dir * a.fecha.localeCompare(b.fecha)
       if (diff !== 0) return diff
+      return dir * ((a.id || '').localeCompare(b.id || ''))
+    }
     if (sortKey === 'nombre') return dir * ((a.nombre || '').localeCompare(b.nombre || ''))
     if (sortKey === 'cuenta_detalle') return dir * ((a.cuenta_detalle || '').localeCompare(b.cuenta_detalle || ''))
     if (sortKey === 'costo') return dir * (Number(a.costo) - Number(b.costo))

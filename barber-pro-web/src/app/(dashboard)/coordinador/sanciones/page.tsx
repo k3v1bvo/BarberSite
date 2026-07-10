@@ -29,6 +29,33 @@ export default function SancionesPage() {
     empleado_id: '', ci: '', nombre: '', cuenta_codigo: '',
     glosa: '', costo: '',
   })
+  const [showNewMotivo, setShowNewMotivo] = useState(false)
+  const [newMotivoName, setNewMotivoName] = useState('')
+  const [savingMotivo, setSavingMotivo] = useState(false)
+
+  const handleCreateMotivo = async () => {
+    if (!newMotivoName.trim()) return
+    setSavingMotivo(true)
+    const codigo = `SAN-${Date.now().toString().slice(-4)}`
+    const res = await fetch('/api/plan-cuentas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        codigo,
+        detalle: newMotivoName.trim(),
+        tipo: 'ING',
+        es_sancion: true
+      })
+    })
+    if (res.ok) {
+      const created = await res.json()
+      setCuentasSancion(prev => [...prev, created])
+      setForm(prev => ({ ...prev, cuenta_codigo: created.codigo }))
+      setShowNewMotivo(false)
+      setNewMotivoName('')
+    }
+    setSavingMotivo(false)
+  }
 
   const loadData = useCallback(async () => {
     const [txRes, ctasRes] = await Promise.all([
@@ -154,11 +181,40 @@ export default function SancionesPage() {
                   <input value={form.ci} onChange={(e) => setForm({ ...form, ci: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-red-500/50 outline-none" required />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Motivo</label>
-                  <select value={form.cuenta_codigo} onChange={(e) => setForm({ ...form, cuenta_codigo: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-red-500/50 outline-none appearance-none" required>
-                    <option value="">Seleccionar...</option>
-                    {cuentasSancion.map((c) => <option key={c.codigo} value={c.codigo}>{c.detalle}</option>)}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Motivo</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewMotivo(!showNewMotivo)}
+                      className="text-[10px] font-black uppercase tracking-wider text-red-400 hover:text-red-300 flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" /> {showNewMotivo ? 'Cancelar' : 'Nuevo'}
+                    </button>
+                  </div>
+                  {showNewMotivo ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ej: Uniforme incompleto..."
+                        value={newMotivoName}
+                        onChange={(e) => setNewMotivoName(e.target.value)}
+                        className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs text-white outline-none focus:border-red-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCreateMotivo}
+                        disabled={savingMotivo || !newMotivoName.trim()}
+                        className="px-3 h-11 bg-red-500 hover:bg-red-400 text-white font-black text-xs uppercase tracking-wider rounded-xl shrink-0"
+                      >
+                        {savingMotivo ? '...' : 'Crear'}
+                      </button>
+                    </div>
+                  ) : (
+                    <select value={form.cuenta_codigo} onChange={(e) => setForm({ ...form, cuenta_codigo: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-red-500/50 outline-none appearance-none" required>
+                      <option value="">Seleccionar...</option>
+                      {cuentasSancion.map((c) => <option key={c.codigo} value={c.codigo}>{c.detalle}</option>)}
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Descripción</label>
