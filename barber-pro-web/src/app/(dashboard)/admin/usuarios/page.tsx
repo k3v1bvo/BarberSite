@@ -481,13 +481,32 @@ export default function UsuariosPage() {
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-2">
                   Asignar Nueva Contraseña Directa
                 </label>
+                <div className="flex gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewPassword('123456')}
+                    className="text-[11px] px-2.5 py-1 rounded bg-white/5 hover:bg-amber-500/20 hover:text-amber-300 border border-white/10 text-zinc-300 transition-colors"
+                  >
+                    ⚡ Poner &quot;123456&quot;
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewPassword('barber123')}
+                    className="text-[11px] px-2.5 py-1 rounded bg-white/5 hover:bg-amber-500/20 hover:text-amber-300 border border-white/10 text-zinc-300 transition-colors"
+                  >
+                    ⚡ Poner &quot;barber123&quot;
+                  </button>
+                </div>
                 <Input
                   type="text"
                   placeholder="Escribe la nueva contraseña (ej: 123456)"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="bg-zinc-900 border-white/10 text-white"
+                  className="bg-zinc-900 border-white/10 text-white font-mono"
                 />
+                <p className="text-[11px] text-zinc-500 mt-1.5">
+                  💡 Por seguridad las contraseñas se guardan encriptadas. Asigna una fácil acá y dísela directamente.
+                </p>
               </div>
 
               <div className="flex gap-2 pt-2">
