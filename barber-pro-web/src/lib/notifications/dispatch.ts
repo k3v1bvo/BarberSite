@@ -622,6 +622,14 @@ export async function dispatchNotification(
         }
         break
       }
+      case 'invitacion_cliente': {
+        if (input.userEmail) {
+          await sendNotificationEmail(input.userEmail, 'invitacion_cliente', {
+            nombre: String(p.clienteNombre || p.nombre || 'Cliente')
+          })
+        }
+        break
+      }
 
       case 'reprogramacion_solicitada': {
         const msg = `Cliente solicita reprogramar a: ${p.nuevaFecha} ${p.nuevaHora}`

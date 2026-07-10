@@ -12,6 +12,7 @@ export type NotificationCategory =
   | 'pago_verificado'
   | 'invitacion_2x1'
   | 'invitacion_referido'
+  | 'invitacion_cliente'
   | 'reprogramacion_solicitada'
   | 'reprogramacion_aceptada'
   | 'reprogramacion_rechazada'

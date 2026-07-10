@@ -404,6 +404,24 @@ export function buildEmail(
         ),
       }
 
+    case 'invitacion_cliente':
+      return {
+        subject: `🎉 ¡Bienvenido a ${BRAND}! — Activa tu cuenta digital`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Te damos la bienvenida a ${BRAND}!</h2>
+          <p>Hola <strong>${nombre}</strong>, hemos registrado tu visita y enlazado tu correo electrónico en nuestro sistema digital.</p>
+          <p>Con tu cuenta en línea podrás:</p>
+          <ul style="color:#a1a1aa;padding-left:20px;line-height:1.6;">
+            <li>Agendar citas en línea 24/7 con tus barberos preferidos</li>
+            <li>Acumular visitas para ganar cortes gratis y recompensas de fidelidad</li>
+            <li>Consultar tu historial y acceder a promociones exclusivas</li>
+          </ul>
+          <p>Para activar tu cuenta y ver tus visitas o puntos acumulados, haz clic abajo:</p>
+          ${cta(`${SITE}/login`, 'Acceder a Mi Cuenta')}`,
+          'Bienvenido a nuestro sistema de reservas y fidelidad'
+        ),
+      }
+
     default:
       return {
         subject: `Notificación — ${BRAND}`,

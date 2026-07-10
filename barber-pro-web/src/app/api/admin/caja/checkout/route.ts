@@ -77,12 +77,19 @@ export async function POST(request: NextRequest) {
         if (email && !exClientes[0].email) {
           await adminSupabase.from('clientes').update({ email }).eq('id', finalClienteId)
           clienteEmail = email
-          // Intentar invitar al usuario para cruzar datos
+          // Intentar invitar al usuario para cruzar datos y enviar notificación
           try {
              await adminSupabase.auth.admin.inviteUserByEmail(email, {
                data: { full_name: nombre }
              })
           } catch(e) { console.error("Error invitando usuario:", e) }
+          try {
+             await dispatchNotification(adminSupabase, {
+               event: 'invitacion_cliente',
+               payload: { clienteNombre: nombre },
+               userEmail: email
+             })
+          } catch(e) { console.error("Error enviando email de invitación:", e) }
         }
       } else {
         // Crear cliente nuevo
@@ -110,19 +117,33 @@ export async function POST(request: NextRequest) {
                data: { full_name: nombre }
              })
           } catch(e) { console.error("Error invitando nuevo usuario:", e) }
+          try {
+             await dispatchNotification(adminSupabase, {
+               event: 'invitacion_cliente',
+               payload: { clienteNombre: nombre },
+               userEmail: email
+             })
+          } catch(e) { console.error("Error enviando email de invitación:", e) }
         }
       }
     } else if (finalClienteId && email) {
       // Actualizar email si se seleccionó cliente existente
-       const { data: exCliente } = await supabase.from('clientes').select('email').eq('id', finalClienteId).single()
+       const { data: exCliente } = await supabase.from('clientes').select('email, nombre').eq('id', finalClienteId).single()
        if (!exCliente?.email) {
           await adminSupabase.from('clientes').update({ email }).eq('id', finalClienteId)
           clienteEmail = email
           try {
              await adminSupabase.auth.admin.inviteUserByEmail(email, {
-               data: { full_name: nombre || 'Cliente' }
+               data: { full_name: nombre || exCliente?.nombre || 'Cliente' }
              })
           } catch(e) {}
+          try {
+             await dispatchNotification(adminSupabase, {
+               event: 'invitacion_cliente',
+               payload: { clienteNombre: nombre || exCliente?.nombre || 'Cliente' },
+               userEmail: email
+             })
+          } catch(e) { console.error("Error enviando email de invitación:", e) }
        }
     }
     
