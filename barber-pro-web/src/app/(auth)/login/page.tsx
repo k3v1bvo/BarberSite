@@ -24,9 +24,14 @@ export default function LoginPage() {
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, is_active')
           .eq('id', user.id)
           .single()
+
+        if (profile && profile.is_active === false) {
+          await supabase.auth.signOut()
+          return
+        }
 
         if (profile?.role === 'admin') router.push('/admin')
         else if (profile?.role === 'coordinador') router.push('/coordinador')
@@ -60,9 +65,15 @@ export default function LoginPage() {
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, is_active')
           .eq('id', user.id)
           .single()
+
+        if (profile && profile.is_active === false) {
+          await supabase.auth.signOut()
+          setError('Tu cuenta ha sido deshabilitada por administración.')
+          return
+        }
 
         if (profile?.role === 'admin') router.push('/admin')
         else if (profile?.role === 'coordinador') router.push('/coordinador')
