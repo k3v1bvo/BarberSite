@@ -265,20 +265,25 @@ export default function AdminPage() {
         .eq('fecha', hoy)
       setUsoTiendaHoy(txTienda?.reduce((s: number, t: any) => s + Number(t.costo), 0) || 0)
 
-      // Resumen Contable Operativo del período
+      // Resumen Contable Operativo del período (misma lógica que /api/arqueo)
       const { data: txPeriodo } = await supabase
         .from('transactions')
-        .select('libro, costo')
+        .select('libro, costo, tipo_movimiento')
         .gte('fecha', start)
         .lte('fecha', end)
 
       const sContable = { caja_chica: 0, ventas: 0, banco: 0, total: 0, arqueoCerrado: false }
       if (txPeriodo) {
-        txPeriodo.forEach((t) => {
-          if (t.libro === 'CAJA_CHICA') sContable.caja_chica += Number(t.costo)
-          else if (t.libro === 'VENTAS' || t.libro === 'SERVICIOS') sContable.ventas += Number(t.costo)
-          else if (t.libro === 'BANCO') sContable.banco += Number(t.costo)
-          sContable.total += Number(t.costo)
+        txPeriodo.forEach((t: any) => {
+          const costo = Number(t.costo)
+          const isIngreso = t.tipo_movimiento === 'INGRESO'
+          const isEgreso = t.tipo_movimiento === 'EGRESO'
+          const signed = isIngreso ? costo : isEgreso ? -costo : costo
+
+          if (t.libro === 'CAJA_CHICA') sContable.caja_chica += signed
+          else if (t.libro === 'VENTAS' || t.libro === 'SERVICIOS') sContable.ventas += signed
+          else if (t.libro === 'BANCO') sContable.banco += signed
+          sContable.total += signed
         })
       }
 

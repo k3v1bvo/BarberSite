@@ -33,9 +33,8 @@ interface Transaction {
   es_sancion: boolean
   metodo_pago: string | null
   comprobante_url: string | null
-  mixto_efectivo?: number
-  mixto_qr?: number
-  mixto_tarjeta?: number
+  monto_efectivo?: number
+  monto_qr?: number
   usuario_registro: string
   libro: string
   subcategoria: string | null
@@ -424,8 +423,8 @@ export default function CajaChicaPage() {
     } else if (tx.metodo_pago === 'qr' || tx.metodo_pago === 'tarjeta') {
       qr = Number(tx.costo || 0)
     } else if (tx.metodo_pago === 'mixto') {
-      ef = Number(tx.mixto_efectivo || 0)
-      qr = Number((Number(tx.mixto_qr) || 0) + (Number(tx.mixto_tarjeta) || 0))
+      ef = Number(tx.monto_efectivo || 0)
+      qr = Number(tx.monto_qr || 0)
     }
     if (ing) {
       ingresosEfectivo += ef
