@@ -192,127 +192,129 @@ export default function ArqueoPage() {
       </div>
 
       {activeTab === 'historial' ? (
-        <Card className="border-white/5 bg-zinc-900/80">
-          <CardContent className="p-6">
-            <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4">Historial de Cierres de Caja</h2>
-            {loadingHistorial ? (
-              <div className="py-12 text-center text-zinc-500 text-sm">Cargando historial...</div>
-            ) : historialList.length === 0 ? (
-              <div className="py-12 text-center text-zinc-500 text-sm">No hay cierres diarios registrados aún.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-white/10 text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                      <th className="py-3 px-4">Fecha</th>
-                      <th className="py-3 px-4">Responsable de Cierre</th>
-                      <th className="py-3 px-4 text-right">Efectivo Físico</th>
-                      <th className="py-3 px-4 text-right">QR / Banco</th>
-                      <th className="py-3 px-4">Estado</th>
-                      <th className="py-3 px-4">Observaciones</th>
-                      <th className="py-3 px-4 text-center">Comprobante QR Pago</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5 text-sm">
-                    {historialList.map((h: any) => (
-                      <tr key={h.id} className="hover:bg-white/5 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-white">{h.fecha}</td>
-                        <td className="py-3 px-4 text-orange-400 font-bold">{h.usuario_cierre || 'No registrado'}</td>
-                        <td className="py-3 px-4 text-right font-mono text-amber-400">{formatCurrency(Number(h.total_efectivo_fisico || 0))}</td>
-                        <td className="py-3 px-4 text-right font-mono text-blue-400">{formatCurrency(Number(h.total_qr || 0))}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-0.5 rounded text-xs font-black ${h.cerrado ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-400'}`}>
-                            {h.cerrado ? 'Cerrado' : 'Borrador'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-zinc-400 text-xs">{h.observaciones || '—'}</td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedHistorialQr(h)
-                              setQrHistorialUrl(h.comprobante_url || '')
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
-                              h.comprobante_url
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                                : 'bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
-                            }`}
-                          >
-                            {h.comprobante_url ? '📱 Ver / Cambiar QR' : '📄 + Subir QR Cierre'}
-                          </button>
-                        </td>
+        <>
+          <Card className="border-white/5 bg-zinc-900/80">
+            <CardContent className="p-6">
+              <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4">Historial de Cierres de Caja</h2>
+              {loadingHistorial ? (
+                <div className="py-12 text-center text-zinc-500 text-sm">Cargando historial...</div>
+              ) : historialList.length === 0 ? (
+                <div className="py-12 text-center text-zinc-500 text-sm">No hay cierres diarios registrados aún.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-white/10 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                        <th className="py-3 px-4">Fecha</th>
+                        <th className="py-3 px-4">Responsable de Cierre</th>
+                        <th className="py-3 px-4 text-right">Efectivo Físico</th>
+                        <th className="py-3 px-4 text-right">QR / Banco</th>
+                        <th className="py-3 px-4">Estado</th>
+                        <th className="py-3 px-4">Observaciones</th>
+                        <th className="py-3 px-4 text-center">Comprobante QR Pago</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* QR Historial Upload Modal */}
-        {selectedHistorialQr && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-in zoom-in-95 duration-200">
-              <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <h3 className="text-base font-black uppercase tracking-wider text-white">Comprobante QR de Cierre Diario</h3>
-                <button type="button" onClick={() => setSelectedHistorialQr(null)} className="text-zinc-500 hover:text-white">
-                  ✕
-                </button>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-sm font-bold text-white">Cierre de Caja - Fecha: {selectedHistorialQr.fecha}</p>
-                <p className="text-xs text-zinc-400">Responsable: <b className="text-orange-400">{selectedHistorialQr.usuario_cierre}</b> | Bono: <b>Bs 10.00</b></p>
-              </div>
-
-              {selectedHistorialQr.comprobante_url && (
-                <div className="p-3 bg-zinc-950 border border-white/10 rounded-xl space-y-2">
-                  <p className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">Comprobante Actual</p>
-                  {selectedHistorialQr.comprobante_url.startsWith('http') ? (
-                    <a href={selectedHistorialQr.comprobante_url} target="_blank" rel="noreferrer" className="text-xs text-blue-400 underline break-all flex items-center gap-1">
-                      Ver Comprobante <ExternalLink size={12} />
-                    </a>
-                  ) : (
-                    <p className="text-xs text-zinc-300 font-mono break-all">{selectedHistorialQr.comprobante_url}</p>
-                  )}
+                    </thead>
+                    <tbody className="divide-y divide-white/5 text-sm">
+                      {historialList.map((h: any) => (
+                        <tr key={h.id} className="hover:bg-white/5 transition-colors">
+                          <td className="py-3 px-4 font-mono font-bold text-white">{h.fecha}</td>
+                          <td className="py-3 px-4 text-orange-400 font-bold">{h.usuario_cierre || 'No registrado'}</td>
+                          <td className="py-3 px-4 text-right font-mono text-amber-400">{formatCurrency(Number(h.total_efectivo_fisico || 0))}</td>
+                          <td className="py-3 px-4 text-right font-mono text-blue-400">{formatCurrency(Number(h.total_qr || 0))}</td>
+                          <td className="py-3 px-4">
+                            <span className={`px-2 py-0.5 rounded text-xs font-black ${h.cerrado ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-400'}`}>
+                              {h.cerrado ? 'Cerrado' : 'Borrador'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-zinc-400 text-xs">{h.observaciones || '—'}</td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedHistorialQr(h)
+                                setQrHistorialUrl(h.comprobante_url || '')
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                                h.comprobante_url
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                                  : 'bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
+                              }`}
+                            >
+                              {h.comprobante_url ? '📱 Ver / Cambiar QR' : '📄 + Subir QR Cierre'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
+            </CardContent>
+          </Card>
 
-              <div className="space-y-3">
-                <ImageUpload
-                  label="Subir Captura del Pago por Cierre"
-                  onUploadSuccess={(url) => setQrHistorialUrl(url)}
-                />
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 block mb-1">O pegar enlace / nota de comprobante</label>
-                  <input
-                    type="text"
-                    value={qrHistorialUrl}
-                    onChange={(e) => setQrHistorialUrl(e.target.value)}
-                    placeholder="https://... o referencia del comprobante"
-                    className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs text-white outline-none focus:border-orange-500"
+          {/* QR Historial Upload Modal */}
+          {selectedHistorialQr && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+              <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                  <h3 className="text-base font-black uppercase tracking-wider text-white">Comprobante QR de Cierre Diario</h3>
+                  <button type="button" onClick={() => setSelectedHistorialQr(null)} className="text-zinc-500 hover:text-white">
+                    ✕
+                  </button>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-white">Cierre de Caja - Fecha: {selectedHistorialQr.fecha}</p>
+                  <p className="text-xs text-zinc-400">Responsable: <b className="text-orange-400">{selectedHistorialQr.usuario_cierre}</b> | Bono: <b>Bs 10.00</b></p>
+                </div>
+
+                {selectedHistorialQr.comprobante_url && (
+                  <div className="p-3 bg-zinc-950 border border-white/10 rounded-xl space-y-2">
+                    <p className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">Comprobante Actual</p>
+                    {selectedHistorialQr.comprobante_url.startsWith('http') ? (
+                      <a href={selectedHistorialQr.comprobante_url} target="_blank" rel="noreferrer" className="text-xs text-blue-400 underline break-all flex items-center gap-1">
+                        Ver Comprobante <ExternalLink size={12} />
+                      </a>
+                    ) : (
+                      <p className="text-xs text-zinc-300 font-mono break-all">{selectedHistorialQr.comprobante_url}</p>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <ImageUpload
+                    label="Subir Captura del Pago por Cierre"
+                    onUploadSuccess={(url) => setQrHistorialUrl(url)}
                   />
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 block mb-1">O pegar enlace / nota de comprobante</label>
+                    <input
+                      type="text"
+                      value={qrHistorialUrl}
+                      onChange={(e) => setQrHistorialUrl(e.target.value)}
+                      placeholder="https://... o referencia del comprobante"
+                      className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs text-white outline-none focus:border-orange-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2 border-t border-white/10">
+                  <Button variant="outline" onClick={() => setSelectedHistorialQr(null)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="primary"
+                    disabled={savingQrHistorial}
+                    onClick={handleSaveQrHistorial}
+                    className="bg-orange-500 hover:bg-orange-400 font-black text-xs uppercase tracking-wider"
+                  >
+                    {savingQrHistorial ? 'Guardando...' : 'Guardar Comprobante QR'}
+                  </Button>
                 </div>
               </div>
-
-              <div className="flex justify-end gap-3 pt-2 border-t border-white/10">
-                <Button variant="outline" onClick={() => setSelectedHistorialQr(null)}>
-                  Cancelar
-                </Button>
-                <Button
-                  variant="primary"
-                  disabled={savingQrHistorial}
-                  onClick={handleSaveQrHistorial}
-                  className="bg-orange-500 hover:bg-orange-400 font-black text-xs uppercase tracking-wider"
-                >
-                  {savingQrHistorial ? 'Guardando...' : 'Guardar Comprobante QR'}
-                </Button>
-              </div>
             </div>
-          </div>
-        )}
+          )}
+        </>
       ) : (
         <>
           {cierre?.cerrado && (
