@@ -71,7 +71,7 @@ export default function BuscarPage() {
         .from('clientes')
         .select('id, nombre, telefono, email, ci, total_visitas, total_gastado, nivel_fidelidad, cumpleanos, ultima_visita, codigo_tarjeta')
         .or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,email.ilike.%${q}%,ci.ilike.%${q}%,codigo_tarjeta.ilike.%${q}%`)
-        .limit(15)
+        .limit(100)
 
       // Buscar citas para esos clientes, o si 'q' es un UUID, buscar la cita directamente
       let citasQuery = supabase

@@ -275,7 +275,15 @@ export default function AdminLealtadPage() {
   }
 
   const clientesFiltrados = clientes.filter(c => {
-    if (filtro && !c.nombre?.toLowerCase().includes(filtro.toLowerCase()) && !(c.ci && c.ci.toLowerCase().includes(filtro.toLowerCase()))) return false;
+    if (filtro) {
+      const q = filtro.toLowerCase().trim()
+      const match = (c.nombre || '').toLowerCase().includes(q) ||
+        (c.ci || '').toLowerCase().includes(q) ||
+        (c.email || '').toLowerCase().includes(q) ||
+        (c.telefono || '').toLowerCase().includes(q) ||
+        (c.codigo_tarjeta || '').toLowerCase().includes(q)
+      if (!match) return false
+    }
     if (nivelFiltro && calcularNivel(c.total_visitas ?? 0) !== nivelFiltro) return false;
     return true;
   });

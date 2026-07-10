@@ -8,13 +8,13 @@ export async function GET(req: Request) {
     .from('clientes')
     .select('*')
     .order('total_visitas', { ascending: false })
-    .limit(500)
+    .limit(50000)
   
   const { data: canjes, error: canjesError } = await supabase
     .from('lealtad_canjes')
     .select('*, clientes(nombre)')
     .order('canjeado_at', { ascending: false })
-    .limit(50)
+    .limit(500)
 
   if (clientesError || canjesError) {
     return NextResponse.json({ error: clientesError?.message || canjesError?.message }, { status: 500 })
