@@ -156,67 +156,69 @@ export function CalendarView({
     })
 
     return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-7 gap-2">
-          {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((day) => (
-            <div key={day} className="text-center font-bold text-zinc-500 text-sm py-2">
-              {day}
+      <div className="overflow-x-auto pb-4">
+        <div className="min-w-[700px] space-y-4">
+          <div className="grid grid-cols-7 gap-2">
+            {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((day) => (
+              <div key={day} className="text-center font-bold text-zinc-500 text-sm py-2">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {weeks.map((week, weekIdx) => (
+            <div key={weekIdx} className="grid grid-cols-7 gap-2">
+              {week.map((day) => {
+                const isCurrentMonth = isSameMonth(day, monthStart)
+                const isToday = isSameDay(day, new Date())
+                const dayKey = format(day, 'yyyy-MM-dd')
+                const daysCitas = citasPorDia.get(dayKey) || []
+
+                return (
+                  <div
+                    key={dayKey}
+                    className={clsx(
+                      'min-h-32 p-2 border rounded-lg transition-all cursor-pointer',
+                      isCurrentMonth
+                        ? 'bg-zinc-900/50 border-white/10 hover:border-amber-500/30'
+                        : 'bg-zinc-950 border-white/5 opacity-30',
+                      isToday && 'ring-2 ring-amber-500'
+                    )}
+                    onClick={() => handleDayClick(day)}
+                  >
+                    <div
+                      className={clsx(
+                        'text-sm font-bold mb-1',
+                        isToday ? 'text-amber-500' : 'text-zinc-400'
+                      )}
+                    >
+                      {format(day, 'd')}
+                    </div>
+                    <div className="space-y-1">
+                      {daysCitas.slice(0, 2).map((cita) => (
+                        <div
+                          key={cita.id}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onCitaClick?.(cita)
+                          }}
+                          className={getCitaBlockClass(cita, mode)}
+                        >
+                          {renderCitaLabel(cita, true)}
+                        </div>
+                      ))}
+                      {daysCitas.length > 2 && (
+                        <div className="text-[10px] text-zinc-500 px-1">
+                          +{daysCitas.length - 2} más
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           ))}
         </div>
-
-        {weeks.map((week, weekIdx) => (
-          <div key={weekIdx} className="grid grid-cols-7 gap-2">
-            {week.map((day) => {
-              const isCurrentMonth = isSameMonth(day, monthStart)
-              const isToday = isSameDay(day, new Date())
-              const dayKey = format(day, 'yyyy-MM-dd')
-              const daysCitas = citasPorDia.get(dayKey) || []
-
-              return (
-                <div
-                  key={dayKey}
-                  className={clsx(
-                    'min-h-32 p-2 border rounded-lg transition-all cursor-pointer',
-                    isCurrentMonth
-                      ? 'bg-zinc-900/50 border-white/10 hover:border-amber-500/30'
-                      : 'bg-zinc-950 border-white/5 opacity-30',
-                    isToday && 'ring-2 ring-amber-500'
-                  )}
-                  onClick={() => handleDayClick(day)}
-                >
-                  <div
-                    className={clsx(
-                      'text-sm font-bold mb-1',
-                      isToday ? 'text-amber-500' : 'text-zinc-400'
-                    )}
-                  >
-                    {format(day, 'd')}
-                  </div>
-                  <div className="space-y-1">
-                    {daysCitas.slice(0, 2).map((cita) => (
-                      <div
-                        key={cita.id}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onCitaClick?.(cita)
-                        }}
-                        className={getCitaBlockClass(cita, mode)}
-                      >
-                        {renderCitaLabel(cita, true)}
-                      </div>
-                    ))}
-                    {daysCitas.length > 2 && (
-                      <div className="text-[10px] text-zinc-500 px-1">
-                        +{daysCitas.length - 2} más
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        ))}
       </div>
     )
   }
