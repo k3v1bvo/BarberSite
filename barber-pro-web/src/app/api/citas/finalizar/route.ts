@@ -108,8 +108,9 @@ export async function POST(request: Request) {
         subcategoria: 'SERVICIO',
         es_sancion: false,
         empleado_id: cita.barbero_id,
-        cliente_id: cita.cliente_id,
-        metodo_pago: metodo_pago,
+        metodo_pago: metodo_pago || 'efectivo',
+        monto_efectivo: String(metodo_pago || 'efectivo').toLowerCase() === 'efectivo' ? cita.precio : 0,
+        monto_qr: ['qr', 'transferencia', 'banco', 'tarjeta'].includes(String(metodo_pago || '').toLowerCase()) ? cita.precio : 0,
         usuario_registro: 'Sistema (Auto)',
       })
 

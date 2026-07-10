@@ -187,7 +187,7 @@ export default function CajaChicaPage() {
           let qr = 0
           if (tx.metodo_pago === 'efectivo' || !tx.metodo_pago) {
             ef = Number(tx.costo || 0)
-          } else if (tx.metodo_pago === 'qr' || tx.metodo_pago === 'tarjeta') {
+          } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(String(tx.metodo_pago).toLowerCase())) {
             qr = Number(tx.costo || 0)
           } else if (tx.metodo_pago === 'mixto') {
             ef = Number(tx.monto_efectivo || 0)
@@ -453,7 +453,7 @@ export default function CajaChicaPage() {
     let qr = 0
     if (tx.metodo_pago === 'efectivo' || !tx.metodo_pago) {
       ef = Number(tx.costo || 0)
-    } else if (tx.metodo_pago === 'qr' || tx.metodo_pago === 'tarjeta') {
+    } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(String(tx.metodo_pago).toLowerCase())) {
       qr = Number(tx.costo || 0)
     } else if (tx.metodo_pago === 'mixto') {
       ef = Number(tx.monto_efectivo || 0)
@@ -468,8 +468,8 @@ export default function CajaChicaPage() {
     }
   })
 
-  const saldoEfectivo = ingresosEfectivo - egresosEfectivo
-  const saldoQR = ingresosQR - egresosQR
+  const saldoEfectivo = (saldoAnterior?.ef || 0) + ingresosEfectivo - egresosEfectivo
+  const saldoQR = (saldoAnterior?.qr || 0) + ingresosQR - egresosQR
 
   // Desglose por categoría (top 5)
   const categoriaMap: Record<string, { monto: number, count: number, ingreso: boolean }> = {}
@@ -591,6 +591,9 @@ export default function CajaChicaPage() {
             <div>
               <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">Saldo en Efectivo (Físico)</p>
               <p className={`text-base font-black ${saldoEfectivo >= 0 ? 'text-amber-400' : 'text-red-400'}`}>{formatCurrency(saldoEfectivo)}</p>
+              {saldoAnterior.ef !== 0 && (
+                <p className="text-[9px] text-amber-400/70 font-mono">Arrastre ant: {formatCurrency(saldoAnterior.ef)}</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -603,6 +606,9 @@ export default function CajaChicaPage() {
             <div>
               <p className="text-[9px] font-black uppercase tracking-widest text-blue-400">Saldo QR / Tarjeta (Banco)</p>
               <p className={`text-base font-black ${saldoQR >= 0 ? 'text-blue-400' : 'text-red-400'}`}>{formatCurrency(saldoQR)}</p>
+              {saldoAnterior.qr !== 0 && (
+                <p className="text-[9px] text-blue-400/70 font-mono">Arrastre ant: {formatCurrency(saldoAnterior.qr)}</p>
+              )}
             </div>
           </CardContent>
         </Card>

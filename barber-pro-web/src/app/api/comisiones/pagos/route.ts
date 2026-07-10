@@ -165,9 +165,9 @@ export async function POST(req: Request) {
       it: 0,
       monto_neto: monto_total,
       cuenta_codigo: 'EGR-COM',
-      metodo_pago: metodo_pago || 'efectivo',
-      monto_efectivo: metodo_pago === 'efectivo' ? monto_total : (metodo_pago === 'mixto' ? Number(body.monto_efectivo) || 0 : 0),
-      monto_qr: metodo_pago === 'qr' ? monto_total : (metodo_pago === 'mixto' ? Number(body.monto_qr) || 0 : 0),
+      metodo_pago: mpLower,
+      monto_efectivo: mpLower === 'efectivo' ? monto_total : (mpLower === 'mixto' ? Number(body.monto_efectivo) || 0 : 0),
+      monto_qr: esDigital ? monto_total : (mpLower === 'mixto' ? Number(body.monto_qr) || 0 : 0),
       usuario_registro: adminProfile?.full_name || 'Sistema',
       notas: `Pago ${periodo_tipo} del ${fecha_inicio} al ${fecha_fin}. (Pago ID: ${pago.id})`,
     })
