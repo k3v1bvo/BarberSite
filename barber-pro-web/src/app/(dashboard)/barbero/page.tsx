@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Input } from '@/components/ui/Input'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, getTodayBolivia } from '@/lib/utils'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   DollarSign, Clock, TrendingUp,
@@ -324,7 +324,27 @@ export default function BarberoPage() {
   }
 
   const finalizarServicio = async (id: string) => {
+    const { data: cData } = await supabase.from('citas').select('*, clientes(nombre), servicios(nombre)').eq('id', id).single()
     await supabase.from('citas').update({ estado: 'completado' }).eq('id', id)
+    if (cData) {
+      await supabase.from('transactions').insert({
+        libro: 'SERVICIOS',
+        fecha: getTodayBolivia(),
+        ci: '0000000',
+        nombre: (cData.clientes as any)?.nombre || 'Cliente',
+        cuenta_codigo: 'ING-001',
+        cuenta_detalle: 'Ingresos por Servicios',
+        glosa: `Servicio ${(cData.servicios as any)?.nombre || ''} - Cita #${id.slice(0, 6)}`,
+        costo: Number(cData.precio || 0),
+        tipo_movimiento: 'INGRESO',
+        subcategoria: 'SERVICIO',
+        es_sancion: false,
+        empleado_id: cData.barbero_id,
+        cliente_id: cData.cliente_id,
+        metodo_pago: 'efectivo',
+        usuario_registro: 'Barbero'
+      })
+    }
     loadData()
   }
 

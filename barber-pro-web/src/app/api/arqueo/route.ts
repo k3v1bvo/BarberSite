@@ -39,10 +39,10 @@ export async function GET(request: NextRequest) {
 
     const { data: citasDia } = await supabase
       .from('citas')
-      .select('id')
+      .select('id, precio, barbero_id, cliente_id')
       .gte('fecha_hora', `${fecha}T00:00:00`)
       .lte('fecha_hora', `${fecha}T23:59:59`)
-      .eq('estado', 'completada')
+      .eq('estado', 'completado')
 
     const txServiciosCount = txDia?.filter(t => t.libro === 'SERVICIOS' && t.tipo_movimiento === 'INGRESO').length || 0
     const citasCompletadasCount = citasDia?.length || 0
@@ -97,6 +97,14 @@ export async function GET(request: NextRequest) {
         if (t.metodo_pago === 'tarjeta') resumen.total_tarjeta -= costo
       }
     })
+
+    const citasMonto = (citasDia || []).reduce((acc, c) => acc + Number(c.precio || 0), 0)
+    if (resumen.servicios < citasMonto) {
+      const diff = citasMonto - resumen.servicios
+      resumen.servicios = citasMonto
+      resumen.total_registrado += diff
+      resumen.total_efectivo += diff
+    }
 
     // Traer cierre existente
     const { data: cierre } = await supabase

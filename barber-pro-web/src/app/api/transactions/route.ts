@@ -39,6 +39,43 @@ export async function GET(request: NextRequest) {
         .gte('creado_en', `${targetFecha}T04:00:00Z`)
         .lte('creado_en', `${nextDayStr}T03:59:59Z`)
         .neq('fecha', targetFecha)
+
+      const { data: citasTerminadas } = await supabase
+        .from('citas')
+        .select('id, precio, barbero_id, cliente_id, clientes(nombre), servicios(nombre)')
+        .gte('fecha_hora', `${targetFecha}T00:00:00`)
+        .lte('fecha_hora', `${targetFecha}T23:59:59`)
+        .eq('estado', 'completado')
+
+      if (citasTerminadas && citasTerminadas.length > 0) {
+        const { data: txServs } = await supabase
+          .from('transactions')
+          .select('id')
+          .eq('fecha', targetFecha)
+          .eq('libro', 'SERVICIOS')
+
+        if ((txServs?.length || 0) < citasTerminadas.length) {
+          for (const c of citasTerminadas) {
+            await supabase.from('transactions').insert({
+              libro: 'SERVICIOS',
+              fecha: targetFecha,
+              ci: '0000000',
+              nombre: (c.clientes as any)?.nombre || 'Cliente',
+              cuenta_codigo: 'ING-001',
+              cuenta_detalle: 'Ingresos por Servicios',
+              glosa: `Servicio ${(c.servicios as any)?.nombre || ''} - Cita #${c.id.slice(0, 6)}`,
+              costo: Number(c.precio || 0),
+              tipo_movimiento: 'INGRESO',
+              subcategoria: 'SERVICIO',
+              es_sancion: false,
+              empleado_id: c.barbero_id,
+              cliente_id: c.cliente_id,
+              metodo_pago: 'efectivo',
+              usuario_registro: 'Sistema (Auto-sync)'
+            })
+          }
+        }
+      }
     }
 
     let query = supabase
