@@ -9,6 +9,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { useRouter } from 'next/navigation'
 import { Plus, Edit, Trash2, Users, ArrowLeft, X, Save, KeyRound } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface Usuario {
   id: string
@@ -394,13 +395,12 @@ export default function UsuariosPage() {
                     </select>
                   </div>
                   <div className="md:col-span-1">
-                     <Input
-                        label="URL Avatar"
-                        placeholder="https://..."
-                        value={formData.avatar_url}
-                        onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
-                        className="bg-zinc-900"
-                      />
+                     <ImageUpload
+                      label="Foto de Perfil (Avatar)"
+                      defaultImage={formData.avatar_url}
+                      onUploadSuccess={(url) => setFormData({ ...formData, avatar_url: url })}
+                      onUploadError={(err) => toastError(err)}
+                    />
                   </div>
                   {editingUser && (
                     <div className="md:col-span-2 pt-4 border-t border-white/5 space-y-3">

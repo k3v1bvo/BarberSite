@@ -61,6 +61,7 @@ export default function PerfilPage() {
           full_name: profile.full_name,
           phone: profile.phone,
           ci: profile.ci,
+          avatar_url: profile.avatar_url,
         })
         .eq('id', profile.id)
 
