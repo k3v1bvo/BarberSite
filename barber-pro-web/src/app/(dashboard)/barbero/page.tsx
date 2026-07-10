@@ -423,11 +423,8 @@ export default function BarberoPage() {
           <p className="text-zinc-500 font-medium mt-1">Sigue tu progreso y gestiona tus citas hoy</p>
         </div>
         <div className="flex gap-3">
-          <Button onClick={() => userId && router.push(`/agenda/${userId}`)} variant="outline" size="lg" className="uppercase tracking-wider font-black">
-            <CalendarDays className="w-5 h-5 mr-2" /> Ver Agenda
-          </Button>
-          <Button onClick={() => setShowWalkinModal(true)} variant="primary" size="lg" className="shadow-lg shadow-amber-500/20 uppercase tracking-wider font-black">
-            <Plus className="w-5 h-5 mr-2" /> Venta Rápida
+          <Button onClick={() => userId && router.push(`/agenda/${userId}`)} variant="primary" size="lg" className="shadow-lg shadow-amber-500/20 uppercase tracking-wider font-black">
+            <CalendarDays className="w-5 h-5 mr-2" /> Ver Mi Agenda
           </Button>
         </div>
       </div>
