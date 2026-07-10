@@ -129,20 +129,25 @@ export default function ClientePage() {
   const submitReview = async () => {
     setSubmittingReview(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const { error } = await supabase.from('reviews').insert({
-        cliente_id: user?.id,
-        cita_id: reviewModal.citaId,
-        barbero_id: reviewModal.barberoId,
-        estrellas: reviewData.estrellas,
-        comentario: reviewData.comentario
+      const res = await fetch('/api/resenas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cita_id: reviewModal.citaId,
+          barbero_id: reviewModal.barberoId,
+          estrellas: reviewData.estrellas,
+          comentario: reviewData.comentario
+        })
       })
-      if (error) throw error
-      success('¡Gracias por tu reseña! ⭐')
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'No se pudo enviar la reseña')
+      }
+      success('¡Gracias por tu comentario! ⭐ Tu opinión fue enviada exitosamente.')
       setReviewModal({ open: false, citaId: null, barberoId: null })
       setReviewData({ estrellas: 5, comentario: '' })
     } catch (e: any) {
-      toastError('Error enviando reseña')
+      toastError(e.message || 'Error enviando reseña')
     } finally {
       setSubmittingReview(false)
     }
@@ -597,6 +602,34 @@ export default function ClientePage() {
             <Scissors size={20} className="mr-3" /> Agendar Nuevo Corte
           </Button>
 
+          {/* Banner Prominente de Reseña del Servicio Reciente */}
+          {citasPasadas.find(c => c.estado === 'completado') && (
+            <div className="bg-gradient-to-r from-amber-500/15 via-zinc-900 to-zinc-900 border border-amber-500/30 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden">
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                  <Star className="w-5 h-5 fill-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-black text-xs uppercase tracking-wider">¿Qué tal estuvo tu servicio reciente?</h3>
+                  <p className="text-zinc-400 text-[11px] mt-0.5">
+                    Déjanos tu comentario (Opcional). Podremos destacar tu testimonio en la Página Principal.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => {
+                  const ultimaCompletada = citasPasadas.find(c => c.estado === 'completado')
+                  if (ultimaCompletada) {
+                    setReviewModal({ open: true, citaId: ultimaCompletada.id, barberoId: (ultimaCompletada as any).barbero_id || null })
+                  }
+                }}
+                className="bg-amber-500 hover:bg-amber-400 text-black font-black text-[10px] uppercase tracking-widest px-4 py-2.5 rounded-xl shrink-0 w-full sm:w-auto"
+              >
+                ⭐ Calificar Servicio
+              </Button>
+            </div>
+          )}
+
           {/* Citas próximas */}
           <div>
             <div className="flex items-center justify-between mb-3 border-l-4 border-amber-500 pl-3 h-8">
@@ -705,12 +738,14 @@ export default function ClientePage() {
                     <p className="text-zinc-400 text-xs font-black">{formatCurrency(cita.precio)}</p>
                     {cita.estado === 'completado' && (
                       <button
-                        className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-zinc-600 hover:bg-amber-500 hover:text-black transition-all opacity-0 group-hover:opacity-100"
+                        className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-black transition-all text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0"
                         onClick={() => {
                           setReviewModal({ open: true, citaId: cita.id, barberoId: (cita as any).barbero_id || null })
                         }}
+                        title="Dejar un comentario sobre el servicio"
                       >
                         <MessageSquare size={12} />
+                        Opinar
                       </button>
                     )}
                     <ChevronRight size={12} className="text-zinc-700" />

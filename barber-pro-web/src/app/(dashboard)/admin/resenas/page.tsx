@@ -26,6 +26,7 @@ interface Review {
 export default function AdminResenasPage() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
+  const [filtro, setFiltro] = useState<'todas' | 'publicas' | 'ocultas'>('todas')
   const { error: toastError, success: toastSuccess } = useToast()
   const router = useRouter()
   const supabase = createClient()
@@ -36,16 +37,9 @@ export default function AdminResenasPage() {
 
   const loadData = async () => {
     try {
-      const { data, error } = await supabase
-        .from('reviews')
-        .select(`
-          *,
-          cliente:cliente_id(full_name, email),
-          barbero:barbero_id(full_name)
-        `)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
+      const res = await fetch('/api/resenas')
+      if (!res.ok) throw new Error('Error al obtener reseñas')
+      const data = await res.json()
       setReviews(data || [])
     } catch (e: any) {
       toastError('Error al cargar reseñas: ' + e.message)
@@ -56,13 +50,13 @@ export default function AdminResenasPage() {
 
   const togglePublic = async (id: string, currentStatus: boolean) => {
     try {
-      const { error } = await supabase
-        .from('reviews')
-        .update({ is_public: !currentStatus })
-        .eq('id', id)
-
-      if (error) throw error
-      toastSuccess(currentStatus ? 'Reseña ocultada' : 'Reseña ahora es pública en el Home')
+      const res = await fetch('/api/resenas', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, is_public: !currentStatus })
+      })
+      if (!res.ok) throw new Error('No se pudo cambiar el estado')
+      toastSuccess(currentStatus ? 'Reseña ocultada de la página principal' : 'Reseña ahora es visible en la página principal')
       setReviews(reviews.map(r => r.id === id ? { ...r, is_public: !currentStatus } : r))
     } catch (e: any) {
       toastError('Error al cambiar estado: ' + e.message)
@@ -72,14 +66,20 @@ export default function AdminResenasPage() {
   const deleteReview = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar esta reseña permanentemente?')) return
     try {
-      const { error } = await supabase.from('reviews').delete().eq('id', id)
-      if (error) throw error
+      const res = await fetch(`/api/resenas?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Error eliminando reseña')
       toastSuccess('Reseña eliminada')
       setReviews(reviews.filter(r => r.id !== id))
     } catch (e: any) {
       toastError('Error al eliminar: ' + e.message)
     }
   }
+
+  const filteredReviews = reviews.filter(r => {
+    if (filtro === 'publicas') return r.is_public
+    if (filtro === 'ocultas') return !r.is_public
+    return true
+  })
 
   if (loading) {
     return (
@@ -101,13 +101,33 @@ export default function AdminResenasPage() {
             <h1 className="text-4xl font-black tracking-tight text-white uppercase leading-none">
               Gestión de <span className="text-amber-500">Reseñas</span>
             </h1>
-            <p className="text-zinc-500 font-medium mt-2 text-lg">Modera los testimonios de tus clientes</p>
+            <p className="text-zinc-500 font-medium mt-2 text-lg">Modera qué testimonios mostrar en la Página Principal</p>
           </div>
+        </div>
+        <div className="flex gap-2 bg-zinc-900/80 p-1.5 rounded-2xl border border-white/5">
+          <button
+            onClick={() => setFiltro('todas')}
+            className={cn("px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all", filtro === 'todas' ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20" : "text-zinc-400 hover:text-white")}
+          >
+            Todas ({reviews.length})
+          </button>
+          <button
+            onClick={() => setFiltro('publicas')}
+            className={cn("px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all", filtro === 'publicas' ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20" : "text-zinc-400 hover:text-white")}
+          >
+            Públicas en Home ({reviews.filter(r => r.is_public).length})
+          </button>
+          <button
+            onClick={() => setFiltro('ocultas')}
+            className={cn("px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all", filtro === 'ocultas' ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20" : "text-zinc-400 hover:text-white")}
+          >
+            Pendientes / Ocultas ({reviews.filter(r => !r.is_public).length})
+          </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {reviews.map(review => (
+        {filteredReviews.map(review => (
           <Card key={review.id} className={cn(
             "bg-zinc-900 border-white/5 transition-all",
             review.is_public ? "border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.1)]" : ""

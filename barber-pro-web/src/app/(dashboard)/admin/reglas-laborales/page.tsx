@@ -119,6 +119,10 @@ export default function ReglasLaboralesPage() {
   const [savingBono, setSavingBono] = useState(false)
   const [editingBonoId, setEditingBonoId] = useState<string | null>(null)
   const [bonosBarberos, setBonosBarberos] = useState<Barbero[]>([])
+  const [bonoAPagar, setBonoAPagar] = useState<BonoActivo | null>(null)
+  const [metodoPagoBono, setMetodoPagoBono] = useState<'efectivo' | 'qr'>('efectivo')
+  const [nuevoMotivoSancion, setNuevoMotivoSancion] = useState('')
+  const [creandoMotivo, setCreandoMotivo] = useState(false)
 
   // ─── Load base data ───────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -290,11 +294,62 @@ export default function ReglasLaboralesPage() {
     setSavingBono(false)
   }
 
-  const pagarBono = async (id: string) => {
-    if (!confirm('¿Marcar este bono como pagado? Esto generará un egreso en el sistema contable.')) return
-    const res = await fetch('/api/bonos', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
-    if (res.ok) { success('Bono pagado y egreso registrado ✅'); loadBonosActivos() }
-    else { toastError((await res.json()).error || 'Error') }
+  const abrirPagarBono = (bono: BonoActivo) => {
+    setBonoAPagar(bono)
+    setMetodoPagoBono('efectivo')
+  }
+
+  const confirmarPagoBono = async () => {
+    if (!bonoAPagar) return
+    const res = await fetch('/api/bonos', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: bonoAPagar.id, metodo_pago: metodoPagoBono }),
+    })
+    if (res.ok) {
+      success(`Bono pagado (${metodoPagoBono.toUpperCase()}) y registrado en ${metodoPagoBono === 'qr' ? 'BANCO' : 'CAJA CHICA'} ✅`)
+      setBonoAPagar(null)
+      loadBonosActivos()
+    } else {
+      toastError((await res.json()).error || 'Error')
+    }
+  }
+
+  const crearMotivoSancionInline = async () => {
+    if (!nuevoMotivoSancion.trim()) return
+    setCreandoMotivo(true)
+    try {
+      const sancionesActuales = planCuentas.filter(c => c.es_sancion || c.codigo.startsWith('5.1.'))
+      let maxNum = 1
+      sancionesActuales.forEach(c => {
+        const parts = c.codigo.split('.')
+        if (parts.length >= 3) {
+          const n = parseInt(parts[2], 10)
+          if (!isNaN(n) && n >= maxNum) maxNum = n + 1
+        }
+      })
+      const nuevoCodigo = `5.1.${maxNum}`
+      const res = await fetch('/api/plan-cuentas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codigo: nuevoCodigo,
+          detalle: nuevoMotivoSancion.trim(),
+          tipo: 'ING',
+          es_sancion: true
+        })
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      const nuevaCuenta = await res.json()
+      success('Nuevo motivo de sanción creado exitosamente')
+      setPlanCuentas([...planCuentas, nuevaCuenta])
+      setSancionForm({ ...sancionForm, tipo: nuevaCuenta.detalle })
+      setNuevoMotivoSancion('')
+    } catch (e: any) {
+      toastError(e.message || 'Error al crear motivo')
+    } finally {
+      setCreandoMotivo(false)
+    }
   }
 
   const eliminarBono = async (id: string) => {
@@ -307,6 +362,7 @@ export default function ReglasLaboralesPage() {
   // ─── Sanción activa handlers ──────────────────────────────────────────
   const openSancionModal = () => {
     setSancionForm({ barbero_id: '', tipo: 'llegada_tarde', descripcion: '', monto: 0 })
+    setNuevoMotivoSancion('')
     setShowSancionModal(true)
   }
 
@@ -544,7 +600,7 @@ export default function ReglasLaboralesPage() {
                           </td>
                           <td className="py-3 px-4 text-right flex justify-end gap-1">
                             {!b.pagado && (
-                              <Button size="sm" variant="primary" className="text-[10px] h-7 px-3" onClick={() => pagarBono(b.id)}>
+                              <Button size="sm" variant="primary" className="text-[10px] h-7 px-3" onClick={() => abrirPagarBono(b)}>
                                 <DollarSign size={12} className="mr-1" />Pagar
                               </Button>
                             )}
@@ -909,7 +965,33 @@ export default function ReglasLaboralesPage() {
                       <option value="otro">Otro Motivo</option>
                     </>
                   )}
+                  <option value="NUEVO_MOTIVO" className="text-amber-400 font-bold">+ CREAR NUEVO MOTIVO...</option>
                 </select>
+
+                {sancionForm.tipo === 'NUEVO_MOTIVO' && (
+                  <div className="mt-2 p-3 bg-zinc-900/80 border border-amber-500/30 rounded-xl space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-amber-400">Nombre de Nuevo Motivo</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={nuevoMotivoSancion}
+                        onChange={e => setNuevoMotivoSancion(e.target.value)}
+                        placeholder="Ej: Uniforme Incompleto"
+                        className="flex-1 h-9 bg-zinc-950 border border-white/10 rounded-lg px-3 text-xs text-white outline-none"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="primary"
+                        disabled={creandoMotivo || !nuevoMotivoSancion.trim()}
+                        onClick={crearMotivoSancionInline}
+                        className="h-9 px-3 text-xs"
+                      >
+                        {creandoMotivo ? 'Creando...' : '+ Crear'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">Descripción / Motivo *</label>
@@ -1029,6 +1111,71 @@ export default function ReglasLaboralesPage() {
               </Button>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* ════════ MODAL: PAGAR BONO (EFECTIVO vs QR/BANCO) ════════ */}
+      {bonoAPagar && (
+        <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-zinc-950 border border-amber-500/20 rounded-3xl overflow-hidden shadow-2xl p-6 space-y-6">
+            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+              <div>
+                <h3 className="font-black text-white uppercase">Pagar Bono a Personal</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">{bonoAPagar.barbero?.full_name || 'Barbero'}</p>
+              </div>
+              <button onClick={() => setBonoAPagar(null)} className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-zinc-500">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-center">
+              <p className="text-[10px] uppercase font-black tracking-widest text-amber-400">Monto a Pagar</p>
+              <p className="text-3xl font-black text-amber-500 mt-1">{formatCurrency(bonoAPagar.monto)}</p>
+              <p className="text-xs text-zinc-400 mt-1">{bonoAPagar.tipo} — {bonoAPagar.descripcion || 'Sin descripción'}</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-zinc-400 block">¿Cómo se realiza el pago? *</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMetodoPagoBono('efectivo')}
+                  className={`p-4 rounded-2xl border text-center transition-all ${
+                    metodoPagoBono === 'efectivo'
+                      ? 'bg-amber-500/20 border-amber-500 text-white font-black'
+                      : 'bg-zinc-900 border-white/5 text-zinc-400 hover:border-white/20'
+                  }`}
+                >
+                  <span className="block text-xl mb-1">💵</span>
+                  <span className="text-xs uppercase block">Efectivo</span>
+                  <span className="text-[9px] text-zinc-500 block">Sale de Caja Chica</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMetodoPagoBono('qr')}
+                  className={`p-4 rounded-2xl border text-center transition-all ${
+                    metodoPagoBono === 'qr'
+                      ? 'bg-amber-500/20 border-amber-500 text-white font-black'
+                      : 'bg-zinc-900 border-white/5 text-zinc-400 hover:border-white/20'
+                  }`}
+                >
+                  <span className="block text-xl mb-1">📱</span>
+                  <span className="text-xs uppercase block">QR / Banco</span>
+                  <span className="text-[9px] text-zinc-500 block">Sale de Cuenta Banco</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setBonoAPagar(null)}>
+                Cancelar
+              </Button>
+              <Button variant="primary" className="flex-1" onClick={confirmarPagoBono}>
+                Confirmar Pago
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

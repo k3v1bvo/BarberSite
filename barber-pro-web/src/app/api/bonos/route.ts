@@ -108,7 +108,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
-    const { id } = await request.json()
+    const { id, metodo_pago = 'efectivo' } = await request.json()
     if (!id) return NextResponse.json({ error: 'Falta ID' }, { status: 400 })
 
     const { data: bono } = await supabase
@@ -123,8 +123,8 @@ export async function PATCH(request: NextRequest) {
     // Marcar pagado
     await supabase.from('bonos').update({ pagado: true, pagado_at: new Date().toISOString() }).eq('id', id)
 
-    // Registrar egreso en transactions
-    await _registrarEgresoBono(supabase, bono, profile?.full_name || user.email || 'Sistema')
+    // Registrar egreso en transactions según método de pago (BANCO o CAJA_CHICA)
+    await _registrarEgresoBono(supabase, bono, profile?.full_name || user.email || 'Sistema', metodo_pago)
 
     return NextResponse.json({ success: true })
   } catch {
@@ -211,7 +211,7 @@ export async function DELETE(request: NextRequest) {
 }
 
 // ── Helper: registrar egreso en transactions al pagar bono ─────────────
-async function _registrarEgresoBono(supabase: any, bono: any, usuarioRegistro: string) {
+async function _registrarEgresoBono(supabase: any, bono: any, usuarioRegistro: string, metodoPago: string = 'efectivo') {
   const ci = bono.barbero?.ci || '0000000'
   const nombre = bono.barbero?.full_name || 'Empleado'
   const periodoLabel = bono.periodo_tipo === 'semanal'
@@ -220,15 +220,24 @@ async function _registrarEgresoBono(supabase: any, bono: any, usuarioRegistro: s
       ? (bono.fecha_inicio || '')
       : `Mes ${bono.mes}/${bono.anio}`
 
+  const esQrOrBanco = metodoPago.toLowerCase() === 'qr' || metodoPago.toLowerCase() === 'banco'
+  const libro = esQrOrBanco ? 'BANCO' : 'CAJA_CHICA'
+  const metodo_pago = esQrOrBanco ? 'QR' : 'Efectivo'
+  const monto_efectivo = esQrOrBanco ? 0 : Number(bono.monto)
+  const monto_qr = esQrOrBanco ? Number(bono.monto) : 0
+
   await supabase.from('transactions').insert({
-    libro: 'CAJA_CHICA',
+    libro,
     fecha: new Date().toISOString().split('T')[0],
     ci,
     nombre,
     cuenta_codigo: '4.1.3',
     cuenta_detalle: 'Bonos a Personal',
-    glosa: `Bono ${bono.tipo} — ${bono.descripcion || ''} (${periodoLabel}) [bono_id: ${bono.id}]`,
+    glosa: `Bono ${bono.tipo} (${metodo_pago}) — ${bono.descripcion || ''} (${periodoLabel}) [bono_id: ${bono.id}]`,
     costo: Number(bono.monto),
+    metodo_pago,
+    monto_efectivo,
+    monto_qr,
     tipo_movimiento: 'EGRESO',
     es_sancion: false,
     empleado_id: bono.barbero_id,

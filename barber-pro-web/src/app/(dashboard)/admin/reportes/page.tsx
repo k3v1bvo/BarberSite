@@ -33,8 +33,30 @@ const GOLD_GRADIENT = ['#fbbf24', '#f59e0b', '#d97706']
 export default function ReportesPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'general' | 'finanzas' | 'rendimiento' | 'clientes' | 'inventario'>('general')
-  const [fechaInicio, setFechaInicio] = useState(new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0])
-  const [fechaFin, setFechaFin] = useState(new Date().toISOString().split('T')[0])
+  const hoyStrInicial = new Date().toISOString().split('T')[0]
+  const [fechaInicio, setFechaInicio] = useState(hoyStrInicial)
+  const [fechaFin, setFechaFin] = useState(hoyStrInicial)
+  const [periodoRapido, setPeriodoRapido] = useState<'hoy' | 'semana' | 'mes' | 'personalizado'>('hoy')
+
+  const aplicarPeriodoRapido = (periodo: 'hoy' | 'semana' | 'mes' | 'personalizado') => {
+    setPeriodoRapido(periodo)
+    const hoy = new Date()
+    const hoyStr = hoy.toISOString().split('T')[0]
+    if (periodo === 'hoy') {
+      setFechaInicio(hoyStr)
+      setFechaFin(hoyStr)
+    } else if (periodo === 'semana') {
+      const sem = new Date(hoy)
+      sem.setDate(hoy.getDate() - 7)
+      setFechaInicio(sem.toISOString().split('T')[0])
+      setFechaFin(hoyStr)
+    } else if (periodo === 'mes') {
+      const mes = new Date(hoy)
+      mes.setDate(hoy.getDate() - 30)
+      setFechaInicio(mes.toISOString().split('T')[0])
+      setFechaFin(hoyStr)
+    }
+  }
   
   const [data, setData] = useState<any>({
     resumen: { tendencias: {} },
@@ -818,7 +840,29 @@ export default function ReportesPage() {
 
       {/* Filtros */}
       <Card className="border-amber-500/10 bg-zinc-900/40">
-        <CardContent className="p-6">
+        <CardContent className="p-6 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mr-2">Periodo Rápido:</span>
+            {[
+              { id: 'hoy', label: 'Hoy' },
+              { id: 'semana', label: 'Últimos 7 Días' },
+              { id: 'mes', label: 'Últimos 30 Días' }
+            ].map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => aplicarPeriodoRapido(p.id as any)}
+                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                  periodoRapido === p.id
+                    ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 border border-white/5'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
           <div className="flex flex-wrap gap-6 items-end justify-between">
             <div className="flex flex-wrap gap-6 items-end">
               <div className="space-y-2">
@@ -829,7 +873,7 @@ export default function ReportesPage() {
                     style={{ colorScheme: 'dark' }}
                     className="h-12 w-48 border border-white/10 bg-zinc-950 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
                     value={fechaInicio}
-                    onChange={(e) => setFechaInicio(e.target.value)}
+                    onChange={(e) => { setFechaInicio(e.target.value); setPeriodoRapido('personalizado') }}
                   />
                 </div>
               </div>
@@ -841,7 +885,7 @@ export default function ReportesPage() {
                     style={{ colorScheme: 'dark' }}
                     className="h-12 w-48 border border-white/10 bg-zinc-950 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
                     value={fechaFin}
-                    onChange={(e) => setFechaFin(e.target.value)}
+                    onChange={(e) => { setFechaFin(e.target.value); setPeriodoRapido('personalizado') }}
                   />
                 </div>
               </div>
