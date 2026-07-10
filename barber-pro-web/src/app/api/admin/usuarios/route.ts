@@ -15,9 +15,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email y nombre son requeridos' }, { status: 400 })
     }
 
-    // Enviar invitación de usuario a través de auth.admin
-    const { data: authData, error: authError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      data: {
+    // Crear el usuario directamente sin enviar email (usando createUser en vez de inviteUserByEmail)
+    // Se asigna una contraseña genérica que el admin puede cambiar luego con el botón de la llave
+    const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
+      email,
+      password: 'barber123', // Contraseña genérica por defecto
+      email_confirm: true,   // Esto evita que Supabase envíe correo de confirmación
+      user_metadata: {
         full_name,
       },
     })
