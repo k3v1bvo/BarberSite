@@ -20,6 +20,18 @@ export async function GET(request: NextRequest) {
 
     const fecha = request.nextUrl.searchParams.get('fecha') || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 
+    const dObj = new Date(`${fecha}T12:00:00Z`)
+    const nextObj = new Date(dObj.getTime() + 86400000)
+    const nextDayStr = nextObj.toISOString().split('T')[0]
+
+    // Auto-reparar registros guardados con fecha UTC errónea en este día boliviano
+    await supabase
+      .from('transactions')
+      .update({ fecha })
+      .gte('creado_en', `${fecha}T04:00:00Z`)
+      .lte('creado_en', `${nextDayStr}T03:59:59Z`)
+      .neq('fecha', fecha)
+
     const { data: txDia } = await supabase
       .from('transactions')
       .select('libro, costo, metodo_pago, es_sancion, tipo_movimiento, monto_efectivo, monto_qr')

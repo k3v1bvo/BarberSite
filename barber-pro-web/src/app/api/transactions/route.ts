@@ -28,6 +28,18 @@ export async function GET(request: NextRequest) {
     const search = sp.get('search')
     const limit = parseInt(sp.get('limit') || '100')
 
+    if (fecha) {
+      const dObj = new Date(`${fecha}T12:00:00Z`)
+      const nextObj = new Date(dObj.getTime() + 86400000)
+      const nextDayStr = nextObj.toISOString().split('T')[0]
+      await supabase
+        .from('transactions')
+        .update({ fecha })
+        .gte('creado_en', `${fecha}T04:00:00Z`)
+        .lte('creado_en', `${nextDayStr}T03:59:59Z`)
+        .neq('fecha', fecha)
+    }
+
     let query = supabase
       .from('transactions')
       .select('*')
