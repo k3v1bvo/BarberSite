@@ -5,15 +5,16 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
-import { ArrowDownCircle, Plus, X, FileText, Search } from 'lucide-react'
+import { ArrowDownCircle, Plus, X, FileText, Search, ExternalLink } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface PlanCuenta { id?: string; codigo: string; detalle: string; tipo: string }
 interface Egreso {
   id: string; fecha: string; concepto: string; proveedor: string | null
   monto_bruto: number; tiene_factura: boolean; iva: number; it: number
   monto_neto: number; numero_factura: string | null; cuenta_codigo: string | null
-  creado_en: string
+  creado_en: string; metodo_pago?: string; monto_qr?: number; comprobante_url?: string | null
 }
 
 export default function EgresosPage() {
@@ -34,6 +35,30 @@ export default function EgresosPage() {
   const [newCategoriaNombre, setNewCategoriaNombre] = useState('')
   const [newCategoriaCodigo, setNewCategoriaCodigo] = useState('')
   const [savingCategoria, setSavingCategoria] = useState(false)
+  
+  // QR Modal
+  const [selectedEgresoQr, setSelectedEgresoQr] = useState<any | null>(null)
+  const [qrModalUrl, setQrModalUrl] = useState('')
+  const [savingQr, setSavingQr] = useState(false)
+
+  const handleSaveQrModal = async () => {
+    if (!selectedEgresoQr) return
+    setSavingQr(true)
+    const res = await fetch('/api/egresos', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: selectedEgresoQr.id,
+        comprobante_url: qrModalUrl || null,
+      }),
+    })
+    if (res.ok) {
+      setSelectedEgresoQr(null)
+      setQrModalUrl('')
+      loadData()
+    }
+    setSavingQr(false)
+  }
   
   const supabase = createClient()
 
@@ -86,15 +111,15 @@ export default function EgresosPage() {
     setShowCategoriaDropdown(false)
   }
 
-  const generarSiguienteCodigo = (parentCodigo: string) => {
-    const hijos = cuentas
-      .filter(c => c.codigo.startsWith(parentCodigo + '.') && c.codigo.split('.').length === parentCodigo.split('.').length + 1)
+  const sugerirSiguienteEgreso = () => {
+    const numericos = cuentas
+      .filter(c => c.codigo.startsWith('5.'))
       .map(c => {
-        const parts = c.codigo.split('.')
-        return parseInt(parts[parts.length - 1]) || 0
+        const p = c.codigo.split('.')
+        return parseInt(p[1]) || 0
       })
-    const siguiente = hijos.length > 0 ? Math.max(...hijos) + 1 : 1
-    return `${parentCodigo}.${siguiente}`
+    const max = numericos.length > 0 ? Math.max(...numericos) : 0
+    return `5.${max + 1}`
   }
 
   const crearNuevaCategoria = async () => {
@@ -103,10 +128,9 @@ export default function EgresosPage() {
     try {
       let codigo = newCategoriaCodigo.trim()
       if (!codigo) {
-        codigo = generarSiguienteCodigo('5')
+        codigo = sugerirSiguienteEgreso()
       }
-      const grupo = getGrupo(codigo)
-      const tipo = grupo === 'INGRESO' ? 'INGRESO' : grupo === 'EGRESO' ? 'EGRESO' : grupo
+      const tipo = 'EGRESO'
       const nivel = codigo.split('.').length
 
       const { data: nueva, error: err } = await supabase
@@ -279,7 +303,7 @@ export default function EgresosPage() {
                       ) : (
                         <div className="px-4 py-3 text-zinc-500 text-sm">
                           Sin resultados.{' '}
-                          <button type="button" onClick={() => { setShowNewCategoria(true); setNewCategoriaNombre(searchCategoria) }}
+                          <button type="button" onClick={() => { setShowNewCategoria(true); setNewCategoriaNombre(searchCategoria); setNewCategoriaCodigo(sugerirSiguienteEgreso()) }}
                             className="text-amber-500 font-bold hover:underline">
                             Crear "{searchCategoria}"
                           </button>
@@ -372,11 +396,12 @@ export default function EgresosPage() {
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center">Factura</th>
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">IVA</th>
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">Neto</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center">Comprobante QR</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {egresos.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-zinc-600">No hay egresos registrados</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-600">No hay egresos registrados</td></tr>
                 ) : (
                   egresos.map((eg) => (
                     <tr key={eg.id} className="hover:bg-white/[0.02] transition-colors">
@@ -391,6 +416,26 @@ export default function EgresosPage() {
                       </td>
                       <td className="px-4 py-3 text-right text-zinc-500 text-xs">{formatCurrency(eg.iva)}</td>
                       <td className="px-4 py-3 text-right font-black text-rose-400">{formatCurrency(eg.monto_neto)}</td>
+                      <td className="px-4 py-3 text-center">
+                        {eg.metodo_pago === 'qr' || (eg.monto_qr && eg.monto_qr > 0) || String(eg.metodo_pago).toLowerCase().includes('qr') || eg.comprobante_url ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedEgresoQr(eg)
+                              setQrModalUrl(eg.comprobante_url || '')
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                              eg.comprobante_url
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                                : 'bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
+                            }`}
+                          >
+                            {eg.comprobante_url ? '📱 Ver / Cambiar QR' : '📄 + Subir QR'}
+                          </button>
+                        ) : (
+                          <span className="text-zinc-600 text-xs">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -399,6 +444,69 @@ export default function EgresosPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* QR Upload / View Modal */}
+      {selectedEgresoQr && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <h3 className="text-base font-black uppercase tracking-wider text-white">Comprobante de Pago QR</h3>
+              <button type="button" onClick={() => setSelectedEgresoQr(null)} className="text-zinc-500 hover:text-white">
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-white">{selectedEgresoQr.concepto}</p>
+              <p className="text-xs text-zinc-400">Proveedor: {selectedEgresoQr.proveedor || '—'} | Monto: <b className="text-orange-400">Bs {formatCurrency(selectedEgresoQr.monto_neto)}</b></p>
+            </div>
+
+            {selectedEgresoQr.comprobante_url && (
+              <div className="p-3 bg-zinc-950 border border-white/10 rounded-xl space-y-2">
+                <p className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">Comprobante Actual</p>
+                {selectedEgresoQr.comprobante_url.startsWith('http') ? (
+                  <a href={selectedEgresoQr.comprobante_url} target="_blank" rel="noreferrer" className="text-xs text-blue-400 underline break-all flex items-center gap-1">
+                    Ver Comprobante <ExternalLink size={12} />
+                  </a>
+                ) : (
+                  <p className="text-xs text-zinc-300 font-mono break-all">{selectedEgresoQr.comprobante_url}</p>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <ImageUpload
+                label="Subir Imagen / Captura del QR"
+                onUploadSuccess={(url) => setQrModalUrl(url)}
+              />
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 block mb-1">O pegar enlace / nota de comprobante</label>
+                <input
+                  type="text"
+                  value={qrModalUrl}
+                  onChange={(e) => setQrModalUrl(e.target.value)}
+                  placeholder="https://... o referencia del comprobante"
+                  className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs text-white outline-none focus:border-orange-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-white/10">
+              <Button variant="outline" onClick={() => setSelectedEgresoQr(null)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                disabled={savingQr}
+                onClick={handleSaveQrModal}
+                className="bg-orange-500 hover:bg-orange-400 font-black text-xs uppercase tracking-wider"
+              >
+                {savingQr ? 'Guardando...' : 'Guardar Comprobante QR'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

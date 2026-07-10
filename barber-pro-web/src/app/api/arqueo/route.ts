@@ -18,6 +18,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
+    if (request.nextUrl.searchParams.get('historial') === 'true') {
+      const { data: closures, error } = await supabase
+        .from('daily_closures')
+        .select('*')
+        .order('fecha', { ascending: false })
+        .limit(50)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json(closures || [])
+    }
+
     const fecha = request.nextUrl.searchParams.get('fecha') || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 
     const dObj = new Date(`${fecha}T12:00:00Z`)
@@ -28,9 +38,8 @@ export async function GET(request: NextRequest) {
     await supabase
       .from('transactions')
       .update({ fecha })
-      .gte('creado_en', `${fecha}T04:00:00Z`)
-      .lte('creado_en', `${nextDayStr}T03:59:59Z`)
-      .neq('fecha', fecha)
+      .eq('fecha', nextDayStr)
+      .not('monto_qr', 'is', null)
 
     const { data: txDia } = await supabase
       .from('transactions')
@@ -39,10 +48,14 @@ export async function GET(request: NextRequest) {
 
     const { data: citasDia } = await supabase
       .from('citas')
-      .select('id, precio, anticipo_monto, metodo_pago, barbero_id, cliente_id')
+      .select('id, precio, anticipo_monto, metodo_pago, barbero_id, cliente_id, comision_pagada, comision_barbero')
       .gte('fecha_hora', `${fecha}T00:00:00`)
       .lte('fecha_hora', `${fecha}T23:59:59`)
       .eq('estado', 'completado')
+
+    const comisionesPendientes = (citasDia || []).filter(c => c.comision_pagada === false && Number(c.comision_barbero || 0) > 0)
+    const comisiones_pendientes_count = comisionesPendientes.length
+    const comisiones_pendientes_monto = comisionesPendientes.reduce((acc, c) => acc + Number(c.comision_barbero || 0), 0)
 
     const txServiciosCount = txDia?.filter(t => t.libro === 'SERVICIOS' && t.tipo_movimiento === 'INGRESO').length || 0
     const citasCompletadasCount = citasDia?.length || 0
@@ -63,6 +76,8 @@ export async function GET(request: NextRequest) {
       sanciones: 0,
       movimientos: txDia?.length || 0,
       cantidad_servicios,
+      comisiones_pendientes_count,
+      comisiones_pendientes_monto,
     }
     txDia?.forEach((t: any) => {
       const costo = Number(t.costo)
@@ -178,6 +193,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'El arqueo de este día ya fue cerrado' }, { status: 400 })
     }
 
+    const usuarioCierre = body.usuario_cierre || profile?.full_name || user.email || 'Sistema'
+
+    if (body.cerrado && body.pago_cierre && Number(body.pago_cierre.monto) > 0) {
+      const pMonto = Number(body.pago_cierre.monto)
+      const pMetodo = body.pago_cierre.metodo_pago || 'efectivo'
+      const pPersona = body.pago_cierre.persona || usuarioCierre
+      const pComprobante = body.pago_cierre.comprobante_url || null
+
+      await supabase.from('transactions').insert({
+        libro: pMetodo === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
+        fecha,
+        ci: '0000000',
+        nombre: `Pago Cierre de Caja a ${pPersona}`,
+        cuenta_codigo: 'EGR-CIE',
+        cuenta_detalle: 'Pago por Cierre de Caja Diario',
+        glosa: `Bono por cerrar caja el día ${fecha}`,
+        costo: pMonto,
+        tipo_movimiento: 'EGRESO',
+        es_sancion: false,
+        metodo_pago: pMetodo,
+        subcategoria: 'PAGO_CIERRE_CAJA',
+        monto_efectivo: pMetodo === 'efectivo' ? pMonto : 0,
+        monto_qr: pMetodo === 'qr' ? pMonto : 0,
+        usuario_registro: profile?.full_name || 'Sistema',
+        comprobante_url: pComprobante
+      })
+
+      await supabase.from('egresos').insert({
+        fecha,
+        concepto: 'Pago por Cierre de Caja Diario',
+        proveedor: pPersona,
+        monto_bruto: pMonto,
+        tiene_factura: false,
+        iva: 0,
+        it: 0,
+        monto_neto: pMonto,
+        cuenta_codigo: 'EGR-CIE',
+        metodo_pago: pMetodo,
+        monto_efectivo: pMetodo === 'efectivo' ? pMonto : 0,
+        monto_qr: pMetodo === 'qr' ? pMonto : 0,
+        usuario_registro: profile?.full_name || 'Sistema',
+        notas: `Bono por cerrar caja el día ${fecha}`
+      })
+    }
+
     const row = {
       fecha,
       caja_chica: body.caja_chica || 0,
@@ -187,7 +247,7 @@ export async function POST(request: NextRequest) {
       total_efectivo_fisico: body.total_efectivo_fisico || 0,
       total_qr: body.total_qr || 0,
       observaciones: body.observaciones || null,
-      usuario_cierre: profile?.full_name || user.email || 'Sistema',
+      usuario_cierre: usuarioCierre,
       cerrado: body.cerrado ?? false,
     }
 

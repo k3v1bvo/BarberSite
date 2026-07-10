@@ -222,17 +222,14 @@ export default function CajaChicaPage() {
     setShowCategoriaDropdown(false)
   }
 
-  // Generar el siguiente código en la jerarquía
-  const generarSiguienteCodigo = (parentCodigo: string) => {
-    // Buscar hijos directos del padre
-    const hijos = cuentas
-      .filter(c => c.codigo.startsWith(parentCodigo + '.') && c.codigo.split('.').length === parentCodigo.split('.').length + 1)
-      .map(c => {
-        const parts = c.codigo.split('.')
-        return parseInt(parts[parts.length - 1]) || 0
-      })
-    const siguiente = hijos.length > 0 ? Math.max(...hijos) + 1 : 1
-    return `${parentCodigo}.${siguiente}`
+  // Generar el siguiente código en la jerarquía (4.x para ingresos, 5.x para egresos)
+  const sugerirSiguienteCodigo = (direccion: string) => {
+    const prefijo = direccion === 'INGRESO' ? '4.' : '5.'
+    const numericos = cuentas
+      .filter(c => c.codigo.startsWith(prefijo))
+      .map(c => parseInt(c.codigo.split('.')[1]) || 0)
+    const max = numericos.length > 0 ? Math.max(...numericos) : 0
+    return `${prefijo}${max + 1}`
   }
 
   const crearNuevaCategoria = async () => {
@@ -241,19 +238,7 @@ export default function CajaChicaPage() {
     try {
       let codigo = newCategoriaCodigo.trim()
       if (!codigo) {
-        // Auto-generar código basado en la dirección seleccionada
-        if (form.cuenta_codigo) {
-          // Si hay una cuenta padre seleccionada, crear como hijo
-          codigo = generarSiguienteCodigo(form.cuenta_codigo)
-        } else if (form.direccion === 'INGRESO') {
-          // Ingresos van bajo 4.x
-          codigo = generarSiguienteCodigo('4')
-        } else if (form.direccion === 'EGRESO') {
-          // Egresos van bajo 5.x
-          codigo = generarSiguienteCodigo('5')
-        } else {
-          codigo = generarSiguienteCodigo('5')
-        }
+        codigo = sugerirSiguienteCodigo(form.direccion)
       }
 
       const grupo = getGrupo(codigo)
@@ -739,7 +724,7 @@ export default function CajaChicaPage() {
                           ) : (
                             <div className="px-4 py-3 text-zinc-500 text-sm">
                               Sin resultados.{' '}
-                              <button type="button" onClick={() => { setShowNewCategoria(true); setNewCategoriaNombre(searchCategoria) }}
+                              <button type="button" onClick={() => { setShowNewCategoria(true); setNewCategoriaNombre(searchCategoria); setNewCategoriaCodigo(sugerirSiguienteCodigo(form.direccion)) }}
                                 className="text-amber-500 font-bold hover:underline">
                                 Crear &quot;{searchCategoria}&quot;
                               </button>
@@ -974,20 +959,18 @@ export default function CajaChicaPage() {
                           <div className="flex flex-col max-w-[200px]">
                             {tx.glosa && <span className="text-zinc-400 text-xs truncate">{tx.es_sancion ? '⚠ ' : ''}{tx.glosa}</span>}
                             {tx.notas && <span className="text-[10px] text-zinc-600 truncate">{tx.notas}</span>}
-                            {tx.comprobante_url ? (
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <a href={tx.comprobante_url} target="_blank" rel="noreferrer" className="text-[9px] text-amber-500 hover:text-amber-400 flex items-center gap-0.5 font-bold">
-                                  <ImageIcon className="w-2.5 h-2.5" /> Ver
-                                </a>
-                                <button type="button" onClick={() => setEditingComprobanteTx(tx)} className="text-[9px] text-zinc-400 hover:text-white underline">
-                                  Editar
+                            {(tx.metodo_pago === 'qr' || tx.metodo_pago === 'mixto' || tx.metodo_pago === 'tarjeta' || tx.comprobante_url) && (
+                              <div className="flex items-center gap-2 mt-1">
+                                {tx.comprobante_url ? (
+                                  <a href={tx.comprobante_url} target="_blank" rel="noreferrer" className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 font-bold border border-emerald-500/30 flex items-center gap-1">
+                                    <ImageIcon className="w-2.5 h-2.5" /> Ver QR
+                                  </a>
+                                ) : null}
+                                <button type="button" onClick={() => setEditingComprobanteTx(tx)} className="px-2 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 font-bold border border-blue-500/30">
+                                  {tx.comprobante_url ? '📱 Cambiar QR' : '📄 + Subir Comprobante QR'}
                                 </button>
                               </div>
-                            ) : (tx.metodo_pago === 'qr' || tx.metodo_pago === 'mixto' || tx.metodo_pago === 'tarjeta') ? (
-                              <button type="button" onClick={() => setEditingComprobanteTx(tx)} className="text-[9px] text-amber-400 hover:text-amber-300 font-bold mt-0.5 flex items-center gap-0.5">
-                                📎 Adjuntar Comprobante
-                              </button>
-                            ) : null}
+                            )}
                           </div>
                         </td>
                         {/* Método de pago */}

@@ -165,9 +165,11 @@ export async function POST(req: Request) {
   const { data: barberoProfile } = await supabase.from('profiles').select('full_name').eq('id', barbero_id).single()
   
   if (monto_total > 0) {
+    const fechaActual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+
     const { error: egresoError } = await supabase.from('transactions').insert({
       libro: metodo_pago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
-      fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
+      fecha: fechaActual,
       ci: '0000000',
       nombre: `Pago Comisiones a ${barberoProfile?.full_name || 'Barbero'}`,
       cuenta_codigo: 'EGR-COM',
@@ -187,6 +189,28 @@ export async function POST(req: Request) {
 
     if (egresoError) {
       console.error("Error al registrar egreso de comisión en caja:", egresoError)
+    }
+
+    // También registrar explícitamente en la tabla de egresos
+    const { error: egrTablaError } = await supabase.from('egresos').insert({
+      fecha: fechaActual,
+      concepto: `Pago de Comisiones / Sueldo (${periodo_tipo})`,
+      proveedor: barberoProfile?.full_name || 'Barbero',
+      monto_bruto: monto_total,
+      tiene_factura: false,
+      iva: 0,
+      it: 0,
+      monto_neto: monto_total,
+      cuenta_codigo: 'EGR-COM',
+      metodo_pago: metodo_pago || 'efectivo',
+      monto_efectivo: metodo_pago === 'efectivo' ? monto_total : (metodo_pago === 'mixto' ? Number(body.monto_efectivo) || 0 : 0),
+      monto_qr: metodo_pago === 'qr' ? monto_total : (metodo_pago === 'mixto' ? Number(body.monto_qr) || 0 : 0),
+      usuario_registro: adminProfile?.full_name || 'Sistema',
+      notas: `Pago ${periodo_tipo} del ${fecha_inicio} al ${fecha_fin}. (Pago ID: ${pago.id})`,
+    })
+
+    if (egrTablaError) {
+      console.error("Error al registrar egreso en tabla egresos:", egrTablaError)
     }
   }
 

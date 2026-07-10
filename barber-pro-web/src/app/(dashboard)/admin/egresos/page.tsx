@@ -54,6 +54,33 @@ export default function EgresosPage() {
     comprobante_url: '',
   })
 
+  // QR Modal state
+  const [selectedEgresoQr, setSelectedEgresoQr] = useState<any | null>(null)
+  const [qrModalUrl, setQrModalUrl] = useState('')
+  const [savingQr, setSavingQr] = useState(false)
+
+  const handleSaveQrModal = async () => {
+    if (!selectedEgresoQr) return
+    setSavingQr(true)
+    const res = await fetch('/api/egresos', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: selectedEgresoQr.id,
+        comprobante_url: qrModalUrl || null,
+      }),
+    })
+    if (res.ok) {
+      success('Comprobante QR actualizado')
+      setSelectedEgresoQr(null)
+      setQrModalUrl('')
+      loadAll()
+    } else {
+      error('Error al guardar comprobante')
+    }
+    setSavingQr(false)
+  }
+
   // Categorías filtradas para autocompletado
   const categoriasFiltradas = categorias.filter(c => 
     c.detalle.toLowerCase().includes(searchCategoria.toLowerCase()) ||
@@ -131,11 +158,21 @@ export default function EgresosPage() {
     setShowCategoriaDropdown(false)
   }
 
+  const sugerirSiguienteEgreso = () => {
+    const numericos = categorias
+      .filter(c => c.codigo.startsWith('5.'))
+      .map(c => parseInt(c.codigo.split('.')[1]) || 0)
+    if (numericos.length > 0) {
+      return `5.${Math.max(...numericos) + 1}`
+    }
+    return `5.${categorias.length + 1}`
+  }
+
   const crearNuevaCategoria = async () => {
     if (!newCategoriaNombre.trim()) return error('El nombre es requerido')
     setSavingCategoria(true)
     try {
-      const codigo = newCategoriaCodigo.trim() || `EGR-${String(categorias.length + 1).padStart(3, '0')}`
+      const codigo = newCategoriaCodigo.trim() || sugerirSiguienteEgreso()
       const { data: nueva, error: err } = await supabase
         .from('plan_cuentas')
         .insert({ codigo, detalle: newCategoriaNombre.trim(), tipo: 'EGRESO', nivel: 1, es_sancion: false })
@@ -509,11 +546,25 @@ export default function EgresosPage() {
                           {egreso.notas && (
                             <p className="text-xs text-zinc-500 mt-1.5 italic line-clamp-1">{egreso.notas}</p>
                           )}
-                          {egreso.comprobante_url && (
-                            <a href={egreso.comprobante_url} target="_blank" rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-[10px] text-amber-500 hover:text-amber-400 font-bold mt-1 transition">
-                              <ImageIcon className="w-3 h-3" /> Ver Comprobante <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
+                          {(egreso.metodo_pago === 'qr' || egreso.metodo_pago === 'mixto' || egreso.comprobante_url) && (
+                            <div className="mt-1.5 flex items-center gap-2">
+                              {egreso.comprobante_url ? (
+                                <a href={egreso.comprobante_url} target="_blank" rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-[10px] text-emerald-400 hover:text-emerald-300 font-bold">
+                                  <ImageIcon className="w-3 h-3" /> Ver Comprobante <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedEgresoQr(egreso)
+                                  setQrModalUrl(egreso.comprobante_url || '')
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 px-2 py-0.5 rounded-md font-bold uppercase border border-blue-500/20 transition"
+                              >
+                                {egreso.comprobante_url ? '📱 Cambiar QR' : '📄 + Subir Comprobante QR'}
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -533,6 +584,69 @@ export default function EgresosPage() {
           </Card>
         </div>
       </div>
+
+      {/* QR Upload / View Modal */}
+      {selectedEgresoQr && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <h3 className="text-base font-black uppercase tracking-wider text-white">Comprobante de Pago QR</h3>
+              <button type="button" onClick={() => setSelectedEgresoQr(null)} className="text-zinc-500 hover:text-white">
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-white">{selectedEgresoQr.concepto}</p>
+              <p className="text-xs text-zinc-400">Proveedor: {selectedEgresoQr.proveedor || '—'} | Monto: <b className="text-orange-400">Bs {formatCurrency(selectedEgresoQr.monto_neto)}</b></p>
+            </div>
+
+            {selectedEgresoQr.comprobante_url && (
+              <div className="p-3 bg-zinc-950 border border-white/10 rounded-xl space-y-2">
+                <p className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">Comprobante Actual</p>
+                {selectedEgresoQr.comprobante_url.startsWith('http') ? (
+                  <a href={selectedEgresoQr.comprobante_url} target="_blank" rel="noreferrer" className="text-xs text-blue-400 underline break-all flex items-center gap-1">
+                    Ver Comprobante <ExternalLink size={12} />
+                  </a>
+                ) : (
+                  <p className="text-xs text-zinc-300 font-mono break-all">{selectedEgresoQr.comprobante_url}</p>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <ImageUpload
+                label="Subir Imagen / Captura del QR"
+                onUploadSuccess={(url) => setQrModalUrl(url)}
+              />
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 block mb-1">O pegar enlace / nota de comprobante</label>
+                <input
+                  type="text"
+                  value={qrModalUrl}
+                  onChange={(e) => setQrModalUrl(e.target.value)}
+                  placeholder="https://... o referencia del comprobante"
+                  className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs text-white outline-none focus:border-orange-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-white/10">
+              <Button variant="outline" onClick={() => setSelectedEgresoQr(null)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                disabled={savingQr}
+                onClick={handleSaveQrModal}
+                className="bg-orange-500 hover:bg-orange-400 font-black text-xs uppercase tracking-wider"
+              >
+                {savingQr ? 'Guardando...' : 'Guardar Comprobante QR'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
