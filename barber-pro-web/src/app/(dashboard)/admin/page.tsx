@@ -16,6 +16,11 @@ import {
   Search,
   BarChart3,
   Store,
+  Wallet,
+  Receipt,
+  Landmark,
+  Scale,
+  TrendingUp,
 } from 'lucide-react'
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
 import { StatCard } from '@/components/admin/StatCard'
@@ -25,6 +30,22 @@ import { AdminAsistenciaSummary } from '@/components/admin/AdminAsistenciaSummar
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts'
+
+const libroLabel: Record<string, string> = {
+  CAJA_CHICA: 'Caja Chica',
+  VENTAS: 'Ventas',
+  SERVICIOS: 'Servicios',
+  BANCO: 'Banco',
+  USO_TIENDA: 'Uso Tienda',
+}
+
+const libroColor: Record<string, string> = {
+  CAJA_CHICA: 'text-amber-500',
+  VENTAS: 'text-green-500',
+  SERVICIOS: 'text-emerald-500',
+  BANCO: 'text-blue-500',
+  USO_TIENDA: 'text-violet-500',
+}
 
 type DateRangeOption = 'hoy' | 'ayer' | 'esta_semana' | 'este_mes' | 'mes_pasado' | 'este_año' | 'personalizado'
 
@@ -105,6 +126,15 @@ export default function AdminPage() {
   const [ventasSemana, setVentasSemana] = useState<{fecha: string, total: number}[]>([])
   const [topBarberos, setTopBarberos] = useState<{nombre: string, ventas: number, citas: number}[]>([])
   const [usoTiendaHoy, setUsoTiendaHoy] = useState(0)
+  const [summaryContable, setSummaryContable] = useState({
+    caja_chica: 0,
+    ventas: 0,
+    banco: 0,
+    total: 0,
+    arqueoCerrado: false,
+  })
+  const [recentTx, setRecentTx] = useState<any[]>([])
+  const [tabTabla, setTabTabla] = useState<'citas' | 'movimientos'>('citas')
   const [loading, setLoading] = useState(true)
   
   // Date range state
@@ -235,6 +265,39 @@ export default function AdminPage() {
         .eq('fecha', hoy)
       setUsoTiendaHoy(txTienda?.reduce((s: number, t: any) => s + Number(t.costo), 0) || 0)
 
+      // Resumen Contable Operativo del período
+      const { data: txPeriodo } = await supabase
+        .from('transactions')
+        .select('libro, costo')
+        .gte('fecha', start)
+        .lte('fecha', end)
+
+      const sContable = { caja_chica: 0, ventas: 0, banco: 0, total: 0, arqueoCerrado: false }
+      if (txPeriodo) {
+        txPeriodo.forEach((t) => {
+          if (t.libro === 'CAJA_CHICA') sContable.caja_chica += Number(t.costo)
+          else if (t.libro === 'VENTAS' || t.libro === 'SERVICIOS') sContable.ventas += Number(t.costo)
+          else if (t.libro === 'BANCO') sContable.banco += Number(t.costo)
+          sContable.total += Number(t.costo)
+        })
+      }
+
+      const { data: arqueoData } = await supabase
+        .from('daily_closures')
+        .select('cerrado')
+        .eq('fecha', end)
+        .maybeSingle()
+      sContable.arqueoCerrado = arqueoData?.cerrado ?? false
+      setSummaryContable(sContable)
+
+      // Últimos movimientos contables
+      const { data: recTx } = await supabase
+        .from('transactions')
+        .select('id, libro, ci, nombre, glosa, costo, es_sancion, creado_en')
+        .order('creado_en', { ascending: false })
+        .limit(10)
+      if (recTx) setRecentTx(recTx)
+
       setCitasRecientes((citasRecientesData as unknown as Cita[]) || [])
     } catch (error) {
       console.error('Error cargando datos:', JSON.stringify(error, null, 2), error)
@@ -359,7 +422,53 @@ export default function AdminPage() {
           variant={stats.productosStockBajo > 0 ? 'danger' : 'default'}
           delay={225}
           onClick={() => router.push('/admin/productos')}
-        />
+      </div>
+
+      {/* Libros Contables del Período */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-white/5 bg-zinc-900/80 hover:border-amber-500/30 transition-all cursor-pointer" onClick={() => router.push('/coordinador/caja-chica')}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Wallet className="w-4 h-4 text-amber-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-500/70">Caja Chica</span>
+            </div>
+            <p className="text-xl font-black text-white">{formatCurrency(summaryContable.caja_chica)}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-white/5 bg-zinc-900/80 hover:border-green-500/30 transition-all cursor-pointer" onClick={() => router.push('/coordinador/ventas')}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Receipt className="w-4 h-4 text-green-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-green-500/70">Ventas / Servicios</span>
+            </div>
+            <p className="text-xl font-black text-white">{formatCurrency(summaryContable.ventas)}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-white/5 bg-zinc-900/80 hover:border-blue-500/30 transition-all cursor-pointer" onClick={() => router.push('/coordinador/banco')}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Landmark className="w-4 h-4 text-blue-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-blue-500/70">Banco</span>
+            </div>
+            <p className="text-xl font-black text-white">{formatCurrency(summaryContable.banco)}</p>
+          </CardContent>
+        </Card>
+
+        <Card className={`border-white/5 bg-zinc-900/80 transition-all cursor-pointer ${summaryContable.arqueoCerrado ? 'hover:border-green-500/30' : 'hover:border-red-500/30 border-red-500/20'}`} onClick={() => router.push('/coordinador/arqueo')}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <Scale className="w-4 h-4 text-zinc-400" />
+              <span className={`text-[10px] font-black uppercase tracking-widest ${summaryContable.arqueoCerrado ? 'text-green-500' : 'text-red-400'}`}>
+                Arqueo
+              </span>
+            </div>
+            <p className={`text-base font-black ${summaryContable.arqueoCerrado ? 'text-green-400' : 'text-red-400'}`}>
+              {summaryContable.arqueoCerrado ? '✅ Cerrado' : '⚠️ Pendiente'}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {usoTiendaHoy > 0 && (
@@ -460,92 +569,161 @@ export default function AdminPage() {
         <div className="xl:col-span-2">
           <Card className="border-white/5 animate-in fade-in duration-500 delay-200 fill-mode-both">
             <CardHeader className="flex flex-row items-center justify-between py-4">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-amber-500" />
-                Citas del período
-              </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-amber-500 font-bold"
-                onClick={() => router.push('/agenda')}
-              >
-                Agenda completa
-                <ArrowRight size={14} className="ml-1" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTabTabla('citas')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                    tabTabla === 'citas'
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      : 'text-zinc-500 hover:text-white'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  Citas del período
+                </button>
+                <button
+                  onClick={() => setTabTabla('movimientos')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                    tabTabla === 'movimientos'
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      : 'text-zinc-500 hover:text-white'
+                  }`}
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  Últimos Movimientos
+                </button>
+              </div>
+
+              {tabTabla === 'citas' ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-amber-500 font-bold text-xs"
+                  onClick={() => router.push('/agenda')}
+                >
+                  Agenda completa
+                  <ArrowRight size={14} className="ml-1" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-amber-500 font-bold text-xs"
+                  onClick={() => router.push('/coordinador/caja-chica')}
+                >
+                  Ver libros
+                  <ArrowRight size={14} className="ml-1" />
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto w-full">
-                <table className="w-full text-left min-w-[800px]">
-                  <thead>
-                    <tr className="bg-white/5">
-                      <th className="py-3 px-5 text-[10px] font-black uppercase text-zinc-500 tracking-widest">
-                        Cliente
-                      </th>
-                      <th className="py-3 px-5 text-[10px] font-black uppercase text-zinc-500 tracking-widest hidden sm:table-cell">
-                        Servicio
-                      </th>
-                      <th className="py-3 px-5 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-right">
-                        Monto
-                      </th>
-                      <th className="py-3 px-5 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">
-                        Estado
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {citasRecientes.map((cita, idx) => (
-                      <tr
-                        key={cita.id}
-                        className="border-b border-white/5 hover:bg-white/5 transition-colors duration-200 animate-in fade-in slide-in-from-left-1 fill-mode-both"
-                        style={{ animationDelay: `${idx * 40}ms` }}
+              {tabTabla === 'citas' ? (
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-left min-w-[700px]">
+                    <thead>
+                      <tr className="bg-white/5">
+                        <th className="py-3 px-5 text-[10px] font-black uppercase text-zinc-500 tracking-widest">
+                          Cliente
+                        </th>
+                        <th className="py-3 px-5 text-[10px] font-black uppercase text-zinc-500 tracking-widest hidden sm:table-cell">
+                          Servicio
+                        </th>
+                        <th className="py-3 px-5 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-right">
+                          Monto
+                        </th>
+                        <th className="py-3 px-5 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">
+                          Estado
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {citasRecientes.map((cita, idx) => (
+                        <tr
+                          key={cita.id}
+                          className="border-b border-white/5 hover:bg-white/5 transition-colors duration-200"
+                        >
+                          <td className="py-4 px-5">
+                            <p className="font-bold text-white text-sm">
+                              {cita.clientes?.nombre || 'Walk-in'}
+                            </p>
+                            <p className="text-[10px] text-zinc-600 sm:hidden">
+                              {cita.servicios?.nombre || '—'} · {cita.barberos?.full_name || '—'}
+                            </p>
+                          </td>
+                          <td className="py-4 px-5 hidden sm:table-cell">
+                            <p className="text-sm text-zinc-300">{cita.servicios?.nombre || 'General'}</p>
+                            <p className="text-[10px] text-zinc-500">{cita.barberos?.full_name || 'Sin asignar'}</p>
+                          </td>
+                          <td className="py-4 px-5 text-right">
+                            <p className="font-black text-amber-500">{formatCurrency(cita.precio)}</p>
+                          </td>
+                          <td className="py-4 px-5 text-center">
+                            <Badge
+                              variant={getEstadoBadge(cita.estado)}
+                              className="uppercase font-black text-[10px] tracking-widest"
+                            >
+                              {cita.estado.replace('_', ' ')}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                      {citasRecientes.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="py-16 text-center">
+                            <Calendar size={40} className="mx-auto text-zinc-800 mb-3 opacity-40" />
+                            <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">
+                              Sin citas en el período
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-4"
+                              onClick={() => router.push('/admin/caja')}
+                            >
+                              Crear cita
+                            </Button>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-4 space-y-2">
+                  {recentTx.length === 0 ? (
+                    <div className="text-center py-12">
+                      <TrendingUp className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
+                      <p className="text-zinc-600 font-bold text-sm">Sin movimientos registrados</p>
+                    </div>
+                  ) : (
+                    recentTx.map((tx) => (
+                      <div
+                        key={tx.id}
+                        className="flex items-center justify-between gap-4 p-3 rounded-xl bg-zinc-950/60 hover:bg-zinc-900 transition-colors"
                       >
-                        <td className="py-4 px-5">
-                          <p className="font-bold text-white text-sm">
-                            {cita.clientes?.nombre || 'Walk-in'}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`text-[10px] font-black uppercase tracking-widest w-20 shrink-0 ${libroColor[tx.libro] || 'text-zinc-500'}`}>
+                            {libroLabel[tx.libro] || tx.libro}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-white truncate">
+                              {tx.es_sancion && <span className="text-red-400 mr-1">⚠</span>}
+                              {tx.glosa}
+                            </p>
+                            <p className="text-[10px] text-zinc-600 font-bold">{tx.ci} — {tx.nombre}</p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-black text-white">{formatCurrency(tx.costo)}</p>
+                          <p className="text-[10px] text-zinc-600">
+                            {new Date(tx.creado_en).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
                           </p>
-                          <p className="text-[10px] text-zinc-600 sm:hidden">
-                            {cita.servicios?.nombre || '—'} · {cita.barberos?.full_name || '—'}
-                          </p>
-                        </td>
-                        <td className="py-4 px-5 hidden sm:table-cell">
-                          <p className="text-sm text-zinc-300">{cita.servicios?.nombre || 'General'}</p>
-                          <p className="text-[10px] text-zinc-500">{cita.barberos?.full_name || 'Sin asignar'}</p>
-                        </td>
-                        <td className="py-4 px-5 text-right">
-                          <p className="font-black text-amber-500">{formatCurrency(cita.precio)}</p>
-                        </td>
-                        <td className="py-4 px-5 text-center">
-                          <Badge
-                            variant={getEstadoBadge(cita.estado)}
-                            className="uppercase font-black text-[10px] tracking-widest"
-                          >
-                            {cita.estado.replace('_', ' ')}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                    {citasRecientes.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="py-16 text-center">
-                          <Calendar size={40} className="mx-auto text-zinc-800 mb-3 opacity-40" />
-                          <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">
-                            Sin citas registradas hoy
-                          </p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-4"
-                            onClick={() => router.push('/admin/caja')}
-                          >
-                            Crear cita
-                          </Button>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

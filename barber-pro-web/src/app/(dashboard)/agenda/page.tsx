@@ -25,12 +25,17 @@ export default function AgendaGeneralPage() {
   const [authLoading, setAuthLoading] = useState(true)
   const [authorized, setAuthorized] = useState(false)
   const [barberos, setBarberos] = useState<BarberoOption[]>([])
-  const [selectedBarbero, setSelectedBarbero] = useState('')
+  const [selectedBarbero, setSelectedBarbero] = useState('todos')
   const [view, setView] = useState<AgendaView>('mes')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedCita, setSelectedCita] = useState<AgendaCita | null>(null)
 
-  const { citas, loading, error } = useAgendaCitas(view, selectedDate, null, authorized)
+  const { citas, loading, error } = useAgendaCitas(
+    view,
+    selectedDate,
+    selectedBarbero === 'todos' ? null : selectedBarbero,
+    authorized
+  )
 
   useEffect(() => {
     const citaId = searchParams.get('cita_id')
@@ -109,7 +114,7 @@ export default function AgendaGeneralPage() {
 
         if (barberosList?.length) {
           setBarberos(barberosList)
-          setSelectedBarbero(barberosList[0].id)
+          setSelectedBarbero('todos')
         }
       } catch {
         setAuthorized(false)
@@ -163,19 +168,22 @@ export default function AgendaGeneralPage() {
               <select
                 value={selectedBarbero}
                 onChange={(e) => setSelectedBarbero(e.target.value)}
-                className="h-11 flex-1 min-w-[180px] bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none"
+                className="h-11 flex-1 min-w-[200px] bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none"
               >
+                <option value="todos">💈 Todos los Barberos</option>
                 {barberos.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.full_name}
                   </option>
                 ))}
               </select>
-              <Link href={`/agenda/${selectedBarbero}`}>
-                <Button variant="outline" size="md" className="whitespace-nowrap font-black uppercase text-xs">
-                  Individual
-                </Button>
-              </Link>
+              {selectedBarbero !== 'todos' && (
+                <Link href={`/agenda/${selectedBarbero}`}>
+                  <Button variant="outline" size="md" className="whitespace-nowrap font-black uppercase text-xs">
+                    Individual
+                  </Button>
+                </Link>
+              )}
             </div>
           )}
           <Link href="/recepcion">
