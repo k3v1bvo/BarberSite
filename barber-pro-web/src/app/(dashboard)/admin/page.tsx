@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, getTodayBolivia } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import {
   Users,
@@ -109,8 +109,8 @@ export default function AdminPage() {
   
   // Date range state
   const [rangoSeleccionado, setRangoSeleccionado] = useState<DateRangeOption>('hoy')
-  const [fechaInicioStr, setFechaInicioStr] = useState(new Date().toISOString().split('T')[0])
-  const [fechaFinStr, setFechaFinStr] = useState(new Date().toISOString().split('T')[0])
+  const [fechaInicioStr, setFechaInicioStr] = useState(getTodayBolivia())
+  const [fechaFinStr, setFechaFinStr] = useState(getTodayBolivia())
   
   const router = useRouter()
   const supabase = createClient()
@@ -227,7 +227,7 @@ export default function AdminPage() {
       })
 
       // Uso tienda hoy
-      const hoy = new Date().toISOString().split('T')[0]
+      const hoy = getTodayBolivia()
       const { data: txTienda } = await supabase
         .from('transactions')
         .select('costo')

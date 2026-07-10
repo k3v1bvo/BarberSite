@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('egresos')
       .insert({
-        fecha: body.fecha || new Date().toISOString().split('T')[0],
+        fecha: body.fecha || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
         concepto: body.concepto,
         proveedor: body.proveedor || null,
         monto_bruto: montoBruto,
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     // Insertar en transactions para el reporte financiero
     const { error: txError } = await supabase.from('transactions').insert({
       libro: metodoPago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
-      fecha: body.fecha || new Date().toISOString().split('T')[0],
+      fecha: body.fecha || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
       ci: '0000000',
       nombre: body.proveedor || 'Egreso General',
       cuenta_codigo: body.cuenta_codigo || 'EGR-GEN',

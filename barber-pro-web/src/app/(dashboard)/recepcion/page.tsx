@@ -12,7 +12,7 @@ export default async function RecepcionPage(props: { searchParams: Promise<{ dat
   const searchParams = await props.searchParams
   const supabase = await createServerSupabaseClient()
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const dateStr = searchParams?.date || today
   const view = searchParams?.view || 'day'
 

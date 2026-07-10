@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     // 3. Crear el Egreso contable para reflejar la salida de dinero
     await supabase.from('transactions').insert({
       libro: 'EGRESOS',
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
       ci: 'S/N',
       nombre: 'Pago Consignación Proveedor',
       cuenta_codigo: 'EGRESO',

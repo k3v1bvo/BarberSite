@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     // Intentar registrar en transactions (no falla si no existe la cuenta)
     await supabase.from('transactions').insert({
       libro: 'CAJA_CHICA',
-      fecha: now.toISOString().split('T')[0],
+      fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now),
       ci: '0000000',
       nombre: 'Bono a Personal',
       cuenta_codigo: 'EGR-BONO',

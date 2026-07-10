@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, getTodayBolivia } from '@/lib/utils'
 import { Wallet, Plus, X, User, Image as ImageIcon, ArrowUpCircle, ArrowDownCircle, Search, TrendingUp, TrendingDown, Scale, ShoppingCart, Receipt, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
@@ -71,14 +71,12 @@ export default function CajaChicaPage() {
   const [showCategoriaDropdown, setShowCategoriaDropdown] = useState(false)
   const categoriaRef = useRef<HTMLDivElement>(null)
 
-  const nowLocal = new Date()
   const formatLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  const hoy = formatLocal(nowLocal)
+  const hoy = getTodayBolivia()
 
   // Calcular rango de fechas según periodo
   const getDateRange = (): { desde?: string, hasta?: string } => {
-    const now = new Date()
-    const todayStr = formatLocal(now)
+    const todayStr = getTodayBolivia()
     if (periodo === 'todos') return {} // sin filtro de fecha
     if (periodo === 'hoy') return { desde: todayStr, hasta: todayStr }
     if (periodo === 'semana') {

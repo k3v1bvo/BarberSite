@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       .from('transactions')
       .insert({
         libro: 'CAJA_CHICA',
-        fecha: new Date().toISOString().split('T')[0],
+        fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
         ci: '0000000',
         nombre: 'Sanción Administrativa',
         cuenta_codigo: cuenta_codigo,

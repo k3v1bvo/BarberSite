@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await supabase.from('transactions').insert({
       libro: 'CAJA_CHICA',
-      fecha: fecha || new Date().toISOString().split('T')[0],
+      fecha: fecha || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
       ci: barbero?.ci || '0000000',
       nombre: barbero?.full_name || 'Empleado',
       cuenta_codigo,

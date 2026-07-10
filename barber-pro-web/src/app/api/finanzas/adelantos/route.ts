@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       .from('transactions')
       .insert({
         libro: 'CAJA_CHICA',
-        fecha: new Date().toISOString().split('T')[0],
+        fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
         ci: '0000000', // Valor por defecto
         nombre: 'Adelanto a Personal',
         cuenta_codigo: 'ACT-001', // Código que definimos para adelantos
