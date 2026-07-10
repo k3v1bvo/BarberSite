@@ -294,7 +294,7 @@ export default function EgresosPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Formulario de Egreso */}
         <div className="lg:col-span-4">
-          <Card className="bg-zinc-900 border-zinc-800 shadow-2xl sticky top-6">
+          <Card className="bg-zinc-900 border-zinc-800 shadow-2xl lg:sticky lg:top-6">
             <CardHeader className="border-b border-white/5 pb-4">
               <CardTitle className="text-lg flex items-center gap-2">
                 <ArrowDownCircle className="w-5 h-5 text-red-400" /> Nuevo Gasto

@@ -666,7 +666,7 @@ export default function BarberoPage() {
         {/* Weekly Chart & Asistencia */}
         <div className="space-y-6">
           <AsistenciaWidget />
-          <Card className="border-white/5 h-fit sticky top-24">
+          <Card className="border-white/5 h-fit xl:sticky xl:top-24">
             <CardHeader>
                <CardTitle className="text-sm">📈 Rendimiento Semanal</CardTitle>
             </CardHeader>
