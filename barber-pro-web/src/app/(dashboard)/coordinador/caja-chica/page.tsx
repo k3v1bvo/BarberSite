@@ -392,8 +392,6 @@ export default function CajaChicaPage() {
     if (sortKey === 'fecha') {
       const diff = dir * a.fecha.localeCompare(b.fecha)
       if (diff !== 0) return diff
-      return dir * ((a.creado_en || '').localeCompare(b.creado_en || ''))
-    }
     if (sortKey === 'nombre') return dir * ((a.nombre || '').localeCompare(b.nombre || ''))
     if (sortKey === 'cuenta_detalle') return dir * ((a.cuenta_detalle || '').localeCompare(b.cuenta_detalle || ''))
     if (sortKey === 'costo') return dir * (Number(a.costo) - Number(b.costo))
@@ -401,11 +399,40 @@ export default function CajaChicaPage() {
     return 0
   })
 
-  // KPIs del periodo
+  // KPIs del periodo y saldos por método
   const totalIngresos = transactions.filter(esIngreso).reduce((s, t) => s + Number(t.costo), 0)
   const totalEgresos = transactions.filter(t => !esIngreso(t)).reduce((s, t) => s + Number(t.costo), 0)
   const saldoPeriodo = totalIngresos - totalEgresos
   const totalMovimientos = transactions.length
+
+  let ingresosEfectivo = 0
+  let egresosEfectivo = 0
+  let ingresosQR = 0
+  let egresosQR = 0
+
+  transactions.forEach((tx) => {
+    const ing = esIngreso(tx)
+    let ef = 0
+    let qr = 0
+    if (tx.metodo_pago === 'efectivo' || !tx.metodo_pago) {
+      ef = Number(tx.costo || 0)
+    } else if (tx.metodo_pago === 'qr' || tx.metodo_pago === 'tarjeta') {
+      qr = Number(tx.costo || 0)
+    } else if (tx.metodo_pago === 'mixto') {
+      ef = Number(tx.mixto_efectivo || 0)
+      qr = Number((Number(tx.mixto_qr) || 0) + (Number(tx.mixto_tarjeta) || 0))
+    }
+    if (ing) {
+      ingresosEfectivo += ef
+      ingresosQR += qr
+    } else {
+      egresosEfectivo += ef
+      egresosQR += qr
+    }
+  })
+
+  const saldoEfectivo = ingresosEfectivo - egresosEfectivo
+  const saldoQR = ingresosQR - egresosQR
 
   // Desglose por categoría (top 5)
   const categoriaMap: Record<string, { monto: number, count: number, ingreso: boolean }> = {}
@@ -517,51 +544,66 @@ export default function CajaChicaPage() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="border-emerald-500/20 bg-emerald-500/5">
-          <CardContent className="px-4 py-3 flex items-center gap-3">
-            <div className="w-9 h-9 bg-emerald-500/20 rounded-xl flex items-center justify-center shrink-0">
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
+      {/* KPIs — Desglose Efectivo vs QR vs Neto vs Egresos */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <Card className="border-amber-500/30 bg-amber-500/10">
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
+            <div className="w-9 h-9 bg-amber-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <Wallet className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500/70">Ingresos</p>
-              <p className="text-base font-black text-emerald-400">+{formatCurrency(totalIngresos)}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">Saldo en Efectivo (Físico)</p>
+              <p className={`text-base font-black ${saldoEfectivo >= 0 ? 'text-amber-400' : 'text-red-400'}`}>{formatCurrency(saldoEfectivo)}</p>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-red-500/20 bg-red-500/5">
-          <CardContent className="px-4 py-3 flex items-center gap-3">
-            <div className="w-9 h-9 bg-red-500/20 rounded-xl flex items-center justify-center shrink-0">
-              <TrendingDown className="w-4 h-4 text-red-400" />
+
+        <Card className="border-blue-500/30 bg-blue-500/10">
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
+            <div className="w-9 h-9 bg-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <span className="text-sm">📱</span>
             </div>
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-red-500/70">Egresos</p>
-              <p className="text-base font-black text-red-400">-{formatCurrency(totalEgresos)}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-blue-400">Saldo QR / Tarjeta (Banco)</p>
+              <p className={`text-base font-black ${saldoQR >= 0 ? 'text-blue-400' : 'text-red-400'}`}>{formatCurrency(saldoQR)}</p>
             </div>
           </CardContent>
         </Card>
-        <Card className={`border-white/10 ${saldoPeriodo >= 0 ? 'bg-emerald-500/5' : 'bg-red-500/5'}`}>
-          <CardContent className="px-4 py-3 flex items-center gap-3">
+
+        <Card className={`border-white/10 ${saldoPeriodo >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${saldoPeriodo >= 0 ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
               <Scale className={`w-4 h-4 ${saldoPeriodo >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
             </div>
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Saldo neto</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Saldo Neto Total</p>
               <p className={`text-base font-black ${saldoPeriodo >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {saldoPeriodo >= 0 ? '+' : ''}{formatCurrency(saldoPeriodo)}
               </p>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-amber-500/20 bg-amber-500/5">
-          <CardContent className="px-4 py-3 flex items-center gap-3">
-            <div className="w-9 h-9 bg-amber-500/20 rounded-xl flex items-center justify-center shrink-0">
-              <Wallet className="w-4 h-4 text-amber-400" />
+
+        <Card className="border-emerald-500/20 bg-emerald-500/5">
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
+            <div className="w-9 h-9 bg-emerald-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
             </div>
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/70">Movimientos</p>
-              <p className="text-base font-black text-amber-400">{totalMovimientos}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500/70">Ingresos Totales</p>
+              <p className="text-base font-black text-emerald-400">+{formatCurrency(totalIngresos)}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-red-500/20 bg-red-500/5">
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
+            <div className="w-9 h-9 bg-red-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <TrendingDown className="w-4 h-4 text-red-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-red-500/70">Egresos / Comisiones</p>
+              <p className="text-base font-black text-red-400">-{formatCurrency(totalEgresos)}</p>
             </div>
           </CardContent>
         </Card>

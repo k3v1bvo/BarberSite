@@ -50,7 +50,11 @@ export async function GET(request: NextRequest) {
       .order('creado_en', { ascending: false })
       .limit(limit)
 
-    if (libro) query = query.eq('libro', libro)
+    if (libro === 'BANCO') {
+      query = query.or('libro.eq.BANCO,metodo_pago.eq.qr,metodo_pago.eq.tarjeta,metodo_pago.eq.mixto,monto_qr.gt.0')
+    } else if (libro) {
+      query = query.eq('libro', libro)
+    }
     if (fecha) query = query.eq('fecha', fecha)
     if (fechaDesde) query = query.gte('fecha', fechaDesde)
     if (fechaHasta) query = query.lte('fecha', fechaHasta)
@@ -122,8 +126,113 @@ export async function GET(request: NextRequest) {
           })
         }
       }
+
+      // Safely merge egresos table
+      if (!libro || libro === 'CAJA_CHICA' || libro === 'EGRESOS' || libro === 'BANCO') {
+        let egresosQuery = supabase.from('egresos').select('*')
+        if (fecha) {
+          egresosQuery = egresosQuery.eq('fecha', fecha)
+        } else if (fechaDesde && fechaHasta) {
+          egresosQuery = egresosQuery.gte('fecha', fechaDesde).lte('fecha', fechaHasta)
+        }
+        const { data: egrData, error: egrErr } = await egresosQuery
+        if (!egrErr && egrData && egrData.length > 0) {
+          for (const e of egrData) {
+            const alreadyIn = finalData.some((t: any) =>
+              (t.glosa && t.glosa.includes(e.concepto)) ||
+              (t.cuenta_detalle && t.cuenta_detalle.includes(e.concepto)) ||
+              (Number(t.costo) === Number(e.monto_bruto) && t.fecha === e.fecha && t.tipo_movimiento === 'EGRESO')
+            )
+            if (!alreadyIn) {
+              const mp = e.metodo_pago || 'efectivo'
+              if (libro === 'BANCO' && mp !== 'qr' && mp !== 'tarjeta') continue
+              if (libro === 'CAJA_CHICA' && mp !== 'efectivo' && mp !== 'mixto') continue
+
+              finalData.push({
+                id: `virtual-egreso-${e.id}`,
+                libro: mp === 'qr' || mp === 'tarjeta' ? 'BANCO' : 'CAJA_CHICA',
+                fecha: e.fecha,
+                ci: '0000000',
+                nombre: e.proveedor || 'Egreso General',
+                cuenta_codigo: e.cuenta_codigo || 'EGR-GEN',
+                cuenta_detalle: e.concepto,
+                glosa: e.notas || e.concepto,
+                costo: Number(e.monto_bruto || 0),
+                tipo_movimiento: 'EGRESO',
+                subcategoria: 'GASTO_GENERAL',
+                es_sancion: false,
+                metodo_pago: mp,
+                monto_efectivo: Number(e.monto_efectivo || (mp === 'efectivo' ? e.monto_bruto : 0)),
+                monto_qr: Number(e.monto_qr || (mp === 'qr' ? e.monto_bruto : 0)),
+                usuario_registro: e.usuario_registro || 'Sistema',
+                creado_en: e.creado_en || new Date().toISOString()
+              })
+            }
+          }
+        }
+
+        // Safely merge comisiones_pagos table
+        let comisionesQuery = supabase
+          .from('comisiones_pagos')
+          .select(`
+            id,
+            monto_total,
+            periodo_tipo,
+            fecha_inicio,
+            fecha_fin,
+            metodo_pago,
+            creado_en,
+            barbero_id,
+            barberos:profiles!barbero_id (full_name)
+          `)
+        const { data: comData, error: comErr } = await comisionesQuery
+        if (!comErr && comData && comData.length > 0) {
+          for (const com of comData) {
+            const comFecha = com.creado_en ? com.creado_en.split('T')[0] : (fecha || getTodayBolivia())
+            if (fecha && comFecha !== fecha) continue
+            if (fechaDesde && fechaHasta && (comFecha < fechaDesde || comFecha > fechaHasta)) continue
+
+            const mp = com.metodo_pago || 'efectivo'
+            if (libro === 'BANCO' && mp !== 'qr' && mp !== 'tarjeta') continue
+            if (libro === 'CAJA_CHICA' && mp !== 'efectivo' && mp !== 'mixto') continue
+
+            const barberoName = (com.barberos as any)?.full_name || 'Barbero'
+            const alreadyIn = finalData.some((t: any) =>
+              (t.glosa && t.glosa.includes(com.id)) ||
+              (t.subcategoria === 'COMISION_PAGO' && t.empleado_id === com.barbero_id && t.fecha === comFecha)
+            )
+            if (!alreadyIn) {
+              finalData.push({
+                id: `virtual-comision-${com.id}`,
+                libro: mp === 'qr' || mp === 'tarjeta' ? 'BANCO' : 'CAJA_CHICA',
+                fecha: comFecha,
+                ci: '0000000',
+                nombre: `Pago Comisiones a ${barberoName}`,
+                cuenta_codigo: 'EGR-COM',
+                cuenta_detalle: 'Pago de Comisiones / Sueldos',
+                glosa: `Pago ${com.periodo_tipo || ''} (${comFecha}) (Pago ID: ${com.id})`,
+                costo: Number(com.monto_total || 0),
+                tipo_movimiento: 'EGRESO',
+                subcategoria: 'COMISION_PAGO',
+                es_sancion: false,
+                empleado_id: com.barbero_id,
+                metodo_pago: mp,
+                monto_efectivo: mp === 'efectivo' ? Number(com.monto_total || 0) : 0,
+                monto_qr: mp === 'qr' || mp === 'tarjeta' ? Number(com.monto_total || 0) : 0,
+                usuario_registro: 'Sistema',
+                creado_en: com.creado_en || new Date().toISOString()
+              })
+            }
+          }
+        }
+      }
+
+      finalData.sort((a: any, b: any) => {
+        if (b.fecha !== a.fecha) return b.fecha.localeCompare(a.fecha)
+        return (String(b.creado_en || '')).localeCompare(String(a.creado_en || ''))
+      })
     } catch (mergeErr) {
-      console.error('Error safely merging citas:', mergeErr)
+      console.error('Error safely merging:', mergeErr)
     }
 
     return NextResponse.json(finalData)

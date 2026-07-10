@@ -55,8 +55,19 @@ export default function BancoPage() {
     setSaving(false)
   }
 
+  const getMontoBanco = (t: any) => {
+    if (t.libro === 'BANCO') return Number(t.costo || 0)
+    if (t.monto_qr && Number(t.monto_qr) > 0) return Number(t.monto_qr)
+    return Number(t.costo || 0)
+  }
+
+  const isRetiroBanco = (t: any) => {
+    return t.tipo_movimiento === 'RETIRO' || t.tipo_movimiento === 'EGRESO' || t.libro === 'EGRESOS' || String(t.cuenta_codigo || '').startsWith('EGR')
+  }
+
   const totalBalance = transactions.reduce((s, t) => {
-    return t.tipo_movimiento === 'RETIRO' ? s - Number(t.costo) : s + Number(t.costo)
+    const monto = getMontoBanco(t)
+    return isRetiroBanco(t) ? s - monto : s + monto
   }, 0)
 
   if (loading) {
@@ -70,14 +81,14 @@ export default function BancoPage() {
           <h1 className="text-4xl font-black tracking-tight text-white uppercase">
             Libro de <span className="text-blue-500">Banco</span>
           </h1>
-          <p className="text-zinc-500 font-medium mt-1">Depósitos y retiros — Banco Ganadero</p>
+          <p className="text-zinc-500 font-medium mt-1">Depósitos, transferencias QR y retiros — Banco Ganadero</p>
         </div>
         <div className="flex items-center gap-4">
           <Card className="border-white/5 bg-zinc-900/80">
             <CardContent className="px-4 py-3 flex items-center gap-3">
               <Landmark className="w-5 h-5 text-blue-500" />
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Saldo</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Saldo en Banco</p>
                 <p className={`text-lg font-black ${totalBalance >= 0 ? 'text-blue-400' : 'text-red-400'}`}>{formatCurrency(totalBalance)}</p>
               </div>
             </CardContent>
@@ -131,31 +142,49 @@ export default function BancoPage() {
               <thead>
                 <tr className="border-b border-white/10 text-left">
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Fecha</th>
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Tipo</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Origen / Tipo</th>
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Nombre</th>
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Glosa</th>
-                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">Monto</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">Monto en Banco</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {transactions.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-zinc-600">No hay movimientos bancarios</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-12 text-center text-zinc-600">No hay movimientos bancarios o en QR registrados</td></tr>
                 ) : (
-                  transactions.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{tx.fecha}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-black uppercase ${tx.tipo_movimiento === 'RETIRO' ? 'text-red-400' : 'text-blue-400'}`}>
-                          {tx.tipo_movimiento}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-white font-bold">{tx.nombre}</td>
-                      <td className="px-4 py-3 text-zinc-300">{tx.glosa}</td>
-                      <td className={`px-4 py-3 text-right font-black ${tx.tipo_movimiento === 'RETIRO' ? 'text-red-400' : 'text-blue-400'}`}>
-                        {tx.tipo_movimiento === 'RETIRO' ? '-' : '+'}{formatCurrency(tx.costo)}
-                      </td>
-                    </tr>
-                  ))
+                  transactions.map((tx: any) => {
+                    const retiro = isRetiroBanco(tx)
+                    const monto = getMontoBanco(tx)
+                    return (
+                      <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{tx.fecha}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
+                            retiro
+                              ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                              : tx.libro === 'SERVICIOS'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : tx.libro === 'VENTAS'
+                              ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                              : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                          }`}>
+                            {tx.libro === 'SERVICIOS'
+                              ? 'SERVICIO (QR)'
+                              : tx.libro === 'VENTAS'
+                              ? 'VENTA (QR)'
+                              : retiro
+                              ? 'RETIRO / EGRESO'
+                              : 'DEPÓSITO BANCARIO'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-white font-bold">{tx.nombre || '—'}</td>
+                        <td className="px-4 py-3 text-zinc-300">{tx.glosa}</td>
+                        <td className={`px-4 py-3 text-right font-black ${retiro ? 'text-red-400' : 'text-blue-400'}`}>
+                          {retiro ? '-' : '+'}{formatCurrency(monto)}
+                        </td>
+                      </tr>
+                    )
+                  })
                 )}
               </tbody>
             </table>
