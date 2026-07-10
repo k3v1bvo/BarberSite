@@ -67,7 +67,16 @@ export async function GET(request: NextRequest) {
       if (!libro || libro === 'SERVICIOS') {
         let citasQuery = supabase
           .from('citas')
-          .select('id, precio, fecha_hora, barbero_id, cliente_id')
+          .select(`
+            id,
+            precio,
+            fecha_hora,
+            barbero_id,
+            cliente_id,
+            clientes (nombre),
+            servicios (nombre),
+            barberos:profiles!barbero_id (full_name)
+          `)
           .eq('estado', 'completado')
         if (fecha) {
           citasQuery = citasQuery.gte('fecha_hora', `${fecha}T00:00:00`).lte('fecha_hora', `${fecha}T23:59:59`)
@@ -82,15 +91,19 @@ export async function GET(request: NextRequest) {
             const alreadyIn = finalData.some((t: any) => t.glosa && (t.glosa.includes(cIdShort) || t.glosa.includes(cIdStr)))
             if (!alreadyIn) {
               const fechaCita = c.fecha_hora ? c.fecha_hora.split('T')[0] : (fecha || getTodayBolivia())
+              const clienteNombre = (c.clientes as any)?.nombre || 'Cliente'
+              const barberoNombre = (c.barberos as any)?.full_name || 'Barbero'
+              const servicioNombre = (c.servicios as any)?.nombre || 'Servicio de Barbería'
+
               finalData.push({
                 id: `virtual-cita-${cIdStr}`,
                 libro: 'SERVICIOS',
                 fecha: fechaCita,
                 ci: '0000000',
-                nombre: 'Cliente en Cita',
+                nombre: clienteNombre,
                 cuenta_codigo: 'ING-001',
-                cuenta_detalle: 'Ingresos por Servicios',
-                glosa: `Servicio Cita #${cIdShort}`,
+                cuenta_detalle: `Servicio: ${servicioNombre}`,
+                glosa: `Atendido por ${barberoNombre} — Cita #${cIdShort}`,
                 costo: Number(c.precio || 0),
                 tipo_movimiento: 'INGRESO',
                 subcategoria: 'SERVICIO',
@@ -98,7 +111,7 @@ export async function GET(request: NextRequest) {
                 empleado_id: c.barbero_id,
                 cliente_id: c.cliente_id,
                 metodo_pago: 'efectivo',
-                usuario_registro: 'Cita Completada',
+                usuario_registro: barberoNombre,
                 creado_en: c.fecha_hora || new Date().toISOString()
               })
             }
