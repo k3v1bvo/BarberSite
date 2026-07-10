@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
-    const fecha = request.nextUrl.searchParams.get('fecha') || new Date().toISOString().split('T')[0]
+    const fecha = request.nextUrl.searchParams.get('fecha') || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 
     const { data: txDia } = await supabase
       .from('transactions')

@@ -40,7 +40,7 @@ export default function ArqueoPage() {
   const [efectivoFisico, setEfectivoFisico] = useState('')
   const [qrFisico, setQrFisico] = useState('')
   const [observaciones, setObservaciones] = useState('')
-  const hoy = new Date().toISOString().split('T')[0]
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 
   const loadData = useCallback(async () => {
     const res = await fetch(`/api/arqueo?fecha=${hoy}`)

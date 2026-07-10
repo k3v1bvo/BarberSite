@@ -99,13 +99,11 @@ export async function POST(request: Request) {
       if (citaError) throw citaError
 
       const { data: barberoProfileServ } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
-      const y = ahora.getFullYear()
-      const m = String(ahora.getMonth() + 1).padStart(2, '0')
-      const d = String(ahora.getDate()).padStart(2, '0')
+      const fechaBolivia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora)
 
       await adminSupabase.from('transactions').insert({
         libro: 'SERVICIOS',
-        fecha: `${y}-${m}-${d}`,
+        fecha: fechaBolivia,
         ci: '0000000',
         nombre: nombreCliente || 'Cliente Walk-in',
         cuenta_codigo: 'ING-001',
@@ -152,7 +150,7 @@ export async function POST(request: Request) {
         // Transacción contable
         await adminSupabase.from('transactions').insert({
           libro: 'VENTAS',
-          fecha: ahora.toISOString().split('T')[0],
+          fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora),
           ci: '0000000',
           nombre: nombreCliente || 'Cliente Walk-in',
           cuenta_codigo: '4.1.2',

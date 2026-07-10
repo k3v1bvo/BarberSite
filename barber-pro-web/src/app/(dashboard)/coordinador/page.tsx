@@ -49,7 +49,7 @@ export default function CoordinadorDashboard() {
   const [arqueoCerrado, setArqueoCerrado] = useState(false)
   const [topBarberos, setTopBarberos] = useState<{nombre: string, ventas: number}[]>([])
   const [loading, setLoading] = useState(true)
-  const hoy = new Date().toISOString().split('T')[0]
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 
   useEffect(() => {
     const loadData = async () => {

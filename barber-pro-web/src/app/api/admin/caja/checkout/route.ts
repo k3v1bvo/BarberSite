@@ -310,7 +310,7 @@ export async function POST(request: NextRequest) {
           .from('transactions')
           .insert({
             libro: 'VENTAS',
-            fecha: ahora.toISOString().split('T')[0],
+            fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora),
             ci: ci || '0000000',
             nombre: nombre || 'Cliente en Caja',
             cuenta_codigo: '4.1.2',
@@ -402,7 +402,7 @@ export async function POST(request: NextRequest) {
           .from('transactions')
           .insert({
             libro: 'SERVICIOS',
-            fecha: ahora.toISOString().split('T')[0],
+            fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora),
             ci: ci || '0000000',
             nombre: nombre || 'Cliente en Caja',
             cuenta_codigo: 'ING-001',

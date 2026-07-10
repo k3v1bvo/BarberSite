@@ -97,7 +97,7 @@ export async function POST(request: Request) {
       .from('transactions')
       .insert({
         libro: 'SERVICIOS',
-        fecha: new Date().toISOString().split('T')[0],
+        fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
         ci: '0000000',
         nombre: 'Cliente', // En caso ideal sacar de clienteActual, pero con "Cliente" basta si no está.
         cuenta_codigo: 'ING-001',
