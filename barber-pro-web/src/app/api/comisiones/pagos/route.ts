@@ -167,7 +167,7 @@ export async function POST(req: Request) {
   if (monto_total > 0) {
     const { error: egresoError } = await supabase.from('transactions').insert({
       libro: metodo_pago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
       ci: '0000000',
       nombre: `Pago Comisiones a ${barberoProfile?.full_name || 'Barbero'}`,
       cuenta_codigo: 'EGR-COM',
