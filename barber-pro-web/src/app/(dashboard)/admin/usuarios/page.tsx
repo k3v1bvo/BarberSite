@@ -108,6 +108,7 @@ export default function UsuariosPage() {
           .from('profiles')
           .update({
             full_name: formData.full_name,
+            email: formData.email,
             phone: formData.phone,
             ci: formData.ci || null,
             role: formData.role,

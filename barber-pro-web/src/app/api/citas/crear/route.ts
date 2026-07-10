@@ -73,13 +73,23 @@ export async function POST(request: Request) {
       supabase.from('profiles').select('full_name, email').eq('id', barbero_id).single(),
     ])
 
+    let finalBarberoEmail = barberoRow?.email
+    if (!finalBarberoEmail) {
+      const { data: authUser } = await db.auth.admin.getUserById(barbero_id)
+      if (authUser?.user?.email) {
+        finalBarberoEmail = authUser.user.email
+        // Sincronizar el email en profiles para la próxima vez
+        await db.from('profiles').update({ email: authUser.user.email }).eq('id', barbero_id)
+      }
+    }
+
     await dispatchNotification(db, {
       event: 'reserva_nueva',
       payload: {
         citaId: cita.id,
         barberoId: barbero_id,
         barberoNombre: barberoRow?.full_name,
-        barberoEmail: barberoRow?.email,
+        barberoEmail: finalBarberoEmail,
         clienteNombre: cliente?.nombre,
         clienteEmail: cliente?.email ?? undefined,
         servicioNombre: servicioRow?.nombre,
