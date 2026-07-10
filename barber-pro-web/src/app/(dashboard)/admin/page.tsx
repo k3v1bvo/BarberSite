@@ -422,6 +422,7 @@ export default function AdminPage() {
           variant={stats.productosStockBajo > 0 ? 'danger' : 'default'}
           delay={225}
           onClick={() => router.push('/admin/productos')}
+        />
       </div>
 
       {/* Libros Contables del Período */}
