@@ -71,22 +71,24 @@ export default function CajaChicaPage() {
   const [showCategoriaDropdown, setShowCategoriaDropdown] = useState(false)
   const categoriaRef = useRef<HTMLDivElement>(null)
 
-  const hoy = new Date().toISOString().split('T')[0]
+  const nowLocal = new Date()
+  const formatLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const hoy = formatLocal(nowLocal)
 
   // Calcular rango de fechas según periodo
   const getDateRange = (): { desde?: string, hasta?: string } => {
     const now = new Date()
-    const todayStr = now.toISOString().split('T')[0]
+    const todayStr = formatLocal(now)
     if (periodo === 'todos') return {} // sin filtro de fecha
     if (periodo === 'hoy') return { desde: todayStr, hasta: todayStr }
     if (periodo === 'semana') {
       const d = new Date(now)
       d.setDate(d.getDate() - d.getDay()) // domingo
-      return { desde: d.toISOString().split('T')[0], hasta: todayStr }
+      return { desde: formatLocal(d), hasta: todayStr }
     }
     if (periodo === 'mes') {
       const d = new Date(now.getFullYear(), now.getMonth(), 1)
-      return { desde: d.toISOString().split('T')[0], hasta: todayStr }
+      return { desde: formatLocal(d), hasta: todayStr }
     }
     // custom
     return { desde: customDesde || todayStr, hasta: customHasta || todayStr }

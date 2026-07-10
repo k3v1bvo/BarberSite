@@ -97,6 +97,29 @@ export async function POST(request: Request) {
         notas: 'Venta Rápida (Walk-in)',
       })
       if (citaError) throw citaError
+
+      const { data: barberoProfileServ } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
+      const y = ahora.getFullYear()
+      const m = String(ahora.getMonth() + 1).padStart(2, '0')
+      const d = String(ahora.getDate()).padStart(2, '0')
+
+      await adminSupabase.from('transactions').insert({
+        libro: 'SERVICIOS',
+        fecha: `${y}-${m}-${d}`,
+        ci: '0000000',
+        nombre: nombreCliente || 'Cliente Walk-in',
+        cuenta_codigo: 'ING-001',
+        cuenta_detalle: 'Ingresos por Servicios (Walk-in)',
+        glosa: `Venta Rápida Walk-in - Barbero: ${barberoProfileServ?.full_name || 'Desconocido'}`,
+        costo: precioBase,
+        tipo_movimiento: 'INGRESO',
+        subcategoria: 'SERVICIO',
+        es_sancion: false,
+        empleado_id: user.id,
+        cliente_id: clienteId,
+        metodo_pago: metodo_pago || 'efectivo',
+        usuario_registro: barberoProfileServ?.full_name || 'Barbero',
+      })
     }
 
     // 3. Procesar Productos

@@ -33,13 +33,14 @@ export default function VentasPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [filtroLibro, setFiltroLibro] = useState<'VENTAS' | 'USO_TIENDA' | 'TODOS'>('TODOS')
+  const [filtroLibro, setFiltroLibro] = useState<'VENTAS' | 'SERVICIOS' | 'USO_TIENDA' | 'TODOS'>('TODOS')
   const [buscandoCi, setBuscandoCi] = useState(false)
   const [cumpleanosMsg, setCumpleanosMsg] = useState<string | null>(null)
   const [searchText, setSearchText] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('fecha')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
-  const hoy = new Date().toISOString().split('T')[0]
+  const nowD = new Date()
+  const hoy = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`
 
   const [form, setForm] = useState({
     ci: '', nombre: '', cuenta_codigo: '', glosa: '', costo: '',
@@ -95,11 +96,13 @@ export default function VentasPage() {
       filtroLibro === 'TODOS'
         ? Promise.all([
             fetch(`/api/transactions?libro=VENTAS&limit=200`),
+            fetch(`/api/transactions?libro=SERVICIOS&limit=200`),
             fetch(`/api/transactions?libro=USO_TIENDA&limit=200`),
-          ]).then(async ([r1, r2]) => {
+          ]).then(async ([r1, r2, r3]) => {
             const d1 = r1.ok ? await r1.json() : []
             const d2 = r2.ok ? await r2.json() : []
-            return [...d1, ...d2].sort((a: any, b: any) => new Date(b.creado_en).getTime() - new Date(a.creado_en).getTime()).slice(0, 300)
+            const d3 = r3.ok ? await r3.json() : []
+            return [...d1, ...d2, ...d3].sort((a: any, b: any) => new Date(b.creado_en).getTime() - new Date(a.creado_en).getTime()).slice(0, 300)
           })
         : fetch(`/api/transactions?libro=${filtroLibro}&limit=200`).then(r => r.ok ? r.json() : []),
       fetch('/api/plan-cuentas'),
@@ -282,7 +285,7 @@ export default function VentasPage() {
       <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-zinc-500" />
-          {(['TODOS', 'VENTAS', 'USO_TIENDA'] as const).map(f => (
+          {(['TODOS', 'SERVICIOS', 'VENTAS', 'USO_TIENDA'] as const).map(f => (
             <button
               key={f}
               onClick={() => setFiltroLibro(f)}
@@ -290,11 +293,13 @@ export default function VentasPage() {
                 filtroLibro === f
                   ? f === 'USO_TIENDA'
                     ? 'bg-violet-600 text-white'
+                    : f === 'SERVICIOS'
+                    ? 'bg-green-500 text-black'
                     : 'bg-amber-500 text-black'
                   : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
               }`}
             >
-              {f === 'TODOS' ? 'Todas' : f === 'VENTAS' ? 'Ventas' : '⚡ Uso Tienda'}
+              {f === 'TODOS' ? 'Todas' : f === 'SERVICIOS' ? 'Servicios' : f === 'VENTAS' ? 'Ventas' : '⚡ Uso Tienda'}
             </button>
           ))}
         </div>
