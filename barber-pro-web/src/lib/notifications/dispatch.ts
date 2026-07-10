@@ -687,9 +687,9 @@ export async function dispatchNotification(
       case 'bienvenida_nuevo_usuario': {
         if (input.userEmail) {
           await sendNotificationEmail(input.userEmail, 'bienvenida_nuevo_usuario', {
-            nombre: p.nombre,
-            email: p.email,
-            password: p.password,
+            nombre: p.nombre as string,
+            email: p.email as string,
+            password: p.password as string,
           })
         }
         break
