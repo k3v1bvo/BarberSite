@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     const { data: citasDia } = await supabase
       .from('citas')
-      .select('id, precio, barbero_id, cliente_id')
+      .select('id, precio, anticipo_monto, metodo_pago, barbero_id, cliente_id')
       .gte('fecha_hora', `${fecha}T00:00:00`)
       .lte('fecha_hora', `${fecha}T23:59:59`)
       .eq('estado', 'completado')
@@ -103,7 +103,35 @@ export async function GET(request: NextRequest) {
       const diff = citasMonto - resumen.servicios
       resumen.servicios = citasMonto
       resumen.total_registrado += diff
-      resumen.total_efectivo += diff
+
+      let citasQrBanco = 0
+      let citasEfectivo = 0
+      ;(citasDia || []).forEach(c => {
+        const total = Number(c.precio || 0)
+        const anticipo = Number(c.anticipo_monto || 0)
+        const saldo = Math.max(0, total - anticipo)
+        const mp = String(c.metodo_pago || 'efectivo').toLowerCase()
+
+        // El anticipo de reserva siempre es pago digital (QR / Banco)
+        citasQrBanco += anticipo
+        if (mp === 'qr' || mp === 'tarjeta' || mp === 'transferencia' || mp === 'banco') {
+          citasQrBanco += saldo
+        } else {
+          citasEfectivo += saldo
+        }
+      })
+
+      const qrActual = resumen.total_qr + resumen.total_tarjeta
+      if (qrActual < citasQrBanco) {
+        const diffQr = citasQrBanco - qrActual
+        resumen.total_qr += diffQr
+        resumen.banco += diffQr
+      }
+      const efActual = resumen.total_efectivo
+      if (efActual < citasEfectivo) {
+        const diffEf = citasEfectivo - efActual
+        resumen.total_efectivo += diffEf
+      }
     }
 
     // Traer cierre existente
