@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: Request) {
   try {
-    const { cliente_id } = await request.json()
+    const { cliente_id, newPassword } = await request.json()
 
     if (!cliente_id) {
       return NextResponse.json({ error: 'Cliente ID es requerido' }, { status: 400 })
@@ -45,6 +45,23 @@ export async function POST(request: Request) {
       if (!userErr && userData?.user?.email) {
         emailToReset = userData.user.email
       }
+    }
+
+    // Si se pasó una contraseña nueva para setear directamente
+    if (newPassword) {
+      if (!userIdToReset) {
+        return NextResponse.json({ error: 'El cliente no tiene una cuenta de autenticación vinculada.' }, { status: 400 })
+      }
+      if (String(newPassword).length < 6) {
+        return NextResponse.json({ error: 'La contraseña debe tener mínimo 6 caracteres' }, { status: 400 })
+      }
+      const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(userIdToReset, {
+        password: String(newPassword)
+      })
+      if (updateErr) {
+        return NextResponse.json({ error: updateErr.message }, { status: 400 })
+      }
+      return NextResponse.json({ success: true, message: 'Contraseña del cliente cambiada exitosamente' })
     }
 
     if (!emailToReset) {

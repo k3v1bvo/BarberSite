@@ -8,9 +8,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Configuración de servidor incompleta (service role)' }, { status: 500 })
     }
 
-    const { email } = await request.json()
+    const { email, userId, newPassword } = await request.json()
+
+    // 1. Si el admin envió una nueva contraseña directa para ese usuario
+    if (userId && newPassword) {
+      if (newPassword.length < 6) {
+        return NextResponse.json({ error: 'La contraseña debe tener mínimo 6 caracteres' }, { status: 400 })
+      }
+      const { error: updateErr } = await adminClient.auth.admin.updateUserById(userId, {
+        password: newPassword
+      })
+      if (updateErr) {
+        return NextResponse.json({ error: updateErr.message }, { status: 400 })
+      }
+      return NextResponse.json({ success: true, message: 'Contraseña actualizada directamente' })
+    }
+
+    // 2. Si no, enviar enlace al correo
     if (!email) {
-      return NextResponse.json({ error: 'Email requerido para restablecer contraseña' }, { status: 400 })
+      return NextResponse.json({ error: 'Email o userId+newPassword requerido' }, { status: 400 })
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://barber-site-livid.vercel.app'

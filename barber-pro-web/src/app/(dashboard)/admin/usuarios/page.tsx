@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit, Trash2, Users, ArrowLeft, X, Save } from 'lucide-react'
+import { Plus, Edit, Trash2, Users, ArrowLeft, X, Save, KeyRound } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 
 interface Usuario {
@@ -30,6 +30,9 @@ export default function UsuariosPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingUser, setEditingUser] = useState<Usuario | null>(null)
+  const [pwdUser, setPwdUser] = useState<Usuario | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [savingPwd, setSavingPwd] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     full_name: '',
@@ -40,6 +43,30 @@ export default function UsuariosPage() {
   })
   const router = useRouter()
   const supabase = createClient()
+
+  const handleUpdateUserPassword = async (direct: boolean) => {
+    if (!pwdUser) return
+    setSavingPwd(true)
+    try {
+      const res = await fetch('/api/admin/usuarios/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(direct ? { userId: pwdUser.id, newPassword } : { email: pwdUser.email })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toastSuccess(direct ? 'Contraseña actualizada directamente' : `Correo de recuperación enviado a ${pwdUser.email}`)
+        setPwdUser(null)
+        setNewPassword('')
+      } else {
+        toastError(data.error || 'Error al procesar contraseña')
+      }
+    } catch {
+      toastError('Error al procesar contraseña')
+    } finally {
+      setSavingPwd(false)
+    }
+  }
 
   useEffect(() => {
     loadUsuarios()
@@ -259,6 +286,18 @@ export default function UsuariosPage() {
                           <Edit className="w-4 h-4" />
                         </Button>
                         <Button
+                          variant="outline"
+                          size="sm"
+                          title="Cambiar o restablecer contraseña"
+                          className="w-10 h-10 p-0 border-white/5 bg-zinc-950 hover:bg-amber-500 hover:text-black transition-all"
+                          onClick={() => {
+                            setPwdUser(usuario)
+                            setNewPassword('')
+                          }}
+                        >
+                          <KeyRound className="w-4 h-4 text-amber-400" />
+                        </Button>
+                        <Button
                           variant={usuario.is_active ? 'danger' : 'success'}
                           size="sm"
                           className="w-10 h-10 p-0"
@@ -414,6 +453,67 @@ export default function UsuariosPage() {
                 </Button>
               </div>
             </form>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal Cambiar Contraseña */}
+      {pwdUser && (
+        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[110] p-4 backdrop-blur-md animate-in fade-in duration-300">
+          <Card className="w-full max-w-md border-white/10 shadow-2xl bg-zinc-950 p-6">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Seguridad & Contraseña</h3>
+                  <p className="text-xs text-zinc-400">{pwdUser.full_name || pwdUser.email}</p>
+                </div>
+              </div>
+              <button onClick={() => setPwdUser(null)} className="text-zinc-500 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-2">
+                  Asignar Nueva Contraseña Directa
+                </label>
+                <Input
+                  type="text"
+                  placeholder="Escribe la nueva contraseña (ej: 123456)"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="bg-zinc-900 border-white/10 text-white"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  onClick={() => handleUpdateUserPassword(true)}
+                  disabled={savingPwd || newPassword.length < 6}
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-extrabold"
+                >
+                  {savingPwd ? 'Guardando...' : 'Cambiar Contraseña'}
+                </Button>
+              </div>
+
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
+                <div className="relative flex justify-center text-xs uppercase"><span className="bg-zinc-950 px-2 text-zinc-500">o enviar correo</span></div>
+              </div>
+
+              <Button
+                variant="outline"
+                onClick={() => handleUpdateUserPassword(false)}
+                disabled={savingPwd}
+                className="w-full border-white/10 text-zinc-300 hover:text-white hover:bg-white/5"
+              >
+                Enviar Correo de Recuperación
+              </Button>
+            </div>
           </Card>
         </div>
       )}
