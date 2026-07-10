@@ -106,51 +106,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: updateError.message }, { status: 500 })
   }
 
-  // Handle Adelanto Deduction
-  if (descuento_adelanto > 0) {
-    const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', currentUserId).single()
-    await supabase.from('transactions').insert({
-      libro: metodo_pago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
-      fecha: new Date().toISOString().split('T')[0],
-      ci: '0000000',
-      nombre: 'Devolución Adelanto (vía Comisión)',
-      cuenta_codigo: 'ACT-001',
-      cuenta_detalle: 'Adelantos a Personal',
-      glosa: `Devolución descontada de comisión (Pago ${pago.id})`,
-      costo: descuento_adelanto,
-      tipo_movimiento: 'INGRESO',
-      es_sancion: false,
-      empleado_id: barbero_id,
-      metodo_pago: metodo_pago,
-      usuario_registro: profile?.full_name || 'Sistema',
-    })
-  }
-
-  // Mark Sanciones as paid
+  // Mark Sanciones as paid / applied
   if (sanciones_ids.length > 0) {
-    const { error: sancionError } = await supabase
+    await supabase
       .from('sanciones')
       .update({ estado: 'aplicada', aplicada_en_pago_id: pago.id })
       .in('id', sanciones_ids)
-
-    if (sanciones_ids.length > 0) {
-      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', currentUserId).single()
-      await supabase.from('transactions').insert({
-        libro: metodo_pago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
-        fecha: new Date().toISOString().split('T')[0],
-        ci: '0000000',
-        nombre: 'Sanciones aplicadas (vía Comisión)',
-        cuenta_codigo: 'ING-001', // Example generic income code
-        cuenta_detalle: 'Ingresos Varios',
-        glosa: `Sanciones descontadas de comisión (Pago ${pago.id})`,
-        costo: total_sanciones,
-        tipo_movimiento: 'INGRESO',
-        es_sancion: true,
-        empleado_id: barbero_id,
-        metodo_pago: metodo_pago,
-        usuario_registro: profile?.full_name || 'Sistema',
-      })
-    }
   }
 
   // Mark Bonos as paid
@@ -160,15 +121,17 @@ export async function POST(req: Request) {
       .in('id', bonos_ids)
   }
 
-  // Insertar EGRESO en la caja por el pago de comisiones
+  // Insertar EGRESO en la caja por el pago real neto de comisiones
   const { data: adminProfile } = await supabase.from('profiles').select('full_name').eq('id', currentUserId).single()
   const { data: barberoProfile } = await supabase.from('profiles').select('full_name').eq('id', barbero_id).single()
   
   if (monto_total > 0) {
     const fechaActual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+    const mpLower = String(metodo_pago || 'efectivo').toLowerCase()
+    const esDigital = ['qr', 'transferencia', 'banco', 'tarjeta'].includes(mpLower)
 
     const { error: egresoError } = await supabase.from('transactions').insert({
-      libro: metodo_pago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
+      libro: mpLower === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
       fecha: fechaActual,
       ci: '0000000',
       nombre: `Pago Comisiones a ${barberoProfile?.full_name || 'Barbero'}`,
@@ -179,10 +142,10 @@ export async function POST(req: Request) {
       tipo_movimiento: 'EGRESO',
       es_sancion: false,
       empleado_id: barbero_id,
-      metodo_pago: metodo_pago,
+      metodo_pago: mpLower,
       subcategoria: 'COMISION_PAGO',
-      monto_efectivo: metodo_pago === 'efectivo' ? monto_total : (metodo_pago === 'mixto' ? Number(body.monto_efectivo) || 0 : 0),
-      monto_qr: metodo_pago === 'qr' ? monto_total : (metodo_pago === 'mixto' ? Number(body.monto_qr) || 0 : 0),
+      monto_efectivo: mpLower === 'efectivo' ? monto_total : (mpLower === 'mixto' ? Number(body.monto_efectivo) || 0 : 0),
+      monto_qr: esDigital ? monto_total : (mpLower === 'mixto' ? Number(body.monto_qr) || 0 : 0),
       usuario_registro: adminProfile?.full_name || 'Sistema',
       comprobante_url: comprobante_url || null,
     })

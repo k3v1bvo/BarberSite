@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { barbero_id, cuenta_codigo, cuenta_detalle, glosa, monto, fecha } = body
+    const { barbero_id, cuenta_codigo, cuenta_detalle, glosa, monto, fecha, metodo_pago = 'efectivo' } = body
 
     if (!barbero_id || !cuenta_codigo || !glosa || !monto) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
@@ -75,8 +75,11 @@ export async function POST(request: NextRequest) {
       .eq('id', barbero_id)
       .single()
 
+    const mpLower = String(metodo_pago || 'efectivo').toLowerCase()
+    const esDigital = ['qr', 'transferencia', 'banco', 'tarjeta'].includes(mpLower)
+
     const { data, error } = await supabase.from('transactions').insert({
-      libro: 'CAJA_CHICA',
+      libro: esDigital ? 'BANCO' : 'CAJA_CHICA',
       fecha: fecha || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
       ci: barbero?.ci || '0000000',
       nombre: barbero?.full_name || 'Empleado',
@@ -84,9 +87,12 @@ export async function POST(request: NextRequest) {
       cuenta_detalle: cuenta_detalle || glosa,
       glosa,
       costo: Number(monto),
-      tipo_movimiento: 'EGRESO',
+      tipo_movimiento: 'INGRESO',
       es_sancion: true,
       empleado_id: barbero_id,
+      metodo_pago: mpLower,
+      monto_efectivo: mpLower === 'efectivo' ? Number(monto) : 0,
+      monto_qr: esDigital ? Number(monto) : 0,
       usuario_registro: profile?.full_name || user.email || 'Sistema',
     }).select().single()
 
