@@ -86,25 +86,30 @@ export default function ReportesPage() {
       const [citasRes, txRes, prevCitasRes, prevTxRes, barberosRes, clientesRes, serviciosRes, inventarioRes] = await Promise.all([
         supabase.from('citas').select('estado, precio, fecha_hora, barbero_id, servicio_id, metodo_pago')
           .gte('fecha_hora', `${fechaInicio}T00:00:00`)
-          .lte('fecha_hora', `${fechaFin}T23:59:59`),
+          .lte('fecha_hora', `${fechaFin}T23:59:59`)
+          .limit(50000),
         supabase.from('transactions').select('tipo_movimiento, costo, fecha, metodo_pago, subcategoria, monto_efectivo, monto_qr')
           .gte('fecha', fechaInicio)
-          .lte('fecha', fechaFin),
+          .lte('fecha', fechaFin)
+          .limit(50000),
         // Periodo Anterior
         supabase.from('citas').select('estado, precio')
           .gte('fecha_hora', `${prevInicioStr}T00:00:00`)
-          .lte('fecha_hora', `${prevFinStr}T23:59:59`),
+          .lte('fecha_hora', `${prevFinStr}T23:59:59`)
+          .limit(50000),
         supabase.from('transactions').select('tipo_movimiento, costo')
           .gte('fecha', prevInicioStr)
-          .lte('fecha', prevFinStr),
+          .lte('fecha', prevFinStr)
+          .limit(50000),
         // Entidades
         supabase.from('profiles').select('id, full_name').eq('role', 'barbero'),
-        supabase.from('clientes').select('id, nombre, telefono, total_visitas, total_gastado, created_at, nivel_fidelidad'),
-        supabase.from('servicios').select('id, nombre'),
+        supabase.from('clientes').select('id, nombre, telefono, total_visitas, total_gastado, created_at, nivel_fidelidad').limit(50000),
+        supabase.from('servicios').select('id, nombre').limit(5000),
         supabase.from('inventario_movimientos')
           .select('id, tipo, cantidad, created_at, producto:productos(nombre, precio_venta)')
           .gte('created_at', `${fechaInicio}T00:00:00`)
           .lte('created_at', `${fechaFin}T23:59:59`)
+          .limit(50000)
       ])
 
       const citas = citasRes.data || []
