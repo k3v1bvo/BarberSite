@@ -113,6 +113,7 @@ export default function CajaChicaPage() {
     comprobante_url: '' as string | null,
   })
   const [editingComprobanteTx, setEditingComprobanteTx] = useState<any | null>(null)
+  const [saldoAnterior, setSaldoAnterior] = useState<{ ef: number; qr: number }>({ ef: 0, qr: 0 })
 
   const updateTxComprobante = async (txId: string, url: string) => {
     try {
@@ -172,6 +173,38 @@ export default function CajaChicaPage() {
     if (txRes.ok) setTransactions(await txRes.json())
     if (ctasRes.ok) setCuentas(await ctasRes.json())
     
+    let antEf = 0
+    let antQr = 0
+    if (desde) {
+      const { data: antTx } = await supabase
+        .from('transactions')
+        .select('costo, tipo_movimiento, metodo_pago, monto_efectivo, monto_qr')
+        .lt('fecha', desde)
+      if (antTx) {
+        antTx.forEach(tx => {
+          const ing = tx.tipo_movimiento === 'INGRESO'
+          let ef = 0
+          let qr = 0
+          if (tx.metodo_pago === 'efectivo' || !tx.metodo_pago) {
+            ef = Number(tx.costo || 0)
+          } else if (tx.metodo_pago === 'qr' || tx.metodo_pago === 'tarjeta') {
+            qr = Number(tx.costo || 0)
+          } else if (tx.metodo_pago === 'mixto') {
+            ef = Number(tx.monto_efectivo || 0)
+            qr = Number(tx.monto_qr || 0)
+          }
+          if (ing) {
+            antEf += ef
+            antQr += qr
+          } else {
+            antEf -= ef
+            antQr -= qr
+          }
+        })
+      }
+    }
+    setSaldoAnterior({ ef: antEf, qr: antQr })
+
     const { data: bList } = await supabase
       .from('profiles')
       .select('id, full_name')

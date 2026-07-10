@@ -165,6 +165,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    resumen.total_registrado = resumen.total_efectivo + resumen.total_qr + resumen.total_tarjeta
+
     // Traer cierre existente
     const { data: cierre } = await supabase
       .from('daily_closures')

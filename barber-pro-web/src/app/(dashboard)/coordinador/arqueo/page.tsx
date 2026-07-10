@@ -150,6 +150,7 @@ export default function ArqueoPage() {
 
   const esperadoEfectivo = resumen.total_efectivo || 0
   const esperadoQr = (resumen.total_qr || 0) + (resumen.total_tarjeta || 0)
+  const esperadoTotal = esperadoEfectivo + esperadoQr
   const contadoEfectivo = parseFloat(efectivoFisico) || 0
   const contadoQr = parseFloat(qrFisico) || 0
 
@@ -157,7 +158,7 @@ export default function ArqueoPage() {
   const difQr = contadoQr - esperadoQr
 
   const totalFisico = contadoEfectivo + contadoQr
-  const diferencia = totalFisico - resumen.total_registrado
+  const diferencia = totalFisico - esperadoTotal
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20 lg:pb-0">
