@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getTodayBolivia } from '@/lib/utils'
 
 // GET /api/transactions — listar (filtro por libro, fecha, sanción, etc.)
 export async function GET(request: NextRequest) {
@@ -40,42 +41,6 @@ export async function GET(request: NextRequest) {
         .lte('creado_en', `${nextDayStr}T03:59:59Z`)
         .neq('fecha', targetFecha)
 
-      const { data: citasTerminadas } = await supabase
-        .from('citas')
-        .select('id, precio, barbero_id, cliente_id, clientes(nombre), servicios(nombre)')
-        .gte('fecha_hora', `${targetFecha}T00:00:00`)
-        .lte('fecha_hora', `${targetFecha}T23:59:59`)
-        .eq('estado', 'completado')
-
-      if (citasTerminadas && citasTerminadas.length > 0) {
-        const { data: txServs } = await supabase
-          .from('transactions')
-          .select('id')
-          .eq('fecha', targetFecha)
-          .eq('libro', 'SERVICIOS')
-
-        if ((txServs?.length || 0) < citasTerminadas.length) {
-          for (const c of citasTerminadas) {
-            await supabase.from('transactions').insert({
-              libro: 'SERVICIOS',
-              fecha: targetFecha,
-              ci: '0000000',
-              nombre: (c.clientes as any)?.nombre || 'Cliente',
-              cuenta_codigo: 'ING-001',
-              cuenta_detalle: 'Ingresos por Servicios',
-              glosa: `Servicio ${(c.servicios as any)?.nombre || ''} - Cita #${c.id.slice(0, 6)}`,
-              costo: Number(c.precio || 0),
-              tipo_movimiento: 'INGRESO',
-              subcategoria: 'SERVICIO',
-              es_sancion: false,
-              empleado_id: c.barbero_id,
-              cliente_id: c.cliente_id,
-              metodo_pago: 'efectivo',
-              usuario_registro: 'Sistema (Auto-sync)'
-            })
-          }
-        }
-      }
     }
 
     let query = supabase
@@ -96,7 +61,59 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json(data)
+
+    let finalData = data || []
+    try {
+      if (!libro || libro === 'SERVICIOS') {
+        let citasQuery = supabase
+          .from('citas')
+          .select('id, precio, fecha_hora, barbero_id, cliente_id')
+          .eq('estado', 'completado')
+        if (fecha) {
+          citasQuery = citasQuery.gte('fecha_hora', `${fecha}T00:00:00`).lte('fecha_hora', `${fecha}T23:59:59`)
+        } else if (fechaDesde && fechaHasta) {
+          citasQuery = citasQuery.gte('fecha_hora', `${fechaDesde}T00:00:00`).lte('fecha_hora', `${fechaHasta}T23:59:59`)
+        }
+        const { data: citasData, error: citasErr } = await citasQuery
+        if (!citasErr && citasData && citasData.length > 0) {
+          for (const c of citasData) {
+            const cIdStr = String(c.id || '')
+            const cIdShort = cIdStr.slice(0, 6)
+            const alreadyIn = finalData.some((t: any) => t.glosa && (t.glosa.includes(cIdShort) || t.glosa.includes(cIdStr)))
+            if (!alreadyIn) {
+              const fechaCita = c.fecha_hora ? c.fecha_hora.split('T')[0] : (fecha || getTodayBolivia())
+              finalData.push({
+                id: `virtual-cita-${cIdStr}`,
+                libro: 'SERVICIOS',
+                fecha: fechaCita,
+                ci: '0000000',
+                nombre: 'Cliente en Cita',
+                cuenta_codigo: 'ING-001',
+                cuenta_detalle: 'Ingresos por Servicios',
+                glosa: `Servicio Cita #${cIdShort}`,
+                costo: Number(c.precio || 0),
+                tipo_movimiento: 'INGRESO',
+                subcategoria: 'SERVICIO',
+                es_sancion: false,
+                empleado_id: c.barbero_id,
+                cliente_id: c.cliente_id,
+                metodo_pago: 'efectivo',
+                usuario_registro: 'Cita Completada',
+                creado_en: c.fecha_hora || new Date().toISOString()
+              })
+            }
+          }
+          finalData.sort((a: any, b: any) => {
+            if (b.fecha !== a.fecha) return b.fecha.localeCompare(a.fecha)
+            return (String(b.creado_en || '')).localeCompare(String(a.creado_en || ''))
+          })
+        }
+      }
+    } catch (mergeErr) {
+      console.error('Error safely merging citas:', mergeErr)
+    }
+
+    return NextResponse.json(finalData)
   } catch {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
@@ -129,25 +146,21 @@ export async function POST(request: NextRequest) {
       .from('transactions')
       .insert({
         libro: body.libro,
-        fecha: body.fecha || new Date().toISOString().split('T')[0],
-        ci: body.ci,
-        nombre: body.nombre,
-        cuenta_codigo: body.cuenta_codigo,
-        cuenta_detalle: body.cuenta_detalle,
-        glosa: body.glosa,
-        costo: body.costo,
-        tipo_movimiento: body.tipo_movimiento,
+        fecha: body.fecha || getTodayBolivia(),
+        ci: body.ci || '0000000',
+        nombre: body.nombre || 'Sin nombre',
+        cuenta_codigo: body.cuenta_codigo || '000',
+        cuenta_detalle: body.cuenta_detalle || 'Movimiento manual',
+        glosa: body.glosa || '',
+        costo: Number(body.costo) || 0,
+        tipo_movimiento: body.tipo_movimiento || 'EGRESO',
         subcategoria: body.subcategoria || null,
         es_sancion: body.es_sancion || false,
         empleado_id: body.empleado_id || null,
         cliente_id: body.cliente_id || null,
-        cita_id: body.cita_id || null,
-        producto_id: body.producto_id || null,
-        cantidad_producto: body.cantidad_producto || null,
-        metodo_pago: body.metodo_pago || null,
+        metodo_pago: body.metodo_pago || 'efectivo',
         comprobante_url: body.comprobante_url || null,
         usuario_registro: profile.full_name || user.email || 'Sistema',
-        notas: body.notas || null,
       })
       .select()
       .single()
