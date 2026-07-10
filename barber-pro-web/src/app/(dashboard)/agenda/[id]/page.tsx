@@ -33,7 +33,7 @@ export default function AgendaIndividualPage() {
   const [barberos, setBarberos] = useState<BarberInfo[]>([])
   const [barberoNombre, setBarberoNombre] = useState('')
   const [selectedBarberoId, setSelectedBarberoId] = useState(barberoId)
-  const [view, setView] = useState<AgendaView>('mes')
+  const [view, setView] = useState<AgendaView>('dia')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentTab, setCurrentTab] = useState<'calendario' | 'disponibilidad' | 'horarios'>('calendario')
   const [authError, setAuthError] = useState<string | null>(null)

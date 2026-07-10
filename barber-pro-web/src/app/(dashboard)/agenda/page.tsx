@@ -26,7 +26,7 @@ export default function AgendaGeneralPage() {
   const [authorized, setAuthorized] = useState(false)
   const [barberos, setBarberos] = useState<BarberoOption[]>([])
   const [selectedBarbero, setSelectedBarbero] = useState('todos')
-  const [view, setView] = useState<AgendaView>('mes')
+  const [view, setView] = useState<AgendaView>('dia')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedCita, setSelectedCita] = useState<AgendaCita | null>(null)
 
