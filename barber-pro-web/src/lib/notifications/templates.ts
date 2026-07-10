@@ -61,6 +61,8 @@ function cta(href: string, label: string): string {
 export interface EmailTemplateInput {
   link?: string
   nombre?: string
+  email?: string
+  password?: string
   servicio?: string
   fecha?: string
   hora?: string
