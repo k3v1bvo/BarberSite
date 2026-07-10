@@ -86,7 +86,15 @@ export default function ArqueoPage() {
     return <div className="flex items-center justify-center h-96"><div className="w-12 h-12 border-4 border-zinc-700 border-t-orange-500 rounded-full animate-spin" /></div>
   }
 
-  const totalFisico = (parseFloat(efectivoFisico) || 0) + (parseFloat(qrFisico) || 0)
+  const esperadoEfectivo = resumen.total_efectivo || 0
+  const esperadoQr = (resumen.total_qr || 0) + (resumen.total_tarjeta || 0)
+  const contadoEfectivo = parseFloat(efectivoFisico) || 0
+  const contadoQr = parseFloat(qrFisico) || 0
+
+  const difEfectivo = contadoEfectivo - esperadoEfectivo
+  const difQr = contadoQr - esperadoQr
+
+  const totalFisico = contadoEfectivo + contadoQr
   const diferencia = totalFisico - resumen.total_registrado
 
   return (
@@ -141,37 +149,68 @@ export default function ArqueoPage() {
       {/* Conteo físico */}
       <Card className="border-white/5 bg-zinc-900/80">
         <CardContent className="p-6 space-y-6">
-          <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400">Conteo Físico</h2>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-white/5 pb-4">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400">Conteo Físico & Cuadre de Caja</h2>
+              <p className="text-xs text-zinc-500">Compara el dinero real contado frente al esperado en el sistema</p>
+            </div>
+            <div className="flex gap-4 text-xs font-bold">
+              <span className="px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                💵 Esperado Efectivo: {formatCurrency(esperadoEfectivo)}
+              </span>
+              <span className="px-3 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                📱 Esperado QR/Banco: {formatCurrency(esperadoQr)}
+              </span>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Efectivo contado (Bs)</label>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Efectivo Físico Contado</label>
+                <span className={`text-[11px] font-black ${Math.abs(difEfectivo) < 0.1 ? 'text-green-400' : difEfectivo > 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                  {Math.abs(difEfectivo) < 0.1 ? '✔ Cuadra' : difEfectivo > 0 ? `+${formatCurrency(difEfectivo)}` : formatCurrency(difEfectivo)}
+                </span>
+              </div>
               <input
                 type="number" step="0.01" value={efectivoFisico}
                 onChange={(e) => setEfectivoFisico(e.target.value)}
                 disabled={cierre?.cerrado}
+                placeholder="Ej. 1250.00"
                 className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-lg font-black text-white focus:border-orange-500/50 outline-none disabled:opacity-50"
               />
+              <p className="text-[11px] text-zinc-500">Sistema indica: {formatCurrency(esperadoEfectivo)}</p>
             </div>
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">QR / Transferencias (Bs)</label>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400">QR / Transferencias Verificado</label>
+                <span className={`text-[11px] font-black ${Math.abs(difQr) < 0.1 ? 'text-green-400' : difQr > 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                  {Math.abs(difQr) < 0.1 ? '✔ Cuadra' : difQr > 0 ? `+${formatCurrency(difQr)}` : formatCurrency(difQr)}
+                </span>
+              </div>
               <input
                 type="number" step="0.01" value={qrFisico}
                 onChange={(e) => setQrFisico(e.target.value)}
                 disabled={cierre?.cerrado}
+                placeholder="Ej. 840.00"
                 className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-lg font-black text-white focus:border-orange-500/50 outline-none disabled:opacity-50"
               />
+              <p className="text-[11px] text-zinc-500">Sistema indica: {formatCurrency(esperadoQr)}</p>
             </div>
-            <Card className={`border ${diferencia === 0 ? 'border-green-500/30 bg-green-500/5' : diferencia > 0 ? 'border-blue-500/30 bg-blue-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
+
+            <Card className={`border ${Math.abs(diferencia) < 0.1 ? 'border-green-500/30 bg-green-500/5' : diferencia > 0 ? 'border-blue-500/30 bg-blue-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
               <CardContent className="p-4 flex flex-col items-center justify-center h-full">
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">Diferencia</p>
-                <p className={`text-2xl font-black ${diferencia === 0 ? 'text-green-400' : diferencia > 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">Diferencia Total</p>
+                <p className={`text-2xl font-black ${Math.abs(diferencia) < 0.1 ? 'text-green-400' : diferencia > 0 ? 'text-blue-400' : 'text-red-400'}`}>
                   {diferencia > 0 ? '+' : ''}{formatCurrency(diferencia)}
                 </p>
-                {diferencia !== 0 && (
+                {Math.abs(diferencia) < 0.1 ? (
+                  <p className="text-[10px] text-green-400 mt-1 font-bold">✔ Caja perfectamente cuadrada</p>
+                ) : (
                   <p className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
-                    {diferencia > 0 ? 'Sobrante' : 'Faltante'}
+                    {diferencia > 0 ? 'Sobrante Total' : 'Faltante Total'}
                   </p>
                 )}
               </CardContent>

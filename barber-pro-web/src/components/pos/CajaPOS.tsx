@@ -97,6 +97,7 @@ export function CajaPOS() {
   const [clienteDetalle, setClienteDetalle] = useState<Cliente | null>(null)
   const [qrPagoUrl, setQrPagoUrl] = useState<string | null>(null)
   const [citasPendientes, setCitasPendientes] = useState<any[]>([])
+  const [montoRecibido, setMontoRecibido] = useState<string>('')
 
   const [searchCliente, setSearchCliente] = useState('')
   const [searchCi, setSearchCi] = useState('')
@@ -1574,6 +1575,44 @@ export function CajaPOS() {
                           </button>
                         ))}
                       </div>
+
+                      {formData.metodo_pago === 'efectivo' && (
+                        <div className="p-3 bg-zinc-900/90 border border-emerald-500/30 rounded-xl space-y-2 mt-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-zinc-400">💵 ¿Con cuánto paga? (Opcional)</span>
+                            {montoRecibido && Number(montoRecibido) >= totalACobrar && (
+                              <Badge variant="success" className="text-xs font-black">
+                                Vuelto: {formatCurrency(Number(montoRecibido) - totalACobrar)}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex gap-1.5 items-center">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              placeholder="Ej. 100"
+                              value={montoRecibido}
+                              onChange={(e) => setMontoRecibido(e.target.value)}
+                              className="w-full h-9 bg-zinc-950 border border-white/10 rounded-lg px-3 text-sm font-bold text-white outline-none focus:border-emerald-500"
+                            />
+                            {[20, 50, 100, 200].map(b => (
+                              <button
+                                key={b}
+                                type="button"
+                                onClick={() => setMontoRecibido(String(b))}
+                                className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-300"
+                              >
+                                {b}
+                              </button>
+                            ))}
+                          </div>
+                          {montoRecibido && Number(montoRecibido) < totalACobrar && Number(montoRecibido) > 0 && (
+                            <p className="text-[11px] text-red-400 font-bold">Falta: {formatCurrency(totalACobrar - Number(montoRecibido))}</p>
+                          )}
+                        </div>
+                      )}
+
                       {formData.metodo_pago === 'mixto' && (
                         <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-2 mt-2">
                           <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">🔄 Desglose</p>

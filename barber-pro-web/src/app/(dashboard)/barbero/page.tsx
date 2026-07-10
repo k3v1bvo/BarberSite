@@ -70,6 +70,7 @@ export default function BarberoPage() {
   })
   const [walkinProductos, setWalkinProductos] = useState<{id:string, nombre:string, precio:number, cantidad:number}[]>([])
   const [submittingWalkin, setSubmittingWalkin] = useState(false)
+  const [walkinMontoRecibido, setWalkinMontoRecibido] = useState<string>('')
   const [selectedCita, setSelectedCita] = useState<Cita | null>(null)
   const [metaServicios, setMetaServicios] = useState<number>(30)
   const router = useRouter()
@@ -852,6 +853,40 @@ export default function BarberoPage() {
                     )}
                   </span>
                 </div>
+
+                {walkinData.metodo_pago === 'efectivo' && (
+                  <div className="p-3 bg-zinc-900/90 border border-emerald-500/30 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-zinc-400">💵 ¿Con cuánto paga? (Opcional)</span>
+                      {walkinMontoRecibido && Number(walkinMontoRecibido) >= ((servicios.find(s => s.id === walkinData.servicio_id)?.precio || 0) + walkinProductoTotal + (walkinData.propinas || 0)) && (
+                        <span className="text-xs font-black px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          Vuelto: {formatCurrency(Number(walkinMontoRecibido) - ((servicios.find(s => s.id === walkinData.servicio_id)?.precio || 0) + walkinProductoTotal + (walkinData.propinas || 0)))}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-1.5 items-center">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        placeholder="Ej. 100"
+                        value={walkinMontoRecibido}
+                        onChange={(e) => setWalkinMontoRecibido(e.target.value)}
+                        className="w-full h-9 bg-zinc-950 border border-white/10 rounded-lg px-3 text-sm font-bold text-white outline-none focus:border-emerald-500"
+                      />
+                      {[20, 50, 100, 200].map(b => (
+                        <button
+                          key={b}
+                          type="button"
+                          onClick={() => setWalkinMontoRecibido(String(b))}
+                          className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-300"
+                        >
+                          {b}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 <div className="pt-2">
                   <Button type="submit" disabled={submittingWalkin || (!walkinData.servicio_id && walkinProductos.length === 0)} className="w-full py-6 text-lg uppercase tracking-widest font-black" variant="primary">
