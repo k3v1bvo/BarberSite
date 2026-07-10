@@ -684,6 +684,17 @@ export async function dispatchNotification(
         break
       }
 
+      case 'bienvenida_nuevo_usuario': {
+        if (input.userEmail) {
+          await sendNotificationEmail(input.userEmail, 'bienvenida_nuevo_usuario', {
+            nombre: p.nombre,
+            email: p.email,
+            password: p.password,
+          })
+        }
+        break
+      }
+
       default:
         errors.push(`Evento desconocido: ${event}`)
     }

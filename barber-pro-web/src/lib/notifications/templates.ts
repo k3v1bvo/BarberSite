@@ -422,6 +422,23 @@ export function buildEmail(
         ),
       }
 
+    case 'bienvenida_nuevo_usuario':
+      return {
+        subject: `¡Bienvenido al equipo de ${BRAND}!`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Te damos la bienvenida a ${BRAND}!</h2>
+          <p>Hola <strong>${data.nombre}</strong>, tu cuenta ha sido creada exitosamente en nuestro sistema.</p>
+          <p>Para ingresar, utiliza las siguientes credenciales temporales:</p>
+          ${detailBox([
+            { label: 'Correo / Usuario', value: String(data.email) },
+            { label: 'Contraseña Temporal', value: String(data.password) },
+          ])}
+          <p style="margin-top:16px;">Te recomendamos cambiar tu contraseña una vez que ingreses al sistema desde tu perfil o panel.</p>
+          ${cta(`${SITE}/login`, 'Iniciar Sesión Ahora')}`,
+          'Tus credenciales de acceso al sistema'
+        ),
+      }
+
     default:
       return {
         subject: `Notificación — ${BRAND}`,

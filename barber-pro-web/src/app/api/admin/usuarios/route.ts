@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
+import { dispatchNotification } from '@/lib/notifications/dispatch'
 
 export async function POST(request: Request) {
   try {
@@ -49,6 +50,17 @@ export async function POST(request: Request) {
       // Si falla la creación del perfil, podríamos borrar el usuario o simplemente retornar el error
       return NextResponse.json({ error: profileError.message }, { status: 400 })
     }
+
+    // Enviar correo de bienvenida al nuevo usuario (usa Nodemailer/Gmail)
+    await dispatchNotification(adminClient, {
+      event: 'bienvenida_nuevo_usuario',
+      userEmail: email,
+      payload: {
+        nombre: full_name,
+        email: email,
+        password: 'barber123',
+      },
+    })
 
     return NextResponse.json({ success: true, user: authData.user })
 

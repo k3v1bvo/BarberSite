@@ -101,6 +101,17 @@ function RegisterContent() {
         })
       }
 
+      // Enviar correo de bienvenida a través de la API interna
+      fetch('/api/auth/bienvenida', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          full_name: formData.full_name,
+          password: formData.password
+        })
+      }).catch(err => console.error('Error enviando email de bienvenida:', err))
+
       if (authData.session) {
         success(`¡Bienvenido a Barber Pro, ${formData.full_name.split(' ')[0]}!`)
         router.push('/cliente')
