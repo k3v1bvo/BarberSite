@@ -30,9 +30,15 @@ export async function POST(request: Request) {
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://barber-site-livid.vercel.app'
-    const { error: resetErr } = await adminClient.auth.resetPasswordForEmail(email, {
+    let { error: resetErr } = await adminClient.auth.resetPasswordForEmail(email, {
       redirectTo: `${siteUrl}/actualizar-password`
     })
+
+    // Si falla porque la URL no está en Redirect URLs de Supabase, reintentar con la configuración por defecto
+    if (resetErr && (resetErr.message?.toLowerCase().includes('redirect') || resetErr.status === 400)) {
+      const fallback = await adminClient.auth.resetPasswordForEmail(email)
+      resetErr = fallback.error
+    }
 
     if (resetErr) {
       console.error("Error al enviar reset:", resetErr)
