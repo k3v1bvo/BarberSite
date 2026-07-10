@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, getTodayBolivia } from '@/lib/utils'
 import { Receipt, Plus, X, Store, Filter, ArrowUpDown, ArrowUp, ArrowDown, Search, Wallet, ShoppingBag, Image as ImageIcon } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
@@ -34,17 +34,16 @@ export default function VentasPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [filtroLibro, setFiltroLibro] = useState<'VENTAS' | 'SERVICIOS' | 'USO_TIENDA' | 'TODOS'>('TODOS')
+  const [filtroLibro, setFiltroLibro] = useState<'HOY' | 'VENTAS' | 'SERVICIOS' | 'USO_TIENDA' | 'TODOS'>('HOY')
   const [buscandoCi, setBuscandoCi] = useState(false)
   const [cumpleanosMsg, setCumpleanosMsg] = useState<string | null>(null)
   const [searchText, setSearchText] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('fecha')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
-  const nowD = new Date()
-  const hoy = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`
+  const hoy = getTodayBolivia()
 
   const [form, setForm] = useState({
-    ci: '', nombre: '', cuenta_codigo: '', glosa: '', costo: '',
+    ci: '', nombre: '', email: '', cuenta_codigo: '', glosa: '', costo: '',
     metodo_pago: 'efectivo', notas: '',
     mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '',
   })
@@ -66,12 +65,12 @@ export default function VentasPage() {
           const supabase = createClient()
           const { data: cliente } = await supabase
             .from('clientes')
-            .select('nombre, cumpleanos')
+            .select('nombre, email, cumpleanos')
             .eq('ci', ci)
             .single()
 
           if (cliente) {
-            setForm(prev => ({ ...prev, nombre: cliente.nombre }))
+            setForm(prev => ({ ...prev, nombre: cliente.nombre, email: cliente.email || '' }))
             
             // Check birthday
             if (cliente.cumpleanos) {
@@ -94,7 +93,9 @@ export default function VentasPage() {
   const loadData = useCallback(async () => {
     const supabase = createClient()
     const [txRes, ctasRes, { data: sData }, { data: pData }] = await Promise.all([
-      filtroLibro === 'TODOS'
+      filtroLibro === 'HOY'
+        ? fetch(`/api/transactions?fecha=${getTodayBolivia()}&limit=200`).then(r => r.ok ? r.json() : [])
+        : filtroLibro === 'TODOS'
         ? Promise.all([
             fetch(`/api/transactions?libro=VENTAS&limit=200`),
             fetch(`/api/transactions?libro=SERVICIOS&limit=200`),
@@ -143,6 +144,22 @@ export default function VentasPage() {
       realCuentaDetalle = cuenta?.detalle || form.cuenta_codigo
     }
 
+    if (form.ci && form.ci !== '0' && form.ci !== '0000000' && form.nombre) {
+      try {
+        const supabase = createClient()
+        const { data: existente } = await supabase.from('clientes').select('id').eq('ci', form.ci).single()
+        if (!existente) {
+          await supabase.from('clientes').insert({
+            ci: form.ci,
+            nombre: form.nombre,
+            email: form.email || null
+          })
+        }
+      } catch {
+        // Ignorar si el cliente ya existe o falló la creación
+      }
+    }
+
     const res = await fetch('/api/transactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -164,7 +181,7 @@ export default function VentasPage() {
     if (res.ok) {
       toastSuccess('Venta registrada con éxito ✅')
       setShowForm(false)
-      setForm({ ci: '', nombre: '', cuenta_codigo: '', glosa: '', costo: '', metodo_pago: 'efectivo', notas: '', mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '' })
+      setForm({ ci: '', nombre: '', email: '', cuenta_codigo: '', glosa: '', costo: '', metodo_pago: 'efectivo', notas: '', mixto_efectivo: '', mixto_qr: '', mixto_tarjeta: '' })
       loadData()
     } else {
       toastError('Error al registrar la venta')
@@ -286,13 +303,15 @@ export default function VentasPage() {
       <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-zinc-500" />
-          {(['TODOS', 'SERVICIOS', 'VENTAS', 'USO_TIENDA'] as const).map(f => (
+          {(['HOY', 'TODOS', 'SERVICIOS', 'VENTAS', 'USO_TIENDA'] as const).map(f => (
             <button
               key={f}
               onClick={() => setFiltroLibro(f)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${
                 filtroLibro === f
-                  ? f === 'USO_TIENDA'
+                  ? f === 'HOY'
+                    ? 'bg-emerald-500 text-black'
+                    : f === 'USO_TIENDA'
                     ? 'bg-violet-600 text-white'
                     : f === 'SERVICIOS'
                     ? 'bg-green-500 text-black'
@@ -300,7 +319,7 @@ export default function VentasPage() {
                   : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
               }`}
             >
-              {f === 'TODOS' ? 'Todas' : f === 'SERVICIOS' ? 'Servicios' : f === 'VENTAS' ? 'Ventas' : '⚡ Uso Tienda'}
+              {f === 'HOY' ? '📅 Hoy' : f === 'TODOS' ? 'Todas' : f === 'SERVICIOS' ? 'Servicios' : f === 'VENTAS' ? 'Ventas' : '⚡ Uso Tienda'}
             </button>
           ))}
         </div>
@@ -341,6 +360,10 @@ export default function VentasPage() {
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Nombre</label>
                 <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-green-500/50 outline-none" required />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Correo (Opcional - crear cliente)</label>
+                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="cliente@correo.com" className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-green-500/50 outline-none" />
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Servicio / Producto</label>
