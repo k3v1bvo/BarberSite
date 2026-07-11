@@ -298,7 +298,7 @@ export default function BarberoPage() {
         const { data: mesData } = await supabase
           .from('citas')
           .select('barbero_id')
-          .eq('estado', 'completada')
+          .in('estado', ['completado', 'completada'])
           .gte('fecha_hora', primerDiaMes)
 
         if (mesData) {
