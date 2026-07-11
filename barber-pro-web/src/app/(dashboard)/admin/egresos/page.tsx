@@ -587,8 +587,8 @@ export default function EgresosPage() {
 
       {/* QR Upload / View Modal */}
       {selectedEgresoQr && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-5 sm:p-6 max-w-md w-full space-y-5 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="text-base font-black uppercase tracking-wider text-white">Comprobante de Pago QR</h3>
               <button type="button" onClick={() => setSelectedEgresoQr(null)} className="text-zinc-500 hover:text-white">
