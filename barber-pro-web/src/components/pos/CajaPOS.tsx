@@ -661,81 +661,90 @@ export function CajaPOS() {
   }
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6 pb-32 animate-in fade-in zoom-in-95 duration-500">
-      <div className="flex items-center justify-between">
+    <div className="p-3 sm:p-6 max-w-[1600px] mx-auto space-y-6 pb-32 animate-in fade-in zoom-in-95 duration-500 overflow-x-hidden">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-400 to-amber-600 bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-400 to-amber-600 bg-clip-text text-transparent">
             Punto de Venta / Caja
           </h1>
-          <p className="text-zinc-400">Atiende a clientes que llegan a pie, asigna y cobra al instante.</p>
+          <p className="text-zinc-400 text-xs sm:text-sm">Atiende a clientes que llegan a pie, asigna y cobra al instante.</p>
         </div>
-        <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 p-2 rounded-xl">
-          <Clock className="w-5 h-5 text-amber-500" />
-          <div className="text-xs flex items-center gap-2">
-            <div>
-              <p className="text-zinc-400">Tiempo Mín. Reserva Web</p>
-              <p className="font-bold text-white text-right">{tiempoMinimoReserva} minutos</p>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-zinc-900/90 border border-zinc-800 p-3 sm:p-3.5 rounded-2xl shadow-lg w-full xl:w-auto">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20 shrink-0">
+              <Clock className="w-4 h-4 text-amber-500" />
             </div>
-            <div className="h-8 w-px bg-zinc-800 mx-2"></div>
-            <div className="flex gap-1 items-center">
-              <Button 
-                size="sm" 
-                variant={tiempoMinimoReserva === 0 ? 'primary' : 'outline'}
-                className="h-8 text-[10px] px-2 uppercase font-bold"
-                disabled={updatingTiempo}
-                onClick={() => handleSaveTiempo(0)}
-                title="Sin Límite"
-              >
-                0 min
-              </Button>
-              <Button 
-                size="sm" 
-                variant={tiempoMinimoReserva === 60 ? 'primary' : 'outline'}
-                className="h-8 text-[10px] px-2 font-bold"
-                disabled={updatingTiempo}
-                onClick={() => handleSaveTiempo(60)}
-              >
-                1 hr
-              </Button>
-              <Button 
-                size="sm" 
-                variant={tiempoMinimoReserva === 120 ? 'primary' : 'outline'}
-                className="h-8 text-[10px] px-2 font-bold"
-                disabled={updatingTiempo}
-                onClick={() => handleSaveTiempo(120)}
-              >
-                2 hrs
-              </Button>
-              <Button 
-                size="sm" 
-                variant={tiempoMinimoReserva === 180 ? 'primary' : 'outline'}
-                className="h-8 text-[10px] px-2 font-bold"
-                disabled={updatingTiempo}
-                onClick={() => handleSaveTiempo(180)}
-              >
-                3 hrs
-              </Button>
-              <div className="flex items-center bg-zinc-950 border border-white/10 rounded-lg overflow-hidden ml-1 h-8">
-                <input 
-                  type="number" 
-                  className="w-12 h-full bg-transparent text-center text-xs text-white outline-none" 
-                  placeholder="Min" 
-                  min="0"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const val = parseInt(e.currentTarget.value)
-                      if (!isNaN(val)) handleSaveTiempo(val)
-                    }
-                  }}
-                />
-                <button className="px-2 h-full bg-amber-500 text-black hover:bg-amber-400" onClick={(e) => {
+            <div>
+              <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider">Tiempo Mín. Reserva Web</p>
+              <p className="font-black text-white text-xs">{tiempoMinimoReserva} minutos</p>
+            </div>
+          </div>
+
+          <div className="hidden sm:block h-7 w-px bg-zinc-800 mx-1"></div>
+
+          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+            <Button 
+              size="sm" 
+              variant={tiempoMinimoReserva === 0 ? 'primary' : 'outline'}
+              className="h-8 text-[10px] px-2.5 font-black uppercase tracking-wider flex-1 sm:flex-none justify-center"
+              disabled={updatingTiempo}
+              onClick={() => handleSaveTiempo(0)}
+              title="Sin Límite"
+            >
+              0 min
+            </Button>
+            <Button 
+              size="sm" 
+              variant={tiempoMinimoReserva === 60 ? 'primary' : 'outline'}
+              className="h-8 text-[10px] px-2.5 font-black flex-1 sm:flex-none justify-center"
+              disabled={updatingTiempo}
+              onClick={() => handleSaveTiempo(60)}
+            >
+              1 hr
+            </Button>
+            <Button 
+              size="sm" 
+              variant={tiempoMinimoReserva === 120 ? 'primary' : 'outline'}
+              className="h-8 text-[10px] px-2.5 font-black flex-1 sm:flex-none justify-center"
+              disabled={updatingTiempo}
+              onClick={() => handleSaveTiempo(120)}
+            >
+              2 hrs
+            </Button>
+            <Button 
+              size="sm" 
+              variant={tiempoMinimoReserva === 180 ? 'primary' : 'outline'}
+              className="h-8 text-[10px] px-2.5 font-black flex-1 sm:flex-none justify-center"
+              disabled={updatingTiempo}
+              onClick={() => handleSaveTiempo(180)}
+            >
+              3 hrs
+            </Button>
+
+            <div className="flex items-center bg-zinc-950 border border-white/10 rounded-xl overflow-hidden h-8 w-full sm:w-auto mt-1 sm:mt-0">
+              <input 
+                type="number" 
+                className="w-full sm:w-14 h-full bg-transparent text-center text-xs text-white font-bold outline-none px-2" 
+                placeholder="Min" 
+                min="0"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const val = parseInt(e.currentTarget.value)
+                    if (!isNaN(val)) handleSaveTiempo(val)
+                  }
+                }}
+              />
+              <button 
+                className="px-3 h-full bg-amber-500 text-black hover:bg-amber-400 transition font-black flex items-center justify-center shrink-0" 
+                onClick={(e) => {
                   const input = e.currentTarget.previousElementSibling as HTMLInputElement
                   const val = parseInt(input.value)
                   if (!isNaN(val)) handleSaveTiempo(val)
-                }}>
-                  <Save size={12} />
-                </button>
-              </div>
+                }}
+              >
+                <Save size={13} />
+              </button>
             </div>
           </div>
         </div>
