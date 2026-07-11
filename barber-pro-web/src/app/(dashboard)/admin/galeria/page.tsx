@@ -15,6 +15,7 @@ interface ImagenSistema {
   clienteNombre?: string
   monto?: number | string
   tipoMovimiento?: string
+  concepto?: string
 }
 
 const CATEGORIA_COLORES: Record<string, string> = {
@@ -207,7 +208,17 @@ export default function GaleriaPage() {
                   <span className="text-[10px]">{img.icono}</span>
                   <p className="text-zinc-500 text-[9px] truncate">{img.categoria}</p>
                 </div>
-                {img.meta && <p className="text-zinc-600 text-[9px] truncate mt-0.5">{img.meta}</p>}
+                {img.tipoMovimiento && (
+                  <span className={cn(
+                    "inline-block mt-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider truncate max-w-full",
+                    img.tipoMovimiento.includes('Completo')
+                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                      : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                  )}>
+                    {img.tipoMovimiento}
+                  </span>
+                )}
+                {img.meta && <p className="text-zinc-400 text-[9px] truncate mt-0.5">{img.meta}</p>}
               </div>
             </div>
           ))}
@@ -267,6 +278,26 @@ export default function GaleriaPage() {
 
             {/* Detalles del Movimiento (Barbero, Cliente, Monto, Fecha) */}
             <div className="p-4 bg-zinc-900/95 border-t border-white/10 shrink-0 space-y-3">
+              {imagenZoom.tipoMovimiento && (
+                <div className={cn(
+                  "p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2",
+                  imagenZoom.tipoMovimiento.includes('Completo')
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                    : "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                )}>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-80">📌 Tipo de Pago QR / Operación</p>
+                    <p className="text-sm font-black mt-0.5">{imagenZoom.tipoMovimiento}</p>
+                  </div>
+                  {imagenZoom.concepto && (
+                    <div className="sm:text-right">
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Concepto</p>
+                      <p className="text-xs font-bold mt-0.5 text-white">{imagenZoom.concepto}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {imagenZoom.barberoNombre && (
                   <div className="bg-white/5 p-2.5 rounded-xl border border-white/5">
