@@ -21,7 +21,7 @@ export async function GET() {
       supabase.from('cumpleanos_verificados').select('id,foto_documento_url,tipo_documento,clientes(nombre),created_at').not('foto_documento_url', 'is', null).order('created_at', { ascending: false }).limit(50),
       supabase.from('configuraciones').select('llave,valor,descripcion').in('llave', ['qr_pago', 'hero_bg_image']),
       supabase.from('egresos').select('id,comprobante_url,concepto,monto_bruto,fecha,creado_en').not('comprobante_url', 'is', null).order('creado_en', { ascending: false }).limit(100),
-      supabase.from('citas').select('id,notas,precio,fecha_hora,barbero_id,clientes(nombre)').ilike('notas', '%http%').order('fecha_hora', { ascending: false }).limit(100),
+      supabase.from('citas').select('id,notas,precio,anticipo_monto,fecha_hora,barbero_id,clientes(nombre)').ilike('notas', '%http%').order('fecha_hora', { ascending: false }).limit(100),
       supabase.from('profiles').select('id,full_name'),
     ])
 
@@ -148,18 +148,21 @@ export async function GET() {
       if (match && match[1]) {
         const clienteNombre = (c as any).clientes?.nombre || 'Cliente'
         const barberoNombre = profilesMap.get(c.barbero_id) || 'Barbero'
+        const esPagoCompleto = c.notas?.includes('Pago Completo') || (c.anticipo_monto && c.anticipo_monto >= c.precio)
+        const montoQR = c.anticipo_monto || c.precio || 0
         galeria.push({
           id: `cita-${c.id}`,
           url: match[1],
           label: `${clienteNombre}`,
           categoria: 'Comprobantes Servicios',
           icono: '🧾',
-          meta: `Barbero: ${barberoNombre} · Cliente: ${clienteNombre} · Bs ${c.precio || 0}`,
+          meta: `Barbero: ${barberoNombre} · Cliente: ${clienteNombre} · ${esPagoCompleto ? 'Pago Completo QR' : 'Reserva/Adelanto QR'} (Bs ${montoQR})`,
           fecha: c.fecha_hora,
           clienteNombre,
           barberoNombre,
-          monto: c.precio || 0,
-          tipoMovimiento: 'Pago de Servicio (QR)',
+          monto: montoQR,
+          tipoMovimiento: esPagoCompleto ? 'Pago Completo de Cita (100% QR)' : 'Anticipo / Reserva de Cita (QR)',
+          concepto: esPagoCompleto ? 'Pago 100% por QR' : `Reserva / Adelanto de cita (Bs ${montoQR})`,
         })
       }
     }

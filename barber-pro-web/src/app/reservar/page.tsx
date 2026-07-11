@@ -69,6 +69,7 @@ function ReservarContent() {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [qrPago, setQrPago] = useState<string | null>(null)
   const [step, setStep] = useState(1)
+  const [tipoReserva, setTipoReserva] = useState<'adelanto_20' | 'adelanto_10' | 'pago_total' | 'sin_adelanto'>('adelanto_20')
 
   const [formData, setFormData] = useState({
     servicio_id: '',
@@ -279,7 +280,21 @@ function ReservarContent() {
         notasFinales = notasFinales ? `${notasFinales}\n${promoCruzada}` : promoCruzada
       }
 
-      const anticipoCalculado = Math.max(20, precioFinalTotal * 0.5)
+      let anticipoCalculado = 20
+      if (tipoReserva === 'adelanto_10') anticipoCalculado = 10
+      else if (tipoReserva === 'adelanto_20') anticipoCalculado = 20
+      else if (tipoReserva === 'pago_total') anticipoCalculado = precioFinalTotal
+      else if (tipoReserva === 'sin_adelanto') anticipoCalculado = 0
+
+      let notaReserva = ''
+      if (tipoReserva === 'sin_adelanto') {
+        notaReserva = '[Reserva]: Sin adelanto QR (Paga en local. Reprogramación +5 Bs)'
+      } else if (tipoReserva === 'pago_total') {
+        notaReserva = `[Reserva QR]: Pago Completo por QR (Bs ${precioFinalTotal})`
+      } else {
+        notaReserva = `[Reserva QR]: Adelanto de Bs ${anticipoCalculado} por Reserva`
+      }
+      notasFinales = notasFinales ? `${notasFinales}\n${notaReserva}` : notaReserva
 
       const barbero = barberos.find((b) => b.id === formData.barbero_id)
 
@@ -292,7 +307,7 @@ function ReservarContent() {
           fecha_hora: fechaHora,
           precio: precioFinalTotal,
           duracion_real_minutos: servicio?.duracion_minutos || 30,
-          estado: 'pendiente_pago',
+          estado: tipoReserva === 'sin_adelanto' ? 'confirmado' : 'pendiente_pago',
           notas: formData.comprobante_url ? `${notasFinales}\n[Comprobante]: ${formData.comprobante_url}` : notasFinales,
           anticipo_monto: anticipoCalculado,
         })
@@ -470,14 +485,18 @@ function ReservarContent() {
   const totalProductos = carrito.reduce((s, i) => s + (i.producto.precio_venta * i.cantidad), 0)
   const descuentoCruzado = (formData.servicio_id && carrito.length > 0) ? 10 : 0
   const totalReserva = Math.max(0, precioServicio + totalProductos - descuentoCruzado)
-  const anticipo = Math.max(20, totalReserva * 0.5)
+  let anticipo = 20
+  if (tipoReserva === 'adelanto_10') anticipo = 10
+  else if (tipoReserva === 'adelanto_20') anticipo = 20
+  else if (tipoReserva === 'pago_total') anticipo = totalReserva
+  else if (tipoReserva === 'sin_adelanto') anticipo = 0
 
   const missingFields = []
   if (!formData.servicio_id && carrito.length === 0) missingFields.push('Servicio o Producto')
   if (!formData.barbero_id) missingFields.push('Barbero')
   if (!formData.fecha || !formData.hora) missingFields.push('Fecha y Hora')
   if (!formData.nombre || !formData.telefono || !formData.email) missingFields.push('Tus Datos')
-  if (totalReserva > 0 && !formData.comprobante_url) missingFields.push('Comprobante de Pago')
+  if (tipoReserva !== 'sin_adelanto' && totalReserva > 0 && !formData.comprobante_url) missingFields.push('Comprobante de Pago QR')
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black text-white pb-24 font-sans selection:bg-amber-500/30">
@@ -814,7 +833,72 @@ function ReservarContent() {
                       </div>
                     </div>
 
+                    {/* SELECCIÓN DE OPCIÓN DE PAGO DE RESERVA */}
                     {totalReserva > 0 && (
+                      <div className="mt-8 space-y-3">
+                        <label className="text-xs font-black uppercase tracking-widest text-amber-500 block">
+                          💳 Elige cómo confirmar tu reserva:
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setTipoReserva('adelanto_20')}
+                            className={`p-4 rounded-2xl border text-left transition-all ${tipoReserva === 'adelanto_20' ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_20px_rgba(245,158,11,0.15)]' : 'border-zinc-800 bg-zinc-950 hover:border-amber-500/30'}`}
+                          >
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-black text-sm text-white">Adelanto Bs 20 (QR)</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-black font-black">RECOMENDADO</span>
+                            </div>
+                            <p className="text-xs text-zinc-400">Permite reprogramar sin costo extra si tienes algún imprevisto.</p>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setTipoReserva('adelanto_10')}
+                            className={`p-4 rounded-2xl border text-left transition-all ${tipoReserva === 'adelanto_10' ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_20px_rgba(245,158,11,0.15)]' : 'border-zinc-800 bg-zinc-950 hover:border-amber-500/30'}`}
+                          >
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-black text-sm text-white">Adelanto Bs 10 (QR)</span>
+                            </div>
+                            <p className="text-xs text-zinc-400">Reserva con adelanto mínimo. Reprogramación sin recargo.</p>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setTipoReserva('pago_total')}
+                            className={`p-4 rounded-2xl border text-left transition-all ${tipoReserva === 'pago_total' ? 'border-emerald-500 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.15)]' : 'border-zinc-800 bg-zinc-950 hover:border-emerald-500/30'}`}
+                          >
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-black text-sm text-emerald-400">Pagar Total 100% (QR)</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500 text-black font-black">COMPLETO</span>
+                            </div>
+                            <p className="text-xs text-zinc-400">Cita 100% pagada. Evitas trámites en local y puedes reprogramar.</p>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setTipoReserva('sin_adelanto')}
+                            className={`p-4 rounded-2xl border text-left transition-all ${tipoReserva === 'sin_adelanto' ? 'border-red-500 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'border-zinc-800 bg-zinc-950 hover:border-red-500/30'}`}
+                          >
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-black text-sm text-red-400">Pagar en Local (Bs 0 QR)</span>
+                            </div>
+                            <p className="text-xs text-zinc-400">⚠️ Tolerancia estricta o pierdes turno. Reprogramar costará +Bs 5 extra.</p>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {tipoReserva === 'sin_adelanto' && totalReserva > 0 && (
+                      <div className="mt-6 p-5 bg-red-500/10 border border-red-500/30 rounded-2xl">
+                        <p className="text-xs font-black text-red-400 uppercase tracking-widest mb-1">⚠️ Aviso importante para reserva sin adelanto:</p>
+                        <p className="text-xs text-zinc-300 font-medium">
+                          Tu reserva es válida, pero requerimos máxima puntualidad. Si no llegas a tu hora exacta, el turno pasará a otro cliente. Si necesitas reprogramar tu cita, tendrá un costo adicional de <strong>+Bs 5.00</strong> en el local.
+                        </p>
+                      </div>
+                    )}
+
+                    {tipoReserva !== 'sin_adelanto' && totalReserva > 0 && (
                       <div className="mt-10 space-y-5 p-6 md:p-8 bg-zinc-950 rounded-3xl border border-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.03)] relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500/0 via-amber-500 to-amber-500/0"></div>
                         <p className="text-sm font-black text-center text-amber-500 mb-4 uppercase tracking-[0.2em]">Escanea y Sube tu Comprobante</p>
@@ -939,18 +1023,28 @@ function ReservarContent() {
                           })()}
                         </div>
                         <div className="flex justify-between items-center mt-2">
-                          <span className="text-amber-500 font-black text-sm uppercase tracking-widest">A Pagar Hoy (Anticipo)</span>
+                          <span className="text-amber-500 font-black text-sm uppercase tracking-widest">
+                            {tipoReserva === 'pago_total' ? 'A Pagar Hoy (100% QR)' : tipoReserva === 'sin_adelanto' ? 'A Pagar Hoy (QR)' : 'A Pagar Hoy (Adelanto)'}
+                          </span>
                           {(() => {
                             let calcPrecioServicio = servicioSeleccionado?.precio || 0
                             if (lealtadInfo && servicioSeleccionado) calcPrecioServicio = calcPrecioServicio * (1 - lealtadInfo.descuento)
                             const calcTotalProductos = carrito.reduce((s, i) => s + (i.producto.precio_venta * i.cantidad), 0)
                             const calcDescuentoCruzado = (formData.servicio_id && carrito.length > 0) ? 10 : 0
                             const calcTotal = Math.max(0, calcPrecioServicio + calcTotalProductos - calcDescuentoCruzado)
-                            const calcAnticipo = Math.max(20, calcTotal * 0.5)
+                            let calcAnticipo = 20
+                            if (tipoReserva === 'adelanto_10') calcAnticipo = 10
+                            else if (tipoReserva === 'adelanto_20') calcAnticipo = 20
+                            else if (tipoReserva === 'pago_total') calcAnticipo = calcTotal
+                            else if (tipoReserva === 'sin_adelanto') calcAnticipo = 0
                             return <span className="font-black text-4xl text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.3)]">{formatCurrency(calcAnticipo)}</span>
                           })()}
                         </div>
-                        <p className="text-[10px] text-zinc-500 mt-4 text-center uppercase tracking-widest font-bold">Mínimo 20 Bs o el 50% del total.</p>
+                        <p className="text-[10px] text-zinc-500 mt-4 text-center uppercase tracking-widest font-bold">
+                          {tipoReserva === 'sin_adelanto'
+                            ? 'Pago pendiente en local. Tolerancia cero al retraso.'
+                            : 'Pago por QR verificado por administración.'}
+                        </p>
                       </div>
                     </div>
 

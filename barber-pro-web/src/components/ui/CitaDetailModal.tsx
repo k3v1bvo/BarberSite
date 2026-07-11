@@ -109,10 +109,17 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
             <span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Precio</span>
             <span className="text-white font-black">{formatCurrency(cita.precio)}</span>
           </div>
-          {cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 && (
+          {cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 ? (
             <div className="flex justify-between gap-4">
-              <span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Anticipo Pagado</span>
+              <span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">
+                {cita.anticipo_monto >= cita.precio ? 'Pago Completo QR' : 'Anticipo QR Pagado'}
+              </span>
               <span className="text-amber-400 font-black">{formatCurrency(cita.anticipo_monto)}</span>
+            </div>
+          ) : (
+            <div className="flex justify-between gap-4">
+              <span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Tipo de Reserva</span>
+              <span className="text-red-400 font-bold text-xs">Sin Adelanto (Paga en Local)</span>
             </div>
           )}
           <div className="flex justify-between gap-4">
@@ -318,13 +325,13 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
               )}
 
           {cita.estado === 'pendiente_pago' ? (
-             <div className="flex w-full gap-2">
+             <div className="flex flex-col sm:flex-row w-full gap-2">
                {cita.comprobante_url && (
                  <Button 
                    onClick={() => window.open(cita.comprobante_url!, '_blank')} 
                    variant="outline" 
                    size="md"
-                   className="flex-1 font-black uppercase tracking-wider text-amber-500 border-amber-500/20 hover:bg-amber-500/10"
+                   className="flex-1 font-black uppercase tracking-wider text-amber-500 border-amber-500/20 hover:bg-amber-500/10 text-xs"
                  >
                    📷 Comprobante
                  </Button>
@@ -332,7 +339,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                <Button 
                  variant="warning" 
                  size="md" 
-                 className="flex-1 font-black uppercase tracking-wider"
+                 className="flex-1 font-black uppercase tracking-wider text-xs"
                  disabled={verifying}
                  onClick={async () => {
                    setVerifying(true)
@@ -354,8 +361,37 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                    }
                  }}
                >
-                 {verifying ? 'Verificando...' : '✅ Verificar Pago'}
+                 {verifying ? '...' : '✅ Verificar Pago'}
                </Button>
+               <Button 
+                 variant="danger" 
+                 size="md" 
+                 className="flex-1 font-black uppercase tracking-wider text-xs"
+                 disabled={canceling}
+                 onClick={async () => {
+                   if (!confirm('¿Cancelar cita no pagada / no asistida? No generará ningún ingreso en caja.')) return;
+                   setCanceling(true)
+                   try {
+                     const supabase = createClient()
+                     const { error: err } = await supabase
+                       .from('citas')
+                       .update({ estado: 'cancelado', anticipo_monto: 0, updated_at: new Date().toISOString() })
+                       .eq('id', cita.id)
+                     if (err) throw err
+                     success('Cita cancelada sin ingreso registrado')
+                     if (onUpdate) onUpdate()
+                     else window.location.reload()
+                     onClose()
+                   } catch (e) {
+                     error('Error al cancelar cita')
+                   } finally {
+                     setCanceling(false)
+                   }
+                 }}
+               >
+                 ❌ Cancelar
+               </Button>
+             </div>
              </div>
           ) : (
             <Link href="/coordinador" className="w-full">
