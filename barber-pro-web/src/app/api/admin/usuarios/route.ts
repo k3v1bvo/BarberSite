@@ -97,3 +97,32 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 })
   }
 }
+
+export async function PUT(request: Request) {
+  try {
+    const adminClient = createAdminSupabaseClient()
+    if (!adminClient) {
+      return NextResponse.json({ error: 'Configuración de servidor incompleta' }, { status: 500 })
+    }
+
+    const { id, role, nombre, email } = await request.json()
+    if (!id || !role) {
+      return NextResponse.json({ error: 'ID y Rol requeridos' }, { status: 400 })
+    }
+
+    await dispatchNotification(adminClient, {
+      event: 'cambio_rol',
+      userEmail: email,
+      payload: {
+        usuarioId: id,
+        nombre: nombre || 'Usuario',
+        nuevoRol: role,
+      },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('Error notificando cambio de rol:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}

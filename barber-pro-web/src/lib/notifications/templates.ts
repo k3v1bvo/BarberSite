@@ -441,6 +441,22 @@ export function buildEmail(
         ),
       }
 
+    case 'cambio_rol':
+      return {
+        subject: `👑 Actualización de Rol en ${BRAND} — ${String(data.nuevoRol || 'USUARIO').toUpperCase()}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Actualización de Rol y Permisos!</h2>
+          <p>Hola <strong>${data.nombre || 'Usuario'}</strong>, te informamos que la Administración ha actualizado tu rol en la plataforma web de ${BRAND}.</p>
+          ${detailBox([
+            { label: 'Rol Asignado', value: String(data.nuevoRol || 'USUARIO').toUpperCase() },
+            { label: 'Fecha de Cambio', value: new Date().toLocaleDateString('es-BO') },
+          ])}
+          <p>Al iniciar sesión ahora podrás acceder a las herramientas, paneles y notificaciones correspondientes a tu nuevo rol.</p>
+          ${cta(`${SITE}/login`, 'Ingresar con mi Nuevo Rol')}`,
+          `Tu rol en ${BRAND} ha sido cambiado a ${data.nuevoRol}`
+        ),
+      }
+
     default:
       return {
         subject: `Notificación — ${BRAND}`,

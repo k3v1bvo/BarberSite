@@ -119,7 +119,21 @@ export default function UsuariosPage() {
           .eq('id', editingUser.id)
 
         if (error) throw error
-        toastSuccess('Usuario actualizado')
+
+        if (formData.role !== editingUser.role) {
+          fetch('/api/admin/usuarios', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: editingUser.id,
+              role: formData.role,
+              nombre: formData.full_name,
+              email: formData.email,
+            })
+          }).catch(console.error)
+        }
+
+        toastSuccess('Usuario y rol actualizados')
       } else {
         const response = await fetch('/api/admin/usuarios', {
           method: 'POST',

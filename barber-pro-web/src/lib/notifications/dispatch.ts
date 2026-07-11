@@ -695,6 +695,25 @@ export async function dispatchNotification(
         break
       }
 
+      case 'cambio_rol': {
+        if (p.usuarioId) {
+          await notifyUser(db, p.usuarioId as string, 'sistema', {
+            titulo: '👑 Cambio de Rol',
+            mensaje: `Tu rol en el sistema se actualizó a: ${String(p.nuevoRol || '').toUpperCase()}`,
+            tipo: 'info',
+            categoria: 'sistema',
+            link: '/perfil',
+          })
+        }
+        if (input.userEmail) {
+          await sendNotificationEmail(input.userEmail, 'cambio_rol', {
+            nombre: (p.nombre as string) || 'Usuario',
+            nuevoRol: String(p.nuevoRol || 'USUARIO'),
+          })
+        }
+        break
+      }
+
       default:
         errors.push(`Evento desconocido: ${event}`)
     }

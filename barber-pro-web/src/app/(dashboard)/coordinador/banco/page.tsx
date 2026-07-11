@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { formatCurrency } from '@/lib/utils'
 import { Landmark, Plus, X } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 interface Transaction {
   id: string; fecha: string; ci: string; nombre: string
@@ -18,6 +19,8 @@ export default function BancoPage() {
   const [showSaldoModal, setShowSaldoModal] = useState(false)
   const [nuevoSaldoReal, setNuevoSaldoReal] = useState('')
   const [saving, setSaving] = useState(false)
+  const [userRole, setUserRole] = useState<string>('')
+  const supabase = createClient()
 
   const [form, setForm] = useState({
     ci: '', nombre: '', glosa: '', costo: '',
@@ -25,10 +28,15 @@ export default function BancoPage() {
   })
 
   const loadData = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      if (profile) setUserRole(profile.role)
+    }
     const res = await fetch('/api/transactions?libro=BANCO&limit=50')
     if (res.ok) setTransactions(await res.json())
     setLoading(false)
-  }, [])
+  }, [supabase])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -59,6 +67,7 @@ export default function BancoPage() {
 
   const handleAjusteSaldo = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (userRole !== 'admin') return
     const saldoDeseado = parseFloat(nuevoSaldoReal)
     if (isNaN(saldoDeseado)) return
     const diferencia = saldoDeseado - totalBalance
@@ -128,9 +137,11 @@ export default function BancoPage() {
               </div>
             </CardContent>
           </Card>
-          <Button variant="outline" onClick={() => setShowSaldoModal(true)} className="gap-2 font-bold text-xs">
-            ⚙️ Ajustar Saldo
-          </Button>
+          {userRole === 'admin' && (
+            <Button variant="outline" onClick={() => setShowSaldoModal(true)} className="gap-2 font-bold text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
+              ⚙️ Ajustar Saldo
+            </Button>
+          )}
           <Button variant="primary" onClick={() => setShowForm(!showForm)} className="gap-2 font-black uppercase tracking-wider">
             {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             {showForm ? 'Cerrar' : 'Nuevo'}
