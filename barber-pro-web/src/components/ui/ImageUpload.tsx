@@ -21,6 +21,7 @@ export function ImageUpload({
   const [preview, setPreview] = useState<string | null>(defaultImage || null)
   const [dragActive, setDragActive] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
 
   const handleFile = async (file: File) => {
     // Validar que sea imagen
@@ -111,12 +112,7 @@ export function ImageUpload({
             onChange={handleChange}
           />
           <input 
-            ref={(el) => {
-              if (el) {
-                ;(el as any)._cameraInput = el
-              }
-            }}
-            id="camera-capture-input"
+            ref={cameraRef}
             type="file" 
             accept="image/*"
             capture="environment"
@@ -145,10 +141,7 @@ export function ImageUpload({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    const cam = document.getElementById('camera-capture-input')
-                    cam?.click()
-                  }}
+                  onClick={() => cameraRef.current?.click()}
                   className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition-colors flex items-center gap-1.5 shadow-lg shadow-amber-500/20"
                 >
                   📸 Tomar Foto

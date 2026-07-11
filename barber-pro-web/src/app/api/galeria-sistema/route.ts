@@ -109,14 +109,17 @@ export async function GET() {
     // 6. Fotos de documentos de cumpleaños
     for (const c of cumpleRes.data ?? []) {
       if (c.foto_documento_url) {
-        galeria.push({
-          id: `cumple-${c.id}`,
-          url: c.foto_documento_url,
-          label: (c as any).clientes?.nombre ?? 'Cliente',
-          categoria: 'Documentos Cumpleaños',
-          icono: '🎂',
-          meta: c.tipo_documento,
-          fecha: c.created_at,
+        const urls = c.foto_documento_url.split(' | ').map((u: string) => u.trim()).filter(Boolean)
+        urls.forEach((url: string, idx: number) => {
+          galeria.push({
+            id: `cumple-${c.id}-${idx}`,
+            url,
+            label: `${(c as any).clientes?.nombre ?? 'Cliente'}${urls.length > 1 ? (idx === 0 ? ' (Anverso)' : ' (Reverso)') : ''}`,
+            categoria: 'Documentos Cumpleaños',
+            icono: '🎂',
+            meta: `${c.tipo_documento}${urls.length > 1 ? (idx === 0 ? ' - Anverso' : ' - Reverso') : ''}`,
+            fecha: c.created_at,
+          })
         })
       }
     }

@@ -59,12 +59,18 @@ export async function POST(request: NextRequest) {
 
     if (!cliente) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
 
-    if (cliente.cumpleanos) {
-      const hoy = new Date()
-      const cumple = new Date(cliente.cumpleanos)
-      const esCumple = cumple.getMonth() === hoy.getMonth() && cumple.getDate() === hoy.getDate()
-      if (!esCumple) {
-        return NextResponse.json({ error: `Hoy no es el cumpleaños de ${cliente.nombre}` }, { status: 400 })
+    const fechaAUsar = fecha_cumpleanos || cliente.cumpleanos
+    if (fechaAUsar) {
+      const parts = String(fechaAUsar).split('T')[0].split('-')
+      if (parts.length === 3) {
+        const mesCumple = parseInt(parts[1], 10)
+        const diaCumple = parseInt(parts[2], 10)
+        const hoy = new Date()
+        const mesHoy = hoy.getMonth() + 1
+        const diaHoy = hoy.getDate()
+        if (mesCumple !== mesHoy || diaCumple !== diaHoy) {
+          return NextResponse.json({ error: `Hoy no coincide con la fecha de cumpleaños (${diaCumple}/${mesCumple}) de ${cliente.nombre}` }, { status: 400 })
+        }
       }
     }
 

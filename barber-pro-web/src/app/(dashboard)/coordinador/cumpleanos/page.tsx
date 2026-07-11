@@ -33,7 +33,7 @@ export default function CumpleanosPage() {
   const [showModal, setShowModal] = useState(false)
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ foto_documento_url: '', tipo_documento: 'carnet', promo_id: '', notas: '', fecha_cumpleanos: '' })
+  const [form, setForm] = useState({ foto_documento_url: '', foto_reverso_url: '', tipo_documento: 'carnet', promo_id: '', notas: '', fecha_cumpleanos: '' })
 
   const loadData = useCallback(async () => {
     try {
@@ -72,6 +72,7 @@ export default function CumpleanosPage() {
     setClienteSeleccionado(cliente)
     setForm({
       foto_documento_url: '',
+      foto_reverso_url: '',
       tipo_documento: 'carnet',
       promo_id: '',
       notas: '',
@@ -84,17 +85,18 @@ export default function CumpleanosPage() {
     e.preventDefault()
     if (!clienteSeleccionado) return
     if (!form.foto_documento_url) {
-      toastError('Debes subir la foto o fotocopia del carnet de identidad.')
+      toastError('Debes subir o tomar al menos la foto anverso / frontal del documento.')
       return
     }
     setSaving(true)
     try {
+      const fotoFinal = [form.foto_documento_url, form.foto_reverso_url].filter(Boolean).join(' | ') || null
       const res = await fetch('/api/cumpleanos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cliente_id: clienteSeleccionado.id,
-          foto_documento_url: form.foto_documento_url || null,
+          foto_documento_url: fotoFinal,
           tipo_documento: form.tipo_documento,
           promo_id: form.promo_id || null,
           notas: form.notas || null,
@@ -268,6 +270,20 @@ export default function CumpleanosPage() {
             </div>
 
             <form onSubmit={guardarVerificacion} className="p-6 space-y-5">
+              {/* Fecha de Cumpleaños */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 block">
+                  📅 Fecha de Cumpleaños confirmada en Documento
+                </label>
+                <input
+                  type="date"
+                  value={form.fecha_cumpleanos}
+                  onChange={e => setForm({ ...form, fecha_cumpleanos: e.target.value })}
+                  className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm outline-none focus:border-amber-500/50"
+                  required
+                />
+              </div>
+
               {/* Tipo de documento */}
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Tipo de documento presentado</label>
@@ -283,12 +299,22 @@ export default function CumpleanosPage() {
                 </div>
               </div>
 
-              {/* Foto del documento */}
+              {/* Foto Anverso del documento */}
               <div>
                 <ImageUpload
-                  label="Foto del documento (opcional)"
+                  label="1. Foto Anverso / Frente (o Fotocopia CI)"
                   defaultImage={form.foto_documento_url || undefined}
                   onUploadSuccess={(url) => setForm({ ...form, foto_documento_url: url })}
+                  onUploadError={(err) => toastError(err)}
+                />
+              </div>
+
+              {/* Foto Reverso del documento */}
+              <div>
+                <ImageUpload
+                  label="2. Foto Reverso / Dorso (Opcional)"
+                  defaultImage={form.foto_reverso_url || undefined}
+                  onUploadSuccess={(url) => setForm({ ...form, foto_reverso_url: url })}
                   onUploadError={(err) => toastError(err)}
                 />
               </div>
