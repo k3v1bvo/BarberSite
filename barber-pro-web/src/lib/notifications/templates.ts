@@ -84,6 +84,8 @@ export interface EmailTemplateInput {
   ingresosServicios?: string
   ingresosProductos?: string
   ingresoTotal?: string
+  nuevoRol?: string
+  [key: string]: any
 }
 
 export function buildEmail(
