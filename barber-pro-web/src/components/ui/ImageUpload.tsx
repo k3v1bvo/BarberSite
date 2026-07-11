@@ -110,6 +110,19 @@ export function ImageUpload({
             className="hidden" 
             onChange={handleChange}
           />
+          <input 
+            ref={(el) => {
+              if (el) {
+                ;(el as any)._cameraInput = el
+              }
+            }}
+            id="camera-capture-input"
+            type="file" 
+            accept="image/*"
+            capture="environment"
+            className="hidden" 
+            onChange={handleChange}
+          />
           
           {isUploading ? (
             <div className="flex flex-col items-center">
@@ -117,12 +130,31 @@ export function ImageUpload({
               <p className="text-sm text-gray-500 dark:text-gray-400">Subiendo imagen...</p>
             </div>
           ) : (
-            <div className="flex flex-col items-center text-center p-4">
-              <UploadCloud className="w-10 h-10 text-gray-400 mb-2" />
+            <div className="flex flex-col items-center text-center p-4 space-y-3">
+              <UploadCloud className="w-10 h-10 text-gray-400" />
               <p className="text-sm text-gray-600 dark:text-gray-300">
-                <span className="font-semibold text-blue-600 dark:text-blue-400">Haz clic para subir</span> o arrastra y suelta
+                <span className="font-semibold text-amber-500">Seleccionar imagen</span> o tomar foto ahora
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">PNG, JPG, GIF hasta 10MB</p>
+              <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => inputRef.current?.click()}
+                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 border border-white/10"
+                >
+                  📁 Galería
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cam = document.getElementById('camera-capture-input')
+                    cam?.click()
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition-colors flex items-center gap-1.5 shadow-lg shadow-amber-500/20"
+                >
+                  📸 Tomar Foto
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400">PNG, JPG hasta 10MB</p>
             </div>
           )}
         </div>

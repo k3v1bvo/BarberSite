@@ -42,11 +42,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { cliente_id, foto_documento_url, tipo_documento, promo_id, notas } = body
+    const { cliente_id, foto_documento_url, tipo_documento, promo_id, notas, fecha_cumpleanos } = body
 
     if (!cliente_id) return NextResponse.json({ error: 'cliente_id requerido' }, { status: 400 })
 
-    // Verificar que el cliente existe y que HOY es su cumpleaños
+    if (fecha_cumpleanos) {
+      await supabase.from('clientes').update({ cumpleanos: fecha_cumpleanos }).eq('id', cliente_id)
+    }
+
+    // Verificar que el cliente existe
     const { data: cliente } = await supabase
       .from('clientes')
       .select('id, nombre, cumpleanos')

@@ -19,11 +19,14 @@ const CATEGORIA_COLORES: Record<string, string> = {
   'Productos': 'border-green-500/30 bg-green-500/5',
   'Avatares': 'border-zinc-400/30 bg-zinc-800/50',
   'Documentos Cumpleaños': 'border-orange-500/30 bg-orange-500/5',
+  'Comprobantes Financieros': 'border-emerald-500/30 bg-emerald-500/5',
+  'Comprobantes Servicios': 'border-cyan-500/30 bg-cyan-500/5',
 }
 
 const BADGE_VARIANT: Record<string, any> = {
   'Sistema': 'warning', 'Portafolio': 'info', 'Equipo': 'default',
   'Productos': 'success', 'Avatares': 'default', 'Documentos Cumpleaños': 'danger',
+  'Comprobantes Financieros': 'success', 'Comprobantes Servicios': 'info',
 }
 
 export default function GaleriaPage() {

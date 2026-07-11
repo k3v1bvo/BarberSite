@@ -15,6 +15,8 @@ export default function BancoPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [showSaldoModal, setShowSaldoModal] = useState(false)
+  const [nuevoSaldoReal, setNuevoSaldoReal] = useState('')
   const [saving, setSaving] = useState(false)
 
   const [form, setForm] = useState({
@@ -50,6 +52,39 @@ export default function BancoPage() {
     if (res.ok) {
       setShowForm(false)
       setForm({ ci: '', nombre: '', glosa: '', costo: '', tipo_movimiento: 'DEPOSITO' })
+      loadData()
+    }
+    setSaving(false)
+  }
+
+  const handleAjusteSaldo = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const saldoDeseado = parseFloat(nuevoSaldoReal)
+    if (isNaN(saldoDeseado)) return
+    const diferencia = saldoDeseado - totalBalance
+    if (Math.abs(diferencia) < 0.01) {
+      setShowSaldoModal(false)
+      return
+    }
+    setSaving(true)
+    const res = await fetch('/api/transactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        libro: 'BANCO',
+        ci: '000000',
+        nombre: 'SISTEMA ADMINISTRATIVO',
+        cuenta_codigo: '1.1.1.4.1',
+        cuenta_detalle: 'Caja de ahorro M.N. BANCO GANADERO (AJUSTE REAL)',
+        glosa: `Ajuste de Saldo Inicial / Conciliación Bancaria a ${formatCurrency(saldoDeseado)}`,
+        costo: Math.abs(diferencia),
+        tipo_movimiento: diferencia > 0 ? 'DEPOSITO' : 'RETIRO',
+        metodo_pago: 'qr',
+      }),
+    })
+    if (res.ok) {
+      setShowSaldoModal(false)
+      setNuevoSaldoReal('')
       loadData()
     }
     setSaving(false)
@@ -93,12 +128,52 @@ export default function BancoPage() {
               </div>
             </CardContent>
           </Card>
+          <Button variant="outline" onClick={() => setShowSaldoModal(true)} className="gap-2 font-bold text-xs">
+            ⚙️ Ajustar Saldo
+          </Button>
           <Button variant="primary" onClick={() => setShowForm(!showForm)} className="gap-2 font-black uppercase tracking-wider">
             {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             {showForm ? 'Cerrar' : 'Nuevo'}
           </Button>
         </div>
       </div>
+
+      {showSaldoModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-lg font-black text-white uppercase tracking-tight mb-2">
+              ⚙️ Ajustar Saldo Real del Banco
+            </h3>
+            <p className="text-xs text-zinc-400 mb-4">
+              Ingresa el saldo real en tu cuenta del Banco Ganadero. El sistema creará un asiento de ajuste automático para que coincida exactamente.
+            </p>
+            <form onSubmit={handleAjusteSaldo} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
+                  Nuevo Saldo Real (Bs)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Ej: 15400.00"
+                  value={nuevoSaldoReal}
+                  onChange={(e) => setNuevoSaldoReal(e.target.value)}
+                  className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-blue-500/50 outline-none"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setShowSaldoModal(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="primary" disabled={saving}>
+                  {saving ? 'Guardando...' : 'Confirmar Ajuste'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <Card className="border-blue-500/30 bg-zinc-900/80 animate-in slide-in-from-top-2 duration-300">

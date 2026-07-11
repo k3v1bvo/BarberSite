@@ -16,6 +16,7 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
+import { OrdenLlegadaBarberos } from './OrdenLlegadaBarberos'
 import { DashboardBreadcrumb } from './DashboardBreadcrumb'
 import { useSidebar } from '@/components/providers/SidebarProvider'
 import {
@@ -164,6 +165,7 @@ export function Navbar() {
         <div className="flex items-center gap-4">
           {user ? (
             <>
+              {['barbero', 'admin', 'coordinador'].includes(user.role) && <OrdenLlegadaBarberos />}
               <CampanaNotificaciones userId={user.id || ''} userRole={user.role} />
               
               <div className="h-8 w-px bg-white/10 mx-2" />

@@ -73,6 +73,8 @@ export default function BarberoPage() {
   const [walkinMontoRecibido, setWalkinMontoRecibido] = useState<string>('')
   const [selectedCita, setSelectedCita] = useState<Cita | null>(null)
   const [metaServicios, setMetaServicios] = useState<number>(30)
+  const [maxServiciosMes, setMaxServiciosMes] = useState<number>(0)
+  const [misServiciosMes, setMisServiciosMes] = useState<number>(0)
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -288,6 +290,31 @@ export default function BarberoPage() {
 
       setStats({ hoy: hoyStats, semana: semanaStats })
       setCitas(transformedCitas)
+
+      // Calcular récord del mes (meta a superar del mes anónima)
+      try {
+        const hoyDate = new Date()
+        const primerDiaMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), 1).toISOString()
+        const { data: mesData } = await supabase
+          .from('citas')
+          .select('barbero_id')
+          .eq('estado', 'completada')
+          .gte('fecha_hora', primerDiaMes)
+
+        if (mesData) {
+          const conteoPorBarbero: Record<string, number> = {}
+          mesData.forEach(c => {
+            if (c.barbero_id) {
+              conteoPorBarbero[c.barbero_id] = (conteoPorBarbero[c.barbero_id] || 0) + 1
+            }
+          })
+          const conteos = Object.values(conteoPorBarbero)
+          setMaxServiciosMes(conteos.length > 0 ? Math.max(...conteos) : 0)
+          setMisServiciosMes(conteoPorBarbero[user.id] || 0)
+        }
+      } catch (err) {
+        console.error('Error fetching meta mes', err)
+      }
       
       // Fetch finanzas (Adelantos, Sanciones, Bonos pendientes)
       try {
@@ -521,6 +548,35 @@ export default function BarberoPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Récord Mensual Anónimo (Meta a Vencer del Mes) */}
+      <Card className="bg-gradient-to-r from-zinc-900 via-amber-950/20 to-zinc-900 border-amber-500/20 shadow-2xl relative overflow-hidden">
+        <CardContent className="p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-3xl shrink-0">
+              🏆
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/30 text-[10px] uppercase font-black tracking-widest">
+                  Récord del Mes
+                </Badge>
+                <span className="text-[11px] text-zinc-500 font-bold uppercase">Se actualiza cada 1 del mes</span>
+              </div>
+              <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">
+                Meta Mensual a Vencer: <span className="text-amber-400">{maxServiciosMes} Servicios</span>
+              </h3>
+              <p className="text-zinc-400 text-sm mt-1">
+                Llevas <span className="font-bold text-white">{misServiciosMes} servicios</span> este mes. {maxServiciosMes > misServiciosMes ? `¡Estás a ${maxServiciosMes - misServiciosMes} servicios del récord actual!` : '¡Actualmente estás liderando la meta de servicios del mes!'}
+              </p>
+            </div>
+          </div>
+          <div className="text-center md:text-right shrink-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Récord Actual</p>
+            <p className="text-4xl font-black text-amber-400 tracking-tighter mt-0.5">{maxServiciosMes}</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Meta de la Semana (Progress) */}
       <Card className="bg-gradient-to-r from-zinc-900 to-black border-white/5 shadow-2xl relative overflow-hidden group">

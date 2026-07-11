@@ -33,7 +33,7 @@ export default function CumpleanosPage() {
   const [showModal, setShowModal] = useState(false)
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ foto_documento_url: '', tipo_documento: 'carnet', promo_id: '', notas: '' })
+  const [form, setForm] = useState({ foto_documento_url: '', tipo_documento: 'carnet', promo_id: '', notas: '', fecha_cumpleanos: '' })
 
   const loadData = useCallback(async () => {
     try {
@@ -70,13 +70,23 @@ export default function CumpleanosPage() {
 
   const abrirVerificacion = (cliente: Cliente) => {
     setClienteSeleccionado(cliente)
-    setForm({ foto_documento_url: '', tipo_documento: 'carnet', promo_id: '', notas: '' })
+    setForm({
+      foto_documento_url: '',
+      tipo_documento: 'carnet',
+      promo_id: '',
+      notas: '',
+      fecha_cumpleanos: cliente.cumpleanos || new Date().toISOString().split('T')[0]
+    })
     setShowModal(true)
   }
 
   const guardarVerificacion = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!clienteSeleccionado) return
+    if (!form.foto_documento_url) {
+      toastError('Debes subir la foto o fotocopia del carnet de identidad.')
+      return
+    }
     setSaving(true)
     try {
       const res = await fetch('/api/cumpleanos', {
@@ -88,6 +98,7 @@ export default function CumpleanosPage() {
           tipo_documento: form.tipo_documento,
           promo_id: form.promo_id || null,
           notas: form.notas || null,
+          fecha_cumpleanos: form.fecha_cumpleanos
         }),
       })
       const data = await res.json()
