@@ -731,11 +731,11 @@ export function CajaPOS() {
 
           <div className="hidden sm:block h-7 w-px bg-zinc-800 mx-1"></div>
 
-          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+          <div className="grid grid-cols-5 sm:flex sm:flex-row items-center gap-1.5 w-full sm:w-auto mt-2 sm:mt-0">
             <Button 
               size="sm" 
               variant={tiempoMinimoReserva === 0 ? 'primary' : 'outline'}
-              className="h-8 text-[10px] px-2.5 font-black uppercase tracking-wider flex-1 sm:flex-none justify-center"
+              className="h-8 text-[10px] px-0 sm:px-2.5 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
               disabled={updatingTiempo}
               onClick={() => handleSaveTiempo(0)}
               title="Sin Límite"
@@ -745,7 +745,7 @@ export function CajaPOS() {
             <Button 
               size="sm" 
               variant={tiempoMinimoReserva === 60 ? 'primary' : 'outline'}
-              className="h-8 text-[10px] px-2.5 font-black flex-1 sm:flex-none justify-center"
+              className="h-8 text-[10px] px-0 sm:px-2.5 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
               disabled={updatingTiempo}
               onClick={() => handleSaveTiempo(60)}
             >
@@ -754,7 +754,7 @@ export function CajaPOS() {
             <Button 
               size="sm" 
               variant={tiempoMinimoReserva === 120 ? 'primary' : 'outline'}
-              className="h-8 text-[10px] px-2.5 font-black flex-1 sm:flex-none justify-center"
+              className="h-8 text-[10px] px-0 sm:px-2.5 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
               disabled={updatingTiempo}
               onClick={() => handleSaveTiempo(120)}
             >
@@ -763,17 +763,17 @@ export function CajaPOS() {
             <Button 
               size="sm" 
               variant={tiempoMinimoReserva === 180 ? 'primary' : 'outline'}
-              className="h-8 text-[10px] px-2.5 font-black flex-1 sm:flex-none justify-center"
+              className="h-8 text-[10px] px-0 sm:px-2.5 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
               disabled={updatingTiempo}
               onClick={() => handleSaveTiempo(180)}
             >
               3 hrs
             </Button>
 
-            <div className="flex items-center bg-zinc-950 border border-white/10 rounded-xl overflow-hidden h-8 w-full sm:w-auto mt-1 sm:mt-0">
+            <div className="flex items-center bg-zinc-950 border border-white/10 rounded-xl overflow-hidden h-8 w-full sm:w-auto col-span-1">
               <input 
                 type="number" 
-                className="w-full sm:w-14 h-full bg-transparent text-center text-xs text-white font-bold outline-none px-2" 
+                className="w-full sm:w-14 h-full bg-transparent text-center text-xs text-white font-bold outline-none px-1 sm:px-2" 
                 placeholder="Min" 
                 min="0"
                 onKeyDown={(e) => {
@@ -784,7 +784,7 @@ export function CajaPOS() {
                 }}
               />
               <button 
-                className="px-3 h-full bg-amber-500 text-black hover:bg-amber-400 transition font-black flex items-center justify-center shrink-0" 
+                className="px-2 sm:px-3 h-full bg-amber-500 text-black hover:bg-amber-400 transition font-black flex items-center justify-center shrink-0" 
                 onClick={(e) => {
                   const input = e.currentTarget.previousElementSibling as HTMLInputElement
                   const val = parseInt(input.value)

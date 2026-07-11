@@ -6,32 +6,48 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
-import { AlertTriangle, Plus, X, User, Phone, Mail } from 'lucide-react'
+import { AlertTriangle, Plus, X, User, Phone, Mail, CheckCircle } from 'lucide-react'
+import { useToast } from '@/components/ui/Toast'
 
 interface PlanCuenta { codigo: string; detalle: string; es_sancion: boolean }
 interface Barbero { id: string; full_name: string; role: string; avatar_url: string | null; phone: string | null; email: string }
 interface Sancion {
-  id: string; fecha: string; ci: string; nombre: string
-  cuenta_detalle: string; glosa: string; costo: number
-  empleado_id: string | null; creado_en: string
+  id: string; 
+  fecha: string; 
+  barbero_id: string;
+  empleado?: { full_name: string };
+  tipo: string; 
+  descripcion: string; 
+  monto: number;
+  estado: string;
+  creado_en: string;
+  pagado_at?: string;
 }
 
 export default function SancionesPage() {
   const supabase = createClient()
+  const { success, error } = useToast()
+  
   const [sanciones, setSanciones] = useState<Sancion[]>([])
   const [cuentasSancion, setCuentasSancion] = useState<PlanCuenta[]>([])
   const [barberos, setBarberos] = useState<Barbero[]>([])
+  
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [form, setForm] = useState({
-    empleado_id: '', ci: '', nombre: '', cuenta_codigo: '',
-    glosa: '', costo: '',
+    empleado_id: '', cuenta_codigo: '', glosa: '', costo: '',
   })
+  
   const [showNewMotivo, setShowNewMotivo] = useState(false)
   const [newMotivoName, setNewMotivoName] = useState('')
   const [savingMotivo, setSavingMotivo] = useState(false)
+
+  // Payment state
+  const [cobrandoId, setCobrandoId] = useState<string | null>(null)
+  const [metodoPago, setMetodoPago] = useState('efectivo')
+  const [isCobrando, setIsCobrando] = useState(false)
 
   const handleCreateMotivo = async () => {
     if (!newMotivoName.trim()) return
@@ -53,66 +69,78 @@ export default function SancionesPage() {
       setForm(prev => ({ ...prev, cuenta_codigo: created.codigo }))
       setShowNewMotivo(false)
       setNewMotivoName('')
+      success('Motivo creado correctamente')
+    } else {
+      error('Error al crear motivo')
     }
     setSavingMotivo(false)
   }
 
   const loadData = useCallback(async () => {
-    const [txRes, ctasRes] = await Promise.all([
-      fetch('/api/transactions?sancion=true&limit=50'),
-      fetch('/api/plan-cuentas'),
-    ])
-    if (txRes.ok) setSanciones(await txRes.json())
-    if (ctasRes.ok) {
-      const all = await ctasRes.json()
-      setCuentasSancion(all.filter((c: PlanCuenta) => c.es_sancion))
+    const res = await fetch('/api/sanciones')
+    if (res.ok) {
+      const data = await res.json()
+      setSanciones(data.sanciones || [])
+      setCuentasSancion(data.catalogo || [])
+      setBarberos(data.barberos || [])
     }
-
-    const { data: bList } = await supabase
-      .from('profiles')
-      .select('id, full_name, role, avatar_url, phone, email')
-      .in('role', ['barbero', 'coordinador'])
-      .eq('is_active', true)
-    if (bList) setBarberos(bList)
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => { loadData() }, [loadData])
-
-  const handleBarberoChange = (id: string) => {
-    const b = barberos.find((b) => b.id === id)
-    setForm({ ...form, empleado_id: id, nombre: b?.full_name || '' })
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
     const cuenta = cuentasSancion.find((c) => c.codigo === form.cuenta_codigo)
-    const res = await fetch('/api/transactions', {
+    const res = await fetch('/api/sanciones', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        libro: 'CAJA_CHICA',
-        ci: form.ci, nombre: form.nombre,
+        barbero_id: form.empleado_id,
         cuenta_codigo: form.cuenta_codigo,
         cuenta_detalle: cuenta?.detalle || form.cuenta_codigo,
         glosa: form.glosa,
-        costo: parseFloat(form.costo),
-        tipo_movimiento: 'SANCCION',
-        es_sancion: true,
-        empleado_id: form.empleado_id || null,
+        monto: parseFloat(form.costo),
       }),
     })
+    
     if (res.ok) {
+      success('Sanción registrada correctamente (Deuda)')
       setShowForm(false)
-      setForm({ empleado_id: '', ci: '', nombre: '', cuenta_codigo: '', glosa: '', costo: '' })
+      setForm({ empleado_id: '', cuenta_codigo: '', glosa: '', costo: '' })
       loadData()
+    } else {
+      error('Error al registrar sanción')
     }
     setSaving(false)
   }
 
+  const handleCobrar = async (id: string) => {
+    setIsCobrando(true)
+    const res = await fetch('/api/sanciones', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id,
+        metodo_pago: metodoPago,
+      }),
+    })
+    
+    if (res.ok) {
+      success('Sanción cobrada exitosamente. Ingreso registrado en Caja.')
+      setCobrandoId(null)
+      loadData()
+    } else {
+      const data = await res.json()
+      error(data.error || 'Error al cobrar sanción')
+    }
+    setIsCobrando(false)
+  }
+
   const selectedBarbero = barberos.find(b => b.id === form.empleado_id)
-  const totalSanciones = sanciones.reduce((s, t) => s + Number(t.costo), 0)
+  const pendientes = sanciones.filter(s => s.estado === 'pendiente')
+  const totalSanciones = pendientes.reduce((s, t) => s + Number(t.monto), 0)
 
   if (loading) {
     return <div className="flex items-center justify-center h-96"><div className="w-12 h-12 border-4 border-zinc-700 border-t-red-500 rounded-full animate-spin" /></div>
@@ -132,14 +160,14 @@ export default function SancionesPage() {
             <CardContent className="px-4 py-3 flex items-center gap-3">
               <AlertTriangle className="w-5 h-5 text-red-500" />
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Total</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Total Pendiente</p>
                 <p className="text-lg font-black text-red-400">{formatCurrency(totalSanciones)}</p>
               </div>
             </CardContent>
           </Card>
           <Button variant="primary" onClick={() => setShowForm(!showForm)} className="gap-2 font-black uppercase tracking-wider bg-red-500 hover:bg-red-400">
             {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {showForm ? 'Cerrar' : 'Nueva'}
+            {showForm ? 'Cancelar' : 'Nueva'}
           </Button>
         </div>
       </div>
@@ -168,17 +196,13 @@ export default function SancionesPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Empleado</label>
-                  <select value={form.empleado_id} onChange={(e) => handleBarberoChange(e.target.value)} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-red-500/50 outline-none appearance-none" required>
+                  <select value={form.empleado_id} onChange={(e) => setForm({ ...form, empleado_id: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-red-500/50 outline-none appearance-none" required>
                     <option value="">Seleccionar...</option>
                     {barberos.map((b) => <option key={b.id} value={b.id}>{b.full_name}</option>)}
                   </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">C.I.</label>
-                  <input value={form.ci} onChange={(e) => setForm({ ...form, ci: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-red-500/50 outline-none" required />
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -195,7 +219,7 @@ export default function SancionesPage() {
                     <div className="flex gap-2">
                       <input
                         type="text"
-                        placeholder="Ej: Uniforme incompleto..."
+                        placeholder="Ej: Uniforme..."
                         value={newMotivoName}
                         onChange={(e) => setNewMotivoName(e.target.value)}
                         className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs text-white outline-none focus:border-red-500"
@@ -224,9 +248,11 @@ export default function SancionesPage() {
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Monto (Bs)</label>
                   <input type="number" step="0.01" min="0" value={form.costo} onChange={(e) => setForm({ ...form, costo: e.target.value })} className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-red-500/50 outline-none" required />
                 </div>
-                <div className="flex items-end">
-                  <Button type="submit" variant="primary" disabled={saving} className="w-full h-11 font-black uppercase tracking-wider bg-red-500 hover:bg-red-400">{saving ? 'Guardando...' : 'Registrar Sanción'}</Button>
-                </div>
+              </div>
+              <div className="flex justify-end mt-4">
+                <Button type="submit" variant="primary" disabled={saving} className="h-11 font-black uppercase tracking-wider bg-red-500 hover:bg-red-400 px-8">
+                  {saving ? 'Guardando...' : 'Registrar Sanción (Deuda)'}
+                </Button>
               </div>
             </form>
           </CardContent>
@@ -244,19 +270,55 @@ export default function SancionesPage() {
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Motivo</th>
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Detalle</th>
                   <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">Monto</th>
+                  <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center">Estado / Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {sanciones.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-zinc-600">No hay sanciones registradas</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-12 text-center text-zinc-600">No hay sanciones registradas</td></tr>
                 ) : (
                   sanciones.map((tx) => (
                     <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{tx.fecha}</td>
-                      <td className="px-4 py-3 text-white font-bold">{tx.nombre}</td>
-                      <td className="px-4 py-3"><Badge variant="danger" className="text-[10px] uppercase">{tx.cuenta_detalle}</Badge></td>
-                      <td className="px-4 py-3 text-zinc-300">{tx.glosa}</td>
-                      <td className="px-4 py-3 text-right font-black text-red-400">{formatCurrency(tx.costo)}</td>
+                      <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">
+                        {tx.creado_en ? new Date(tx.creado_en).toLocaleDateString('es-BO') : ''}
+                      </td>
+                      <td className="px-4 py-3 text-white font-bold">{tx.empleado?.full_name || 'Desconocido'}</td>
+                      <td className="px-4 py-3"><Badge variant="danger" className="text-[10px] uppercase">{tx.tipo}</Badge></td>
+                      <td className="px-4 py-3 text-zinc-300">{tx.descripcion}</td>
+                      <td className="px-4 py-3 text-right font-black text-red-400">{formatCurrency(tx.monto)}</td>
+                      <td className="px-4 py-3 flex justify-center">
+                        {tx.estado === 'pendiente' ? (
+                          cobrandoId === tx.id ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <select 
+                                value={metodoPago} 
+                                onChange={(e) => setMetodoPago(e.target.value)}
+                                className="h-8 bg-zinc-950 border border-white/10 rounded text-xs px-2 text-white"
+                              >
+                                <option value="efectivo">Efectivo</option>
+                                <option value="qr">QR / Banco</option>
+                              </select>
+                              <div className="flex gap-1">
+                                <Button size="sm" variant="primary" className="bg-emerald-600 hover:bg-emerald-500 text-[10px] h-7 px-2" onClick={() => handleCobrar(tx.id)} disabled={isCobrando}>
+                                  {isCobrando ? '...' : 'Confirmar'}
+                                </Button>
+                                <Button size="sm" variant="outline" className="text-[10px] h-7 px-2" onClick={() => setCobrandoId(null)}>
+                                  X
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button size="sm" variant="outline" className="text-amber-500 border-amber-500/20 hover:bg-amber-500/10 text-[10px] h-8" onClick={() => setCobrandoId(tx.id)}>
+                              COBRAR
+                            </Button>
+                          )
+                        ) : (
+                          <Badge variant="outline" className="text-emerald-500 border-emerald-500/20 bg-emerald-500/10 text-[10px] flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            {tx.estado === 'aplicada' ? 'Descontada' : 'Pagada'}
+                          </Badge>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}

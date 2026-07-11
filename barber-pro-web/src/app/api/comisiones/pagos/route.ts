@@ -121,24 +121,28 @@ export async function POST(req: Request) {
       .in('id', bonos_ids)
   }
 
-  // Insertar EGRESO en la caja por el pago real neto de comisiones
+  // Insertar EGRESO en la caja por el pago bruto y los INGRESOS por descuentos
   const { data: adminProfile } = await supabase.from('profiles').select('full_name').eq('id', currentUserId).single()
   const { data: barberoProfile } = await supabase.from('profiles').select('full_name').eq('id', barbero_id).single()
   
-  if (monto_total > 0) {
+  if (monto_total > 0 || total_sanciones > 0 || Number(descuento_adelanto) > 0) {
     const fechaActual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
     const mpLower = String(metodo_pago || 'efectivo').toLowerCase()
     const esDigital = ['qr', 'transferencia', 'banco', 'tarjeta'].includes(mpLower)
+    const libroCaja = mpLower === 'efectivo' ? 'CAJA_CHICA' : 'BANCO'
 
+    const monto_bruto_pago = comision_bruta + total_bonos
+
+    // 1. EGRESO por el Total Bruto de la comisión
     const { error: egresoError } = await supabase.from('transactions').insert({
-      libro: mpLower === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
+      libro: libroCaja,
       fecha: fechaActual,
       ci: '0000000',
       nombre: `Pago Comisiones a ${barberoProfile?.full_name || 'Barbero'}`,
       cuenta_codigo: 'EGR-COM',
       cuenta_detalle: 'Pago de Comisiones / Sueldos',
-      glosa: `Pago ${periodo_tipo} del ${fecha_inicio} al ${fecha_fin}. (Pago ID: ${pago.id})`,
-      costo: monto_total,
+      glosa: `Pago bruto ${periodo_tipo} del ${fecha_inicio} al ${fecha_fin}. (Pago ID: ${pago.id})`,
+      costo: monto_bruto_pago,
       tipo_movimiento: 'EGRESO',
       es_sancion: false,
       empleado_id: barbero_id,
@@ -153,22 +157,62 @@ export async function POST(req: Request) {
       console.error("Error al registrar egreso de comisión en caja:", egresoError)
     }
 
-    // También registrar explícitamente en la tabla de egresos
+    // 2. INGRESO por Sanciones cobradas (si hay)
+    if (total_sanciones > 0) {
+      const { error: ingSancionError } = await supabase.from('transactions').insert({
+        libro: libroCaja,
+        fecha: fechaActual,
+        ci: '0000000',
+        nombre: `Cobro Sanción a ${barberoProfile?.full_name || 'Barbero'}`,
+        cuenta_codigo: 'ING-SANCION',
+        cuenta_detalle: 'Recuperación por Sanción',
+        glosa: `Descuento automático de sanción en pago ID: ${pago.id}`,
+        costo: total_sanciones,
+        tipo_movimiento: 'INGRESO',
+        es_sancion: false,
+        empleado_id: barbero_id,
+        metodo_pago: mpLower,
+        usuario_registro: adminProfile?.full_name || 'Sistema',
+      })
+      if (ingSancionError) console.error("Error ingreso sanción:", ingSancionError)
+    }
+
+    // 3. INGRESO por Adelantos cobrados (si hay)
+    if (Number(descuento_adelanto) > 0) {
+      const { error: ingAdelantoError } = await supabase.from('transactions').insert({
+        libro: libroCaja,
+        fecha: fechaActual,
+        ci: '0000000',
+        nombre: `Devolución Adelanto de ${barberoProfile?.full_name || 'Barbero'}`,
+        cuenta_codigo: 'ACT-001', // O el que usen para adelantos
+        cuenta_detalle: 'Devolución de Adelanto',
+        glosa: `Descuento automático de adelanto en pago ID: ${pago.id}`,
+        costo: Number(descuento_adelanto),
+        tipo_movimiento: 'INGRESO',
+        es_sancion: false,
+        empleado_id: barbero_id,
+        metodo_pago: mpLower,
+        usuario_registro: adminProfile?.full_name || 'Sistema',
+      })
+      if (ingAdelantoError) console.error("Error ingreso adelanto:", ingAdelantoError)
+    }
+
+    // También registrar explícitamente en la tabla de egresos el monto bruto
     const { error: egrTablaError } = await supabase.from('egresos').insert({
       fecha: fechaActual,
       concepto: `Pago de Comisiones / Sueldo (${periodo_tipo})`,
       proveedor: barberoProfile?.full_name || 'Barbero',
-      monto_bruto: monto_total,
+      monto_bruto: monto_bruto_pago,
       tiene_factura: false,
       iva: 0,
       it: 0,
-      monto_neto: monto_total,
+      monto_neto: monto_bruto_pago,
       cuenta_codigo: 'EGR-COM',
       metodo_pago: mpLower,
-      monto_efectivo: mpLower === 'efectivo' ? monto_total : (mpLower === 'mixto' ? Number(body.monto_efectivo) || 0 : 0),
-      monto_qr: esDigital ? monto_total : (mpLower === 'mixto' ? Number(body.monto_qr) || 0 : 0),
+      monto_efectivo: mpLower === 'efectivo' ? monto_bruto_pago : (mpLower === 'mixto' ? Number(body.monto_efectivo) || 0 : 0),
+      monto_qr: esDigital ? monto_bruto_pago : (mpLower === 'mixto' ? Number(body.monto_qr) || 0 : 0),
       usuario_registro: adminProfile?.full_name || 'Sistema',
-      notas: `Pago ${periodo_tipo} del ${fecha_inicio} al ${fecha_fin}. (Pago ID: ${pago.id})`,
+      notas: `Pago ${periodo_tipo} del ${fecha_inicio} al ${fecha_fin}. Bruto: ${monto_bruto_pago}, Sanción: ${total_sanciones}, Adelanto: ${descuento_adelanto}. Neto entregado: ${monto_total}.`,
     })
 
     if (egrTablaError) {
