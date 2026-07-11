@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Images, ExternalLink, RefreshCw, ZoomIn, X, Search } from 'lucide-react'
+import { Images, ExternalLink, RefreshCw, ZoomIn, X, Search, ShieldAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 
 interface ImagenSistema {
   id: string; url: string; label: string; categoria: string
@@ -39,9 +40,28 @@ export default function GaleriaPage() {
   const [imagenZoom, setImagenZoom] = useState<ImagenSistema | null>(null)
   const [errores, setErrores] = useState<Set<string>>(new Set())
 
+  const [rolPermitido, setRolPermitido] = useState<boolean | null>(null)
+  const supabase = createClient()
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+        if (profile && ['admin', 'coordinador'].includes(profile.role)) {
+          setRolPermitido(true)
+        } else {
+          setRolPermitido(false)
+          setLoading(false)
+          return
+        }
+      } else {
+        setRolPermitido(false)
+        setLoading(false)
+        return
+      }
+
       const res = await fetch('/api/galeria-sistema')
       if (res.ok) {
         const data = await res.json()
@@ -52,7 +72,7 @@ export default function GaleriaPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [supabase])
 
   useEffect(() => { load() }, [load])
 
@@ -69,6 +89,18 @@ export default function GaleriaPage() {
       <div className="flex flex-col items-center justify-center h-96">
         <div className="w-12 h-12 border-4 border-zinc-700 border-t-amber-500 rounded-full animate-spin mb-4" />
         <p className="text-zinc-500 text-xs font-black uppercase tracking-widest">Cargando galería...</p>
+      </div>
+    )
+  }
+
+  if (rolPermitido === false) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 text-center p-6">
+        <ShieldAlert className="w-16 h-16 text-red-500 mb-4" />
+        <h2 className="text-xl font-black text-white uppercase tracking-tight">Acceso Restringido</h2>
+        <p className="text-zinc-400 text-sm mt-2 max-w-md">
+          La Galería Completa de Comprobantes y Sistema es confidencial y está restringida únicamente para los roles <span className="text-amber-400 font-bold">Administrador</span> y <span className="text-amber-400 font-bold">Coordinador</span>.
+        </p>
       </div>
     )
   }
