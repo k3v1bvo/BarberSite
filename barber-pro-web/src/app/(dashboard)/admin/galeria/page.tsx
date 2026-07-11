@@ -11,6 +11,10 @@ import { createClient } from '@/lib/supabase/client'
 interface ImagenSistema {
   id: string; url: string; label: string; categoria: string
   icono: string; meta: string | null; fecha: string | null
+  barberoNombre?: string
+  clienteNombre?: string
+  monto?: number | string
+  tipoMovimiento?: string
 }
 
 const CATEGORIA_COLORES: Record<string, string> = {
@@ -212,53 +216,104 @@ export default function GaleriaPage() {
 
       {/* Lightbox / Zoom */}
       {imagenZoom && (
-        <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setImagenZoom(null)}>
-          <div className="relative max-w-4xl w-full max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            {/* Close */}
-            <button
-              onClick={() => setImagenZoom(null)}
-              className="absolute -top-12 right-0 w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-            >
-              <X size={18} />
-            </button>
-
-            {/* Imagen grande */}
-            <div className="bg-zinc-900 rounded-3xl overflow-hidden border border-white/10">
-              <img
-                src={imagenZoom.url}
-                alt={imagenZoom.label}
-                className="w-full max-h-[70vh] object-contain"
-              />
-              {/* Info */}
-              <div className="p-5 flex items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <span className="text-2xl">{imagenZoom.icono}</span>
-                    <div>
-                      <p className="font-black text-white uppercase">{imagenZoom.label}</p>
-                      {imagenZoom.meta && <p className="text-zinc-400 text-sm">{imagenZoom.meta}</p>}
-                    </div>
-                    <Badge variant={BADGE_VARIANT[imagenZoom.categoria] ?? 'default'} className="text-[9px] uppercase">{imagenZoom.categoria}</Badge>
-                  </div>
-                  {imagenZoom.fecha && (
-                    <p className="text-zinc-600 text-xs font-mono">{new Date(imagenZoom.fecha).toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                  )}
+        <div
+          className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-3 sm:p-6 backdrop-blur-md overflow-y-auto"
+          onClick={() => setImagenZoom(null)}
+        >
+          <div
+            className="relative max-w-3xl w-full bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[90vh]"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header del modal */}
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-zinc-900/90 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-2xl shrink-0">{imagenZoom.icono}</span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-black text-white uppercase truncate">
+                    {imagenZoom.label}
+                  </h3>
+                  <p className="text-[11px] text-amber-400 font-bold uppercase tracking-wider">
+                    {imagenZoom.tipoMovimiento || imagenZoom.categoria}
+                  </p>
                 </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
                 <a
                   href={imagenZoom.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-white text-sm font-bold transition-colors"
-                  onClick={e => e.stopPropagation()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-white text-xs font-bold transition-colors"
                 >
-                  <ExternalLink size={14} /> Abrir original
+                  <ExternalLink size={13} /> Original
                 </a>
+                <button
+                  onClick={() => setImagenZoom(null)}
+                  className="w-8 h-8 bg-white/10 rounded-xl flex items-center justify-center text-white hover:bg-red-500 transition-colors"
+                >
+                  <X size={16} />
+                </button>
               </div>
             </div>
 
-            {/* URL pequeña */}
-            <div className="mt-3 px-3 py-2 bg-zinc-900/80 rounded-xl border border-white/5">
-              <p className="text-zinc-500 text-[10px] font-mono break-all">{imagenZoom.url}</p>
+            {/* Contenedor de Imagen adaptado para que NUNCA se desborde */}
+            <div className="flex-1 min-h-0 bg-black/60 flex items-center justify-center p-3 overflow-hidden">
+              <img
+                src={imagenZoom.url}
+                alt={imagenZoom.label}
+                className="max-w-full max-h-[48vh] object-contain rounded-xl"
+              />
+            </div>
+
+            {/* Detalles del Movimiento (Barbero, Cliente, Monto, Fecha) */}
+            <div className="p-4 bg-zinc-900/95 border-t border-white/10 shrink-0 space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {imagenZoom.barberoNombre && (
+                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5">
+                    <p className="text-[10px] uppercase font-black text-zinc-400">✂️ Barbero</p>
+                    <p className="text-xs font-bold text-white truncate mt-0.5">
+                      {imagenZoom.barberoNombre}
+                    </p>
+                  </div>
+                )}
+
+                {imagenZoom.clienteNombre && (
+                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5">
+                    <p className="text-[10px] uppercase font-black text-zinc-400">👤 Cliente</p>
+                    <p className="text-xs font-bold text-white truncate mt-0.5">
+                      {imagenZoom.clienteNombre}
+                    </p>
+                  </div>
+                )}
+
+                {imagenZoom.monto !== undefined && (
+                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5">
+                    <p className="text-[10px] uppercase font-black text-zinc-400">💰 Monto</p>
+                    <p className="text-xs font-black text-emerald-400 mt-0.5">
+                      Bs {imagenZoom.monto}
+                    </p>
+                  </div>
+                )}
+
+                {imagenZoom.fecha && (
+                  <div className="bg-white/5 p-2.5 rounded-xl border border-white/5">
+                    <p className="text-[10px] uppercase font-black text-zinc-400">📅 Fecha</p>
+                    <p className="text-xs font-mono text-zinc-300 truncate mt-0.5">
+                      {new Date(imagenZoom.fecha).toLocaleDateString('es-BO', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {imagenZoom.meta && (
+                <p className="text-xs text-zinc-400 font-medium break-words bg-black/30 p-2 rounded-lg border border-white/5">
+                  📋 {imagenZoom.meta}
+                </p>
+              )}
             </div>
           </div>
         </div>

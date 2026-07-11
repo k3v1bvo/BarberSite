@@ -13,7 +13,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
-    const [portRes, equipoRes, prodRes, perfilesRes, cumpleRes, configRes, egresosRes, citasRes] = await Promise.all([
+    const [portRes, equipoRes, prodRes, perfilesRes, cumpleRes, configRes, egresosRes, citasRes, todosPerfilesRes] = await Promise.all([
       supabase.from('portafolio').select('id,image_url,titulo,categoria,barbero_id,profiles!barbero_id(full_name),created_at').eq('is_active', true).order('created_at', { ascending: false }).limit(100),
       supabase.from('equipo_home').select('id,imagen_url,nombre,especialidad,created_at').order('created_at', { ascending: false }),
       supabase.from('productos').select('id,nombre,image_url,categoria,created_at').not('image_url', 'is', null).limit(100),
@@ -21,8 +21,11 @@ export async function GET() {
       supabase.from('cumpleanos_verificados').select('id,foto_documento_url,tipo_documento,clientes(nombre),created_at').not('foto_documento_url', 'is', null).order('created_at', { ascending: false }).limit(50),
       supabase.from('configuraciones').select('llave,valor,descripcion').in('llave', ['qr_pago', 'hero_bg_image']),
       supabase.from('egresos').select('id,comprobante_url,concepto,monto_bruto,fecha,creado_en').not('comprobante_url', 'is', null).order('creado_en', { ascending: false }).limit(100),
-      supabase.from('citas').select('id,notas,precio,fecha_hora,clientes(nombre)').ilike('notas', '%http%').order('fecha_hora', { ascending: false }).limit(100),
+      supabase.from('citas').select('id,notas,precio,fecha_hora,barbero_id,clientes(nombre)').ilike('notas', '%http%').order('fecha_hora', { ascending: false }).limit(100),
+      supabase.from('profiles').select('id,full_name'),
     ])
+
+    const profilesMap = new Map<string, string>((todosPerfilesRes?.data || []).map((p: any) => [p.id, p.full_name]))
 
     // Normalizar cada fuente a formato { id, url, label, categoria, meta, fecha }
     const galeria: any[] = []
@@ -129,6 +132,9 @@ export async function GET() {
           icono: '💸',
           meta: `Egreso · Bs ${e.monto_bruto || 0}`,
           fecha: e.creado_en || e.fecha,
+          monto: e.monto_bruto || 0,
+          tipoMovimiento: 'Egreso de Caja',
+          concepto: e.concepto || 'Egreso general',
         })
       }
     }
@@ -137,14 +143,20 @@ export async function GET() {
     for (const c of citasRes.data ?? []) {
       const match = c.notas?.match(/(https?:\/\/[^\s]+)/)
       if (match && match[1]) {
+        const clienteNombre = (c as any).clientes?.nombre || 'Cliente'
+        const barberoNombre = profilesMap.get(c.barbero_id) || 'Barbero'
         galeria.push({
           id: `cita-${c.id}`,
           url: match[1],
-          label: (c as any).clientes?.nombre || 'Servicio QR',
+          label: `${clienteNombre}`,
           categoria: 'Comprobantes Servicios',
           icono: '🧾',
-          meta: `Ingreso Servicio · Bs ${c.precio || 0}`,
+          meta: `Barbero: ${barberoNombre} · Cliente: ${clienteNombre} · Bs ${c.precio || 0}`,
           fecha: c.fecha_hora,
+          clienteNombre,
+          barberoNombre,
+          monto: c.precio || 0,
+          tipoMovimiento: 'Pago de Servicio (QR)',
         })
       }
     }
