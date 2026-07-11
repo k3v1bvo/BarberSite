@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -82,6 +83,7 @@ interface ProductoCarrito {
 export function CajaPOS() {
   const { success: toastSuccess, error: toastError } = useToast()
   const supabase = createClient()
+  const searchParams = useSearchParams()
 
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -353,6 +355,52 @@ export function CajaPOS() {
       setReferralBonuses([])
     }
   }, [clientes, supabase])
+
+  useEffect(() => {
+    const citaIdParam = searchParams.get('cita_id')
+    if (citaIdParam && citasPendientes.length > 0 && !formData.cita_id) {
+      const cita = citasPendientes.find(c => c.id === citaIdParam)
+      if (cita) {
+        setFormData(prev => ({
+          ...prev,
+          cita_id: cita.id,
+          cliente_id: cita.cliente_id || '',
+          nombre: cita.clientes?.nombre || 'Cliente',
+          email: cita.clientes?.email || '',
+          telefono: cita.clientes?.telefono || '',
+          ci: cita.clientes?.ci || '',
+          servicio_id: cita.servicio_id || '',
+          barbero_id: cita.barbero_id || ''
+        }))
+        setSearchCliente(cita.clientes?.nombre || 'Cliente')
+        setSearchCi(cita.clientes?.ci || '')
+        if (cita.cliente_id && cita.clientes) {
+          fetchClientExtras(cita.cliente_id, {
+             id: cita.cliente_id, 
+             nombre: cita.clientes.nombre,
+             email: cita.clientes.email,
+             telefono: cita.clientes.telefono,
+             ci: cita.clientes.ci,
+             nivel_fidelidad: cita.clientes.nivel_fidelidad,
+             total_visitas: cita.clientes.total_visitas,
+             total_gastado: cita.clientes.total_gastado,
+             codigo_tarjeta: cita.clientes.codigo_tarjeta
+          })
+        }
+        
+        if (cita.fecha_hora) {
+          const d = new Date(cita.fecha_hora)
+          const pad = (n: number) => n.toString().padStart(2, '0')
+          setReservaFecha(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`)
+          setReservaHora(`${pad(d.getHours())}:${pad(d.getMinutes())}`)
+          setModoReserva(true)
+        }
+        
+        setCitaSeleccionadaFechaHora(cita.fecha_hora || null)
+        toastSuccess(`Cita pre-cargada: ${cita.clientes?.nombre || 'cliente'}`)
+      }
+    }
+  }, [citasPendientes, searchParams, formData.cita_id, fetchClientExtras, toastSuccess])
 
   const handleSaveCliente = async () => {
     if (!formData.cliente_id) return

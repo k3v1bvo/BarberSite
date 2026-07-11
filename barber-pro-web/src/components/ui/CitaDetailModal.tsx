@@ -58,31 +58,35 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-200 overflow-hidden"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl p-5 sm:p-6 space-y-5 my-auto"
+        className="relative w-full max-w-lg max-h-[88vh] flex flex-col bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4">
+        {/* Cabecera fija */}
+        <div className="flex items-start justify-between gap-4 p-5 sm:p-6 border-b border-white/10 bg-zinc-900/95 shrink-0">
           <div>
             <h3 className="text-xl font-black text-white uppercase tracking-tight">
               Detalle de cita
             </h3>
-            <p className="text-sm text-zinc-500 mt-1">
+            <p className="text-sm text-zinc-400 mt-1">
               {format(parseISO(cita.fecha_hora), "EEEE d 'de' MMMM, HH:mm", { locale: es })}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors shrink-0"
             aria-label="Cerrar"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Contenido desplazable */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
 
         <div className="space-y-3 text-sm">
           <div className="flex justify-between gap-4">
@@ -267,7 +271,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
             <>
               {(cita.estado === 'pendiente' || cita.estado === 'confirmado' || cita.estado === 'en_proceso') && (
                 <>
-                  <Link href="/coordinador/caja" className="w-full">
+                  <Link href={`/${userRole === 'admin' ? 'admin' : 'coordinador'}/caja?cita_id=${cita.id}`} className="w-full">
                     <Button
                       variant="primary"
                       size="md"
@@ -404,6 +408,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
           </Button>
             </>
           )}
+        </div>
         </div>
       </div>
     </div>
