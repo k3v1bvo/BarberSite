@@ -16,13 +16,17 @@ const TIPOS: TipoRecompensa[] = ['porcentaje', 'monto_fijo', 'servicio_gratis', 
 const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 const TIPOS_PROMO = [
   { value: '2x1', label: '✂️ 2×1' },
+  { value: 'cumpleanos', label: '🎂 Cumpleañero' },
+  { value: 'referido', label: '🤝 Referido' },
+  { value: 'tarjeta_sello_5', label: '🔥 Tarjeta Sello #5 (50% Desc)' },
+  { value: 'tarjeta_sello_10', label: '🎁 Tarjeta Sello #10 (Corte Gratis)' },
+  { value: 'compra_producto_reserva', label: '🛍️ Desc 10 Bs por Producto + Reserva' },
   { value: 'descuento_porcentaje', label: '💸 Descuento %' },
   { value: 'descuento_fijo', label: '💰 Descuento Fijo' },
   { value: 'servicio_gratis', label: '🎁 Servicio Gratis' },
-  { value: 'cumpleanos', label: '🎂 Cumpleaños' },
   { value: 'nivel_lealtad', label: '👑 Nivel de Lealtad' },
 ]
-const NIVELES = ['BRONCE', 'PLATA', 'ORO']
+const NIVELES = ['BRONCE', 'PLATA', 'ORO', 'PLATINO', 'DIAMANTE']
 const ICONOS = ['🎁', '✂️', '💸', '💰', '🎂', '👑', '🔥', '⭐', '🎉', '🎯']
 
 const emptyMeta = {

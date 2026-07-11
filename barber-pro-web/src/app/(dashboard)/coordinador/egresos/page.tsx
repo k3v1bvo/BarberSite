@@ -122,6 +122,17 @@ export default function EgresosPage() {
     return `5.${max + 1}`
   }
 
+  const sugerirSubcategoria = (parentCodigo: string) => {
+    const hijos = cuentas.filter(c => c.codigo.startsWith(parentCodigo + '.'))
+    let maxNum = 0
+    hijos.forEach(h => {
+      const remainder = h.codigo.slice(parentCodigo.length + 1)
+      const num = parseInt(remainder.split('.')[0], 10)
+      if (!isNaN(num) && num > maxNum) maxNum = num
+    })
+    return `${parentCodigo}.${maxNum + 1}`
+  }
+
   const crearNuevaCategoria = async () => {
     if (!newCategoriaNombre.trim()) return
     setSavingCategoria(true)
@@ -286,6 +297,20 @@ export default function EgresosPage() {
                                 </span>
                                 <span className="text-zinc-500 text-[11px] font-mono shrink-0 w-20">{cat.codigo}</span>
                                 <span className={`text-sm truncate ${nivel <= 2 ? 'font-black text-white' : 'font-medium text-zinc-300'}`}>{cat.detalle}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const sug = sugerirSubcategoria(cat.codigo)
+                                  setNewCategoriaCodigo(sug)
+                                  setNewCategoriaNombre('')
+                                  setShowNewCategoria(true)
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10 rounded transition-all shrink-0"
+                                title={`Crear subcategoría de ${cat.codigo} (${cat.detalle})`}
+                              >
+                                <Plus size={12} />
                               </button>
                               {cat.id && (
                                 <button
