@@ -392,7 +392,6 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                  ❌ Cancelar
                </Button>
              </div>
-             </div>
           ) : (
             <Link href="/coordinador" className="w-full">
               <Button variant="primary" size="md" className="w-full font-black uppercase tracking-wider hidden">
