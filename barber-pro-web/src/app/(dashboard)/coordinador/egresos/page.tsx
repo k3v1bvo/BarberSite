@@ -7,6 +7,7 @@ import { formatCurrency } from '@/lib/utils'
 import { ArrowDownCircle, Plus, X, FileText, Search, User, Building, Wallet, Landmark, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import { useToast } from '@/components/ui/Toast'
 
 interface PlanCuenta { id?: string; codigo: string; detalle: string; tipo: string }
 interface Egreso {
@@ -23,6 +24,7 @@ interface Profile {
 }
 
 export default function EgresosPage() {
+  const { success: toastSuccess, error: toastError } = useToast()
   const [egresos, setEgresos] = useState<Egreso[]>([])
   const [cuentas, setCuentas] = useState<PlanCuenta[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -82,9 +84,12 @@ export default function EgresosPage() {
       }),
     })
     if (res.ok) {
+      toastSuccess('Comprobante guardado exitosamente ✅')
       setSelectedEgresoQr(null)
       setQrModalUrl('')
       loadData()
+    } else {
+      toastError('Error al guardar el comprobante')
     }
     setSavingQr(false)
   }
@@ -167,9 +172,10 @@ export default function EgresosPage() {
       setShowNewCategoria(false)
       setNewCategoriaNombre('')
       setNewCategoriaCodigo('')
+      toastSuccess('Categoría creada exitosamente ✅')
     } catch (err) {
       console.error(err)
-      alert('Error al crear categoría')
+      toastError('Error al crear categoría')
     } finally {
       setSavingCategoria(false)
     }
@@ -215,6 +221,7 @@ export default function EgresosPage() {
       }),
     })
     if (res.ok) {
+      toastSuccess('Egreso registrado exitosamente ✅')
       setShowForm(false)
       setForm({ concepto: '', proveedor: '', monto_bruto: '', cuenta_codigo: '', tiene_factura: false, numero_factura: '', notas: '', metodo_pago: 'efectivo', monto_efectivo: '', monto_qr: '', comprobante_url: '' })
       setBarberoId('')
@@ -223,7 +230,7 @@ export default function EgresosPage() {
       loadData()
     } else {
       const err = await res.json().catch(() => ({}))
-      alert(`Error al guardar el egreso: ${err.error || res.statusText}`)
+      toastError(`Error al guardar el egreso: ${err.error || res.statusText}`)
     }
     setSaving(false)
   }
