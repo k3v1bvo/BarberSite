@@ -68,7 +68,7 @@ export default function BancoPage() {
   useEffect(() => { loadData() }, [loadData])
 
   const getMontoBanco = (t: any) => {
-    if (t.monto_qr && Number(t.monto_qr) > 0) return Number(t.monto_qr)
+    if (t.monto_qr !== undefined && Number(t.monto_qr) > 0) return Number(t.monto_qr)
     if (t.metodo_pago === 'mixto') return Number(t.monto_qr || 0)
     if (t.metodo_pago === 'qr' || t.metodo_pago === 'tarjeta' || t.libro === 'BANCO') return Number(t.costo || 0)
     if (t.libro === 'SERVICIOS' || t.libro === 'VENTAS') return Number(t.monto_qr || 0)
@@ -76,7 +76,10 @@ export default function BancoPage() {
   }
 
   const isRetiroBanco = (t: any) => {
-    return t.tipo_movimiento === 'RETIRO' || t.tipo_movimiento === 'EGRESO' || t.libro === 'EGRESOS' || String(t.cuenta_codigo || '').startsWith('EGR')
+    if (t.libro === 'SERVICIOS' || t.libro === 'VENTAS') return false
+    if (t.tipo_movimiento === 'INGRESO' || t.tipo_movimiento === 'DEPOSITO') return false
+    if (t.tipo_movimiento === 'RETIRO' || t.tipo_movimiento === 'EGRESO' || t.libro === 'EGRESOS') return true
+    return String(t.cuenta_codigo || '').startsWith('EGR')
   }
 
   const totalBalance = transactions.reduce((s, t) => {
@@ -91,7 +94,10 @@ export default function BancoPage() {
   const handleAjusteSaldo = async (e: React.FormEvent) => {
     e.preventDefault()
     if (userRole !== 'admin') return
-    if (isNaN(saldoDeseadoNum)) return
+    if (isNaN(saldoDeseadoNum) || saldoDeseadoNum < 0) {
+      alert('El saldo real en banco no puede ser negativo.')
+      return
+    }
     if (Math.abs(diferenciaAjuste) < 0.01) {
       setShowSaldoModal(false)
       return
@@ -296,6 +302,7 @@ export default function BancoPage() {
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   placeholder="Ej: 15400.00"
                   value={nuevoSaldoReal}
                   onChange={(e) => setNuevoSaldoReal(e.target.value)}
