@@ -10,6 +10,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Calendar, User, Scissors, CheckCircle, Package, Plus, Minus, X, Info, AlertTriangle, Clock, UserPlus, Gift } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import { CATEGORIAS_SERVICIOS } from '@/types'
+import { ServicioGalleryBanner } from '@/components/ui/ServicioGalleryBanner'
 
 // Interfaces
 interface Servicio {
@@ -19,6 +21,9 @@ interface Servicio {
   duracion_minutos: number
   descripcion: string | null
   barberos_excluidos?: string[]
+  imagen_url?: string | null
+  imagenes?: string[] | null
+  categoria?: string
 }
 interface Producto {
   id: string
@@ -69,6 +74,7 @@ function ReservarContent() {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [qrPago, setQrPago] = useState<string | null>(null)
   const [step, setStep] = useState(1)
+  const [filterCategoria, setFilterCategoria] = useState<string>('todos')
   const [tipoReserva, setTipoReserva] = useState<'adelanto_20' | 'adelanto_10' | 'pago_total' | 'sin_adelanto'>('adelanto_20')
 
   const [formData, setFormData] = useState({
@@ -552,32 +558,150 @@ function ReservarContent() {
           {step === 1 && (
             <Card className="bg-zinc-900/80 backdrop-blur-xl border-zinc-800/80 shadow-2xl rounded-3xl overflow-hidden">
               <CardContent className="p-6 md:p-8">
-                <h2 className="text-3xl font-black mb-8 text-center tracking-tight">Selecciona tu <span className="text-amber-500">Servicio</span></h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {servicios.map((s) => (
-                    <div
-                      key={s.id}
-                      onClick={() => {
-                        setFormData({ ...formData, servicio_id: s.id, barbero_id: '' })
-                        setTimeout(() => setStep(2), 250) // Ligero delay para sentir el click
-                      }}
-                      className={`p-6 border-2 rounded-2xl cursor-pointer transition-all duration-300 flex flex-col justify-between group hover:-translate-y-1 ${
-                        formData.servicio_id === s.id
-                          ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_25px_rgba(245,158,11,0.15)] scale-[1.02]'
-                          : 'border-zinc-800 bg-black/50 hover:border-amber-500/50 hover:bg-zinc-800/80'
-                      }`}
-                    >
-                      <div>
-                        <h3 className="font-black text-xl mb-2 text-white group-hover:text-amber-400 transition-colors">{s.nombre}</h3>
-                        {s.descripcion && <p className="text-sm text-zinc-400 mb-4 line-clamp-2 leading-relaxed">{s.descripcion}</p>}
-                      </div>
-                      <div className="flex justify-between items-center mt-4 pt-4 border-t border-zinc-800/50">
-                        <span className="text-amber-400 font-black text-xl tracking-tight">{formatCurrency(s.precio)}</span>
-                        <span className="text-xs font-bold text-zinc-400 bg-zinc-950 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-inner"><Clock className="w-3.5 h-3.5 text-amber-500"/> {s.duracion_minutos} min</span>
-                      </div>
-                    </div>
-                  ))}
+                <h2 className="text-3xl font-black mb-6 text-center tracking-tight">Selecciona tu <span className="text-amber-500">Servicio</span></h2>
+                
+                {/* Pestañas / Filtros de Categorías */}
+                <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
+                  <button
+                    type="button"
+                    onClick={() => setFilterCategoria('todos')}
+                    className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
+                      filterCategoria === 'todos'
+                        ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
+                        : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
+                    }`}
+                  >
+                    Todos ({servicios.length})
+                  </button>
+                  {CATEGORIAS_SERVICIOS.map(cat => {
+                    const count = servicios.filter(s => (s.categoria || 'Cortes') === cat.id).length
+                    if (count === 0 && filterCategoria !== cat.id) return null
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setFilterCategoria(cat.id)}
+                        className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                          filterCategoria === cat.id
+                            ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
+                            : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
+                        }`}
+                      >
+                        <span>{cat.id}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/30 font-mono">{count}</span>
+                      </button>
+                    )
+                  })}
                 </div>
+
+                {/* Renderizado de Servicios (Agrupado si es todos, o grid si es filtrado) */}
+                {filterCategoria === 'todos' ? (
+                  <div className="space-y-12">
+                    {CATEGORIAS_SERVICIOS.map(cat => {
+                      const servsDeCat = servicios.filter(s => (s.categoria || 'Cortes') === cat.id)
+                      if (servsDeCat.length === 0) return null
+                      return (
+                        <div key={cat.id} className="space-y-4">
+                          <div className="flex items-center gap-3 border-b border-zinc-800 pb-3">
+                            <div className="w-2 h-6 bg-amber-500 rounded-full" />
+                            <h3 className="text-xl font-black uppercase tracking-tight text-white">{cat.label}</h3>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            {servsDeCat.map((s) => {
+                              const allImgs = s.imagenes && s.imagenes.length > 0
+                                ? s.imagenes
+                                : (s.imagen_url ? [s.imagen_url] : [])
+                              return (
+                              <div
+                                key={s.id}
+                                onClick={() => {
+                                  setFormData({ ...formData, servicio_id: s.id, barbero_id: '' })
+                                  setTimeout(() => setStep(2), 250)
+                                }}
+                                className={`p-5 border-2 rounded-2xl cursor-pointer transition-all duration-300 flex flex-col justify-between group hover:-translate-y-1 ${
+                                  formData.servicio_id === s.id
+                                    ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_25px_rgba(245,158,11,0.15)] scale-[1.02]'
+                                    : 'border-zinc-800 bg-black/50 hover:border-amber-500/50 hover:bg-zinc-800/80'
+                                }`}
+                              >
+                                <div className="flex gap-4 items-start">
+                                  {allImgs.length > 0 && (
+                                    <ServicioGalleryBanner
+                                      imagenes={allImgs}
+                                      categoria={s.categoria}
+                                      aspectRatio="w-24 h-24 sm:w-28 sm:h-28 rounded-xl shrink-0 border border-zinc-800"
+                                      showBadge={false}
+                                    />
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                      <h4 className="font-black text-lg text-white group-hover:text-amber-400 transition-colors truncate">{s.nombre}</h4>
+                                      <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-zinc-800 text-amber-400 border border-zinc-700 shrink-0">
+                                        {s.categoria || 'Cortes'}
+                                      </span>
+                                    </div>
+                                    {s.descripcion && <p className="text-xs text-zinc-400 mb-2 line-clamp-2 leading-relaxed">{s.descripcion}</p>}
+                                  </div>
+                                </div>
+                                <div className="flex justify-between items-center mt-4 pt-4 border-t border-zinc-800/50">
+                                  <span className="text-amber-400 font-black text-xl tracking-tight">{formatCurrency(s.precio)}</span>
+                                  <span className="text-xs font-bold text-zinc-400 bg-zinc-950 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-inner"><Clock className="w-3.5 h-3.5 text-amber-500"/> {s.duracion_minutos} min</span>
+                                </div>
+                              </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {servicios.filter(s => (s.categoria || 'Cortes') === filterCategoria).map((s) => {
+                      const allImgs = s.imagenes && s.imagenes.length > 0
+                        ? s.imagenes
+                        : (s.imagen_url ? [s.imagen_url] : [])
+                      return (
+                      <div
+                        key={s.id}
+                        onClick={() => {
+                          setFormData({ ...formData, servicio_id: s.id, barbero_id: '' })
+                          setTimeout(() => setStep(2), 250)
+                        }}
+                        className={`p-5 border-2 rounded-2xl cursor-pointer transition-all duration-300 flex flex-col justify-between group hover:-translate-y-1 ${
+                          formData.servicio_id === s.id
+                            ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_25px_rgba(245,158,11,0.15)] scale-[1.02]'
+                            : 'border-zinc-800 bg-black/50 hover:border-amber-500/50 hover:bg-zinc-800/80'
+                        }`}
+                      >
+                        <div className="flex gap-4 items-start">
+                          {allImgs.length > 0 && (
+                            <ServicioGalleryBanner
+                              imagenes={allImgs}
+                              categoria={s.categoria}
+                              aspectRatio="w-24 h-24 sm:w-28 sm:h-28 rounded-xl shrink-0 border border-zinc-800"
+                              showBadge={false}
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <h4 className="font-black text-lg text-white group-hover:text-amber-400 transition-colors truncate">{s.nombre}</h4>
+                              <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-zinc-800 text-amber-400 border border-zinc-700 shrink-0">
+                                {s.categoria || 'Cortes'}
+                              </span>
+                            </div>
+                            {s.descripcion && <p className="text-xs text-zinc-400 mb-2 line-clamp-2 leading-relaxed">{s.descripcion}</p>}
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center mt-4 pt-4 border-t border-zinc-800/50">
+                          <span className="text-amber-400 font-black text-xl tracking-tight">{formatCurrency(s.precio)}</span>
+                          <span className="text-xs font-bold text-zinc-400 bg-zinc-950 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-inner"><Clock className="w-3.5 h-3.5 text-amber-500"/> {s.duracion_minutos} min</span>
+                        </div>
+                      </div>
+                      )
+                    })}
+                  </div>
+                )}
 
                 {/* PROMOCIONES PUBLICAS */}
                 {promociones.length > 0 && (

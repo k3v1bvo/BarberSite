@@ -16,6 +16,16 @@ export interface Profile {
 
 export type ComisionTipo = 'porcentaje' | 'fija' | 'ninguna'
 
+export type CategoriaServicio = 'Cortes' | 'Combos' | 'Cuidado Facial' | 'Permanentes' | 'Otros'
+
+export const CATEGORIAS_SERVICIOS: { id: CategoriaServicio; label: string; descripcion: string }[] = [
+  { id: 'Cortes', label: 'Servicio Cortes', descripcion: 'Cortes de cabello, barba, perfilados y diseños.' },
+  { id: 'Combos', label: 'Servicios en Combo', descripcion: 'Paquetes completos que combinan corte, barba, cejas o cuidado facial.' },
+  { id: 'Cuidado Facial', label: 'Servicio Cuidado Facial', descripcion: 'Limpiezas profundas, exfoliaciones, mascarillas y tratamientos faciales.' },
+  { id: 'Permanentes', label: 'Servicios Permanentes', descripcion: 'Permanentes, ondulados y tratamientos capilares.' },
+  { id: 'Otros', label: 'Otros Servicios', descripcion: 'Servicios generales o complementarios.' },
+]
+
 export interface Servicio {
   id: string
   nombre: string
@@ -24,10 +34,14 @@ export interface Servicio {
   duracion_minutos: number
   color: string
   is_active: boolean
+  imagen_url?: string | null
+  imagenes?: string[] | null
+  categoria?: string
   comision_activa?: boolean
   comision_tipo?: ComisionTipo
   comision_valor?: number
   comision_acumulable?: boolean
+  barberos_excluidos?: string[]
 }
 
 export interface Cliente {

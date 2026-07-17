@@ -8,10 +8,11 @@ import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { formatCurrency } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit, Trash2, Scissors, ArrowLeft, X, Save, Clock, Palette, UserX, CheckCircle } from 'lucide-react'
+import { Plus, Edit, Trash2, Scissors, ArrowLeft, X, Save, Clock, Palette, UserX, CheckCircle, Tag, Image as ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/Toast'
-import type { ComisionTipo } from '@/types'
+import { MultiImageUpload } from '@/components/ui/MultiImageUpload'
+import { CATEGORIAS_SERVICIOS, type ComisionTipo } from '@/types'
 
 interface Servicio {
   id: string
@@ -21,6 +22,9 @@ interface Servicio {
   duracion_minutos: number
   color: string
   is_active: boolean
+  imagen_url?: string | null
+  imagenes?: string[] | null
+  categoria?: string
   comision_activa?: boolean
   comision_tipo?: ComisionTipo
   comision_valor?: number
@@ -40,6 +44,7 @@ export default function ServiciosPage() {
   const [barberos, setBarberos] = useState<Barbero[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [filterCategoria, setFilterCategoria] = useState<string>('todos')
   const [editingServicio, setEditingServicio] = useState<Servicio | null>(null)
   const [formData, setFormData] = useState({
     nombre: '',
@@ -47,6 +52,9 @@ export default function ServiciosPage() {
     precio: 0,
     duracion_minutos: 30,
     color: '#f59e0b',
+    imagen_url: '',
+    imagenes: [] as string[],
+    categoria: 'Cortes',
     comision_activa: true,
     comision_tipo: 'porcentaje' as ComisionTipo,
     comision_valor: 30,
@@ -91,6 +99,9 @@ export default function ServiciosPage() {
             precio: formData.precio,
             duracion_minutos: formData.duracion_minutos,
             color: formData.color,
+            imagen_url: formData.imagenes[0] || formData.imagen_url || null,
+            imagenes: formData.imagenes,
+            categoria: formData.categoria || 'Cortes',
             comision_activa: formData.comision_activa,
             comision_tipo: formData.comision_tipo,
             comision_valor: formData.comision_valor,
@@ -109,6 +120,9 @@ export default function ServiciosPage() {
             precio: formData.precio,
             duracion_minutos: formData.duracion_minutos,
             color: formData.color,
+            imagen_url: formData.imagenes[0] || formData.imagen_url || null,
+            imagenes: formData.imagenes,
+            categoria: formData.categoria || 'Cortes',
             is_active: true,
             comision_activa: formData.comision_activa,
             comision_tipo: formData.comision_tipo,
@@ -128,6 +142,9 @@ export default function ServiciosPage() {
         precio: 0,
         duracion_minutos: 30,
         color: '#f59e0b',
+        imagen_url: '',
+        imagenes: [],
+        categoria: 'Cortes',
         comision_activa: true,
         comision_tipo: 'porcentaje' as ComisionTipo,
         comision_valor: 30,
@@ -186,38 +203,117 @@ export default function ServiciosPage() {
         </Button>
       </div>
 
+      {/* Filtros por Categoría */}
+      <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-white/5">
+        <button
+          type="button"
+          onClick={() => setFilterCategoria('todos')}
+          className={cn(
+            "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+            filterCategoria === 'todos'
+              ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105"
+              : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-white/5"
+          )}
+        >
+          Todos ({servicios.length})
+        </button>
+        {CATEGORIAS_SERVICIOS.map(cat => {
+          const count = servicios.filter(s => (s.categoria || 'Cortes') === cat.id).length
+          return (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setFilterCategoria(cat.id)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                filterCategoria === cat.id
+                  ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105"
+                  : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-white/5"
+              )}
+            >
+              <span>{cat.id}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/20 font-mono">{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
       {/* Servicios Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {servicios.map((servicio) => (
+        {servicios
+          .filter(s => filterCategoria === 'todos' || (s.categoria || 'Cortes') === filterCategoria)
+          .map((servicio) => {
+            const allImgs = servicio.imagenes && servicio.imagenes.length > 0
+              ? servicio.imagenes
+              : (servicio.imagen_url ? [servicio.imagen_url] : [])
+            const firstImg = allImgs[0]
+
+            return (
           <Card key={servicio.id} className={cn(
-            "group relative border-white/5 bg-zinc-900 overflow-hidden transition-all card-hover",
+            "group relative border-white/5 bg-zinc-900 overflow-hidden transition-all card-hover flex flex-col justify-between",
             !servicio.is_active && "grayscale opacity-50"
           )}>
             {/* Color Accent Bar */}
             <div
-              className="absolute top-0 left-0 right-0 h-1"
+              className="absolute top-0 left-0 right-0 h-1.5 z-10"
               style={{ backgroundColor: servicio.color }}
             />
 
-            <CardContent className="p-8">
-              <div className="flex justify-between items-start mb-6">
-                <div
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center text-black font-black text-xl shadow-lg"
-                  style={{ backgroundColor: servicio.color }}
-                >
-                  {servicio.nombre.charAt(0)}
+            {/* Imagen si existe */}
+            {firstImg ? (
+              <div className="relative w-full h-44 bg-zinc-950 overflow-hidden shrink-0">
+                <img
+                  src={firstImg}
+                  alt={servicio.nombre}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-black/30" />
+                <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-10">
+                  <div className="flex items-center gap-1.5">
+                    <Badge className="bg-black/70 backdrop-blur-md text-amber-400 border border-amber-500/30 font-black text-[9px] uppercase tracking-widest px-2.5 py-1">
+                      {servicio.categoria || 'Cortes'}
+                    </Badge>
+                    {allImgs.length > 1 && (
+                      <Badge className="bg-black/80 backdrop-blur-md text-white border border-white/20 font-mono font-bold text-[9px] px-2 py-1">
+                        📷 +{allImgs.length - 1} foto{allImgs.length > 2 ? 's' : ''}
+                      </Badge>
+                    )}
+                  </div>
+                  <Badge variant={servicio.is_active ? 'success' : 'danger'} className="uppercase font-black text-[10px] tracking-widest shadow-lg">
+                    {servicio.is_active ? 'Activo' : 'Inactivo'}
+                  </Badge>
                 </div>
-                <Badge variant={servicio.is_active ? 'success' : 'danger'} className="uppercase font-black text-[10px] tracking-widest">
-                  {servicio.is_active ? 'Activo' : 'Inactivo'}
-                </Badge>
+              </div>
+            ) : null}
+
+            <CardContent className={cn("p-8 flex-1 flex flex-col justify-between", !firstImg && "pt-8")}>
+              <div>
+                {!firstImg && (
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center text-black font-black text-xl shadow-lg shrink-0"
+                        style={{ backgroundColor: servicio.color }}
+                      >
+                        {servicio.nombre.charAt(0)}
+                      </div>
+                      <Badge className="bg-zinc-800 text-amber-400 border border-white/5 font-black text-[9px] uppercase tracking-widest">
+                        {servicio.categoria || 'Cortes'}
+                      </Badge>
+                    </div>
+                    <Badge variant={servicio.is_active ? 'success' : 'danger'} className="uppercase font-black text-[10px] tracking-widest">
+                      {servicio.is_active ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                  </div>
+                )}
+
+                <h3 className="text-2xl font-black text-white uppercase tracking-tight group-hover:text-amber-500 transition-colors mb-2 mt-2">{servicio.nombre}</h3>
+                <p className="text-zinc-500 text-sm font-medium line-clamp-2 h-10 mb-6 leading-relaxed">
+                  {servicio.descripcion || 'Servicio profesional de peluquería y barbería de alta gama.'}
+                </p>
               </div>
 
-              <h3 className="text-2xl font-black text-white uppercase tracking-tight group-hover:text-amber-500 transition-colors mb-2">{servicio.nombre}</h3>
-              <p className="text-zinc-500 text-sm font-medium line-clamp-2 h-10 mb-6 leading-relaxed">
-                {servicio.descripcion || 'Servicio profesional de peluquería y barbería de alta gama.'}
-              </p>
-
-              <div className="flex justify-between items-end pt-6 border-t border-white/5">
+              <div className="flex justify-between items-end pt-6 border-t border-white/5 mt-auto">
                 <div>
                   <p className="text-3xl font-black text-white leading-none mb-2">{formatCurrency(servicio.precio)}</p>
                   <div className="flex items-center gap-2 text-zinc-500">
@@ -248,6 +344,10 @@ export default function ServiciosPage() {
                     size="sm"
                     className="w-10 h-10 p-0 border-white/5 bg-zinc-950 hover:bg-amber-500 hover:text-black transition-all"
                     onClick={() => {
+                      const imgs = servicio.imagenes && servicio.imagenes.length > 0
+                        ? servicio.imagenes
+                        : (servicio.imagen_url ? [servicio.imagen_url] : [])
+
                       setEditingServicio(servicio)
                       setFormData({
                         nombre: servicio.nombre,
@@ -255,6 +355,9 @@ export default function ServiciosPage() {
                         precio: servicio.precio,
                         duracion_minutos: servicio.duracion_minutos,
                         color: servicio.color,
+                        imagen_url: imgs[0] || '',
+                        imagenes: imgs,
+                        categoria: servicio.categoria || 'Cortes',
                         comision_activa: servicio.comision_activa ?? true,
                         comision_tipo: servicio.comision_tipo ?? 'porcentaje',
                         comision_valor: servicio.comision_valor ?? 30,
@@ -278,7 +381,8 @@ export default function ServiciosPage() {
               </div>
             </CardContent>
           </Card>
-        ))}
+            )
+          })}
         {servicios.length === 0 && (
           <div className="col-span-full py-32 text-center border-2 border-dashed border-white/5 rounded-3xl">
             <Scissors size={64} className="mx-auto text-zinc-800 mb-4 opacity-30" />
@@ -346,6 +450,36 @@ export default function ServiciosPage() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Categoría del Servicio</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {CATEGORIAS_SERVICIOS.map(cat => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, categoria: cat.id })}
+                        className={cn(
+                          "p-3 rounded-xl border text-left transition-all",
+                          formData.categoria === cat.id
+                            ? "border-amber-500 bg-amber-500/10 text-white shadow-md shadow-amber-500/10"
+                            : "border-white/10 bg-zinc-900 text-zinc-400 hover:border-white/20 hover:text-zinc-200"
+                        )}
+                      >
+                        <p className="font-black text-xs uppercase tracking-tight">{cat.id}</p>
+                        <p className="text-[9px] text-zinc-500 line-clamp-1 mt-0.5">{cat.label}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2 border-t border-white/5 pt-4">
+                  <MultiImageUpload
+                    label="Galería de Imágenes del Servicio (puedes agregar 1 o varias)"
+                    images={formData.imagenes}
+                    onImagesChange={(imgs) => setFormData({ ...formData, imagenes: imgs, imagen_url: imgs[0] || '' })}
+                  />
+                </div>
+
+                <div className="space-y-2 border-t border-white/5 pt-4">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Color de Identificación</label>
                   <div className="flex gap-3">
                     <div className="relative group">

@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/Toast'
 import { User, Scissors, DollarSign, Search, CheckCircle, Clock, Package, Plus, Minus, X, Store, Gift, UserPlus, Edit3, Save, Star, Tag, QrCode, AlertTriangle, Calendar, Zap, CreditCard } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import { CATEGORIAS_SERVICIOS } from '@/types'
 
 interface Cliente {
   id: string
@@ -57,6 +58,9 @@ interface Servicio {
   precio: number
   duracion_minutos: number
   barberos_excluidos?: string[]
+  imagen_url?: string | null
+  imagenes?: string[] | null
+  categoria?: string
 }
 
 interface Barbero {
@@ -90,6 +94,7 @@ export function CajaPOS() {
 
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [servicios, setServicios] = useState<Servicio[]>([])
+  const [filterCategoriaPOS, setFilterCategoriaPOS] = useState<string>('todos')
   const [barberos, setBarberos] = useState<Barbero[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
   const [carrito, setCarrito] = useState<ProductoCarrito[]>([])
@@ -1269,24 +1274,77 @@ export function CajaPOS() {
           {/* SERVICIO */}
           <Card className="bg-zinc-900 border-zinc-800">
             <CardContent className="pt-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <Scissors className="w-5 h-5 text-amber-500" /> 2. Selección de Servicio
-              </h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <Scissors className="w-5 h-5 text-amber-500" /> 2. Selección de Servicio
+                </h2>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFilterCategoriaPOS('todos')}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                      filterCategoriaPOS === 'todos'
+                        ? 'bg-amber-500 text-black'
+                        : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Todos ({servicios.length})
+                  </button>
+                  {CATEGORIAS_SERVICIOS.map(cat => {
+                    const count = servicios.filter(s => (s.categoria || 'Cortes') === cat.id).length
+                    if (count === 0 && filterCategoriaPOS !== cat.id) return null
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setFilterCategoriaPOS(cat.id)}
+                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                          filterCategoriaPOS === cat.id
+                            ? 'bg-amber-500 text-black'
+                            : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {cat.id}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {servicios.map((s) => (
+                {servicios
+                  .filter(s => filterCategoriaPOS === 'todos' || (s.categoria || 'Cortes') === filterCategoriaPOS)
+                  .map((s) => (
                   <div
                     key={s.id}
                     onClick={() => setFormData({ ...formData, servicio_id: s.id })}
-                    className={`p-3 border rounded-xl cursor-pointer transition ${
+                    className={`p-3 border rounded-xl cursor-pointer transition flex items-center gap-3 ${
                       formData.servicio_id === s.id
-                        ? 'border-amber-400 bg-amber-500/10'
+                        ? 'border-amber-400 bg-amber-500/10 shadow-sm'
                         : 'border-white/10 hover:border-amber-400/40 bg-black/20'
                     }`}
                   >
-                    <h3 className="font-semibold text-sm line-clamp-1">{s.nombre}</h3>
-                    <div className="flex justify-between items-center mt-2">
-                      <p className="text-xs text-zinc-400">{s.duracion_minutos} min</p>
-                      <p className="font-bold text-amber-400">{formatCurrency(s.precio)}</p>
+                    {(() => {
+                      const firstImg = (s.imagenes && s.imagenes.length > 0) ? s.imagenes[0] : s.imagen_url
+                      return firstImg ? (
+                        <img
+                          src={firstImg}
+                          alt={s.nombre}
+                          className="w-12 h-12 rounded-lg object-cover shrink-0 bg-zinc-950 border border-zinc-800"
+                        />
+                      ) : null
+                    })()}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <h3 className="font-semibold text-sm line-clamp-1 truncate">{s.nombre}</h3>
+                        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-zinc-800 text-amber-400 shrink-0">
+                          {s.categoria || 'Cortes'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-zinc-400">{s.duracion_minutos} min</p>
+                        <p className="font-bold text-amber-400">{formatCurrency(s.precio)}</p>
+                      </div>
                     </div>
                   </div>
                 ))}

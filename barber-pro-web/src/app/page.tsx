@@ -27,6 +27,8 @@ import {
 import { SocialLinks } from '@/components/ui/SocialLinks'
 import { WhatsappFloat } from '@/components/ui/WhatsappFloat'
 import { useSocialLinks } from '@/components/ui/useSocialLinks'
+import { CATEGORIAS_SERVICIOS } from '@/types'
+import { ServicioGalleryBanner } from '@/components/ui/ServicioGalleryBanner'
 
 interface UserProfile {
   full_name: string
@@ -41,6 +43,9 @@ interface Servicio {
   descripcion: string
   precio: number
   duracion_minutos: number
+  imagen_url?: string | null
+  imagenes?: string[] | null
+  categoria?: string
 }
 
 interface Producto {
@@ -96,6 +101,7 @@ export default function HomePage() {
   const [heroConfigState, setHeroConfigState] = useState(defaultHero)
   const [aboutUsConfig, setAboutUsConfig] = useState(defaultAboutUs)
   const [carouselIndex, setCarouselIndex] = useState(0)
+  const [categoriaActiva, setCategoriaActiva] = useState<string>('todos')
   const router = useRouter()
   const supabase = createClient()
   const socialLinks = useSocialLinks()
@@ -412,46 +418,162 @@ export default function HomePage() {
       {/* Servicios */}
       <section id="servicios" className="py-24 bg-zinc-900">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-4">Nuestros Servicios</p>
-            <h2 className="text-5xl font-bold">Cortes & Estilos</h2>
+          <div className="text-center mb-12">
+            <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-3">Nuestros Servicios</p>
+            <h2 className="text-5xl font-extrabold tracking-tight text-white mb-8">Menú de Especialidades</h2>
+
+            {/* Pestañas de categoría */}
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setCategoriaActiva('todos')}
+                className={`px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${
+                  categoriaActiva === 'todos'
+                    ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20 scale-105'
+                    : 'bg-black/60 border border-white/10 text-zinc-400 hover:border-amber-400/50 hover:text-white'
+                }`}
+              >
+                Todos ({servicios?.length || 0})
+              </button>
+              {CATEGORIAS_SERVICIOS.map(cat => {
+                const count = servicios?.filter(s => (s.categoria || 'Cortes') === cat.id).length || 0
+                if (count === 0 && categoriaActiva !== cat.id) return null
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategoriaActiva(cat.id)}
+                    className={`px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                      categoriaActiva === cat.id
+                        ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20 scale-105'
+                        : 'bg-black/60 border border-white/10 text-zinc-400 hover:border-amber-400/50 hover:text-white'
+                    }`}
+                  >
+                    <span>{cat.id}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">{count}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {servicios?.map((servicio) => (
-              <div
-                key={servicio.id}
-                className="group bg-black border border-white/10 rounded-2xl overflow-hidden hover:border-amber-400/50 transition-all duration-300"
-              >
-                <div className="h-1 bg-amber-400 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
-                <div className="p-8">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-amber-400/10 rounded-xl flex items-center justify-center">
-                      <Scissors className="w-6 h-6 text-amber-400" />
+          {/* Renderizado de Servicios (Agrupado por Categoría si es "todos", o grid si es específico) */}
+          {categoriaActiva === 'todos' ? (
+            <div className="space-y-16">
+              {CATEGORIAS_SERVICIOS.map(cat => {
+                const servsDeCat = servicios?.filter(s => (s.categoria || 'Cortes') === cat.id) || []
+                if (servsDeCat.length === 0) return null
+                return (
+                  <div key={cat.id} className="space-y-6">
+                    <div className="flex items-center gap-4 border-b border-white/10 pb-4">
+                      <div className="w-2.5 h-8 bg-amber-400 rounded-full" />
+                      <div>
+                        <h3 className="text-2xl font-black uppercase tracking-tight text-white">{cat.label}</h3>
+                        <p className="text-xs font-medium text-zinc-400">{cat.descripcion}</p>
+                      </div>
                     </div>
-                    <h3 className="text-xl font-bold">{servicio.nombre}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {servsDeCat.map((servicio) => (
+                        <div
+                          key={servicio.id}
+                          className="group bg-black border border-white/10 rounded-2xl overflow-hidden hover:border-amber-400/50 transition-all duration-300 flex flex-col justify-between"
+                        >
+                          <div>
+                            {(() => {
+                              const allImgs = servicio.imagenes && servicio.imagenes.length > 0
+                                ? servicio.imagenes
+                                : (servicio.imagen_url ? [servicio.imagen_url] : [])
+                              return (
+                                <>
+                                  <ServicioGalleryBanner imagenes={allImgs} categoria={servicio.categoria || 'Cortes'} />
+                                  <div className="p-6">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <h4 className="text-xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{servicio.nombre}</h4>
+                                      {allImgs.length === 0 && (
+                                        <span className="text-[9px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/20">
+                                          {servicio.categoria || 'Cortes'}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-gray-400 text-sm mb-4 line-clamp-2 leading-relaxed">
+                                      {servicio.descripcion || 'Servicio premium de barbería y estilismo.'}
+                                    </p>
+                                  </div>
+                                </>
+                              )
+                            })()}
+                          </div>
+                          <div className="p-6 pt-0 mt-auto">
+                            <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                              <div>
+                                <p className="text-2xl font-black text-amber-400 leading-none mb-1">{formatCurrency(servicio.precio)}</p>
+                                <p className="text-xs text-gray-500 font-bold flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-amber-400" /> {servicio.duracion_minutos} min
+                                </p>
+                              </div>
+                              <Link
+                                href={`/reservar?servicio=${servicio.id}`}
+                                className="px-5 py-2.5 bg-amber-400 text-black rounded-full text-xs font-black hover:bg-amber-300 hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-amber-400/20"
+                              >
+                                Reservar
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-
-                  <p className="text-gray-400 mb-4 min-h-12">
-                    {servicio.descripcion || 'Servicio premium de barbería'}
-                  </p>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                    <div>
-                      <p className="text-3xl font-bold text-amber-400">{formatCurrency(servicio.precio)}</p>
-                      <p className="text-sm text-gray-500">{servicio.duracion_minutos} min</p>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {servicios?.filter(s => (s.categoria || 'Cortes') === categoriaActiva).map((servicio) => {
+                const allImgs = servicio.imagenes && servicio.imagenes.length > 0
+                  ? servicio.imagenes
+                  : (servicio.imagen_url ? [servicio.imagen_url] : [])
+                return (
+                <div
+                  key={servicio.id}
+                  className="group bg-black border border-white/10 rounded-2xl overflow-hidden hover:border-amber-400/50 transition-all duration-300 flex flex-col justify-between"
+                >
+                  <div>
+                    <ServicioGalleryBanner imagenes={allImgs} categoria={servicio.categoria || 'Cortes'} />
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{servicio.nombre}</h4>
+                        {allImgs.length === 0 && (
+                          <span className="text-[9px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/20">
+                            {servicio.categoria || 'Cortes'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-gray-400 text-sm mb-4 line-clamp-2 leading-relaxed">
+                        {servicio.descripcion || 'Servicio premium de barbería y estilismo.'}
+                      </p>
                     </div>
-                    <Link
-                      href={`/reservar?servicio=${servicio.id}`}
-                      className="px-6 py-2 bg-amber-400 text-black rounded-full text-sm font-bold hover:bg-amber-300 hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-amber-400/20"
-                    >
-                      Reservar
-                    </Link>
+                  </div>
+                  <div className="p-6 pt-0 mt-auto">
+                    <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                      <div>
+                        <p className="text-2xl font-black text-amber-400 leading-none mb-1">{formatCurrency(servicio.precio)}</p>
+                        <p className="text-xs text-gray-500 font-bold flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-amber-400" /> {servicio.duracion_minutos} min
+                        </p>
+                      </div>
+                      <Link
+                        href={`/reservar?servicio=${servicio.id}`}
+                        className="px-5 py-2.5 bg-amber-400 text-black rounded-full text-xs font-black hover:bg-amber-300 hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-amber-400/20"
+                      >
+                        Reservar
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+                )
+              })}
+            </div>
+          )}
 
           {(!servicios || servicios.length === 0) && (
             <div className="text-center py-16">
