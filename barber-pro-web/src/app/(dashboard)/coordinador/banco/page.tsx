@@ -100,8 +100,10 @@ export default function BancoPage() {
   }
 
   const getMontoBanco = (t: any) => {
-    if (t.libro === 'BANCO') return Number(t.costo || 0)
     if (t.monto_qr && Number(t.monto_qr) > 0) return Number(t.monto_qr)
+    if (t.metodo_pago === 'mixto') return Number(t.monto_qr || 0)
+    if (t.metodo_pago === 'qr' || t.metodo_pago === 'tarjeta' || t.libro === 'BANCO') return Number(t.costo || 0)
+    if (t.libro === 'SERVICIOS' || t.libro === 'VENTAS') return Number(t.monto_qr || 0)
     return Number(t.costo || 0)
   }
 

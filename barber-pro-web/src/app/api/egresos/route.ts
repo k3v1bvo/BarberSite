@@ -144,6 +144,8 @@ export async function POST(request: NextRequest) {
       tipo_movimiento: 'EGRESO',
       es_sancion: false,
       metodo_pago: metodoPago,
+      monto_efectivo: montoEfectivo,
+      monto_qr: montoQr,
       subcategoria: 'GASTO_GENERAL',
       notas: metodoPago === 'mixto' ? `Efectivo: Bs ${montoEfectivo} | QR: Bs ${montoQr}` : null,
       usuario_registro: profile?.full_name || 'Sistema',

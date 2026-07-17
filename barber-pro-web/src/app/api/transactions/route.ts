@@ -281,6 +281,8 @@ export async function POST(request: NextRequest) {
         empleado_id: body.empleado_id || null,
         cliente_id: body.cliente_id || null,
         metodo_pago: body.metodo_pago || 'efectivo',
+        monto_efectivo: body.monto_efectivo !== undefined ? Number(body.monto_efectivo) : (body.metodo_pago === 'mixto' ? Number(body.monto_efectivo || 0) : ((!body.metodo_pago || body.metodo_pago === 'efectivo') && body.libro !== 'BANCO' ? Number(body.costo || 0) : 0)),
+        monto_qr: body.monto_qr !== undefined ? Number(body.monto_qr) : (body.metodo_pago === 'mixto' ? Number(body.monto_qr || 0) : (body.metodo_pago === 'qr' || body.metodo_pago === 'tarjeta' || body.libro === 'BANCO' ? Number(body.costo || 0) : 0)),
         comprobante_url: body.comprobante_url || null,
         usuario_registro: profile.full_name || user.email || 'Sistema',
       })
