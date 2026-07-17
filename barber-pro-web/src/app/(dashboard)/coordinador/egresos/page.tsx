@@ -644,10 +644,10 @@ export default function EgresosPage() {
                   4. Adjuntar Comprobante / Recibo / Factura (Opcional)
                 </label>
                 <ImageUpload
-                  value={form.comprobante_url || ''}
-                  onChange={(url) => setForm({ ...form, comprobante_url: url })}
-                  folder="egresos"
                   label="Subir foto del recibo, transferencia QR o factura en formato JPG/PNG"
+                  defaultImage={form.comprobante_url || undefined}
+                  onUploadSuccess={(url) => setForm({ ...form, comprobante_url: url })}
+                  onUploadError={(err) => toastError(err)}
                 />
               </div>
 
@@ -779,10 +779,10 @@ export default function EgresosPage() {
             </div>
             <p className="text-xs text-zinc-400">Egreso: <strong className="text-white">{selectedEgresoQr.concepto}</strong></p>
             <ImageUpload
-              value={qrModalUrl}
-              onChange={(url) => setQrModalUrl(url)}
-              folder="egresos"
               label="Subir voucher de transferencia QR o foto del recibo/factura"
+              defaultImage={qrModalUrl || undefined}
+              onUploadSuccess={(url) => setQrModalUrl(url)}
+              onUploadError={(err) => toastError(err)}
             />
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setSelectedEgresoQr(null)}>Cancelar</Button>

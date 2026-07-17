@@ -738,11 +738,10 @@ export default function VentasPage() {
                       <ImageIcon className="w-4 h-4 text-blue-400" /> Adjuntar Comprobante o Captura del Pago (Opcional)
                     </label>
                     <ImageUpload
-                      value={form.comprobante_url}
-                      onChange={(url) => setForm({ ...form, comprobante_url: url })}
-                      onRemove={() => setForm({ ...form, comprobante_url: '' })}
-                      bucket="comprobantes"
-                      folderPath="ventas-qr"
+                      label="Captura de pantalla o voucher del pago QR / POS"
+                      defaultImage={form.comprobante_url || undefined}
+                      onUploadSuccess={(url) => setForm({ ...form, comprobante_url: url })}
+                      onUploadError={(err) => toastError(err)}
                     />
                   </div>
                 )}
