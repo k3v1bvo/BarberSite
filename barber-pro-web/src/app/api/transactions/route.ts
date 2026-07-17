@@ -289,7 +289,34 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      if (error.code === '42703' || error.message?.includes('column') || error.message?.includes('subcategoria') || error.message?.includes('monto_')) {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('transactions')
+          .insert({
+            libro: body.libro,
+            fecha: body.fecha || getTodayBolivia(),
+            ci: body.ci || '0000000',
+            nombre: body.nombre || 'Sin nombre',
+            cuenta_codigo: body.cuenta_codigo || '000',
+            cuenta_detalle: body.cuenta_detalle || 'Movimiento manual',
+            glosa: body.glosa || '',
+            costo: Number(body.costo) || 0,
+            tipo_movimiento: body.tipo_movimiento || 'EGRESO',
+            es_sancion: body.es_sancion || false,
+            empleado_id: body.empleado_id || null,
+            cliente_id: body.cliente_id || null,
+            metodo_pago: body.metodo_pago || 'efectivo',
+            comprobante_url: body.comprobante_url || null,
+            usuario_registro: profile.full_name || user.email || 'Sistema',
+          })
+          .select()
+          .single()
+        if (fallbackError) return NextResponse.json({ error: fallbackError.message }, { status: 500 })
+        return NextResponse.json(fallbackData, { status: 201 })
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
     return NextResponse.json(data, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })

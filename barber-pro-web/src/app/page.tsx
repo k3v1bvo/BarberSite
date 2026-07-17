@@ -420,7 +420,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
             <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-3">Nuestros Servicios</p>
-            <h2 className="text-5xl font-extrabold tracking-tight text-white mb-8">Menú de Especialidades</h2>
+            <h2 className="text-5xl font-extrabold tracking-tight text-white mb-8">Catálogo de Servicios & Especialidades</h2>
 
             {/* Pestañas de categoría */}
             <div className="flex flex-wrap items-center justify-center gap-3">

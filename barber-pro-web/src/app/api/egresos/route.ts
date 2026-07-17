@@ -129,7 +129,32 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      if (error.code === '42703' || error.message?.includes('column') || error.message?.includes('metodo_pago') || error.message?.includes('monto_')) {
+        const { data: fbData, error: fbError } = await supabase
+          .from('egresos')
+          .insert({
+            fecha: body.fecha || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
+            concepto: body.concepto,
+            proveedor: body.proveedor || null,
+            monto_bruto: montoBruto,
+            tiene_factura: body.tiene_factura || false,
+            iva,
+            it,
+            monto_neto: montoNeto,
+            numero_factura: body.numero_factura || null,
+            cuenta_codigo: body.cuenta_codigo || null,
+            usuario_registro: profile?.full_name || user.email || 'Sistema',
+            notas: body.notas || null,
+            comprobante_url: body.comprobante_url || null,
+          })
+          .select()
+          .single()
+        if (fbError) return NextResponse.json({ error: fbError.message }, { status: 500 })
+        return NextResponse.json(fbData, { status: 201 })
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
 
     // Insertar en transactions para el reporte financiero
     const { error: txError } = await supabase.from('transactions').insert({

@@ -32,6 +32,9 @@ CREATE TABLE public.servicios (
   comision_acumulable boolean DEFAULT false,
   comision_notas text,
   barberos_excluidos jsonb DEFAULT '[]'::jsonb,
+  imagen_url text,
+  categoria text DEFAULT 'Cortes'::text,
+  imagenes ARRAY DEFAULT '{}'::text[],
   CONSTRAINT servicios_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.clientes (
@@ -366,6 +369,9 @@ CREATE TABLE public.transactions (
   notas text,
   creado_en timestamp with time zone DEFAULT now(),
   comprobante_url text,
+  subcategoria text,
+  monto_efectivo numeric DEFAULT 0,
+  monto_qr numeric DEFAULT 0,
   CONSTRAINT transactions_pkey PRIMARY KEY (id),
   CONSTRAINT transactions_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id),
   CONSTRAINT transactions_cita_id_fkey FOREIGN KEY (cita_id) REFERENCES public.citas(id),
@@ -406,6 +412,9 @@ CREATE TABLE public.egresos (
   notas text,
   creado_en timestamp with time zone DEFAULT now(),
   comprobante_url text,
+  metodo_pago text DEFAULT 'efectivo'::text,
+  monto_efectivo numeric DEFAULT 0,
+  monto_qr numeric DEFAULT 0,
   CONSTRAINT egresos_pkey PRIMARY KEY (id),
   CONSTRAINT egresos_cuenta_codigo_fkey FOREIGN KEY (cuenta_codigo) REFERENCES public.plan_cuentas(codigo)
 );
