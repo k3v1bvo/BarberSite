@@ -260,7 +260,7 @@ export default function BancoPage() {
       {/* MODAL / FORMULARIO AJUSTAR SALDO REAL (ULTIMA OPCION CON REQUISITOS CLAROS) */}
       {showSaldoModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-5">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400">
@@ -280,6 +280,16 @@ export default function BancoPage() {
               </button>
             </div>
 
+            {/* GUÍA RÁPIDA EXPLICATIVA */}
+            <div className="p-3.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-blue-200 space-y-1.5">
+              <p className="font-bold flex items-center gap-1.5 text-blue-300">
+                <span>💡</span> ¿Cómo funciona esta herramienta?
+              </p>
+              <p className="text-[11px] leading-relaxed text-blue-100/90">
+                Escribe en la casilla <strong>el saldo final exacto al que quieres llegar</strong> (lo que tienes hoy en tu app del banco). El sistema calculará y sumará o restará la diferencia necesaria para que tu saldo en pantalla quede idéntico.
+              </p>
+            </div>
+
             {/* Saldo actual vs cálculo en vivo */}
             <div className="grid grid-cols-2 gap-3 bg-zinc-950 p-4 rounded-xl border border-white/5">
               <div>
@@ -287,7 +297,7 @@ export default function BancoPage() {
                 <span className="text-base font-black text-blue-400">{formatCurrency(totalBalance)}</span>
               </div>
               <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 block">Diferencia Calculada</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 block">Diferencia a Inyectar</span>
                 <span className={`text-base font-black ${isNaN(saldoDeseadoNum) ? 'text-zinc-500' : diferenciaAjuste > 0 ? 'text-emerald-400' : diferenciaAjuste < 0 ? 'text-rose-400' : 'text-zinc-400'}`}>
                   {isNaN(saldoDeseadoNum) ? '—' : `${diferenciaAjuste > 0 ? '+' : ''}${formatCurrency(diferenciaAjuste)}`}
                 </span>
@@ -297,31 +307,56 @@ export default function BancoPage() {
             <form onSubmit={handleAjusteSaldo} className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-white uppercase tracking-wider mb-1 block">
-                  1. ¿Cuánto tienes realmente en el Banco Ganadero? (Bs.)
+                  1. ¿Cuál es el SALDO FINAL REAL que quieres que quede? (Bs.)
                 </label>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
-                  placeholder="Ej: 15400.00"
+                  placeholder="Ej: 0.00 para dejar en cero o 1500.00 para mil quinientos"
                   value={nuevoSaldoReal}
                   onChange={(e) => setNuevoSaldoReal(e.target.value)}
                   className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-base font-bold text-white focus:border-blue-500/50 outline-none"
                   required
                 />
+                <p className="text-[10px] text-zinc-500 mt-1.5 ml-1">
+                  👉 Escribe tu saldo disponible en banco (ej: <strong>0</strong> si quieres limpiar la cuenta, o <strong>1500</strong> si ese es tu saldo actual).
+                </p>
               </div>
 
               {/* Mensaje visual descriptivo según suma o resta */}
-              {!isNaN(saldoDeseadoNum) && Math.abs(diferenciaAjuste) >= 0.01 && (
-                <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 font-medium ${
-                  diferenciaAjuste > 0 
+              {!isNaN(saldoDeseadoNum) && (
+                <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 font-medium ${
+                  Math.abs(diferenciaAjuste) < 0.01
+                    ? 'bg-zinc-800/60 border-white/10 text-zinc-300'
+                    : diferenciaAjuste > 0 
                     ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' 
                     : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
                 }`}>
-                  {diferenciaAjuste > 0 ? (
-                    <span>➕ <strong>Ingreso por ajuste:</strong> Se sumarán <strong>{formatCurrency(diferenciaAjuste)}</strong> al saldo del Banco.</span>
+                  {Math.abs(diferenciaAjuste) < 0.01 ? (
+                    <>
+                      <span className="text-base mt-0.5">✅</span>
+                      <div>
+                        <strong className="block text-white">Saldo Ya Conciliado</strong>
+                        <span>El saldo en pantalla ya coincide exactamente con el monto ingresado ({formatCurrency(saldoDeseadoNum)}). No se necesita ajuste.</span>
+                      </div>
+                    </>
+                  ) : diferenciaAjuste > 0 ? (
+                    <>
+                      <span className="text-base mt-0.5">➕</span>
+                      <div>
+                        <strong className="block text-emerald-200">Se registrará un Ingreso por Ajuste de {formatCurrency(diferenciaAjuste)}</strong>
+                        <span>Al sumarse a tu saldo actual ({formatCurrency(totalBalance)}), el nuevo saldo de tu Banco en el sistema quedará en exactamente <strong>{formatCurrency(saldoDeseadoNum)}</strong>.</span>
+                      </div>
+                    </>
                   ) : (
-                    <span>➖ <strong>Egreso por ajuste:</strong> Se restarán <strong>{formatCurrency(Math.abs(diferenciaAjuste))}</strong> del saldo del Banco.</span>
+                    <>
+                      <span className="text-base mt-0.5">➖</span>
+                      <div>
+                        <strong className="block text-rose-200">Se registrará un Egreso por Ajuste de {formatCurrency(Math.abs(diferenciaAjuste))}</strong>
+                        <span>Al restarse de tu saldo actual ({formatCurrency(totalBalance)}), el nuevo saldo de tu Banco en el sistema quedará en exactamente <strong>{formatCurrency(saldoDeseadoNum)}</strong>.</span>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -332,7 +367,7 @@ export default function BancoPage() {
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Ej: Ajuste de centavos, comisiones bancarias acumuladas del mes pasado, o saldo inicial post-corte."
+                  placeholder="Ej: Saldo inicial post-corte, corrección contable, o comisiones bancarias acumuladas."
                   value={ajusteMotivo}
                   onChange={(e) => setAjusteMotivo(e.target.value)}
                   className="w-full bg-zinc-950 border border-white/10 rounded-xl p-3 text-xs text-white focus:border-blue-500/50 outline-none resize-none"
@@ -344,7 +379,7 @@ export default function BancoPage() {
                 <Button type="button" variant="outline" onClick={() => setShowSaldoModal(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" variant="primary" disabled={saving || isNaN(saldoDeseadoNum) || Math.abs(diferenciaAjuste) < 0.01}>
+                <Button type="submit" variant="primary" disabled={saving || isNaN(saldoDeseadoNum) || Math.abs(diferenciaAjuste) < 0.01 || saldoDeseadoNum < 0}>
                   {saving ? 'Aplicando...' : 'Confirmar y Conciliar Saldo'}
                 </Button>
               </div>
