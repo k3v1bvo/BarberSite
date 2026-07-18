@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { dispatchNotification } from '@/lib/notifications/dispatch'
 
 // GET: verificaciones de cumpleaños de hoy
 export async function GET(request: NextRequest) {
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
     // Verificar que el cliente existe
     const { data: cliente } = await supabase
       .from('clientes')
-      .select('id, nombre, cumpleanos')
+      .select('id, nombre, cumpleanos, email')
       .eq('id', cliente_id)
       .single()
 
@@ -66,10 +67,11 @@ export async function POST(request: NextRequest) {
         const mesCumple = parseInt(parts[1], 10)
         const diaCumple = parseInt(parts[2], 10)
         const hoy = new Date()
-        const mesHoy = hoy.getMonth() + 1
-        const diaHoy = hoy.getDate()
-        if (mesCumple !== mesHoy || diaCumple !== diaHoy) {
-          return NextResponse.json({ error: `Hoy no coincide con la fecha de cumpleaños (${diaCumple}/${mesCumple}) de ${cliente.nombre}` }, { status: 400 })
+        // Validar que esté en su semana o mes de cumpleaños para aplicar la promo (ej. ±15 días o el mes en curso)
+        let bdayThisYear = new Date(hoy.getFullYear(), mesCumple - 1, diaCumple)
+        const diffInDays = Math.abs((hoy.getTime() - bdayThisYear.getTime()) / (1000 * 3600 * 24))
+        if (diffInDays > 14 && diffInDays < 351) {
+          return NextResponse.json({ error: `La fecha (${diaCumple}/${mesCumple}) de ${cliente.nombre} no está en su semana/mes de cumpleaños actual.` }, { status: 400 })
         }
       }
     }
@@ -103,6 +105,22 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Disparar Notificaciones al admin, coordinador y al cliente
+    try {
+      await dispatchNotification(supabase, {
+        event: 'cumpleanos',
+        payload: {
+          clienteId: cliente_id,
+          clienteNombre: cliente.nombre,
+          clienteEmail: cliente.email || undefined,
+        },
+        userEmail: cliente.email || undefined,
+      })
+    } catch (notifErr) {
+      console.error('Error insertando notificaciones de cumpleaños:', notifErr)
+    }
+
     return NextResponse.json(data, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })

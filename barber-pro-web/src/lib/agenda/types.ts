@@ -7,10 +7,14 @@ export interface AgendaCita {
   fecha_hora_solicitada?: string
   anticipo_monto?: number
   cliente_nombre: string
+  cliente_telefono?: string
+  cliente_email?: string
   servicio_nombre: string
   precio: number
   barbero_id: string
   barbero_nombre: string
+  barbero_avatar_url?: string
+  notas?: string
   comprobante_url?: string
 }
 

@@ -148,7 +148,7 @@ export default function BarberoPage() {
         setMetaServicios(config.valor.cantidad_servicios.meta_cantidad)
       }
 
-      const hoy = new Date().toISOString().split('T')[0]
+      const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
       const semanaAtras = new Date()
       semanaAtras.setDate(semanaAtras.getDate() - 7)
       const semanaInicio = semanaAtras.toISOString().split('T')[0]
@@ -158,8 +158,8 @@ export default function BarberoPage() {
         .from('citas')
         .select('estado, precio, comision_barbero, clientes(nombre), servicios(nombre)')
         .eq('barbero_id', user.id)
-        .gte('fecha_hora', `${hoy}T00:00:00`)
-        .lte('fecha_hora', `${hoy}T23:59:59`)
+        .gte('fecha_hora', `${hoy}T00:00:00-04:00`)
+        .lte('fecha_hora', `${hoy}T23:59:59-04:00`)
 
       const hoyStats = citasHoy?.reduce((acc, c) => ({
         citas: acc.citas + 1,
@@ -173,8 +173,8 @@ export default function BarberoPage() {
         .from('citas')
         .select('estado, precio, comision_barbero')
         .eq('barbero_id', user.id)
-        .gte('fecha_hora', `${semanaInicio}T00:00:00`)
-        .lte('fecha_hora', `${hoy}T23:59:59`)
+        .gte('fecha_hora', `${semanaInicio}T00:00:00-04:00`)
+        .lte('fecha_hora', `${hoy}T23:59:59-04:00`)
         .eq('estado', 'completado')
 
       const semanaStats = citasSemana?.reduce((acc, c) => ({
@@ -196,8 +196,9 @@ export default function BarberoPage() {
 
       if (!debouncedSearch) {
         if (filtroFecha === 'hoy') {
-          const hoyInicio = `${new Date().toISOString().split('T')[0]}T00:00:00`
-          const hoyFin = `${new Date().toISOString().split('T')[0]}T23:59:59`
+          const hoyStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+          const hoyInicio = `${hoyStr}T00:00:00-04:00`
+          const hoyFin = `${hoyStr}T23:59:59-04:00`
           query = query.gte('fecha_hora', hoyInicio).lte('fecha_hora', hoyFin)
         } else if (filtroFecha === 'semana') {
           const semanaAtras = new Date()
@@ -675,7 +676,7 @@ export default function BarberoPage() {
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between sm:justify-start gap-3">
                           <p className="text-3xl sm:text-4xl font-black text-white tracking-tighter">
-                            {new Date(cita.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(cita.fecha_hora).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false })}
                           </p>
                           <Badge variant={getEstadoBadge(cita.estado)} className="uppercase font-black text-[10px] tracking-widest px-2.5 py-1">
                             {cita.estado}
@@ -968,7 +969,7 @@ export default function BarberoPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-xl font-black text-white uppercase tracking-tight">Detalle de cita</h3>
-                <p className="text-sm text-zinc-500 mt-1">{new Date(selectedCita.fecha_hora).toLocaleDateString('es-MX')} {new Date(selectedCita.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</p>
+                <p className="text-sm text-zinc-500 mt-1">{new Date(selectedCita.fecha_hora).toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' })} {new Date(selectedCita.fecha_hora).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false })}</p>
               </div>
               <button onClick={() => setSelectedCita(null)} className="p-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
             </div>

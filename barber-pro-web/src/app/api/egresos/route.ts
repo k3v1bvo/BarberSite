@@ -21,19 +21,20 @@ export async function GET(request: NextRequest) {
     const sp = request.nextUrl.searchParams
     const desde = sp.get('desde')
     const hasta = sp.get('hasta')
+    const limit = parseInt(sp.get('limit') || '500', 10)
 
     let query = supabase
       .from('egresos')
       .select('*')
       .order('fecha', { ascending: false })
-      .limit(100)
+      .limit(limit)
 
     let txQuery = supabase
       .from('transactions')
       .select('*')
       .eq('subcategoria', 'COMISION_PAGO')
       .order('fecha', { ascending: false })
-      .limit(100)
+      .limit(limit)
 
     if (desde) {
       query = query.gte('fecha', desde)
@@ -106,6 +107,16 @@ export async function POST(request: NextRequest) {
     const montoEfectivo = metodoPago === 'mixto' ? (Number(body.monto_efectivo) || 0) : (metodoPago === 'efectivo' ? montoNeto : 0)
     const montoQr = metodoPago === 'mixto' ? (Number(body.monto_qr) || 0) : (metodoPago === 'qr' ? montoNeto : 0)
 
+    const cuentaCodigoFinal = body.cuenta_codigo || 'EGR-GEN'
+    // Asegurar que la cuenta exista en plan_cuentas para evitar error de FK (egresos_cuenta_codigo_fkey y transactions_cuenta_codigo_fkey)
+    await supabase.from('plan_cuentas').upsert({
+      codigo: cuentaCodigoFinal,
+      detalle: body.cuenta_codigo ? (body.concepto || 'Egreso Registrado') : 'Gastos Generales / Varios',
+      tipo: 'EGRESO',
+      nivel: cuentaCodigoFinal.split('.').length || 1,
+      es_sancion: false
+    }, { onConflict: 'codigo', ignoreDuplicates: true })
+
     const { data, error } = await supabase
       .from('egresos')
       .insert({
@@ -118,7 +129,7 @@ export async function POST(request: NextRequest) {
         it,
         monto_neto: montoNeto,
         numero_factura: body.numero_factura || null,
-        cuenta_codigo: body.cuenta_codigo || null,
+        cuenta_codigo: cuentaCodigoFinal,
         metodo_pago: metodoPago,
         monto_efectivo: montoEfectivo,
         monto_qr: montoQr,
@@ -143,7 +154,7 @@ export async function POST(request: NextRequest) {
             it,
             monto_neto: montoNeto,
             numero_factura: body.numero_factura || null,
-            cuenta_codigo: body.cuenta_codigo || null,
+            cuenta_codigo: cuentaCodigoFinal,
             usuario_registro: profile?.full_name || user.email || 'Sistema',
             notas: body.notas || null,
             comprobante_url: body.comprobante_url || null,
@@ -162,7 +173,7 @@ export async function POST(request: NextRequest) {
       fecha: body.fecha || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
       ci: '0000000',
       nombre: body.proveedor || 'Egreso General',
-      cuenta_codigo: body.cuenta_codigo || 'EGR-GEN',
+      cuenta_codigo: cuentaCodigoFinal,
       cuenta_detalle: body.concepto,
       glosa: body.notas || body.concepto,
       costo: montoBruto,

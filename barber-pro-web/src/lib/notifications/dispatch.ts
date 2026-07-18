@@ -714,6 +714,45 @@ export async function dispatchNotification(
         break
       }
 
+      case 'cumpleanos': {
+        const msgAdmin = `Se verificó exitosamente el carnet/documento de ${p.clienteNombre} y se le habilitó su beneficio de cumpleaños.`
+        
+        await notifyRole(db, 'admin', {
+          titulo: `🎂 ¡Cumpleañero Registrado y Verificado! (${p.clienteNombre})`,
+          mensaje: msgAdmin,
+          tipo: 'info',
+          categoria: 'sistema',
+          link: '/coordinador/cumpleanos',
+          metadata: { cliente_id: p.clienteId }
+        })
+
+        await notifyRole(db, 'coordinador', {
+          titulo: `🎂 ¡Cumpleañero Registrado y Verificado! (${p.clienteNombre})`,
+          mensaje: msgAdmin,
+          tipo: 'info',
+          categoria: 'sistema',
+          link: '/coordinador/cumpleanos',
+          metadata: { cliente_id: p.clienteId }
+        })
+
+        if (p.clienteId) {
+          await notifyUser(db, p.clienteId as string, 'sistema', {
+            titulo: `🎉 ¡Feliz Cumpleaños ${p.clienteNombre}! 🎂`,
+            mensaje: `¡Te deseamos un muy feliz cumpleaños de parte de todo el equipo de Barber Pro! Tu documento y fecha han sido verificados en el sistema. Ven en tu semana de cumpleaños a disfrutar tu regalo o descuento especial. ¡Te esperamos!`,
+            tipo: 'info',
+            categoria: 'sistema',
+            link: '/reservar',
+          })
+        }
+
+        if (input.userEmail) {
+          await sendNotificationEmail(input.userEmail, 'cumpleanos', {
+            nombre: (p.clienteNombre as string) || 'Cliente'
+          })
+        }
+        break
+      }
+
       default:
         errors.push(`Evento desconocido: ${event}`)
     }
@@ -790,8 +829,10 @@ export async function dispatchCitaReprogramada(
 
   const prev = new Date(fechaHoraAnterior)
   const next = new Date(fechaHoraNueva)
-  const cliente = cita.clientes as { nombre?: string; email?: string } | null
-  const servicio = cita.servicios as { nombre?: string } | null
+  const clienteRaw = Array.isArray(cita.clientes) ? cita.clientes[0] : cita.clientes
+  const servicioRaw = Array.isArray(cita.servicios) ? cita.servicios[0] : cita.servicios
+  const cliente = clienteRaw as { nombre?: string; email?: string } | null
+  const servicio = servicioRaw as { nombre?: string } | null
   const barbero = barberoProfile
 
   await dispatchNotification(db, {
@@ -799,14 +840,15 @@ export async function dispatchCitaReprogramada(
     payload: {
       citaId,
       barberoId: cita.barbero_id,
-      clienteNombre: cliente?.nombre,
+      clienteNombre: cliente?.nombre || 'Cliente',
       clienteEmail: cliente?.email ?? undefined,
-      barberoNombre: barbero?.full_name,
-      servicioNombre: servicio?.nombre,
-      fecha: next.toLocaleDateString('es-BO'),
-      hora: next.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }),
-      fechaAnterior: prev.toLocaleDateString('es-BO'),
-      horaAnterior: prev.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }),
+      barberoNombre: barbero?.full_name || 'Tu barbero',
+      servicioNombre: servicio?.nombre || 'Cita de barbería',
+      fecha: next.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' }),
+      hora: next.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false }),
+      fechaAnterior: prev.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' }),
+      horaAnterior: prev.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false }),
     },
   })
 }
+

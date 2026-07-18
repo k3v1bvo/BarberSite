@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No tienes permiso' }, { status: 403 })
     }
 
-    const fechaHoraSolicitada = new Date(`${nueva_fecha}T${nueva_hora}:00`).toISOString()
+    const fechaHoraSolicitada = new Date(`${nueva_fecha}T${nueva_hora}:00-04:00`).toISOString()
 
     const { error: updateError } = await supabase
       .from('citas')

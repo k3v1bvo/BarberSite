@@ -36,17 +36,20 @@ export async function GET() {
       }
     }
 
-    // 4. Verificación de cumpleaños (si fue verificado hoy)
+    // 4. Verificación de cumpleaños (dentro de los últimos 30 días o este año)
     let cumpleVerificado = false
-    if (cliente?.id && esCumpleanos) {
-      const hoyStr = new Date().toISOString().split('T')[0]
+    if (cliente?.id) {
       const { data: verif } = await supabase
         .from('cumpleanos_verificados')
-        .select('id')
+        .select('fecha_verificacion')
         .eq('cliente_id', cliente.id)
-        .eq('fecha_verificacion', hoyStr)
-        .single()
-      cumpleVerificado = !!verif
+        .order('fecha_verificacion', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (verif?.fecha_verificacion) {
+        const diffDays = Math.abs((new Date().getTime() - new Date(verif.fecha_verificacion).getTime()) / (1000 * 3600 * 24))
+        if (diffDays <= 30) cumpleVerificado = true
+      }
     }
 
     // 5. Metas de lealtad (próxima meta a alcanzar)
@@ -122,6 +125,7 @@ export async function GET() {
       metasAlcanzadas,
       canjes: canjes ?? [],
       promosHoy,
+      promocionesActivas: todasPromos ?? [],
       ultimasCitas: ultimasCitas ?? [],
       misReferidos,
     })

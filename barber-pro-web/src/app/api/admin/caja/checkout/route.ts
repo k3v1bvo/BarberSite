@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminSupabaseClient, getNotificationDbClient } from '@/lib/supabase/admin'
-import { dispatchNotification } from '@/lib/notifications/dispatch'
+import { dispatchNotification, dispatchCitaReprogramada } from '@/lib/notifications/dispatch'
 import { calcularNivelFidelidad } from '@/lib/lealtad/calcular-nivel'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
       // Determine the datetime to use
       let baseDate = ahora
       if (reserva_fecha && reserva_hora) {
-        baseDate = new Date(`${reserva_fecha}T${reserva_hora}:00`)
+        baseDate = new Date(`${reserva_fecha}T${reserva_hora}:00-04:00`)
       }
 
       // If completed immediately, the start was 'duracion' minutes ago. 
@@ -245,11 +245,18 @@ export async function POST(request: NextRequest) {
       }
 
       let citaNueva, citaError
+      let wasRescheduled = false
+      let oldFechaHora = ''
       
       if (cita_id) {
-        // Solo no sobrescribir fecha original si NO estamos reprogramando (reserva_fecha vacía)
         if (!reserva_fecha || !reserva_hora) {
           delete insertData.fecha_hora
+        } else {
+          const { data: oldCita } = await supabase.from('citas').select('fecha_hora').eq('id', cita_id).single()
+          if (oldCita?.fecha_hora && oldCita.fecha_hora !== insertData.fecha_hora) {
+            wasRescheduled = true
+            oldFechaHora = oldCita.fecha_hora
+          }
         }
         
         const res = await supabase
@@ -371,7 +378,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle()
         
       if (pendingReferral) {
-        await adminSupabase.from('referrals').update({ bono_otorgado: true }).eq('id', pendingReferral.id)
+        await adminSupabase.from('referrals').update({ bono_otorgado: true, bono_usado: false }).eq('id', pendingReferral.id)
         
         try {
           // Type cast to any because Supabase may infer `never` depending on how joins are typed in the DB types
@@ -471,15 +478,6 @@ export async function POST(request: NextRequest) {
             clienteEmail: clienteDataForNotif?.email || undefined,
             clienteNombre: clienteDataForNotif?.full_name || undefined
           },
-        })
-      }
-    } else {
-      // Si fue "en_proceso", notificar al barbero para que empiece
-      if (citaId) {
-        const db = getNotificationDbClient(supabase)
-        await dispatchNotification(db, {
-          event: 'reserva_nueva',
-          payload: { citaId, barberoId: barbero_id, monto: precioBase },
         })
       }
     }

@@ -132,6 +132,10 @@ export default function AgendaIndividualPage() {
   }, [authorized, selectedBarberoId])
 
   const handleBarberoChange = (id: string) => {
+    if (id === 'todos') {
+      router.push('/agenda')
+      return
+    }
     setSelectedBarberoId(id)
     router.push(`/agenda/${id}`)
   }
@@ -198,8 +202,9 @@ export default function AgendaIndividualPage() {
             <select
               value={selectedBarberoId}
               onChange={(e) => handleBarberoChange(e.target.value)}
-              className="w-full md:w-64 h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none"
+              className="w-full md:w-64 h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none cursor-pointer hover:border-white/20 transition-all"
             >
+              <option value="todos">💈 Todos los Barberos (General)</option>
               {barberos.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.nombre}

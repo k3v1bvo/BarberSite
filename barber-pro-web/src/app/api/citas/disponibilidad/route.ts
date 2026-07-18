@@ -13,67 +13,121 @@ export async function GET(request: Request) {
   const supabase = await createServerSupabaseClient()
 
   // Definir el rango del día
-  const inicioDia = `${fecha}T00:00:00`
-  const finDia = `${fecha}T23:59:59`
+  const inicioDia = `${fecha}T00:00:00-04:00`
+  const finDia = `${fecha}T23:59:59-04:00`
 
-  // Consultar citas ya existentes para ese barbero en ese día
-  const { data: citas, error } = await supabase
-    .from('citas')
-    .select('fecha_hora, duracion_real_minutos')
-    .eq('barbero_id', barbero_id)
-    .gte('fecha_hora', inicioDia)
-    .lte('fecha_hora', finDia)
-    .not('estado', 'eq', 'cancelada')
+  // 1. Obtener día de la semana (0=Domingo..6=Sábado en hora de Bolivia)
+  const dBolivia = new Date(`${fecha}T12:00:00-04:00`)
+  const diaSemana = dBolivia.getDay()
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  // 2. Consultar horario semanal y tiempo mínimo de reserva en paralelo
+  const [horarioRes, configRes, bloqueosRes, citasRes] = await Promise.all([
+    supabase
+      .from('barbero_horario_semanal')
+      .select('hora_inicio, hora_fin, activo')
+      .eq('barbero_id', barbero_id)
+      .eq('dia_semana', diaSemana)
+      .maybeSingle(),
+    supabase
+      .from('configuraciones')
+      .select('valor')
+      .eq('llave', 'tiempo_minimo_reserva')
+      .maybeSingle(),
+    supabase
+      .from('barbero_bloqueos')
+      .select('fecha_inicio, fecha_fin, tipo, todo_el_dia')
+      .eq('barbero_id', barbero_id)
+      .gte('fecha_fin', inicioDia)
+      .lte('fecha_inicio', finDia),
+    supabase
+      .from('citas')
+      .select('fecha_hora, duracion_real_minutos')
+      .eq('barbero_id', barbero_id)
+      .gte('fecha_hora', inicioDia)
+      .lte('fecha_hora', finDia)
+      .not('estado', 'eq', 'cancelada')
+  ])
+
+  const horario = horarioRes.data
+  const tiempoMinimoReserva = (configRes.data?.valor as any)?.minutos || 180
+
+  // Verificar si el barbero trabaja este día según horario semanal
+  let disponible = true
+  let hora_inicio = '09:00'
+  let hora_fin = '20:00'
+  let motivo = ''
+
+  if (horario) {
+    if (!horario.activo) {
+      disponible = false
+      motivo = 'El barbero no atiende en este día de la semana.'
+    } else {
+      hora_inicio = horario.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
+      hora_fin = horario.hora_fin ? horario.hora_fin.slice(0, 5) : '20:00'
+    }
+  } else if (diaSemana === 0) {
+    // Por defecto si no hay horario configurado, domingo no laborable
+    disponible = false
+    motivo = 'El barbero no atiende los domingos.'
   }
 
-  // Consultar bloqueos u horarios libres anulados
-  const { data: bloqueos } = await supabase
-    .from('barbero_bloqueos')
-    .select('inicio, fin, tipo')
-    .eq('barbero_id', barbero_id)
-    .gte('fin', inicioDia)
-    .lte('inicio', finDia)
+  // Verificar bloqueos de todo el día o día libre/vacación completa
+  const bloqueos = bloqueosRes.data || []
+  const bloqueoTodoDia = bloqueos.find(b => b.todo_el_dia || b.tipo === 'vacacion' || b.tipo === 'dia_libre')
+  if (bloqueoTodoDia && disponible) {
+    disponible = false
+    motivo = bloqueoTodoDia.tipo === 'vacacion' ? 'El barbero está de vacaciones en esta fecha.' : 'Día libre o bloqueo programado para el barbero.'
+  }
 
-  // Extraer las horas ocupadas con su duración
-  const ocupados = (citas || []).map(cita => {
-    const d = new Date(cita.fecha_hora)
-    const hora = d.toLocaleTimeString('es-ES', { 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      hour12: false 
-    })
-    return {
-      hora,
-      duracion: cita.duracion_real_minutos
-    }
-  })
+  // Extraer las horas ocupadas con su duración (citas y bloqueos parciales como almuerzo)
+  const ocupados: Array<{ hora: string; duracion: number }> = []
 
-  // Añadir bloqueos como horas ocupadas
-  if (bloqueos) {
-    bloqueos.forEach(b => {
-      const dInicio = new Date(b.inicio)
-      const dFin = new Date(b.fin)
-      
-      const inicioReal = dInicio.getTime() < new Date(inicioDia).getTime() ? new Date(inicioDia) : dInicio
-      
-      const hora = inicioReal.toLocaleTimeString('es-ES', { 
+  if (citasRes.data) {
+    citasRes.data.forEach(cita => {
+      const d = new Date(cita.fecha_hora)
+      const hora = d.toLocaleTimeString('es-ES', { 
         hour: '2-digit', 
         minute: '2-digit', 
-        hour12: false 
+        hour12: false,
+        timeZone: 'America/La_Paz'
       })
-      
-      const duracionMs = dFin.getTime() - inicioReal.getTime()
-      const duracionMinutos = Math.floor(duracionMs / 60000)
-      
       ocupados.push({
         hora,
-        duracion: duracionMinutos
+        duracion: cita.duracion_real_minutos || 30
       })
     })
   }
 
-  return NextResponse.json({ ocupados })
+  bloqueos.forEach(b => {
+    if (b.todo_el_dia || b.tipo === 'vacacion' || b.tipo === 'dia_libre') return
+    const dInicio = new Date(b.fecha_inicio)
+    const dFin = new Date(b.fecha_fin)
+    
+    const inicioReal = dInicio.getTime() < new Date(inicioDia).getTime() ? new Date(inicioDia) : dInicio
+    
+    const hora = inicioReal.toLocaleTimeString('es-ES', { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      hour12: false,
+      timeZone: 'America/La_Paz'
+    })
+    
+    const duracionMs = dFin.getTime() - inicioReal.getTime()
+    const duracionMinutos = Math.max(15, Math.floor(duracionMs / 60000))
+    
+    ocupados.push({
+      hora,
+      duracion: duracionMinutos
+    })
+  })
+
+  return NextResponse.json({ 
+    ocupados,
+    disponible,
+    hora_inicio,
+    hora_fin,
+    motivo,
+    tiempo_minimo_reserva
+  })
 }
+

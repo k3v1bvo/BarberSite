@@ -224,6 +224,83 @@ export default function AdminLealtadPage() {
   }
 
   // ── Promo CRUD ──
+  const activarPromoBase = async (tipoBase: '2x1' | 'referido' | 'cumpleanos') => {
+    setSavingPromo(true)
+    try {
+      let payload: any = {}
+      if (tipoBase === '2x1') {
+        payload = {
+          nombre: '✂️ 2×1 Todos los Martes',
+          descripcion: 'Ven con un amigo o familiar los martes y pagan solo por 1 corte. Al seleccionar esta promo al agendar, pedirá los datos del acompañante.',
+          tipo: '2x1',
+          valor: 0,
+          dias_semana: [2],
+          icono: '✂️',
+          color: 'amber',
+          activa: true
+        }
+      } else if (tipoBase === 'referido') {
+        payload = {
+          nombre: '🤝 Programa de Referidos',
+          descripcion: 'Trae a un nuevo cliente a la barbería. Cuando tu referido asista a su primer corte, tú recibes tu bono/descuento especial.',
+          tipo: 'referido',
+          valor: 10,
+          dias_semana: [],
+          icono: '🤝',
+          color: 'purple',
+          activa: true
+        }
+      } else if (tipoBase === 'cumpleanos') {
+        payload = {
+          nombre: '🎂 Regalo de Cumpleañero',
+          descripcion: '¡Celebra tu cumpleaños con nosotros! Presenta tu carnet de identidad en tu semana de cumpleaños para validar y obtener tu corte especial o regalo.',
+          tipo: 'cumpleanos',
+          valor: 0,
+          dias_semana: [],
+          icono: '🎂',
+          color: 'amber',
+          activa: true
+        }
+      }
+      const res = await fetch('/api/promociones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      success(`Promoción "${payload.nombre}" activada con éxito`)
+      loadAll()
+    } catch (e: any) {
+      toastError(e.message || 'Error al crear promo base')
+    } finally {
+      setSavingPromo(false)
+    }
+  }
+
+  const activarTodasPromosBase = async () => {
+    setSavingPromo(true)
+    try {
+      const p2x1 = promociones.find(p => p.tipo === '2x1')
+      const pRef = promociones.find(p => p.tipo === 'referido')
+      const pCump = promociones.find(p => p.tipo === 'cumpleanos')
+      
+      const toCreate: ('2x1' | 'referido' | 'cumpleanos')[] = []
+      if (!p2x1) toCreate.push('2x1')
+      if (!pRef) toCreate.push('referido')
+      if (!pCump) toCreate.push('cumpleanos')
+
+      for (const t of toCreate) {
+        await activarPromoBase(t)
+      }
+      success('Todas las promociones base han sido activadas e integradas en la plataforma.')
+      loadAll()
+    } catch (e: any) {
+      toastError(e.message || 'Error al activar promociones')
+    } finally {
+      setSavingPromo(false)
+    }
+  }
+
   const toggleDia = (dia: number) => {
     setPromoForm(f => ({
       ...f,
@@ -446,40 +523,220 @@ export default function AdminLealtadPage() {
 
       {/* ══ PROMOCIONES ══ */}
       {tab === 'promociones' && (
-        <div className="space-y-4">
-          {promociones.length === 0 && <p className="text-zinc-600 text-center py-12 font-black uppercase tracking-widest">No hay promociones. Crea la primera.</p>}
-          {promociones.map((p) => (
-            <Card key={p.id} className={`border transition-all ${p.activa ? 'border-amber-500/20 bg-zinc-900' : 'border-white/5 bg-zinc-900/40 opacity-60'}`}>
-              <CardContent className="p-5 flex flex-col md:flex-row justify-between items-start gap-4">
-                <div className="flex items-start gap-4">
-                  <span className="text-3xl">{p.icono}</span>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <h3 className="font-black text-white uppercase">{p.nombre}</h3>
-                      <Badge variant={p.activa ? 'success' : 'default'} className="text-[9px] uppercase">{p.activa ? 'Activa' : 'Pausada'}</Badge>
-                      <Badge variant="info" className="text-[9px] uppercase">{TIPOS_PROMO.find(t => t.value === p.tipo)?.label ?? p.tipo}</Badge>
+        <div className="space-y-8">
+          {/* BANNER PROMOCIONES BASE DEL LOCAL */}
+          <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-purple-500/10 border border-amber-500/30 rounded-3xl p-6 relative overflow-hidden shadow-xl">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="space-y-2 max-w-2xl">
+                <div className="flex items-center gap-2">
+                  <Badge variant="warning" className="uppercase font-black text-[10px] tracking-wider px-2.5 py-0.5">Sistema Integrado</Badge>
+                  <span className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Barber Pro Core</span>
+                </div>
+                <h2 className="text-2xl font-black text-white uppercase tracking-tight">Promociones Base del Local</h2>
+                <p className="text-zinc-300 text-sm leading-relaxed">
+                  Estas 3 promociones están vinculadas al motor de reservas y verificación de la barbería: 
+                  <strong className="text-amber-400"> 2×1 de los Martes</strong> (solicita datos de acompañante en reservas), 
+                  <strong className="text-purple-400"> Programa de Referidos</strong> (gestión de bonos por recomendación) y 
+                  <strong className="text-amber-400"> Cumpleañero</strong> (verificación de carnet de identidad).
+                </p>
+              </div>
+              {(!promociones.some(p => p.tipo === '2x1') || !promociones.some(p => p.tipo === 'referido') || !promociones.some(p => p.tipo === 'cumpleanos')) && (
+                <Button 
+                  variant="primary" 
+                  onClick={activarTodasPromosBase} 
+                  disabled={savingPromo}
+                  className="shrink-0 bg-gradient-to-r from-amber-500 to-amber-400 text-black font-black uppercase text-xs tracking-wider px-6 py-4 shadow-lg shadow-amber-500/20 hover:scale-105 transition-all"
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Activar las 3 Promos Base
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t border-white/10">
+              {/* TARJETA 2X1 */}
+              {(() => {
+                const p = promociones.find(promo => promo.tipo === '2x1')
+                return (
+                  <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${p ? (p.activa ? 'bg-black/60 border-amber-500/40 shadow-md' : 'bg-black/40 border-white/10 opacity-75') : 'bg-black/30 border-dashed border-white/20'}`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-2xl">✂️</span>
+                        {p ? (
+                          <Badge variant={p.activa ? 'success' : 'default'} className="text-[9px] uppercase font-black">{p.activa ? 'Activa' : 'Pausada'}</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[9px] text-zinc-500 uppercase font-black">No activada</Badge>
+                        )}
+                      </div>
+                      <h4 className="font-black text-white text-base uppercase">2×1 de los Martes</h4>
+                      <p className="text-zinc-400 text-xs mt-1 leading-relaxed">Pagan 1 y entran 2. Al seleccionar al agendar en la web, pide al cliente el nombre y carnet de su acompañante.</p>
+                      {p && (
+                        <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-400 font-bold">
+                          <span>⚡ Conectado a /reservar</span>
+                        </div>
+                      )}
                     </div>
-                    {p.descripcion && <p className="text-zinc-400 text-sm">{p.descripcion}</p>}
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {p.dias_semana?.length > 0
-                        ? p.dias_semana.map((d: number) => <span key={d} className="text-[10px] font-black text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-0.5 uppercase">{DIAS_SEMANA[d]}</span>)
-                        : <span className="text-[10px] text-zinc-600 uppercase font-black">Todos los días</span>
-                      }
-                      {p.nivel_requerido && <span className="text-[10px] font-black text-purple-400 bg-purple-500/10 border border-purple-500/20 rounded-lg px-2 py-0.5 uppercase">Nivel {p.nivel_requerido}+</span>}
-                      {p.valor > 0 && <span className="text-[10px] font-black text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-2 py-0.5">{p.tipo === 'descuento_porcentaje' ? `${p.valor}%` : `Bs ${p.valor}`} OFF</span>}
+                    <div className="pt-3 border-t border-white/5 flex items-center justify-between gap-2">
+                      {p ? (
+                        <>
+                          <button onClick={() => togglePromo(p)} className="text-xs font-bold text-zinc-300 hover:text-white flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
+                            {p.activa ? <ToggleRight className="text-green-500 w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                            <span>{p.activa ? 'Pausar' : 'Reanudar'}</span>
+                          </button>
+                          <div className="flex gap-1">
+                            <Button variant="outline" size="sm" onClick={() => openEditPromo(p)}><Edit className="w-3.5 h-3.5" /></Button>
+                            <Button variant="outline" size="sm" onClick={() => deletePromo(p.id)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                          </div>
+                        </>
+                      ) : (
+                        <Button variant="primary" size="sm" className="w-full text-xs font-black" onClick={() => activarPromoBase('2x1')} disabled={savingPromo}>
+                          + Activar 2×1
+                        </Button>
+                      )}
                     </div>
                   </div>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button onClick={() => togglePromo(p)} className="p-2 rounded-xl hover:bg-white/5 transition-colors text-zinc-400 hover:text-white" title={p.activa ? 'Pausar' : 'Activar'}>
-                    {p.activa ? <ToggleRight size={20} className="text-green-500" /> : <ToggleLeft size={20} />}
-                  </button>
-                  <Button variant="outline" size="sm" onClick={() => openEditPromo(p)}><Edit className="w-4 h-4" /></Button>
-                  <Button variant="outline" size="sm" onClick={() => deletePromo(p.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                )
+              })()}
+
+              {/* TARJETA REFERIDOS */}
+              {(() => {
+                const p = promociones.find(promo => promo.tipo === 'referido')
+                const pendCount = referidos.filter(r => !r.bono_otorgado).length
+                return (
+                  <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${p ? (p.activa ? 'bg-black/60 border-purple-500/40 shadow-md' : 'bg-black/40 border-white/10 opacity-75') : 'bg-black/30 border-dashed border-white/20'}`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-2xl">🤝</span>
+                        {p ? (
+                          <Badge variant={p.activa ? 'success' : 'default'} className="text-[9px] uppercase font-black">{p.activa ? 'Activa' : 'Pausada'}</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[9px] text-zinc-500 uppercase font-black">No activada</Badge>
+                        )}
+                      </div>
+                      <h4 className="font-black text-white text-base uppercase">Referidos</h4>
+                      <p className="text-zinc-400 text-xs mt-1 leading-relaxed">Trae un nuevo cliente y gana bono/descuento en tu próxima cita. Gestiona los premios cuando el referido asista.</p>
+                      {p && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-[10px] text-purple-300 font-bold">
+                            ⚡ {pendCount} bonos pendientes
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="pt-3 border-t border-white/5 flex flex-col gap-2">
+                      {p ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <button onClick={() => setTab('referidos')} className="text-xs font-black text-purple-400 hover:text-purple-300 flex items-center gap-1 bg-purple-500/10 px-3 py-1.5 rounded-xl border border-purple-500/20 flex-1 justify-center">
+                            <span>Ver Referidos ➔</span>
+                          </button>
+                          <button onClick={() => togglePromo(p)} className="p-1.5 rounded-xl hover:bg-white/5 text-zinc-400 hover:text-white" title={p.activa ? 'Pausar' : 'Activar'}>
+                            {p.activa ? <ToggleRight className="text-green-500 w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                          </button>
+                          <Button variant="outline" size="sm" onClick={() => openEditPromo(p)}><Edit className="w-3.5 h-3.5" /></Button>
+                        </div>
+                      ) : (
+                        <Button variant="primary" size="sm" className="w-full text-xs font-black bg-purple-600 hover:bg-purple-500" onClick={() => activarPromoBase('referido')} disabled={savingPromo}>
+                          + Activar Referidos
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* TARJETA CUMPLEAÑERO */}
+              {(() => {
+                const p = promociones.find(promo => promo.tipo === 'cumpleanos')
+                return (
+                  <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${p ? (p.activa ? 'bg-black/60 border-amber-500/40 shadow-md' : 'bg-black/40 border-white/10 opacity-75') : 'bg-black/30 border-dashed border-white/20'}`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-2xl">🎂</span>
+                        {p ? (
+                          <Badge variant={p.activa ? 'success' : 'default'} className="text-[9px] uppercase font-black">{p.activa ? 'Activa' : 'Pausada'}</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[9px] text-zinc-500 uppercase font-black">No activada</Badge>
+                        )}
+                      </div>
+                      <h4 className="font-black text-white text-base uppercase">Cumpleañero</h4>
+                      <p className="text-zinc-400 text-xs mt-1 leading-relaxed">Ven en tu semana de cumpleaños con carnet en mano para validar tu beneficio en recepción y recibir tu regalo.</p>
+                      {p && (
+                        <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-400 font-bold">
+                          <span>⚡ {verifs.length} verificados hoy</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="pt-3 border-t border-white/5 flex flex-col gap-2">
+                      {p ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <button onClick={() => setTab('cumpleanos')} className="text-xs font-black text-amber-400 hover:text-amber-300 flex items-center gap-1 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/20 flex-1 justify-center">
+                            <span>Ver Cumpleaños ➔</span>
+                          </button>
+                          <button onClick={() => togglePromo(p)} className="p-1.5 rounded-xl hover:bg-white/5 text-zinc-400 hover:text-white" title={p.activa ? 'Pausar' : 'Activar'}>
+                            {p.activa ? <ToggleRight className="text-green-500 w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                          </button>
+                          <Button variant="outline" size="sm" onClick={() => openEditPromo(p)}><Edit className="w-3.5 h-3.5" /></Button>
+                        </div>
+                      ) : (
+                        <Button variant="primary" size="sm" className="w-full text-xs font-black" onClick={() => activarPromoBase('cumpleanos')} disabled={savingPromo}>
+                          + Activar Cumpleañero
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+
+          {/* OTRAS PROMOCIONES PERSONALIZADAS */}
+          <div className="space-y-4 pt-4 border-t border-white/5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-white uppercase tracking-wider">Otras Promociones Personalizadas</h3>
+                <p className="text-zinc-500 text-xs">Descuentos especiales, promociones por temporada o por nivel de lealtad</p>
+              </div>
+            </div>
+
+            {promociones.filter(p => !['2x1', 'referido', 'cumpleanos'].includes(p.tipo)).length === 0 ? (
+              <div className="text-center py-12 bg-zinc-900/40 border border-white/5 rounded-2xl">
+                <p className="text-zinc-600 font-black uppercase text-xs tracking-widest">No tienes otras promociones adicionales creadas</p>
+              </div>
+            ) : (
+              promociones.filter(p => !['2x1', 'referido', 'cumpleanos'].includes(p.tipo)).map((p) => (
+                <Card key={p.id} className={`border transition-all ${p.activa ? 'border-amber-500/20 bg-zinc-900' : 'border-white/5 bg-zinc-900/40 opacity-60'}`}>
+                  <CardContent className="p-5 flex flex-col md:flex-row justify-between items-start gap-4">
+                    <div className="flex items-start gap-4">
+                      <span className="text-3xl">{p.icono}</span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h3 className="font-black text-white uppercase">{p.nombre}</h3>
+                          <Badge variant={p.activa ? 'success' : 'default'} className="text-[9px] uppercase">{p.activa ? 'Activa' : 'Pausada'}</Badge>
+                          <Badge variant="info" className="text-[9px] uppercase">{TIPOS_PROMO.find(t => t.value === p.tipo)?.label ?? p.tipo}</Badge>
+                        </div>
+                        {p.descripcion && <p className="text-zinc-400 text-sm">{p.descripcion}</p>}
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {p.dias_semana?.length > 0
+                            ? p.dias_semana.map((d: number) => <span key={d} className="text-[10px] font-black text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-0.5 uppercase">{DIAS_SEMANA[d]}</span>)
+                            : <span className="text-[10px] text-zinc-600 uppercase font-black">Todos los días</span>
+                          }
+                          {p.nivel_requerido && <span className="text-[10px] font-black text-purple-400 bg-purple-500/10 border border-purple-500/20 rounded-lg px-2 py-0.5 uppercase">Nivel {p.nivel_requerido}+</span>}
+                          {p.valor > 0 && <span className="text-[10px] font-black text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-2 py-0.5">{p.tipo === 'descuento_porcentaje' ? `${p.valor}%` : `Bs ${p.valor}`} OFF</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button onClick={() => togglePromo(p)} className="p-2 rounded-xl hover:bg-white/5 transition-colors text-zinc-400 hover:text-white" title={p.activa ? 'Pausar' : 'Activar'}>
+                        {p.activa ? <ToggleRight size={20} className="text-green-500" /> : <ToggleLeft size={20} />}
+                      </button>
+                      <Button variant="outline" size="sm" onClick={() => openEditPromo(p)}><Edit className="w-4 h-4" /></Button>
+                      <Button variant="outline" size="sm" onClick={() => deletePromo(p.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
         </div>
       )}
 
@@ -687,8 +944,19 @@ export default function AdminLealtadPage() {
                 </div>
 
                 {/* Valor (solo si aplica) */}
-                {['descuento_porcentaje', 'descuento_fijo'].includes(promoForm.tipo) && (
-                  <Input label={promoForm.tipo === 'descuento_porcentaje' ? 'Descuento (%)' : 'Descuento fijo (Bs)'} type="number" min={0} value={promoForm.valor} onChange={e => setPromoForm({ ...promoForm, valor: parseFloat(e.target.value) || 0 })} />
+                {['descuento_porcentaje', 'descuento_fijo', 'cumpleanos', 'referido'].includes(promoForm.tipo) && (
+                  <Input 
+                    label={
+                      promoForm.tipo === 'descuento_porcentaje' ? 'Descuento (%)' : 
+                      promoForm.tipo === 'descuento_fijo' ? 'Descuento fijo (Bs)' :
+                      promoForm.tipo === 'referido' ? 'Monto del Bono por referido (Bs)' :
+                      'Valor de descuento (Bs o % si es <= 100)'
+                    } 
+                    type="number" 
+                    min={0} 
+                    value={promoForm.valor} 
+                    onChange={e => setPromoForm({ ...promoForm, valor: parseFloat(e.target.value) || 0 })} 
+                  />
                 )}
 
                 {/* Días de la semana */}

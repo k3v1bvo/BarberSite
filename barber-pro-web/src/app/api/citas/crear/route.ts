@@ -22,8 +22,27 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json()
-    const { cliente_id, servicio_id, barbero_id, fecha_hora } = body
+    const contentType = request.headers.get('content-type') || ''
+    let cliente_id: string, servicio_id: string, barbero_id: string, raw_fecha_hora: string
+
+    if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data')) {
+      const formData = await request.formData()
+      cliente_id = String(formData.get('cliente_id') || '')
+      servicio_id = String(formData.get('servicio_id') || '')
+      barbero_id = String(formData.get('barbero_id') || '')
+      raw_fecha_hora = String(formData.get('fecha_hora') || '')
+    } else {
+      const body = await request.json()
+      cliente_id = body.cliente_id
+      servicio_id = body.servicio_id
+      barbero_id = body.barbero_id
+      raw_fecha_hora = body.fecha_hora
+    }
+
+    let fecha_hora = raw_fecha_hora
+    if (typeof fecha_hora === 'string' && !fecha_hora.includes('Z') && !fecha_hora.match(/[+-]\d{2}:\d{2}$/)) {
+      fecha_hora = `${fecha_hora.length === 16 ? fecha_hora + ':00' : fecha_hora}-04:00`
+    }
 
     const { data: servicio } = await supabase
       .from('servicios')
@@ -93,8 +112,8 @@ export async function POST(request: Request) {
         clienteNombre: cliente?.nombre,
         clienteEmail: cliente?.email ?? undefined,
         servicioNombre: servicioRow?.nombre,
-        fecha: fh.toLocaleDateString('es-BO'),
-        hora: fh.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }),
+        fecha: fh.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' }),
+        hora: fh.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false }),
       },
     })
 

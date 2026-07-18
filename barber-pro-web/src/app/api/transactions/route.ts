@@ -264,6 +264,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Solo puedes registrar ventas' }, { status: 403 })
     }
 
+    const cuentaCodigoFinal = body.cuenta_codigo || '000'
+    // Asegurar que la cuenta exista en plan_cuentas para evitar violación de foreign key (transactions_cuenta_codigo_fkey)
+    await supabase.from('plan_cuentas').upsert({
+      codigo: cuentaCodigoFinal,
+      detalle: body.cuenta_codigo ? (body.cuenta_detalle || 'Movimiento Financiero') : 'Movimiento General / Varios',
+      tipo: body.tipo_movimiento === 'INGRESO' || body.tipo_movimiento === 'DEPOSITO' ? 'INGRESO' : 'EGRESO',
+      nivel: cuentaCodigoFinal.split('.').length || 1,
+      es_sancion: !!body.es_sancion
+    }, { onConflict: 'codigo', ignoreDuplicates: true })
+
     const { data, error } = await supabase
       .from('transactions')
       .insert({
@@ -271,7 +281,7 @@ export async function POST(request: NextRequest) {
         fecha: body.fecha || getTodayBolivia(),
         ci: body.ci || '0000000',
         nombre: body.nombre || 'Sin nombre',
-        cuenta_codigo: body.cuenta_codigo || '000',
+        cuenta_codigo: cuentaCodigoFinal,
         cuenta_detalle: body.cuenta_detalle || 'Movimiento manual',
         glosa: body.glosa || '',
         costo: Number(body.costo) || 0,
@@ -298,7 +308,7 @@ export async function POST(request: NextRequest) {
             fecha: body.fecha || getTodayBolivia(),
             ci: body.ci || '0000000',
             nombre: body.nombre || 'Sin nombre',
-            cuenta_codigo: body.cuenta_codigo || '000',
+            cuenta_codigo: cuentaCodigoFinal,
             cuenta_detalle: body.cuenta_detalle || 'Movimiento manual',
             glosa: body.glosa || '',
             costo: Number(body.costo) || 0,

@@ -18,6 +18,7 @@ export type NotificationCategory =
   | 'reprogramacion_rechazada'
   | 'bienvenida_nuevo_usuario'
   | 'cambio_rol'
+  | 'cumpleanos'
 
 export type NotificationTipo = 'info' | 'success' | 'warning' | 'danger'
 

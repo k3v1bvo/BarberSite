@@ -29,6 +29,7 @@ interface CardData {
   metasAlcanzadas: any[]
   canjes: any[]
   promosHoy: any[]
+  promocionesActivas?: any[]
   ultimasCitas: any[]
   misReferidos?: any[]
 }
@@ -105,10 +106,10 @@ export default function ClientePage() {
 
       if (cardRes.ok) setCardData(await cardRes.json())
 
-      const ahora = new Date().toISOString()
+      const ahoraMs = Date.now()
       const citas = (citasRes.data as unknown as Cita[]) ?? []
-      setCitasProximas(citas.filter(c => c.fecha_hora >= ahora && c.estado !== 'cancelado'))
-      setCitasPasadas(citas.filter(c => c.fecha_hora < ahora || c.estado === 'cancelado').reverse().slice(0, 8))
+      setCitasProximas(citas.filter(c => new Date(c.fecha_hora).getTime() >= ahoraMs && c.estado !== 'cancelado'))
+      setCitasPasadas(citas.filter(c => new Date(c.fecha_hora).getTime() < ahoraMs || c.estado === 'cancelado').reverse().slice(0, 8))
     } finally {
       setLoading(false)
     }
@@ -473,50 +474,92 @@ export default function ClientePage() {
             </CardContent>
           </Card>
 
-          {/* ——— PROMOS DE HOY ——— */}
-          {cardData?.promosHoy && cardData.promosHoy.length > 0 && (
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <Flame size={18} className="text-amber-500" />
-                <h3 className="text-sm font-black uppercase tracking-widest text-white">Promos de Hoy — {DIAS[new Date().getDay()]}</h3>
+          {/* ——— INCENTIVOS Y PROMOCIONES ACTIVAS ——— */}
+          <div className="mt-8">
+            <div className="flex items-center gap-3 mb-4">
+              <Flame size={18} className="text-amber-500" />
+              <h3 className="text-sm font-black uppercase tracking-widest text-white">Promociones e Incentivos Activos</h3>
+            </div>
+
+            {/* Promociones aplicables HOY */}
+            {cardData?.promosHoy && cardData.promosHoy.length > 0 && (
+              <div className="mb-6">
+                <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" /> ¡Disponibles para ti HOY ({DIAS[new Date().getDay()]})!
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {cardData.promosHoy.map((promo: any) => (
+                    <div key={`hoy-${promo.id}`} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/20 to-zinc-900 border-2 border-amber-500/50 p-4 shadow-lg shadow-amber-500/10">
+                      <div className="absolute top-0 right-0 p-3 text-4xl opacity-20">{promo.icono ?? PROMO_ICONS[promo.tipo] ?? '🎁'}</div>
+                      <Badge variant="warning" className="mb-2 font-black text-[10px]">APLICA HOY</Badge>
+                      <p className="text-white font-black text-base">{promo.nombre}</p>
+                      {promo.descripcion && <p className="text-zinc-300 text-xs mt-1 leading-relaxed">{promo.descripcion}</p>}
+                      {promo.valor > 0 && (
+                        <div className="mt-3 inline-flex items-center gap-1.5 bg-amber-500 rounded-xl px-3 py-1">
+                          <Zap size={12} className="text-black" />
+                          <span className="text-black font-black text-sm">
+                            {promo.tipo === 'descuento_porcentaje' && `${promo.valor}% OFF`}
+                            {promo.tipo === 'descuento_fijo' && `Bs ${promo.valor} OFF`}
+                            {promo.tipo === 'cumpleanos' && (promo.valor <= 100 ? `${promo.valor}% OFF` : `Bs ${promo.valor} OFF`)}
+                          </span>
+                        </div>
+                      )}
+                      {promo.valor === 0 && (promo.tipo === '2x1' || promo.tipo === 'servicio_gratis' || promo.tipo === 'cumpleanos') && (
+                        <div className="mt-3 inline-flex items-center gap-1.5 bg-amber-500 rounded-xl px-3 py-1">
+                          <Scissors size={12} className="text-black" />
+                          <span className="text-black font-black text-sm">
+                            {promo.tipo === '2x1' ? '2 × 1 (Ambos entran por 1)' : 'Corte Gratis / Especial'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {cardData.promosHoy.map((promo: any) => (
-                  <div key={promo.id} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-amber-500/20 p-4 hover:border-amber-500/50 transition-all">
-                    <div className="absolute top-0 right-0 p-3 text-4xl opacity-20">{promo.icono ?? PROMO_ICONS[promo.tipo] ?? '🎁'}</div>
-                    <p className="text-amber-500 text-xs font-black uppercase tracking-widest mb-1">{promo.tipo.replace(/_/g, ' ')}</p>
-                    <p className="text-white font-black text-base">{promo.nombre}</p>
-                    {promo.descripcion && <p className="text-zinc-400 text-xs mt-1">{promo.descripcion}</p>}
-                    {promo.valor > 0 && (
-                      <div className="mt-3 inline-flex items-center gap-1.5 bg-amber-500 rounded-xl px-3 py-1">
-                        <Zap size={12} className="text-black" />
-                        <span className="text-black font-black text-sm">
-                          {promo.tipo === 'descuento_porcentaje' && `${promo.valor}% OFF`}
-                          {promo.tipo === 'descuento_fijo' && `Bs ${promo.valor} OFF`}
-                          {promo.tipo === '2x1' && '2 x 1'}
+            )}
+
+            {/* General Base Promotions and Incentives */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {(cardData?.promocionesActivas ?? []).map((promo: any) => {
+                // Si ya se mostró en promosHoy, darle un formato más sutil aquí o complementario
+                const esDeHoy = cardData?.promosHoy?.some((ph: any) => ph.id === promo.id)
+                if (esDeHoy) return null // Ya se muestra arriba en grande
+
+                return (
+                  <div key={promo.id} className="relative overflow-hidden rounded-2xl bg-zinc-900 border border-zinc-800 p-4 hover:border-zinc-700 transition-all flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-2xl">{promo.icono ?? PROMO_ICONS[promo.tipo] ?? '🎁'}</span>
+                        <span className="text-[10px] uppercase font-black tracking-widest text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-md">
+                          {promo.tipo === '2x1' ? 'Martes' : promo.tipo === 'cumpleanos' ? 'Anual' : promo.tipo === 'referido' ? 'Referidos' : 'Especial'}
                         </span>
                       </div>
-                    )}
-                    {promo.valor === 0 && promo.tipo === '2x1' && (
-                      <div className="mt-3 inline-flex items-center gap-1.5 bg-amber-500 rounded-xl px-3 py-1">
-                        <Scissors size={12} className="text-black" />
-                        <span className="text-black font-black text-sm">2 × 1</span>
-                      </div>
-                    )}
+                      <p className="text-white font-black text-sm">{promo.nombre}</p>
+                      {promo.descripcion && <p className="text-zinc-400 text-xs mt-1 leading-relaxed">{promo.descripcion}</p>}
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                      <span className="text-xs text-zinc-400 font-medium">Beneficio:</span>
+                      <span className="text-amber-400 font-black text-xs">
+                        {promo.tipo === 'descuento_porcentaje' && `${promo.valor}% OFF`}
+                        {promo.tipo === 'descuento_fijo' && `Bs ${promo.valor} de Descuento`}
+                        {promo.tipo === '2x1' && '2 por el precio de 1'}
+                        {promo.tipo === 'cumpleanos' && (promo.valor <= 100 ? `${promo.valor}% de Descuento` : `Bs ${promo.valor} OFF`)}
+                        {promo.tipo === 'referido' && `Bs ${promo.valor || 10} por Amigo`}
+                      </span>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                )
+              })}
 
-          {/* Sin promos hoy */}
-          {cardData?.promosHoy && cardData.promosHoy.length === 0 && (
-            <div className="text-center py-6 rounded-2xl border border-dashed border-white/10 bg-zinc-900/30">
-              <Gift size={32} className="mx-auto text-zinc-700 mb-2" />
-              <p className="text-zinc-500 text-sm font-bold">Sin promociones especiales hoy</p>
-              <p className="text-zinc-600 text-xs mt-1">Los martes hay 2x1 ✂️</p>
+              {(!cardData?.promocionesActivas || cardData.promocionesActivas.length === 0) && (!cardData?.promosHoy || cardData.promosHoy.length === 0) && (
+                <div className="col-span-full text-center py-6 rounded-2xl border border-dashed border-white/10 bg-zinc-900/30">
+                  <Gift size={32} className="mx-auto text-zinc-700 mb-2" />
+                  <p className="text-zinc-500 text-sm font-bold">Sin promociones especiales en este momento</p>
+                  <p className="text-zinc-600 text-xs mt-1">Suma visitas para subir de nivel de lealtad 👑</p>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* ——— REFERIR AMIGOS ——— */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 mt-8 print:hidden">
@@ -655,9 +698,9 @@ export default function ClientePage() {
                           <div>
                             <p className="font-black text-white text-sm uppercase leading-tight">{(cita as any).servicios?.nombre}</p>
                             <p className="text-zinc-500 text-xs mt-0.5">
-                              {new Date(cita.fecha_hora).toLocaleDateString('es-BO', { weekday: 'short', day: 'numeric', month: 'short' })}
+                              {new Date(cita.fecha_hora).toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', weekday: 'short', day: 'numeric', month: 'short' })}
                               {' · '}
-                              {new Date(cita.fecha_hora).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(cita.fecha_hora).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false })}
                             </p>
                             <p className="text-amber-500/80 text-[10px] font-black uppercase tracking-widest mt-1">
                               Con: {(cita as any).profiles?.full_name || 'Barbero'}
@@ -730,7 +773,7 @@ export default function ClientePage() {
                     <div>
                       <p className="text-white text-xs font-black uppercase leading-none">{(cita as any).servicios?.nombre}</p>
                       <p className="text-zinc-600 text-[10px] mt-0.5 font-mono">
-                        {new Date(cita.fecha_hora).toLocaleDateString('es-BO', { day: 'numeric', month: 'short', year: '2-digit' })}
+                        {new Date(cita.fecha_hora).toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', day: 'numeric', month: 'short', year: '2-digit' })}
                       </p>
                     </div>
                   </div>

@@ -27,6 +27,8 @@ import { formatCurrency } from '@/lib/utils'
 
 export type CalendarCita = AgendaCita
 
+import { getBoliviaDateKey, getBoliviaTimeStr, getBoliviaHour } from '@/lib/agenda/date-utils'
+
 interface CalendarViewProps {
   citas: CalendarCita[]
   view: AgendaView
@@ -120,18 +122,36 @@ export function CalendarView({
   }
 
   const renderCitaLabel = (cita: CalendarCita, compact = false) => (
-    <>
-      <div className="font-bold truncate">
-        {format(parseISO(cita.fecha_hora), 'HH:mm')}
+    <div className="space-y-0.5">
+      <div className="flex items-center justify-between gap-1 font-bold truncate">
+        <span>{getBoliviaTimeStr(cita.fecha_hora)}</span>
         {mode === 'general' && compact && (
-          <span className="opacity-80"> · {cita.barbero_nombre.split(' ')[0]}</span>
+          <div className="flex items-center gap-1 shrink-0 bg-black/40 px-1 py-0.5 rounded border border-white/5">
+            {cita.barbero_avatar_url ? (
+              <img src={cita.barbero_avatar_url} alt="" className="w-3.5 h-3.5 rounded-full object-cover border border-amber-500/50" />
+            ) : (
+              <div className="w-3.5 h-3.5 rounded-full bg-amber-500/20 text-amber-400 text-[8px] flex items-center justify-center font-black">
+                {cita.barbero_nombre?.charAt(0)?.toUpperCase() || 'B'}
+              </div>
+            )}
+            <span className="opacity-90 text-[9px] truncate max-w-[60px]">{cita.barbero_nombre.split(' ')[0]}</span>
+          </div>
         )}
       </div>
-      <div className="truncate">{cita.cliente_nombre}</div>
+      <div className="truncate font-semibold text-[11px]">👤 {cita.cliente_nombre}</div>
       {!compact && mode === 'general' && (
-        <div className="truncate opacity-80 text-[9px]">{cita.barbero_nombre}</div>
+        <div className="flex items-center gap-1.5 truncate opacity-90 text-[10px] bg-black/40 px-1.5 py-0.5 rounded mt-1 border border-white/10">
+          {cita.barbero_avatar_url ? (
+            <img src={cita.barbero_avatar_url} alt="" className="w-4 h-4 rounded-full object-cover shrink-0 border border-amber-500/50" />
+          ) : (
+            <div className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 text-[9px] flex items-center justify-center font-black shrink-0 border border-amber-500/50">
+              {cita.barbero_nombre?.charAt(0)?.toUpperCase() || 'B'}
+            </div>
+          )}
+          <span className="truncate font-bold text-amber-300">{cita.barbero_nombre}</span>
+        </div>
       )}
-    </>
+    </div>
   )
 
   const renderMesView = () => {
@@ -148,7 +168,7 @@ export function CalendarView({
 
     const citasPorDia = new Map<string, CalendarCita[]>()
     citas.forEach((cita) => {
-      const fechaKey = format(parseISO(cita.fecha_hora), 'yyyy-MM-dd')
+      const fechaKey = getBoliviaDateKey(cita.fecha_hora)
       if (!citasPorDia.has(fechaKey)) {
         citasPorDia.set(fechaKey, [])
       }
@@ -227,11 +247,11 @@ export function CalendarView({
     const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 })
     const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 })
     const daysOfWeek = eachDayOfInterval({ start: weekStart, end: weekEnd })
-    const hours = Array.from({ length: 12 }, (_, i) => i + 9)
+    const hours = Array.from({ length: 16 }, (_, i) => i + 7)
 
     const citasPorDia = new Map<string, CalendarCita[]>()
     citas.forEach((cita) => {
-      const fechaKey = format(parseISO(cita.fecha_hora), 'yyyy-MM-dd')
+      const fechaKey = getBoliviaDateKey(cita.fecha_hora)
       if (!citasPorDia.has(fechaKey)) {
         citasPorDia.set(fechaKey, [])
       }
@@ -274,33 +294,61 @@ export function CalendarView({
               {daysOfWeek.map((day) => {
                 const dayKey = format(day, 'yyyy-MM-dd')
                 const dayCitas = citasPorDia.get(dayKey) || []
-                const dayCita = dayCitas.find((c) => {
-                  const citaHour = parseInt(format(parseISO(c.fecha_hora), 'HH'), 10)
-                  return citaHour === hour
+                const cellCitas = dayCitas.filter((c) => {
+                  return getBoliviaHour(c.fecha_hora) === hour
                 })
 
                 return (
                   <div
                     key={`${dayKey}-${hour}`}
-                    className="bg-zinc-900/50 border-t border-r border-white/5 p-2 min-h-20 hover:bg-zinc-800 transition-colors"
+                    className="bg-zinc-900/50 border-t border-r border-white/5 p-2 min-h-20 hover:bg-zinc-800 transition-colors space-y-1.5 overflow-y-auto max-h-48"
                   >
-                    {dayCita && (
+                    {cellCitas.map((dayCita) => (
                       <div
+                        key={dayCita.id}
                         onClick={() => onCitaClick?.(dayCita)}
-                        className={getCitaBlockClass(dayCita, mode)}
+                        className={clsx(
+                          getCitaBlockClass(dayCita, mode),
+                          'space-y-1 p-1.5 transition-all hover:scale-[1.02] shadow-sm'
+                        )}
                       >
-                        <div className="font-bold">
-                          {format(parseISO(dayCita.fecha_hora), 'HH:mm')}
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-extrabold text-[11px] tracking-tight">
+                            {getBoliviaTimeStr(dayCita.fecha_hora)}
+                          </span>
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-black/40 font-semibold border border-white/5">
+                            {dayCita.duracion_minutos}m
+                          </span>
                         </div>
-                        <div className="truncate">{dayCita.cliente_nombre}</div>
+
                         {mode === 'general' && (
-                          <div className="truncate text-[9px] opacity-80">
-                            {dayCita.barbero_nombre}
+                          <div className="flex items-center gap-1.5 bg-black/50 px-1.5 py-1 rounded-md border border-white/10 my-0.5 shadow-sm">
+                            {dayCita.barbero_avatar_url ? (
+                              <img
+                                src={dayCita.barbero_avatar_url}
+                                alt={dayCita.barbero_nombre}
+                                className="w-4 h-4 rounded-full object-cover shrink-0 border border-amber-500/80 shadow"
+                              />
+                            ) : (
+                              <div className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-[8px] font-black shrink-0 border border-amber-500/50 shadow">
+                                {dayCita.barbero_nombre?.charAt(0)?.toUpperCase() || 'B'}
+                              </div>
+                            )}
+                            <span className="truncate text-[10px] font-black text-amber-300">
+                              {dayCita.barbero_nombre}
+                            </span>
                           </div>
                         )}
-                        <div className="truncate">{dayCita.servicio_nombre}</div>
+
+                        <div className="truncate font-bold text-[11px] leading-tight text-white/90">
+                          👤 {dayCita.cliente_nombre}
+                        </div>
+                        <div className="flex items-center justify-between gap-1 text-[9px] opacity-90 font-medium pt-0.5 border-t border-white/5">
+                          <span className="truncate">💈 {dayCita.servicio_nombre}</span>
+                          <span className="shrink-0 font-black text-amber-400">Bs {dayCita.precio}</span>
+                        </div>
                       </div>
-                    )}
+                    ))}
                   </div>
                 )
               })}
@@ -313,16 +361,17 @@ export function CalendarView({
 
   const renderDiaView = () => {
     const dayStart = startOfDay(selectedDate)
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd')
     const dayCitas = citas
-      .filter((c) => isSameDay(parseISO(c.fecha_hora), selectedDate))
+      .filter((c) => getBoliviaDateKey(c.fecha_hora) === selectedDateStr)
       .sort(
         (a, b) =>
-          parseISO(a.fecha_hora).getTime() - parseISO(b.fecha_hora).getTime()
+          new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime()
       )
 
-    const hours = Array.from({ length: 12 }, (_, i) => {
+    const hours = Array.from({ length: 16 }, (_, i) => {
       const h = new Date(dayStart)
-      h.setHours(9 + i, 0, 0, 0)
+      h.setHours(7 + i, 0, 0, 0)
       return h
     })
 
@@ -338,8 +387,9 @@ export function CalendarView({
         <div className="space-y-3">
           {hours.map((hour) => {
             const hourStr = format(hour, 'HH:mm')
+            const targetHour = parseInt(format(hour, 'HH'), 10)
             const citasHora = dayCitas.filter((c) =>
-              format(parseISO(c.fecha_hora), 'HH:mm').startsWith(format(hour, 'HH'))
+              getBoliviaHour(c.fecha_hora) === targetHour
             )
 
             return (
@@ -358,15 +408,34 @@ export function CalendarView({
                             : getEstadoColor(cita.estado)
                         )}
                       >
-                        <div className="flex justify-between items-start mb-2 gap-2">
-                          <div>
-                            <div className="font-bold text-lg">{cita.cliente_nombre}</div>
-                            <div className="text-sm">{cita.servicio_nombre}</div>
+                        <div className="flex justify-between items-start mb-2 gap-3">
+                          <div className="flex items-start gap-3">
                             {mode === 'general' && (
-                              <div className="text-xs text-amber-400/90 mt-1 font-bold">
-                                {cita.barbero_nombre}
-                              </div>
+                              cita.barbero_avatar_url ? (
+                                <img
+                                  src={cita.barbero_avatar_url}
+                                  alt={cita.barbero_nombre}
+                                  className="w-11 h-11 rounded-full object-cover shrink-0 border-2 border-amber-500 shadow-md"
+                                />
+                              ) : (
+                                <div className="w-11 h-11 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm font-black shrink-0 border-2 border-amber-500/50 shadow-md">
+                                  {cita.barbero_nombre?.charAt(0)?.toUpperCase() || 'B'}
+                                </div>
+                              )
                             )}
+                            <div>
+                              <div className="font-extrabold text-base text-white flex items-center gap-2">
+                                👤 {cita.cliente_nombre}
+                              </div>
+                              <div className="text-sm font-medium text-zinc-300 mt-0.5 flex items-center gap-1.5">
+                                💈 {cita.servicio_nombre}
+                              </div>
+                              {mode === 'general' && (
+                                <div className="text-xs text-amber-400 mt-1 font-bold flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded-full w-fit border border-amber-500/20 shadow-sm">
+                                  <span>Barbero: {cita.barbero_nombre}</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <Badge
                             variant={getEstadoBadgeVariant(cita.estado)}
@@ -376,7 +445,7 @@ export function CalendarView({
                           </Badge>
                         </div>
                         <div className="text-xs text-zinc-400 mt-2">
-                          {format(parseISO(cita.fecha_hora), 'HH:mm')} · {cita.duracion_minutos}{' '}
+                          {getBoliviaTimeStr(cita.fecha_hora)} · {cita.duracion_minutos}{' '}
                           min · {formatCurrency(cita.precio)}
                         </div>
                       </div>

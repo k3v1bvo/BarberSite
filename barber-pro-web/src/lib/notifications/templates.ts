@@ -459,6 +459,36 @@ export function buildEmail(
         ),
       }
 
+    case 'invitacion_referido':
+      return {
+        subject: `🎉 ¡Ganaste un Bono por Referir a un Amigo! — ${BRAND}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Gracias por recomendarnos!</h2>
+          <p>Hola <strong>${data.acompananteNombre || nombre}</strong>, tu amigo/a <strong>${data.clienteNombre}</strong> acaba de completar un servicio con nosotros y te nombró como su referidor.</p>
+          <p>¡Como agradecimiento, has ganado un bono de descuento en nuestro sistema que podrás usar en tu próximo corte o compra de productos!</p>
+          ${detailBox([
+            { label: 'Referido', value: data.clienteNombre || 'Un amigo' },
+            { label: 'Bono Ganado', value: `Bs. ${data.montoBono || '10'}` },
+          ])}
+          <p>Para ver y usar tus bonos, accede a tu cuenta desde el siguiente enlace.</p>
+          ${cta(`${SITE}/login`, 'Ver mis bonos')}`,
+          '¡Ganaste un bono de descuento por referir a un amigo!'
+        ),
+      }
+
+    case 'cumpleanos':
+      return {
+        subject: `🎂 ¡Feliz Cumpleaños de parte de ${BRAND}! 🎉`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Feliz Cumpleaños ${nombre}!</h2>
+          <p>Te deseamos un muy feliz cumpleaños de parte de todo el equipo de <strong>${BRAND}</strong>.</p>
+          <p>Hemos verificado tu documento de identidad y se ha habilitado tu regalo de cumpleaños en nuestro sistema.</p>
+          <p>Tienes una promoción exclusiva que puedes aprovechar durante la semana o el mes de tu cumpleaños.</p>
+          ${cta(`${SITE}/reservar`, 'Agendar cita ahora')}`,
+          '¡Tienes un regalo esperando por ti!'
+        ),
+      }
+
     default:
       return {
         subject: `Notificación — ${BRAND}`,

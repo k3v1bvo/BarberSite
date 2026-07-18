@@ -74,7 +74,7 @@ export default function CumpleanosPage() {
       foto_documento_url: '',
       foto_reverso_url: '',
       tipo_documento: 'carnet',
-      promo_id: '',
+      promo_id: promos.length > 0 ? promos[0].id : '',
       notas: '',
       fecha_cumpleanos: cliente.cumpleanos || new Date().toISOString().split('T')[0]
     })
@@ -191,15 +191,18 @@ export default function CumpleanosPage() {
                           {c.email && ` · ${c.email}`}
                         </p>
                       )}
-                      {!c.cumpleanos && <p className="text-zinc-600 text-xs">Sin fecha de cumpleaños registrada</p>}
+                      {!c.cumpleanos && <p className="text-amber-400/80 font-bold text-xs">⚠️ Sin fecha de cumpleaños (Registrar al verificar CI)</p>}
                     </div>
-                    {esHoy && !yaVerif ? (
-                      <Button variant="primary" size="sm" className="shrink-0 font-black" onClick={() => abrirVerificacion(c)}>
-                        <UserCheck className="w-4 h-4 mr-1" /> Verificar
+                    {yaVerif ? (
+                      <div className="flex items-center gap-1.5 text-green-500 font-bold text-xs bg-green-500/10 px-3 py-1.5 rounded-xl border border-green-500/20 shrink-0">
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Verificado Hoy</span>
+                      </div>
+                    ) : (
+                      <Button variant="primary" size="sm" className="shrink-0 font-black bg-gradient-to-r from-amber-500 to-amber-400 text-black hover:scale-105 transition-all shadow-md" onClick={() => abrirVerificacion(c)}>
+                        <UserCheck className="w-4 h-4 mr-1.5" /> 🎂 Registrar / Verificar CI
                       </Button>
-                    ) : esHoy && yaVerif ? (
-                      <CheckCircle className="w-6 h-6 text-green-500 shrink-0" />
-                    ) : null}
+                    )}
                   </div>
                 )
               })}
@@ -271,17 +274,20 @@ export default function CumpleanosPage() {
 
             <form onSubmit={guardarVerificacion} className="p-6 space-y-5">
               {/* Fecha de Cumpleaños */}
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1.5 block">
-                  📅 Fecha de Cumpleaños confirmada en Documento
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-amber-400 block">
+                  📅 Fecha de Cumpleaños confirmada en Documento / CI
                 </label>
                 <input
                   type="date"
                   value={form.fecha_cumpleanos}
                   onChange={e => setForm({ ...form, fecha_cumpleanos: e.target.value })}
-                  className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm outline-none focus:border-amber-500/50"
+                  className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm outline-none focus:border-amber-500"
                   required
                 />
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  💡 Al confirmar, se actualizará la fecha en el perfil del cliente, se registrará la foto del documento y se enviará una notificación al cliente deseándole feliz cumpleaños junto con el aviso para el admin y coordinador.
+                </p>
               </div>
 
               {/* Tipo de documento */}

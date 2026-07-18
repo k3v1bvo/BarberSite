@@ -101,6 +101,8 @@ export function CajaPOS() {
   const [promociones, setPromociones] = useState<Promocion[]>([])
   const [lealtadMetas, setLealtadMetas] = useState<LealtadMeta[]>([])
   const [referralBonuses, setReferralBonuses] = useState<ReferralBonus[]>([])
+  const [cumpleanosVerifData, setCumpleanosVerifData] = useState<any | null>(null)
+  const [pareja2x1PendienteData, setPareja2x1PendienteData] = useState<any | null>(null)
   const [clienteDetalle, setClienteDetalle] = useState<Cliente | null>(null)
   const [qrPagoUrl, setQrPagoUrl] = useState<string | null>(null)
   const [citasPendientes, setCitasPendientes] = useState<any[]>([])
@@ -131,6 +133,9 @@ export function CajaPOS() {
   const [reservaFecha, setReservaFecha] = useState('')
   const [reservaHora, setReservaHora] = useState('')
   const [horasOcupadas, setHorasOcupadas] = useState<{hora: string, duracion: number}[]>([])
+  const [disponibleAgenda, setDisponibleAgenda] = useState(true)
+  const [motivoAgenda, setMotivoAgenda] = useState('')
+  const [rangoHorario, setRangoHorario] = useState({ inicio: '09:00', fin: '20:00' })
   const [loadingAgenda, setLoadingAgenda] = useState(false)
   const [tiempoMinimoReserva, setTiempoMinimoReserva] = useState(60)
   const [updatingTiempo, setUpdatingTiempo] = useState(false)
@@ -240,6 +245,14 @@ export function CajaPOS() {
           if (data.ocupados) {
             setHorasOcupadas(data.ocupados)
           }
+          if (typeof data.disponible !== 'undefined') {
+            setDisponibleAgenda(data.disponible)
+            setMotivoAgenda(data.motivo || '')
+            setRangoHorario({
+              inicio: data.hora_inicio || '09:00',
+              fin: data.hora_fin || '20:00'
+            })
+          }
         } catch (error) {
           console.error('Error cargando disponibilidad:', error)
         } finally {
@@ -344,22 +357,35 @@ export function CajaPOS() {
     return () => clearTimeout(timeoutId)
   }, [searchCi, supabase, searchCliente])
 
-  // Fetch referral bonuses when a client is selected
+  // Fetch referral bonuses and client extras when a client is selected
   const fetchClientExtras = useCallback(async (clienteId: string, cliente?: Cliente) => {
-    setClienteDetalle(cliente || clientes.find(c => c.id === clienteId) || null)
+    const cl = cliente || clientes.find(c => c.id === clienteId) || null
+    setClienteDetalle(cl)
     setAplicarReferido(false)
     setPromoSeleccionada('')
+    setCumpleanosVerifData(null)
+    setPareja2x1PendienteData(null)
     try {
-      const { data: refs } = await supabase
-        .from('referrals')
-        .select('id, monto_bono, bono_otorgado, recomendado:clientes!cliente_recomendado_id(nombre)')
-        .eq('cliente_recomendante_id', clienteId)
-        .eq('bono_otorgado', false)
-      setReferralBonuses((refs as any) || [])
+      const res = await fetch(`/api/pos/client-extras?cliente_id=${clienteId}&nombre=${encodeURIComponent(cl?.nombre || '')}&email=${encodeURIComponent(cl?.email || '')}&ci=${encodeURIComponent(cl?.ci || '')}`)
+      const data = await res.json()
+      if (res.ok) {
+        setReferralBonuses(data.referralBonuses || [])
+        setCumpleanosVerifData(data.cumpleanosVerificado || null)
+        setPareja2x1PendienteData(data.pareja2x1Pendiente || null)
+        
+        // Si hay promoción de cumpleaños verificada y no hay otra promo seleccionada, preseleccionarla
+        if (data.cumpleanosVerificado?.promo?.id) {
+          setPromoSeleccionada(data.cumpleanosVerificado.promo.id)
+        }
+      } else {
+        setReferralBonuses([])
+      }
     } catch {
       setReferralBonuses([])
+      setCumpleanosVerifData(null)
+      setPareja2x1PendienteData(null)
     }
-  }, [clientes, supabase])
+  }, [clientes])
 
   useEffect(() => {
     const citaIdParam = searchParams.get('cita_id')
@@ -577,6 +603,8 @@ export function CajaPOS() {
       setCarrito([])
       setClienteDetalle(null)
       setReferralBonuses([])
+      setCumpleanosVerifData(null)
+      setPareja2x1PendienteData(null)
       setAplicarReferido(false)
       setPromoSeleccionada('')
       setAcompanante({ nombre: '', email: '' })
@@ -607,16 +635,16 @@ export function CajaPOS() {
   // Discount calculations
   const promoActiva = promociones.find(p => p.id === promoSeleccionada)
   const descuentoPromo = promoActiva
-    ? promoActiva.tipo === 'descuento_porcentaje'
+    ? promoActiva.tipo === 'descuento_porcentaje' || (promoActiva.tipo === 'cumpleanos' && promoActiva.valor > 0 && promoActiva.valor <= 100)
       ? (subtotalServicio * promoActiva.valor) / 100
-      : promoActiva.tipo === 'descuento_fijo'
+      : promoActiva.tipo === 'descuento_fijo' || promoActiva.tipo === 'referido' || (promoActiva.tipo === 'cumpleanos' && promoActiva.valor > 100)
         ? promoActiva.valor
-        : promoActiva.tipo === 'servicio_gratis'
+        : promoActiva.tipo === 'servicio_gratis' || (promoActiva.tipo === '2x1' && pareja2x1PendienteData) || (promoActiva.tipo === 'cumpleanos' && promoActiva.valor === 0)
           ? subtotalServicio
           : 0
-    : 0
+    : (pareja2x1PendienteData ? subtotalServicio : 0)
   const totalBonoReferido = aplicarReferido
-    ? referralBonuses.reduce((s, r) => s + Number(r.monto_bono), 0)
+    ? referralBonuses.reduce((s, r) => s + Number(r.monto_bono || 10), 0)
     : 0
 
   // Descuento automático por lealtad (metas de visitas)
@@ -664,12 +692,17 @@ export function CajaPOS() {
   }
 
   const generarHorarios = () => {
-    const horarios = []
-    for (let h = 9; h <= 20; h++) {
-      horarios.push(`${h.toString().padStart(2, '0')}:00`)
-      if (h < 20) {
-        horarios.push(`${h.toString().padStart(2, '0')}:30`)
-      }
+    if (!disponibleAgenda) return []
+    const horarios: string[] = []
+    const [hStart, mStart] = (rangoHorario.inicio || '09:00').split(':').map(Number)
+    const [hEnd, mEnd] = (rangoHorario.fin || '20:00').split(':').map(Number)
+    let cur = (isNaN(hStart) ? 9 : hStart) * 60 + (isNaN(mStart) ? 0 : mStart)
+    const end = (isNaN(hEnd) ? 20 : hEnd) * 60 + (isNaN(mEnd) ? 0 : mEnd)
+    while (cur < end) {
+      const hh = Math.floor(cur / 60).toString().padStart(2, '0')
+      const mm = (cur % 60).toString().padStart(2, '0')
+      horarios.push(`${hh}:${mm}`)
+      cur += 30
     }
     return horarios
   }
@@ -913,7 +946,7 @@ export function CajaPOS() {
           )}
 
           {/* CLIENTE */}
-          <Card className="bg-zinc-900 border-zinc-800">
+          <Card className="bg-zinc-900 border-zinc-800 relative z-30" style={{ overflow: 'visible' }}>
             <CardContent className="pt-6 space-y-4">
               <h2 className="text-xl font-semibold flex items-center gap-2">
                 <User className="w-5 h-5 text-amber-500" /> 1. Datos del Cliente
@@ -1060,7 +1093,7 @@ export function CajaPOS() {
               )}
 
               {/* ASIGNAR REFERIDO */}
-              <div className="mt-6 p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl relative">
+              <div className="mt-6 p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl" style={{ overflow: 'visible' }}>
                 <h3 className="text-amber-500 font-black text-xs uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
                   <UserPlus className="w-4 h-4" /> Asignar Referido (Opcional)
                 </h3>
@@ -1095,7 +1128,7 @@ export function CajaPOS() {
                       className="bg-black/50 border-white/10 text-sm h-9"
                     />
                     {showReferidoDropdown && referidoresOptions.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                      <div className="absolute z-[9999] w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl max-h-60 overflow-y-auto" style={{ bottom: 'auto' }}>
                         {referidoresOptions.map(c => (
                           <button
                             key={c.id}
@@ -1104,10 +1137,10 @@ export function CajaPOS() {
                               setReferidoPorNombre(c.nombre)
                               setShowReferidoDropdown(false)
                             }}
-                            className="w-full text-left px-4 py-2 hover:bg-zinc-800 flex flex-col transition"
+                            className="w-full text-left px-4 py-3 hover:bg-amber-500/10 border-b border-zinc-800 last:border-b-0 flex flex-col gap-0.5 transition"
                           >
-                            <span className="font-semibold text-white text-sm">{c.nombre}</span>
-                            <span className="text-xs text-zinc-500">{c.email || c.telefono || 'Sin correo'} {c.ci && `| CI: ${c.ci}`}</span>
+                            <span className="font-bold text-white text-sm">{c.nombre}</span>
+                            <span className="text-xs text-zinc-400">{c.email || c.telefono || 'Sin correo'} {c.ci && `· CI: ${c.ci}`}</span>
                           </button>
                         ))}
                       </div>
@@ -1155,6 +1188,49 @@ export function CajaPOS() {
                 </CardContent>
               </Card>
 
+              {/* Cumpleaños Verificado */}
+              {cumpleanosVerifData && (
+                <Card className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-zinc-900 border-amber-500/40">
+                  <CardContent className="p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-xl shrink-0">
+                        🎂
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">Cumpleañero Verificado esta semana</p>
+                        <p className="text-sm font-black text-white">
+                          🎁 {cumpleanosVerifData.promo?.nombre || 'Beneficio de Cumpleaños'} {cumpleanosVerifData.promo?.tipo === 'descuento_porcentaje' ? `(-${cumpleanosVerifData.promo.valor}%)` : cumpleanosVerifData.promo?.tipo === 'descuento_fijo' ? `(-Bs ${cumpleanosVerifData.promo.valor})` : 'Corte Especial'}
+                        </p>
+                      </div>
+                    </div>
+                    {cumpleanosVerifData.promo?.id && promoSeleccionada !== cumpleanosVerifData.promo.id && (
+                      <Button size="sm" variant="primary" className="font-black shrink-0" onClick={() => setPromoSeleccionada(cumpleanosVerifData.promo.id)}>
+                        Aplicar Regalo
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Pareja 2x1 Pendiente */}
+              {pareja2x1PendienteData && (
+                <Card className="bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-zinc-900 border-emerald-500/40 animate-pulse">
+                  <CardContent className="p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-xl shrink-0">
+                        ✨
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Pareja 2x1 Detectada</p>
+                        <p className="text-sm font-black text-white">
+                          Registrado en 2x1 por <span className="text-emerald-300 underline">{pareja2x1PendienteData.principal_nombre}</span>. Le corresponde su servicio <span className="text-emerald-400">GRATIS (Bs 0)</span>.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Referidos pendientes */}
               <Card className={`bg-zinc-900 ${referralBonuses.length > 0 ? 'border-green-500/30' : 'border-zinc-800'}`}>
                 <CardContent className="p-4 flex items-center gap-3">
@@ -1168,7 +1244,7 @@ export function CajaPOS() {
                     {referralBonuses.length > 0 ? (
                       <>
                         <p className="text-sm font-black text-green-400">
-                          {formatCurrency(referralBonuses.reduce((s, r) => s + Number(r.monto_bono), 0))} disponible
+                          {referralBonuses.length} bonos ({formatCurrency(referralBonuses.reduce((s, r) => s + Number(r.monto_bono || 10), 0))}) disponible
                         </p>
                         <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
                           <input
@@ -1177,11 +1253,11 @@ export function CajaPOS() {
                             onChange={(e) => setAplicarReferido(e.target.checked)}
                             className="accent-green-500"
                           />
-                          <span className="text-[10px] text-green-400 font-bold uppercase">Aplicar como descuento</span>
+                          <span className="text-[10px] text-green-400 font-bold uppercase">Aplicar descuento por referidos</span>
                         </label>
                       </>
                     ) : (
-                      <p className="text-sm text-zinc-500">Sin bonos</p>
+                      <p className="text-sm text-zinc-500">Sin bonos canjeables</p>
                     )}
                   </div>
                 </CardContent>
@@ -1224,8 +1300,10 @@ export function CajaPOS() {
                       <UserPlus className="w-3.5 h-3.5" />
                       Pareja / Acompañante (Promo 2x1)
                     </h4>
-                    <p className="text-[10px] text-amber-500/80 mb-3 leading-tight font-medium">
-                      Ambos reciben el mismo servicio y pagan la mitad. Si proporcionas el correo, le enviaremos una notificación oficial de la Barbería para que se registre o use la promo hoy mismo.
+                    <p className="text-[11px] text-amber-500/90 mb-3 leading-relaxed font-medium">
+                      💡 <span className="font-bold">¿Cómo funciona?</span><br />
+                      • <span className="underline">Pagan juntos hoy:</span> Cobra este servicio aquí y el acompañante entrará gratis en el acto.<br />
+                      • <span className="underline">Viene más tarde (o se corta después):</span> Al registrar a la pareja abajo y cobrar este corte, cuando la pareja pase por caja después y se seleccione su nombre, el sistema la detectará para aplicarle su corte gratis (0 Bs).
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                       <div className="relative">
@@ -1452,27 +1530,33 @@ export function CajaPOS() {
                           <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
                             Hora <span className="font-normal normal-case text-[10px] ml-1">(No respeta tiempo mín.)</span>
                           </label>
-                          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                            {generarHorarios().map(hora => {
-                              const ocupado = checkDisponibilidad(hora)
-                              return (
-                                <button
-                                  key={hora}
-                                  onClick={() => !ocupado && setReservaHora(hora)}
-                                  disabled={ocupado || loadingAgenda}
-                                  className={`py-1.5 text-xs font-bold rounded-md transition ${
-                                    reservaHora === hora
-                                      ? 'bg-amber-500 text-black'
-                                      : ocupado
-                                        ? 'bg-zinc-800/30 text-zinc-600 cursor-not-allowed line-through'
-                                        : 'bg-black/50 border border-white/5 text-zinc-300 hover:border-amber-500/50 hover:text-amber-500'
-                                  }`}
-                                >
-                                  {hora}
-                                </button>
-                              )
-                            })}
-                          </div>
+                          {!disponibleAgenda ? (
+                            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-300 font-medium">
+                              ⚠️ {motivoAgenda || 'El barbero no atiende en esta fecha (Horario / Día libre / Vacaciones).'}
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                              {generarHorarios().map(hora => {
+                                const ocupado = checkDisponibilidad(hora)
+                                return (
+                                  <button
+                                    key={hora}
+                                    onClick={() => !ocupado && setReservaHora(hora)}
+                                    disabled={ocupado || loadingAgenda}
+                                    className={`py-1.5 text-xs font-bold rounded-md transition ${
+                                      reservaHora === hora
+                                        ? 'bg-amber-500 text-black'
+                                        : ocupado
+                                          ? 'bg-zinc-800/30 text-zinc-600 cursor-not-allowed line-through'
+                                          : 'bg-black/50 border border-white/5 text-zinc-300 hover:border-amber-500/50 hover:text-amber-500'
+                                    }`}
+                                  >
+                                    {hora}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
                           {loadingAgenda && <p className="text-[10px] text-zinc-500 animate-pulse">Consultando agenda...</p>}
                         </div>
                       )}

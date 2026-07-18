@@ -90,6 +90,9 @@ function ReservarContent() {
   })
   
   const [horasOcupadas, setHorasOcupadas] = useState<{hora: string, duracion: number}[]>([])
+  const [disponibleAgenda, setDisponibleAgenda] = useState(true)
+  const [motivoAgenda, setMotivoAgenda] = useState('')
+  const [rangoHorario, setRangoHorario] = useState({ inicio: '09:00', fin: '20:00' })
   const [loadingDisponibilidad, setLoadingDisponibilidad] = useState(false)
   const [lealtadInfo, setLealtadInfo] = useState<{descuento: number, mensaje: string} | null>(null)
   const [tiempoMinimoReserva, setTiempoMinimoReserva] = useState(60) // minutos
@@ -115,6 +118,17 @@ function ReservarContent() {
           const data = await res.json()
           if (data.ocupados) {
             setHorasOcupadas(data.ocupados)
+          }
+          if (typeof data.disponible !== 'undefined') {
+            setDisponibleAgenda(data.disponible)
+            setMotivoAgenda(data.motivo || '')
+            setRangoHorario({
+              inicio: data.hora_inicio || '09:00',
+              fin: data.hora_fin || '20:00'
+            })
+          }
+          if (typeof data.tiempo_minimo_reserva !== 'undefined') {
+            setTiempoMinimoReserva(Number(data.tiempo_minimo_reserva))
           }
         } catch (error) {
           console.error('Error cargando disponibilidad:', error)
@@ -235,7 +249,7 @@ function ReservarContent() {
 
       if (!clienteId) throw new Error('No se encontró el ID del cliente')
 
-      const fechaHora = `${formData.fecha}T${formData.hora}:00`
+      const fechaHora = `${formData.fecha}T${formData.hora}:00-04:00`
 
       const { data: citaExistente } = await supabase
         .from('citas')
@@ -395,12 +409,17 @@ function ReservarContent() {
 
   // --- Helpers for Availability & Products ---
   const generarHorarios = () => {
-    const horarios = []
-    for (let h = 9; h <= 20; h++) {
-      horarios.push(`${h.toString().padStart(2, '0')}:00`)
-      if (h < 20) {
-        horarios.push(`${h.toString().padStart(2, '0')}:30`)
-      }
+    if (!disponibleAgenda) return []
+    const horarios: string[] = []
+    const [hStart, mStart] = (rangoHorario.inicio || '09:00').split(':').map(Number)
+    const [hEnd, mEnd] = (rangoHorario.fin || '20:00').split(':').map(Number)
+    let cur = (isNaN(hStart) ? 9 : hStart) * 60 + (isNaN(mStart) ? 0 : mStart)
+    const end = (isNaN(hEnd) ? 20 : hEnd) * 60 + (isNaN(mEnd) ? 0 : mEnd)
+    while (cur < end) {
+      const hh = Math.floor(cur / 60).toString().padStart(2, '0')
+      const mm = (cur % 60).toString().padStart(2, '0')
+      horarios.push(`${hh}:${mm}`)
+      cur += 30
     }
     return horarios
   }
@@ -831,31 +850,37 @@ function ReservarContent() {
                         2. Horarios Disponibles 
                         {loadingDisponibilidad && <span className="text-amber-500 text-xs animate-pulse bg-amber-500/10 px-2 py-1 rounded-full ml-2">Cargando...</span>}
                       </label>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                        {generarHorarios().map((hora) => {
-                          const estaOcupado = checkDisponibilidad(hora)
-                          return (
-                            <button
-                              key={hora}
-                              type="button"
-                              disabled={estaOcupado}
-                              onClick={() => {
-                                setFormData({ ...formData, hora })
-                                setTimeout(() => setStep(4), 300)
-                              }}
-                              className={`py-3.5 rounded-xl text-sm font-black transition-all duration-200 ${
-                                formData.hora === hora
-                                  ? 'bg-amber-500 text-black scale-105 shadow-[0_0_20px_rgba(245,158,11,0.4)] ring-2 ring-amber-400'
-                                  : estaOcupado
-                                    ? 'bg-zinc-950/50 text-zinc-800 cursor-not-allowed border-2 border-zinc-900/50'
+                      {!disponibleAgenda ? (
+                        <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-2xl text-center">
+                          <p className="text-red-300 font-black text-base mb-1">⚠️ Barbero No Disponible</p>
+                          <p className="text-red-200/80 text-sm">{motivoAgenda || 'El barbero no atiende en esta fecha o se encuentra en su día libre.'}</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                          {generarHorarios().map((hora) => {
+                            const estaOcupado = checkDisponibilidad(hora)
+                            if (estaOcupado) return null;
+                            
+                            return (
+                              <button
+                                key={hora}
+                                type="button"
+                                onClick={() => {
+                                  setFormData({ ...formData, hora })
+                                  setTimeout(() => setStep(4), 300)
+                                }}
+                                className={`py-3.5 rounded-xl text-sm font-black transition-all duration-200 ${
+                                  formData.hora === hora
+                                    ? 'bg-amber-500 text-black scale-105 shadow-[0_0_20px_rgba(245,158,11,0.4)] ring-2 ring-amber-400'
                                     : 'bg-zinc-900 hover:bg-amber-500/10 hover:text-amber-400 text-zinc-300 border-2 border-zinc-800 hover:border-amber-500/30'
-                              }`}
-                            >
-                              {hora}
-                            </button>
-                          )
-                        })}
-                      </div>
+                                }`}
+                              >
+                                {hora}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

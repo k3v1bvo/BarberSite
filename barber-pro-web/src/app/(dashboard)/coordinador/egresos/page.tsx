@@ -21,6 +21,7 @@ interface Profile {
   id: string
   full_name: string
   role: string
+  avatar_url: string | null
 }
 
 export default function EgresosPage() {
@@ -31,6 +32,12 @@ export default function EgresosPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  const [periodo, setPeriodo] = useState<'todos' | 'hoy' | 'semana' | 'mes' | 'custom'>('hoy')
+  const [customDesde, setCustomDesde] = useState('')
+  const [customHasta, setCustomHasta] = useState('')
+  const [search, setSearch] = useState('')
+  const [filtroMetodo, setFiltroMetodo] = useState<'todos' | 'efectivo' | 'qr'>('todos')
 
   const [destinatarioTipo, setDestinatarioTipo] = useState<'proveedor' | 'barbero'>('proveedor')
   const [barberoId, setBarberoId] = useState('')
@@ -55,11 +62,44 @@ export default function EgresosPage() {
 
   const supabase = createClient()
 
+  const getTodayBolivia = () => {
+    const d = new Date()
+    const boliviaTime = new Date(d.toLocaleString('en-US', { timeZone: 'America/La_Paz' }))
+    return `${boliviaTime.getFullYear()}-${String(boliviaTime.getMonth() + 1).padStart(2, '0')}-${String(boliviaTime.getDate()).padStart(2, '0')}`
+  }
+
+  const formatLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+  const getDateRange = useCallback((): { desde?: string, hasta?: string } => {
+    const now = new Date()
+    const todayStr = getTodayBolivia()
+    if (periodo === 'todos') return {}
+    if (periodo === 'hoy') return { desde: todayStr, hasta: todayStr }
+    if (periodo === 'semana') {
+      const d = new Date(now)
+      d.setDate(d.getDate() - d.getDay())
+      return { desde: formatLocal(d), hasta: todayStr }
+    }
+    if (periodo === 'mes') {
+      const d = new Date(now.getFullYear(), now.getMonth(), 1)
+      return { desde: formatLocal(d), hasta: todayStr }
+    }
+    return { desde: customDesde || todayStr, hasta: customHasta || todayStr }
+  }, [periodo, customDesde, customHasta])
+
+  const periodoLabel = periodo === 'todos' ? '(todos los egresos)' : periodo === 'hoy' ? 'de hoy' : periodo === 'semana' ? 'de la semana' : periodo === 'mes' ? 'del mes' : `${customDesde} → ${customHasta}`
+
   const loadData = useCallback(async () => {
+    const { desde, hasta } = getDateRange()
+    const params = new URLSearchParams()
+    if (desde) params.append('desde', desde)
+    if (hasta) params.append('hasta', hasta)
+    params.append('limit', '500')
+
     const [eRes, ctasRes, profRes] = await Promise.all([
-      fetch('/api/egresos'),
+      fetch(`/api/egresos?${params.toString()}`),
       fetch('/api/plan-cuentas'),
-      supabase.from('profiles').select('id, full_name, role').in('role', ['barbero', 'admin', 'coordinador']).order('full_name')
+      supabase.from('profiles').select('id, full_name, role, avatar_url').in('role', ['barbero', 'admin', 'coordinador']).eq('is_active', true).order('full_name')
     ])
     if (eRes.ok) setEgresos(await eRes.json())
     if (ctasRes.ok) {
@@ -68,7 +108,7 @@ export default function EgresosPage() {
     }
     if (profRes.data) setProfiles(profRes.data)
     setLoading(false)
-  }, [supabase])
+  }, [supabase, getDateRange])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -235,7 +275,45 @@ export default function EgresosPage() {
     setSaving(false)
   }
 
-  const totalEgresos = egresos.reduce((s, e) => s + Number(e.monto_neto), 0)
+  const getMontosEgreso = (e: Egreso) => {
+    const mpLower = String(e.metodo_pago || 'efectivo').toLowerCase()
+    const num = Number(e.monto_neto || 0)
+    if (mpLower === 'efectivo') return { ef: num, qr: 0 }
+    if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)) return { ef: 0, qr: num }
+    if (mpLower === 'mixto') {
+      return {
+        ef: Number(e.monto_efectivo || 0),
+        qr: Number(e.monto_qr || 0)
+      }
+    }
+    return { ef: num, qr: 0 }
+  }
+
+  const egresosFiltrados = egresos.filter(e => {
+    if (filtroMetodo !== 'todos') {
+      const mpLower = String(e.metodo_pago || 'efectivo').toLowerCase()
+      if (filtroMetodo === 'efectivo' && mpLower !== 'efectivo') return false
+      if (filtroMetodo === 'qr' && !['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)) return false
+    }
+    if (!search) return true
+    const q = search.toLowerCase()
+    return (e.concepto || '').toLowerCase().includes(q)
+      || (e.proveedor || '').toLowerCase().includes(q)
+      || (e.cuenta_codigo || '').toLowerCase().includes(q)
+  })
+
+  let totalNeto = 0
+  let totalEfectivo = 0
+  let totalQr = 0
+  let totalImpuestos = 0
+
+  egresosFiltrados.forEach(e => {
+    totalNeto += Number(e.monto_neto || 0)
+    const { ef, qr } = getMontosEgreso(e)
+    totalEfectivo += ef
+    totalQr += qr
+    totalImpuestos += Number(e.iva || 0) + Number(e.it || 0)
+  })
 
   // Cálculo en vivo fiscal para la vista
   const montoBrutoNum = parseFloat(form.monto_bruto) || 0
@@ -248,26 +326,15 @@ export default function EgresosPage() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20 lg:pb-0">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20 lg:pb-0">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-white/5 pb-6">
         <div>
           <h1 className="text-4xl font-black tracking-tight text-white uppercase">
             Control de <span className="text-rose-500">Egresos</span>
           </h1>
-          <p className="text-zinc-500 font-medium mt-1">Gastos con o sin factura, anticipos al personal y pagos a proveedores</p>
+          <p className="text-zinc-500 font-medium mt-1">Gastos con o sin factura, anticipos al personal y pagos a proveedores · {periodoLabel}</p>
         </div>
         <div className="flex items-center gap-4">
-          <Card className="border-rose-500/30 bg-zinc-900/80 shadow-lg shadow-rose-500/5">
-            <CardContent className="px-5 py-3 flex items-center gap-3">
-              <div className="p-2.5 bg-rose-500/10 rounded-xl border border-rose-500/20">
-                <ArrowDownCircle className="w-6 h-6 text-rose-400" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Total Neto Egresos</p>
-                <p className="text-xl font-black text-rose-400">{formatCurrency(totalEgresos)}</p>
-              </div>
-            </CardContent>
-          </Card>
           <Button
             variant="primary"
             onClick={() => setShowForm(!showForm)}
@@ -277,6 +344,117 @@ export default function EgresosPage() {
             {showForm ? 'Cerrar Formulario' : 'Nuevo Egreso'}
           </Button>
         </div>
+      </div>
+
+      {/* Filtro de Periodo y Búsqueda */}
+      <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex gap-1 bg-zinc-950 border border-white/10 rounded-xl p-1 flex-wrap">
+            {(['todos', 'hoy', 'semana', 'mes', 'custom'] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriodo(p)}
+                className={`px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                  periodo === p ? 'bg-rose-500/20 text-rose-400' : 'text-zinc-500 hover:text-white'
+                }`}
+              >
+                {p === 'todos' ? '📋 Todo' : p === 'hoy' ? '📅 Hoy' : p === 'semana' ? '📆 Semana' : p === 'mes' ? '🗓 Mes' : '📊 Rango'}
+              </button>
+            ))}
+          </div>
+          {periodo === 'custom' && (
+            <div className="flex gap-2 items-center animate-in fade-in duration-200">
+              <input type="date" value={customDesde} onChange={e => setCustomDesde(e.target.value)}
+                className="h-9 bg-zinc-950 border border-white/10 rounded-lg px-3 text-xs text-white focus:border-rose-500/50 outline-none" />
+              <span className="text-zinc-600 text-xs">→</span>
+              <input type="date" value={customHasta} onChange={e => setCustomHasta(e.target.value)}
+                className="h-9 bg-zinc-950 border border-white/10 rounded-lg px-3 text-xs text-white focus:border-rose-500/50 outline-none" />
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto items-stretch sm:items-center">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Buscar por concepto o proveedor..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full h-9 bg-zinc-950 border border-white/10 rounded-lg pl-9 pr-3 text-xs text-white focus:border-rose-500/50 outline-none"
+            />
+          </div>
+          <div className="flex gap-1 bg-zinc-950 border border-white/10 rounded-xl p-1">
+            {(['todos', 'efectivo', 'qr'] as const).map(m => (
+              <button
+                key={m}
+                onClick={() => setFiltroMetodo(m)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                  filtroMetodo === m
+                    ? 'bg-rose-500/20 text-rose-400'
+                    : 'text-zinc-500 hover:text-white'
+                }`}
+              >
+                {m === 'todos' ? 'Todos' : m === 'efectivo' ? '💵 Efectivo' : '📱 QR/Banco'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 4 KPIs Clave del Periodo */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card className="border-rose-500/30 bg-rose-500/10">
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
+            <div className="w-10 h-10 bg-rose-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <ArrowDownCircle className="w-5 h-5 text-rose-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-rose-400">Total Neto Egresos</p>
+              <p className="text-lg font-black text-rose-400">{formatCurrency(totalNeto)}</p>
+              <p className="text-[9px] text-rose-400/70 font-mono">{egresosFiltrados.length} registros en periodo</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-amber-500/30 bg-amber-500/10">
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <Wallet className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">Efectivo (Caja Chica)</p>
+              <p className="text-lg font-black text-amber-400">{formatCurrency(totalEfectivo)}</p>
+              <p className="text-[9px] text-amber-400/70 font-mono">Salida física de caja</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-blue-500/30 bg-blue-500/10">
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <Landmark className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-blue-400">QR / Transf. (Banco)</p>
+              <p className="text-lg font-black text-blue-400">{formatCurrency(totalQr)}</p>
+              <p className="text-[9px] text-blue-400/70 font-mono">Salida digital de banco</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-emerald-500/30 bg-emerald-500/10">
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <FileText className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Crédito Fiscal (IVA+IT)</p>
+              <p className="text-lg font-black text-emerald-400">{formatCurrency(totalImpuestos)}</p>
+              <p className="text-[9px] text-emerald-400/70 font-mono">Recuperable facturas</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* FORMULARIO PREMIUM MEJORADO PARA NUEVO EGRESO */}
@@ -339,44 +517,70 @@ export default function EgresosPage() {
                 </div>
 
                 {destinatarioTipo === 'barbero' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-4 pt-2">
+                    {/* Tarjetas visuales del equipo */}
                     <div>
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
-                        Selecciona el Barbero o Miembro
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">
+                        Selecciona el Barbero o Miembro del Equipo
                       </label>
-                      <select
-                        value={barberoId}
-                        onChange={(e) => handleBarberoSelect(e.target.value)}
-                        className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white focus:border-rose-500/50 outline-none"
-                      >
-                        <option value="">— Seleccionar personal —</option>
-                        {profiles.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.full_name} ({p.role.toUpperCase()})
-                          </option>
-                        ))}
-                      </select>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {profiles.map(p => {
+                          const isSelected = barberoId === p.id
+                          const initials = p.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => handleBarberoSelect(p.id)}
+                              className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
+                                isSelected
+                                  ? 'border-rose-500 bg-rose-500/10 shadow-lg shadow-rose-500/10'
+                                  : 'border-zinc-800 bg-zinc-950 hover:border-zinc-600 hover:bg-zinc-900'
+                              }`}
+                            >
+                              <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-zinc-700 shrink-0">
+                                {p.avatar_url ? (
+                                  <img src={p.avatar_url} alt={p.full_name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
+                                    <span className="text-sm font-black text-zinc-400">{initials}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-center min-w-0 w-full">
+                                <p className={`text-xs font-black truncate ${isSelected ? 'text-rose-300' : 'text-white'}`}>{p.full_name.split(' ')[0]}</p>
+                                <p className="text-[9px] uppercase tracking-widest text-zinc-500">{p.role}</p>
+                              </div>
+                              {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
-                        Concepto Rápido con Personal
-                      </label>
-                      <select
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            setForm(f => ({ ...f, concepto: `${e.target.value} — ${f.proveedor || ''}` }))
-                          }
-                        }}
-                        className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white focus:border-rose-500/50 outline-none"
-                      >
-                        <option value="">— Elegir concepto —</option>
-                        <option value="Anticipo / Adelanto de Sueldo">Adelanto / Préstamo de Sueldo</option>
-                        <option value="Pago de Comisiones Pendientes">Pago de Comisiones del Periodo</option>
-                        <option value="Bono / Premio o Incentivo">Bono o Premio por Desempeño</option>
-                        <option value="Compra de Herramientas / Insumos para Barbero">Herramientas / Insumos de Barbero</option>
-                      </select>
-                    </div>
+                    {/* Concepto rápido cuando hay barbero seleccionado */}
+                    {barberoId && (
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
+                          Concepto Rápido — {profiles.find(p => p.id === barberoId)?.full_name}
+                        </label>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setForm(f => ({ ...f, concepto: `${e.target.value} — ${f.proveedor || ''}` }))
+                            }
+                          }}
+                          className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white focus:border-rose-500/50 outline-none"
+                        >
+                          <option value="">— Elegir tipo de egreso —</option>
+                          <option value="Anticipo / Adelanto de Sueldo">💵 Adelanto / Préstamo de Sueldo</option>
+                          <option value="Pago de Comisiones Pendientes">✂️ Pago de Comisiones del Periodo</option>
+                          <option value="Bono / Premio o Incentivo">🏆 Bono o Premio por Desempeño</option>
+                          <option value="Compra de Herramientas / Insumos para Barbero">🛠️ Herramientas / Insumos de Barbero</option>
+                          <option value="Pago de Sueldo Fijo">📅 Sueldo Fijo del Periodo</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
@@ -693,14 +897,14 @@ export default function EgresosPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {egresos.length === 0 ? (
+                {egresosFiltrados.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-5 py-16 text-center text-zinc-600 font-medium">
-                      No hay egresos o salidas de dinero registradas
+                      No hay egresos o salidas de dinero para el filtro seleccionado
                     </td>
                   </tr>
                 ) : (
-                  egresos.map((e) => {
+                  egresosFiltrados.map((e) => {
                     const conFactura = e.tiene_factura
                     const iva = Number(e.iva || 0)
                     const it = Number(e.it || 0)

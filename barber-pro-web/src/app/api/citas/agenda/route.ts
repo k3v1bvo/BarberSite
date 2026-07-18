@@ -67,12 +67,12 @@ export async function GET(request: NextRequest) {
         notas,
         anticipo_monto,
         barbero_id,
-        clientes (nombre),
+        clientes (nombre, telefono, email),
         servicios (nombre, duracion_minutos),
-        barberos:profiles!barbero_id (full_name)
+        barberos:profiles!barbero_id (full_name, avatar_url)
       `)
-      .gte('fecha_hora', `${fechaInicio}T00:00:00`)
-      .lte('fecha_hora', `${fechaFin}T23:59:59`)
+      .gte('fecha_hora', `${fechaInicio}T00:00:00-04:00`)
+      .lte('fecha_hora', `${fechaFin}T23:59:59-04:00`)
       .neq('estado', 'cancelado')
       .order('fecha_hora', { ascending: true })
 
@@ -91,6 +91,8 @@ export async function GET(request: NextRequest) {
 
     const citasTransformadas: AgendaCita[] = (citas || []).map((cita) => {
       const servicioData = Array.isArray(cita.servicios) ? cita.servicios[0] : cita.servicios
+      const barberoData = Array.isArray(cita.barberos) ? cita.barberos[0] : cita.barberos
+      const clienteData = Array.isArray(cita.clientes) ? cita.clientes[0] : cita.clientes
       
       const comprobanteMatch = (cita.notas as string | null)?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/)
       const comprobante_url = comprobanteMatch ? comprobanteMatch[1] : undefined
@@ -104,11 +106,15 @@ export async function GET(request: NextRequest) {
         reprogramacion_estado: cita.reprogramacion_estado,
         fecha_hora_solicitada: cita.fecha_hora_solicitada,
         cliente_nombre: pickName(cita.clientes, 'Cliente'),
+        cliente_telefono: clienteData?.telefono || undefined,
+        cliente_email: clienteData?.email || undefined,
         servicio_nombre: pickName(cita.servicios, 'Servicio'),
         precio: cita.precio,
         anticipo_monto: cita.anticipo_monto,
         barbero_id: cita.barbero_id,
         barbero_nombre: pickName(cita.barberos, 'Barbero'),
+        barbero_avatar_url: barberoData?.avatar_url || undefined,
+        notas: cita.notas || undefined,
         comprobante_url
       }
     })

@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency, getTodayBolivia } from '@/lib/utils'
-import { Wallet, Plus, X, User, Image as ImageIcon, ArrowUpCircle, ArrowDownCircle, Search, TrendingUp, TrendingDown, Scale, ShoppingCart, Receipt, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Wallet, Plus, X, User, Building, Image as ImageIcon, ArrowUpCircle, ArrowDownCircle, Search, TrendingUp, TrendingDown, Scale, ShoppingCart, Receipt, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import Link from 'next/link'
@@ -50,7 +50,7 @@ export default function CajaChicaPage() {
   const { success: toastSuccess, error: toastError } = useToast()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [cuentas, setCuentas] = useState<PlanCuenta[]>([])
-  const [barberos, setBarberos] = useState<{id: string, full_name: string}[]>([])
+  const [barberos, setBarberos] = useState<{id: string, full_name: string, avatar_url: string | null}[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -161,6 +161,7 @@ export default function CajaChicaPage() {
     setLoading(true)
     const params = new URLSearchParams()
     params.set('limit', '500')
+    // Sin filtro de libro — Caja Chica es el panel general del día
     if (search) params.set('search', search)
     const { desde, hasta } = getDateRange()
     if (desde) params.set('desde', desde)
@@ -173,12 +174,13 @@ export default function CajaChicaPage() {
     if (txRes.ok) setTransactions(await txRes.json())
     if (ctasRes.ok) setCuentas(await ctasRes.json())
     
+    // Saldo anterior: todos los movimientos antes del periodo seleccionado
     let antEf = 0
     let antQr = 0
     if (desde) {
       const { data: antTx } = await supabase
         .from('transactions')
-        .select('costo, tipo_movimiento, metodo_pago, notas')
+        .select('costo, tipo_movimiento, metodo_pago, monto_efectivo, monto_qr, notas')
         .lt('fecha', desde)
       if (antTx) {
         antTx.forEach(tx => {
@@ -191,18 +193,18 @@ export default function CajaChicaPage() {
           } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)) {
             qr = Number(tx.costo || 0)
           } else if (mpLower === 'mixto') {
-            const efMatch = String(tx.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
-            const qrMatch = String(tx.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
-            ef = efMatch ? parseFloat(efMatch[1]) : 0
-            qr = qrMatch ? parseFloat(qrMatch[1]) : Number(tx.costo || 0)
+            if (tx.monto_efectivo !== undefined || tx.monto_qr !== undefined) {
+              ef = Number(tx.monto_efectivo || 0)
+              qr = Number(tx.monto_qr || 0)
+            } else {
+              const efMatch = String(tx.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
+              const qrMatch = String(tx.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
+              ef = efMatch ? parseFloat(efMatch[1]) : 0
+              qr = qrMatch ? parseFloat(qrMatch[1]) : Number(tx.costo || 0)
+            }
           }
-          if (ing) {
-            antEf += ef
-            antQr += qr
-          } else {
-            antEf -= ef
-            antQr -= qr
-          }
+          if (ing) { antEf += ef; antQr += qr }
+          else { antEf -= ef; antQr -= qr }
         })
       }
     }
@@ -210,9 +212,10 @@ export default function CajaChicaPage() {
 
     const { data: bList } = await supabase
       .from('profiles')
-      .select('id, full_name')
+      .select('id, full_name, avatar_url')
       .in('role', ['barbero', 'coordinador'])
       .eq('is_active', true)
+      .order('full_name')
     if (bList) setBarberos(bList)
       
     setLoading(false)
@@ -376,12 +379,15 @@ export default function CajaChicaPage() {
     })
     setSearchCategoria('')
     setShowNewCategoria(false)
+    setDestinatarioTipoCC('externo')
   }
 
   const handleBarberoChange = (id: string) => {
     const b = barberos.find((x) => x.id === id)
-    setForm({ ...form, empleado_id: id, nombre: b?.full_name || form.nombre })
+    setForm({ ...form, empleado_id: id, nombre: b?.full_name || '' })
   }
+
+  const [destinatarioTipoCC, setDestinatarioTipoCC] = useState<'equipo' | 'externo'>('externo')
 
   const getMontosTx = (tx: any) => {
     const mpLower = String(tx.metodo_pago || 'efectivo').toLowerCase()
@@ -480,8 +486,14 @@ export default function CajaChicaPage() {
     }
   })
 
-  const saldoEfectivo = (saldoAnterior?.ef || 0) + ingresosEfectivo - egresosEfectivo
-  const saldoQR = (saldoAnterior?.qr || 0) + ingresosQR - egresosQR
+  const flujoEfectivoPeriodo = ingresosEfectivo - egresosEfectivo
+  const flujoQRPeriodo = ingresosQR - egresosQR
+  const saldoEfectivoTotal = (saldoAnterior?.ef || 0) + ingresosEfectivo - egresosEfectivo
+  const saldoQRTotal = (saldoAnterior?.qr || 0) + ingresosQR - egresosQR
+
+  const esPeriodoSeleccionado = periodo !== 'todos'
+  const mostrandoseEfectivo = esPeriodoSeleccionado ? flujoEfectivoPeriodo : saldoEfectivoTotal
+  const mostrandoseQR = esPeriodoSeleccionado ? flujoQRPeriodo : saldoQRTotal
 
   // Desglose por categoría (top 5)
   const categoriaMap: Record<string, { monto: number, count: number, ingreso: boolean }> = {}
@@ -595,50 +607,71 @@ export default function CajaChicaPage() {
 
       {/* KPIs — Desglose Efectivo vs QR vs Neto vs Egresos */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {/* 1. Saldo Efectivo */}
         <Card className="border-amber-500/30 bg-amber-500/10">
           <CardContent className="px-4 py-3.5 flex items-center gap-3">
             <div className="w-9 h-9 bg-amber-500/20 rounded-xl flex items-center justify-center shrink-0">
               <Wallet className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">Saldo en Efectivo (Físico)</p>
-              <p className={`text-base font-black ${saldoEfectivo >= 0 ? 'text-amber-400' : 'text-red-400'}`}>{formatCurrency(saldoEfectivo)}</p>
-              {saldoAnterior.ef !== 0 && (
+              <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">
+                {esPeriodoSeleccionado ? `Flujo Efectivo (${periodoLabel})` : 'Saldo Efectivo (Total)'}
+              </p>
+              <p className={`text-base font-black ${mostrandoseEfectivo >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                {mostrandoseEfectivo >= 0 ? '+' : ''}{formatCurrency(mostrandoseEfectivo)}
+              </p>
+              {esPeriodoSeleccionado ? (
+                <p className="text-[9px] text-amber-400/80 font-mono mt-0.5">
+                  Ing: +{formatCurrency(ingresosEfectivo)} | Egr: -{formatCurrency(egresosEfectivo)}
+                </p>
+              ) : saldoAnterior.ef !== 0 ? (
                 <p className="text-[9px] text-amber-400/70 font-mono">Arrastre ant: {formatCurrency(saldoAnterior.ef)}</p>
-              )}
+              ) : null}
             </div>
           </CardContent>
         </Card>
 
+        {/* 2. Saldo QR/Banco */}
         <Card className="border-blue-500/30 bg-blue-500/10">
           <CardContent className="px-4 py-3.5 flex items-center gap-3">
             <div className="w-9 h-9 bg-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
               <span className="text-sm">📱</span>
             </div>
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-blue-400">Saldo QR / Tarjeta (Banco)</p>
-              <p className={`text-base font-black ${saldoQR >= 0 ? 'text-blue-400' : 'text-red-400'}`}>{formatCurrency(saldoQR)}</p>
-              {saldoAnterior.qr !== 0 && (
+              <p className="text-[9px] font-black uppercase tracking-widest text-blue-400">
+                {esPeriodoSeleccionado ? `Flujo QR / Banco (${periodoLabel})` : 'Saldo QR / Banco (Total)'}
+              </p>
+              <p className={`text-base font-black ${mostrandoseQR >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                {mostrandoseQR >= 0 ? '+' : ''}{formatCurrency(mostrandoseQR)}
+              </p>
+              {esPeriodoSeleccionado ? (
+                <p className="text-[9px] text-blue-400/80 font-mono mt-0.5">
+                  Ing: +{formatCurrency(ingresosQR)} | Egr: -{formatCurrency(egresosQR)}
+                </p>
+              ) : saldoAnterior.qr !== 0 ? (
                 <p className="text-[9px] text-blue-400/70 font-mono">Arrastre ant: {formatCurrency(saldoAnterior.qr)}</p>
-              )}
+              ) : null}
             </div>
           </CardContent>
         </Card>
 
+        {/* 3. Saldo neto del periodo */}
         <Card className={`border-white/10 ${saldoPeriodo >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
           <CardContent className="px-4 py-3.5 flex items-center gap-3">
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${saldoPeriodo >= 0 ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
               <Scale className={`w-4 h-4 ${saldoPeriodo >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
             </div>
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Saldo Neto Total</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Neto del Periodo</p>
               <p className={`text-base font-black ${saldoPeriodo >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {saldoPeriodo >= 0 ? '+' : ''}{formatCurrency(saldoPeriodo)}
               </p>
+              <p className="text-[9px] text-zinc-600">{periodoLabel}</p>
             </div>
           </CardContent>
         </Card>
 
+        {/* 4. Ingresos del periodo */}
         <Card className="border-emerald-500/20 bg-emerald-500/5">
           <CardContent className="px-4 py-3.5 flex items-center gap-3">
             <div className="w-9 h-9 bg-emerald-500/20 rounded-xl flex items-center justify-center shrink-0">
@@ -647,18 +680,21 @@ export default function CajaChicaPage() {
             <div>
               <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500/70">Ingresos Totales</p>
               <p className="text-base font-black text-emerald-400">+{formatCurrency(totalIngresos)}</p>
+              <p className="text-[9px] text-zinc-600">{transactions.filter(esIngreso).length} registros</p>
             </div>
           </CardContent>
         </Card>
 
+        {/* 5. Egresos del periodo */}
         <Card className="border-red-500/20 bg-red-500/5">
           <CardContent className="px-4 py-3.5 flex items-center gap-3">
             <div className="w-9 h-9 bg-red-500/20 rounded-xl flex items-center justify-center shrink-0">
               <TrendingDown className="w-4 h-4 text-red-400" />
             </div>
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-red-500/70">Egresos / Comisiones</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-red-500/70">Egresos / Pagos</p>
               <p className="text-base font-black text-red-400">-{formatCurrency(totalEgresos)}</p>
+              <p className="text-[9px] text-zinc-600">{transactions.filter(t => !esIngreso(t)).length} registros</p>
             </div>
           </CardContent>
         </Card>
@@ -851,32 +887,74 @@ export default function CajaChicaPage() {
                     </div>
                   )}
 
-                  {/* Empleado */}
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Empleado / A quién</label>
-                    <select
-                      value={form.empleado_id} onChange={(e) => handleBarberoChange(e.target.value)}
-                      className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none appearance-none"
-                    >
-                      <option value="">Sin empleado (externo)</option>
-                      {barberos.map((b) => (
-                        <option key={b.id} value={b.id}>{b.full_name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* PASO 3: ¿Con quién? Equipo o Externo */}
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-amber-500 block">¿Con quién está relacionado este movimiento?</label>
+                    <div className="flex gap-3">
+                      <button type="button"
+                        onClick={() => {
+                          setDestinatarioTipoCC('equipo')
+                          setForm(f => ({ ...f, nombre: '', empleado_id: '' }))
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-bold transition-all ${
+                          destinatarioTipoCC === 'equipo'
+                            ? 'border-amber-500 bg-amber-500/10 text-amber-300'
+                            : 'border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-white hover:border-zinc-600'
+                        }`}>
+                        <User className="w-4 h-4" /> Barbero / Personal
+                      </button>
+                      <button type="button"
+                        onClick={() => {
+                          setDestinatarioTipoCC('externo')
+                          setForm(f => ({ ...f, empleado_id: '' }))
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-bold transition-all ${
+                          destinatarioTipoCC === 'externo'
+                            ? 'border-amber-500 bg-amber-500/10 text-amber-300'
+                            : 'border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-white hover:border-zinc-600'
+                        }`}>
+                        <Building className="w-4 h-4" /> Proveedor / Externo
+                      </button>
+                    </div>
 
-                  {/* CI y Nombre */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">C.I.</label>
-                      <input value={form.ci} onChange={(e) => setForm({ ...form, ci: e.target.value })}
-                        className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Nombre</label>
-                      <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                        className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none" required />
-                    </div>
+                    {destinatarioTipoCC === 'equipo' ? (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {barberos.map(b => {
+                          const isSelected = form.empleado_id === b.id
+                          const initials = b.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+                          return (
+                            <button key={b.id} type="button" onClick={() => handleBarberoChange(b.id)}
+                              className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
+                                isSelected
+                                  ? 'border-amber-500 bg-amber-500/10 shadow-lg shadow-amber-500/10'
+                                  : 'border-zinc-800 bg-zinc-950 hover:border-zinc-600 hover:bg-zinc-900'
+                              }`}>
+                              <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-zinc-700">
+                                {b.avatar_url ? (
+                                  <img src={b.avatar_url} alt={b.full_name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
+                                    <span className="text-sm font-black text-zinc-400">{initials}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-center w-full">
+                                <p className={`text-xs font-black truncate ${isSelected ? 'text-amber-300' : 'text-white'}`}>{b.full_name.split(' ')[0]}</p>
+                              </div>
+                              {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <input
+                        placeholder="Ej: Propietario / Proveedor / ELFEC / Cliente"
+                        value={form.nombre}
+                        onChange={(e) => setForm({ ...form, nombre: e.target.value, empleado_id: '' })}
+                        className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-amber-500/50 outline-none"
+                        required={destinatarioTipoCC === 'externo'}
+                      />
+                    )}
                   </div>
 
                   {/* Método de Pago */}
@@ -989,8 +1067,8 @@ export default function CajaChicaPage() {
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 w-[85px] cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('fecha')}>Fecha <SortIcon col="fecha" /></th>
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500">Código</th>
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('cuenta_detalle')}>Categoría <SortIcon col="cuenta_detalle" /></th>
-                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('nombre')}>Nombre <SortIcon col="nombre" /></th>
-                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500">Detalle</th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('nombre')}>Persona / Origen <SortIcon col="nombre" /></th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500">Detalle / Glosa</th>
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 w-[70px]">Pago</th>
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-right w-[95px]">Efectivo</th>
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-right w-[95px]">QR / Banco</th>
@@ -1000,10 +1078,17 @@ export default function CajaChicaPage() {
               <tbody className="divide-y divide-white/5">
                 {txFiltradas.length === 0 ? (
                   <tr><td colSpan={8} className="px-4 py-16 text-center text-zinc-600">
-                    <div className="flex flex-col items-center gap-2">
-                      <Wallet className="w-8 h-8 text-zinc-700" />
-                      <p className="font-bold">Sin movimientos registrados</p>
-                      <p className="text-xs text-zinc-700">Usa el botón &quot;Nuevo Movimiento&quot; para agregar uno</p>
+                    <div className="flex flex-col items-center gap-3">
+                      <Wallet className="w-10 h-10 text-zinc-800" />
+                      <p className="font-bold text-white">Sin movimientos en efectivo</p>
+                      <p className="text-xs text-zinc-600 max-w-sm">
+                        {periodo === 'hoy'
+                          ? 'No hubo movimientos en efectivo hoy. Los pagos con QR o transferencia se registran en Banco.'
+                          : 'No hay movimientos de Caja Chica en el periodo seleccionado.'}
+                      </p>
+                      {periodo === 'hoy' && (
+                        <button onClick={() => setPeriodo('todos')} className="mt-1 text-amber-500 text-xs font-bold hover:underline">Ver todo el historial →</button>
+                      )}
                     </div>
                   </td></tr>
                 ) : (

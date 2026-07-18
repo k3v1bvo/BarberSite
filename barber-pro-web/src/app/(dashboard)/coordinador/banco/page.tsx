@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { formatCurrency } from '@/lib/utils'
-import { Landmark, Plus, X, ArrowUpRight, ArrowDownLeft, User, Building, FileText, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Landmark, Plus, X, ArrowUpRight, ArrowDownLeft, User, Building, FileText, AlertTriangle, CheckCircle2, Search, Wallet } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface Transaction {
   id: string; fecha: string; ci: string; nombre: string
@@ -17,6 +18,7 @@ interface Profile {
   id: string
   full_name: string
   role: string
+  avatar_url: string | null
 }
 
 export default function BancoPage() {
@@ -31,6 +33,12 @@ export default function BancoPage() {
   const [userRole, setUserRole] = useState<string>('')
   const supabase = createClient()
 
+  const [periodo, setPeriodo] = useState<'todos' | 'hoy' | 'semana' | 'mes' | 'custom'>('hoy')
+  const [customDesde, setCustomDesde] = useState('')
+  const [customHasta, setCustomHasta] = useState('')
+  const [search, setSearch] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState<'todos' | 'INGRESO' | 'RETIRO'>('todos')
+
   // Estado del formulario de nuevo movimiento
   const [form, setForm] = useState({
     tipo_movimiento: 'DEPOSITO', // DEPOSITO o RETIRO
@@ -44,6 +52,33 @@ export default function BancoPage() {
     comprobante_url: ''
   })
 
+  const getTodayBolivia = () => {
+    const d = new Date()
+    const boliviaTime = new Date(d.toLocaleString('en-US', { timeZone: 'America/La_Paz' }))
+    return `${boliviaTime.getFullYear()}-${String(boliviaTime.getMonth() + 1).padStart(2, '0')}-${String(boliviaTime.getDate()).padStart(2, '0')}`
+  }
+
+  const formatLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+  const getDateRange = useCallback((): { desde?: string, hasta?: string } => {
+    const now = new Date()
+    const todayStr = getTodayBolivia()
+    if (periodo === 'todos') return {}
+    if (periodo === 'hoy') return { desde: todayStr, hasta: todayStr }
+    if (periodo === 'semana') {
+      const d = new Date(now)
+      d.setDate(d.getDate() - d.getDay())
+      return { desde: formatLocal(d), hasta: todayStr }
+    }
+    if (periodo === 'mes') {
+      const d = new Date(now.getFullYear(), now.getMonth(), 1)
+      return { desde: formatLocal(d), hasta: todayStr }
+    }
+    return { desde: customDesde || todayStr, hasta: customHasta || todayStr }
+  }, [periodo, customDesde, customHasta])
+
+  const periodoLabel = periodo === 'todos' ? '(historial completo)' : periodo === 'hoy' ? 'de hoy' : periodo === 'semana' ? 'de la semana' : periodo === 'mes' ? 'del mes' : `${customDesde} → ${customHasta}`
+
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
@@ -51,9 +86,10 @@ export default function BancoPage() {
       if (profile) setUserRole(profile.role)
     }
 
+    // Cargamos los últimos 1000 movimientos de banco para tener el saldo total exacto y filtrar por periodo al instante
     const [txRes, profRes] = await Promise.all([
       fetch('/api/transactions?libro=BANCO&limit=100'),
-      supabase.from('profiles').select('id, full_name, role').in('role', ['barbero', 'admin', 'coordinador']).eq('is_active', true).order('full_name')
+      supabase.from('profiles').select('id, full_name, role, avatar_url').in('role', ['barbero', 'admin', 'coordinador']).eq('is_active', true).order('full_name')
     ])
 
     if (txRes.ok) {
@@ -86,6 +122,36 @@ export default function BancoPage() {
     const monto = getMontoBanco(t)
     return isRetiroBanco(t) ? s - monto : s + monto
   }, 0)
+
+  const { desde, hasta } = getDateRange()
+  const txDelPeriodo = transactions.filter(t => {
+    if (desde && t.fecha < desde) return false
+    if (hasta && t.fecha > hasta) return false
+    return true
+  })
+
+  const txFiltradas = txDelPeriodo.filter(t => {
+    const retiro = isRetiroBanco(t)
+    if (filtroTipo === 'INGRESO' && retiro) return false
+    if (filtroTipo === 'RETIRO' && !retiro) return false
+    if (!search) return true
+    const q = search.toLowerCase()
+    return (t.nombre || '').toLowerCase().includes(q)
+      || (t.glosa || '').toLowerCase().includes(q)
+      || (t.cuenta_detalle || '').toLowerCase().includes(q)
+  })
+
+  let ingresosPeriodo = 0
+  let retirosPeriodo = 0
+  txDelPeriodo.forEach(t => {
+    const monto = getMontoBanco(t)
+    if (isRetiroBanco(t)) {
+      retirosPeriodo += monto
+    } else {
+      ingresosPeriodo += monto
+    }
+  })
+  const flujoPeriodo = ingresosPeriodo - retirosPeriodo
 
   // Cálculo en tiempo real de diferencia del modal de ajuste
   const saldoDeseadoNum = parseFloat(nuevoSaldoReal)
@@ -206,7 +272,7 @@ export default function BancoPage() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20 lg:pb-0">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20 lg:pb-0">
       {/* Cabecera Principal */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-white/5 pb-6">
         <div>
@@ -214,24 +280,10 @@ export default function BancoPage() {
             Libro de <span className="text-blue-500">Banco</span>
           </h1>
           <p className="text-zinc-500 font-medium mt-1">
-            Depósitos, transferencias QR y retiros — Banco Ganadero
+            Depósitos, transferencias QR y retiros — Banco Ganadero · {periodoLabel}
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <Card className="border-blue-500/30 bg-zinc-900/80 shadow-lg shadow-blue-500/5">
-            <CardContent className="px-5 py-3 flex items-center gap-3">
-              <div className="p-2.5 bg-blue-500/10 rounded-xl border border-blue-500/20">
-                <Landmark className="w-6 h-6 text-blue-400" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Saldo en Banco</p>
-                <p className={`text-xl font-black ${totalBalance >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
-                  {formatCurrency(totalBalance)}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
           {userRole === 'admin' && (
             <Button
               variant="outline"
@@ -255,6 +307,117 @@ export default function BancoPage() {
             {showForm ? 'Cerrar Formulario' : 'Nuevo Movimiento'}
           </Button>
         </div>
+      </div>
+
+      {/* Filtro de Periodo y Búsqueda */}
+      <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex gap-1 bg-zinc-950 border border-white/10 rounded-xl p-1 flex-wrap">
+            {(['todos', 'hoy', 'semana', 'mes', 'custom'] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriodo(p)}
+                className={`px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                  periodo === p ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-500 hover:text-white'
+                }`}
+              >
+                {p === 'todos' ? '📋 Todo' : p === 'hoy' ? '📅 Hoy' : p === 'semana' ? '📆 Semana' : p === 'mes' ? '🗓 Mes' : '📊 Rango'}
+              </button>
+            ))}
+          </div>
+          {periodo === 'custom' && (
+            <div className="flex gap-2 items-center animate-in fade-in duration-200">
+              <input type="date" value={customDesde} onChange={e => setCustomDesde(e.target.value)}
+                className="h-9 bg-zinc-950 border border-white/10 rounded-lg px-3 text-xs text-white focus:border-blue-500/50 outline-none" />
+              <span className="text-zinc-600 text-xs">→</span>
+              <input type="date" value={customHasta} onChange={e => setCustomHasta(e.target.value)}
+                className="h-9 bg-zinc-950 border border-white/10 rounded-lg px-3 text-xs text-white focus:border-blue-500/50 outline-none" />
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto items-stretch sm:items-center">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Buscar movimiento en banco..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full h-9 bg-zinc-950 border border-white/10 rounded-lg pl-9 pr-3 text-xs text-white focus:border-blue-500/50 outline-none"
+            />
+          </div>
+          <div className="flex gap-1 bg-zinc-950 border border-white/10 rounded-xl p-1">
+            {(['todos', 'INGRESO', 'RETIRO'] as const).map(m => (
+              <button
+                key={m}
+                onClick={() => setFiltroTipo(m)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                  filtroTipo === m
+                    ? 'bg-blue-500/20 text-blue-400'
+                    : 'text-zinc-500 hover:text-white'
+                }`}
+              >
+                {m === 'todos' ? 'Todos' : m === 'INGRESO' ? '↑ Ingresos' : '↓ Retiros'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 4 KPIs Clave del Periodo */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card className="border-blue-500/30 bg-blue-500/10">
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <Landmark className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-blue-400">Flujo Banco Periodo</p>
+              <p className={`text-lg font-black ${flujoPeriodo >= 0 ? 'text-blue-400' : 'text-rose-400'}`}>{formatCurrency(flujoPeriodo)}</p>
+              <p className="text-[9px] text-blue-400/70 font-mono">{txFiltradas.length} mov. en periodo</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-emerald-500/30 bg-emerald-500/10">
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <ArrowUpRight className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Ingresos QR/Banco</p>
+              <p className="text-lg font-black text-emerald-400">+{formatCurrency(ingresosPeriodo)}</p>
+              <p className="text-[9px] text-emerald-400/70 font-mono">Entradas en periodo</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-rose-500/30 bg-rose-500/10">
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
+            <div className="w-10 h-10 bg-rose-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <ArrowDownLeft className="w-5 h-5 text-rose-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-rose-400">Retiros / Pagos</p>
+              <p className="text-lg font-black text-rose-400">-{formatCurrency(retirosPeriodo)}</p>
+              <p className="text-[9px] text-rose-400/70 font-mono">Salidas en periodo</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-amber-500/30 bg-amber-500/10">
+          <CardContent className="px-4 py-3.5 flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <Wallet className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">Saldo Real en Banco</p>
+              <p className={`text-lg font-black ${totalBalance >= 0 ? 'text-amber-400' : 'text-rose-400'}`}>{formatCurrency(totalBalance)}</p>
+              <p className="text-[9px] text-amber-400/70 font-mono">Acumulado total de cuenta</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* MODAL / FORMULARIO AJUSTAR SALDO REAL (ULTIMA OPCION CON REQUISITOS CLAROS) */}
@@ -487,62 +650,87 @@ export default function BancoPage() {
                   </label>
                 </div>
 
-                {/* Si seleccionó Barbero, mostramos selector limpio de perfiles */}
+                {/* Si seleccionó Barbero: tarjetas visuales con foto de perfil */}
                 {form.destinatario_tipo === 'barbero' ? (
+                  <div className="space-y-4 pt-2">
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">
+                        Selecciona el Barbero o Miembro del Equipo
+                      </label>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {profiles.map(p => {
+                          const isSelected = form.barbero_id === p.id
+                          const initials = p.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => handleBarberoSelect(p.id)}
+                              className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
+                                isSelected
+                                  ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/10'
+                                  : 'border-zinc-800 bg-zinc-950 hover:border-zinc-600 hover:bg-zinc-900'
+                              }`}
+                            >
+                              <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-zinc-700 shrink-0">
+                                {p.avatar_url ? (
+                                  <img src={p.avatar_url} alt={p.full_name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
+                                    <span className="text-sm font-black text-zinc-400">{initials}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-center min-w-0 w-full">
+                                <p className={`text-xs font-black truncate ${isSelected ? 'text-blue-300' : 'text-white'}`}>{p.full_name.split(' ')[0]}</p>
+                                <p className="text-[9px] uppercase tracking-widest text-zinc-500">{p.role}</p>
+                              </div>
+                              {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Concepto rápido cuando hay barbero seleccionado */}
+                    {form.barbero_id && (
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
+                          Concepto / Categoría del Movimiento — {profiles.find(p => p.id === form.barbero_id)?.full_name}
+                        </label>
+                        <select
+                          value={form.subcategoria}
+                          onChange={(e) => setForm({ ...form, subcategoria: e.target.value })}
+                          className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white focus:border-blue-500/50 outline-none"
+                        >
+                          {form.tipo_movimiento === 'DEPOSITO' ? (
+                            <>
+                              <option value="PAGO_DEUDA_PERSONAL">💰 Devolución de Préstamo (QR)</option>
+                              <option value="APORTE_PERSONAL">➕ Aporte de Personal / Anticipo devuelto</option>
+                              <option value="OTRO_INGRESO_PERSONAL">🎰 Otro Ingreso del Personal</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="ANTICIPO_PERSONAL">💵 Anticipo / Préstamo de Sueldo (QR)</option>
+                              <option value="PAGO_COMISION_QR">✂️ Pago de Comisiones / Sueldo por QR</option>
+                              <option value="BONO_PREMIO_PERSONAL">🏆 Bono / Premio o Incentivo (QR)</option>
+                              <option value="PAGO_SUELDO_FIJO">📅 Pago de Sueldo Fijo por Transferencia</option>
+                              <option value="OTRO_EGRESO_PERSONAL">📌 Otro Egreso al Personal</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Si seleccionó Proveedor / Externo, mostramos inputs limpios sin pedir CI innecesario */
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                     <div>
                       <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
-                        Selecciona el Barbero o Miembro
-                      </label>
-                      <select
-                        value={form.barbero_id}
-                        onChange={(e) => handleBarberoSelect(e.target.value)}
-                        className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white focus:border-blue-500/50 outline-none"
-                      >
-                        <option value="">— Seleccionar personal —</option>
-                        {profiles.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.full_name} ({p.role.toUpperCase()})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
-                        Concepto / Subcategoría con Personal
-                      </label>
-                      <select
-                        value={form.subcategoria}
-                        onChange={(e) => setForm({ ...form, subcategoria: e.target.value })}
-                        className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white focus:border-blue-500/50 outline-none"
-                      >
-                        {form.tipo_movimiento === 'DEPOSITO' ? (
-                          <>
-                            <option value="PAGO_DEUDA_PERSONAL">Pago / Devolución de Préstamo (QR)</option>
-                            <option value="APORTE_PERSONAL">Aporte de Personal / Anticipo devuelto</option>
-                            <option value="OTRO_INGRESO_PERSONAL">Otro Ingreso del Personal</option>
-                          </>
-                        ) : (
-                          <>
-                            <option value="ANTICIPO_PERSONAL">Anticipo / Préstamo de Sueldo (QR)</option>
-                            <option value="PAGO_COMISION_QR">Pago de Comisiones / Sueldo por QR</option>
-                            <option value="BONO_PREMIO_PERSONAL">Bono / Premio o Incentivo (QR)</option>
-                            <option value="OTRO_EGRESO_PERSONAL">Otro Egreso al Personal</option>
-                          </>
-                        )}
-                      </select>
-                    </div>
-                  </div>
-                ) : (
-                  /* Si seleccionó Proveedor / Externo, mostramos inputs libres con subcategorías externas */
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
-                        Nombre / Proveedor / Cliente
+                        Nombre / Proveedor / Cliente / Entidad
                       </label>
                       <input
-                        placeholder="Ej: Insumos Barber S.R.L. / Propietario Local"
+                        placeholder="Ej: Insumos Barber S.R.L. / Propietario Local / Pago Servicios"
                         value={form.nombre}
                         onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                         className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white focus:border-blue-500/50 outline-none"
@@ -552,19 +740,7 @@ export default function BancoPage() {
 
                     <div>
                       <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
-                        C.I. / NIT / Ref (Opcional)
-                      </label>
-                      <input
-                        placeholder="Ej: 1234567 / QR-REF"
-                        value={form.ci}
-                        onChange={(e) => setForm({ ...form, ci: e.target.value })}
-                        className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white focus:border-blue-500/50 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
-                        Categoría Externa
+                        Categoría Externa / Concepto
                       </label>
                       <select
                         value={form.subcategoria}
@@ -598,10 +774,10 @@ export default function BancoPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
-                    Glosa / Descripción Detallada
+                    Glosa / Descripción Detallada del Gasto o Ingreso
                   </label>
                   <input
-                    placeholder="Ej: Pago por transferencia del adelanto quincenal correspondiente a julio..."
+                    placeholder="Ej: Pago de factura de luz eléctrica correspondiente al mes de julio..."
                     value={form.glosa}
                     onChange={(e) => setForm({ ...form, glosa: e.target.value })}
                     className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm text-white focus:border-blue-500/50 outline-none"
@@ -629,18 +805,19 @@ export default function BancoPage() {
                 </div>
               </div>
 
-              {/* Paso 4: Comprobante URL */}
+              {/* Paso 4: Comprobante QR / Transferencia */}
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-zinc-400" />
-                  Enlace al Comprobante / Voucher (Opcional)
+                <label className="text-[10px] font-black uppercase tracking-widest text-blue-400 mb-2 block flex items-center gap-1.5">
+                  📸 Comprobante del Pago / Transferencia QR (Opcional pero recomendado)
                 </label>
-                <input
-                  placeholder="https://..."
-                  value={form.comprobante_url}
-                  onChange={(e) => setForm({ ...form, comprobante_url: e.target.value })}
-                  className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl px-4 text-xs text-zinc-300 focus:border-blue-500/50 outline-none"
-                />
+                <div className="bg-zinc-950 border border-white/5 rounded-xl p-4">
+                  <ImageUpload
+                    label="Subir captura o foto del recibo, voucher bancario o transferencia QR"
+                    defaultImage={form.comprobante_url || undefined}
+                    onUploadSuccess={(url) => setForm({ ...form, comprobante_url: url })}
+                    onUploadError={(err) => alert(err)}
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-2 border-t border-white/10">
@@ -676,14 +853,14 @@ export default function BancoPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {transactions.length === 0 ? (
+                {txFiltradas.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-5 py-16 text-center text-zinc-600 font-medium">
-                      No hay movimientos bancarios o en QR registrados hasta la fecha
+                      No hay movimientos bancarios o en QR para el filtro o periodo seleccionado
                     </td>
                   </tr>
                 ) : (
-                  transactions.map((tx: any) => {
+                  txFiltradas.map((tx: any) => {
                     const retiro = isRetiroBanco(tx)
                     const monto = getMontoBanco(tx)
                     const isAjuste = tx.subcategoria === 'AJUSTE_CONCILIACION' || tx.glosa?.includes('Conciliación Bancaria')
