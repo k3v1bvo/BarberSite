@@ -127,7 +127,7 @@ export async function GET(request: Request) {
     hora_inicio,
     hora_fin,
     motivo,
-    tiempo_minimo_reserva
+    tiempo_minimo_reserva: tiempoMinimoReserva
   })
 }
 
