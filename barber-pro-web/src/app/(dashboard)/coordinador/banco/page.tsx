@@ -12,6 +12,7 @@ interface Transaction {
   id: string; fecha: string; ci: string; nombre: string
   glosa: string; costo: number; tipo_movimiento: string; creado_en: string
   libro: string; metodo_pago?: string; monto_qr?: number; subcategoria?: string; comprobante_url?: string | null
+  cuenta_codigo?: string; cuenta_detalle?: string
 }
 
 interface Profile {
