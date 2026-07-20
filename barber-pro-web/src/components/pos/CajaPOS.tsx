@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
-import { User, Scissors, DollarSign, Search, CheckCircle, Clock, Package, Plus, Minus, X, Store, Gift, UserPlus, Edit3, Save, Star, Tag, QrCode, AlertTriangle, Calendar, Zap, CreditCard } from 'lucide-react'
+import { User, Scissors, DollarSign, Search, CheckCircle, Clock, Package, Plus, Minus, X, Store, Gift, UserPlus, Edit3, Save, Star, Tag, QrCode, AlertTriangle, Calendar, Zap, CreditCard, History } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { CATEGORIAS_SERVICIOS } from '@/types'
@@ -106,6 +106,7 @@ export function CajaPOS() {
   const [clienteDetalle, setClienteDetalle] = useState<Cliente | null>(null)
   const [qrPagoUrl, setQrPagoUrl] = useState<string | null>(null)
   const [citasPendientes, setCitasPendientes] = useState<any[]>([])
+  const [ultimosServicios, setUltimosServicios] = useState<any[]>([])
   const [montoRecibido, setMontoRecibido] = useState<string>('')
 
   const [searchCliente, setSearchCliente] = useState('')
@@ -193,6 +194,15 @@ export function CajaPOS() {
           .order('fecha_hora', { ascending: true })
 
         setCitasPendientes(citasPendientesData || [])
+
+        // Fetch last 3 completed services
+        const { data: ultimosData } = await supabase
+          .from('citas')
+          .select('id, estado, fecha_hora, updated_at, metodo_pago, total, propinas, clientes(nombre), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
+          .eq('estado', 'completado')
+          .order('updated_at', { ascending: false })
+          .limit(15)
+        setUltimosServicios(ultimosData || [])
 
         // Calculate barbero rotation (who has the least recent completed appointment today)
         const { data: citasHoy } = await supabase
@@ -593,6 +603,15 @@ export function CajaPOS() {
         .in('estado', ['en_proceso', 'pendiente', 'pendiente_pago', 'confirmado'])
         .order('fecha_hora', { ascending: true })
       setCitasPendientes(citasPendientesData || [])
+
+      // Refresh last completed services
+      const { data: ultimosData } = await supabase
+        .from('citas')
+        .select('id, estado, fecha_hora, updated_at, metodo_pago, total, propinas, clientes(nombre), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
+        .eq('estado', 'completado')
+        .order('updated_at', { ascending: false })
+        .limit(15)
+      setUltimosServicios(ultimosData || [])
       
       setFormData({
         cita_id: '', cliente_id: '', nombre: '', email: '', telefono: '', ci: '',
@@ -1903,6 +1922,71 @@ export function CajaPOS() {
 
             </CardContent>
           </Card>
+
+          {/* ÚLTIMOS 3 SERVICIOS */}
+          {ultimosServicios.length > 0 && (
+            <Card className="bg-zinc-900 border-zinc-800">
+              <CardContent className="pt-5 pb-4">
+                <h3 className="text-sm font-bold text-zinc-300 flex items-center gap-2 mb-4">
+                  <div className="p-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                    <History className="w-3.5 h-3.5 text-emerald-500" />
+                  </div>
+                  Últimos Servicios Cobrados
+                  <span className="ml-auto text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                    {ultimosServicios.length} recientes
+                  </span>
+                </h3>
+                <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
+                  {ultimosServicios.map((srv, idx) => {
+                    const completedAt = srv.updated_at ? new Date(srv.updated_at) : null
+                    const timeAgo = completedAt ? (() => {
+                      const diffMs = Date.now() - completedAt.getTime()
+                      const diffMin = Math.floor(diffMs / 60000)
+                      if (diffMin < 1) return 'Justo ahora'
+                      if (diffMin < 60) return `Hace ${diffMin} min`
+                      const diffHrs = Math.floor(diffMin / 60)
+                      if (diffHrs < 24) return `Hace ${diffHrs}h`
+                      return completedAt.toLocaleDateString('es-BO', { day: '2-digit', month: 'short' })
+                    })() : ''
+                    const montoTotal = srv.total ?? srv.servicios?.precio ?? 0
+                    return (
+                      <div
+                        key={srv.id}
+                        className="p-3 bg-black/30 border border-white/5 rounded-xl hover:border-emerald-500/20 transition group"
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-white truncate">
+                              {srv.clientes?.nombre || 'Cliente'}
+                            </p>
+                            <p className="text-[10px] text-zinc-500 truncate">
+                              {srv.servicios?.nombre || 'Servicio'}
+                            </p>
+                          </div>
+                          <span className="text-sm font-black text-emerald-400 shrink-0">
+                            {formatCurrency(montoTotal)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-600">
+                              {srv.profiles?.full_name || 'Barbero'}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-bold uppercase">
+                              {srv.metodo_pago === 'efectivo' ? '💵' : srv.metodo_pago === 'qr' ? '📱' : '🔄'} {srv.metodo_pago || 'N/A'}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-zinc-600 font-mono">
+                            {timeAgo}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
