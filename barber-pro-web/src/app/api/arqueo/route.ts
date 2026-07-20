@@ -97,14 +97,31 @@ export async function GET(request: NextRequest) {
     }
     txDia?.forEach((t: any) => {
       const costo = Number(t.costo)
-      const isIngreso = t.tipo_movimiento === 'INGRESO'
-      const isEgreso = t.tipo_movimiento === 'EGRESO'
+      const mpLower = String(t.metodo_pago || '').toLowerCase()
+      const libroTx = String(t.libro || '').toUpperCase()
+
+      const esCobroQrDeCaja = (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
+        && ['qr', 'tarjeta'].includes(mpLower)
+        && t.tipo_movimiento === 'EGRESO'
+
+      const isIngreso = esCobroQrDeCaja ? true : t.tipo_movimiento === 'INGRESO'
+      const isEgreso = esCobroQrDeCaja ? false : t.tipo_movimiento === 'EGRESO'
 
       if (t.libro === 'CAJA_CHICA') resumen.caja_chica += (isIngreso ? costo : -costo)
       else if (t.libro === 'VENTAS') resumen.ventas += (isIngreso ? costo : -costo)
       else if (t.libro === 'SERVICIOS') resumen.servicios += (isIngreso ? costo : -costo)
-      else if (t.libro === 'BANCO') resumen.banco += (isIngreso ? costo : -costo)
       else if (t.libro === 'USO_TIENDA') resumen.uso_tienda += (isIngreso ? costo : -costo)
+      
+      if (t.libro === 'BANCO' || ['qr', 'tarjeta'].includes(mpLower) || Number(t.monto_qr || 0) > 0) {
+        const montoBanco = Number(t.monto_qr || 0) > 0 ? Number(t.monto_qr) : costo
+        if (t.libro === 'BANCO') {
+          resumen.banco += (t.tipo_movimiento === 'RETIRO' || t.tipo_movimiento === 'EGRESO') ? -montoBanco : montoBanco
+        } else if (esCobroQrDeCaja || isIngreso) {
+          resumen.banco += montoBanco
+        } else if (isEgreso && ['qr', 'tarjeta'].includes(mpLower)) {
+          resumen.banco -= montoBanco
+        }
+      }
       
       if (isIngreso) {
         resumen.total_registrado += costo

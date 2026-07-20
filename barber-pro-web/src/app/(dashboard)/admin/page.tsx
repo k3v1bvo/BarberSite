@@ -265,27 +265,83 @@ export default function AdminPage() {
         .eq('fecha', hoy)
       setUsoTiendaHoy(txTienda?.reduce((s: number, t: any) => s + Number(t.costo), 0) || 0)
 
-      // Resumen Contable Operativo del período (misma lógica que /api/arqueo)
-      const { data: txPeriodo } = await supabase
-        .from('transactions')
-        .select('libro, costo, tipo_movimiento')
-        .gte('fecha', start)
-        .lte('fecha', end)
+      // Resumen Contable: Caja Chica y Banco muestran el saldo acumulado hasta la fecha (lte end)
+      // Ventas/Servicios muestra lo facturado en el periodo seleccionado (start -> end)
+      const [ { data: txPeriodo }, { data: txHastaFecha } ] = await Promise.all([
+        supabase
+          .from('transactions')
+          .select('libro, costo, tipo_movimiento, metodo_pago, monto_qr, cuenta_codigo')
+          .gte('fecha', start)
+          .lte('fecha', end)
+          .limit(10000),
+        supabase
+          .from('transactions')
+          .select('libro, costo, tipo_movimiento, metodo_pago, monto_qr, monto_efectivo, cuenta_codigo, notas, fecha')
+          .gt('fecha', '2026-07-18')
+          .lte('fecha', end)
+          .limit(20000)
+      ])
 
-      const sContable = { caja_chica: 0, ventas: 0, banco: 0, total: 0, arqueoCerrado: false }
+      // Base histórica del cierre de Excel (hasta 18/07/2026): Caja Física = Bs 210,00 | Banco = Bs 642,54
+      const sContable = { caja_chica: 210, ventas: 0, banco: 642.54, total: 0, arqueoCerrado: false }
+
+      // 1. Calcular saldos acumulados sumando/restando solo movimientos posteriores al 18/07/2026 hasta la fecha 'end'
+      if (txHastaFecha && end >= '2026-07-18') {
+        txHastaFecha.forEach((tx: any) => {
+          if (tx.fecha && tx.fecha <= '2026-07-18') return
+          
+          if (tx.libro === 'CAJA_CHICA') {
+            const ing = tx.tipo_movimiento === 'INGRESO'
+            let ef = 0
+            if (tx.metodo_pago === 'efectivo' || !tx.metodo_pago) {
+              ef = Number(tx.costo || 0)
+            } else if (tx.metodo_pago === 'mixto') {
+              ef = Number(tx.monto_efectivo || 0)
+              if (ef === 0 && Number(tx.monto_qr || 0) === 0) {
+                ef = Number(tx.costo || 0)
+              } else if (ef === 0 && String(tx.notas || '').includes('Efectivo:')) {
+                const efMatch = String(tx.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
+                ef = efMatch ? parseFloat(efMatch[1]) : 0
+              }
+            }
+            if (ing) sContable.caja_chica += ef
+            else sContable.caja_chica -= ef
+          }
+
+          const mpLower = String(tx.metodo_pago || '').toLowerCase()
+          const libroTx = String(tx.libro || '').toUpperCase()
+          const esCobroQrDeCaja = (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
+            && ['qr', 'tarjeta'].includes(mpLower)
+            && tx.tipo_movimiento === 'EGRESO'
+
+          if (libroTx === 'BANCO') {
+            const montoBanco = Number(tx.costo || 0)
+            if (tx.tipo_movimiento === 'RETIRO' || tx.tipo_movimiento === 'EGRESO') sContable.banco -= montoBanco
+            else sContable.banco += montoBanco
+          } else if (esCobroQrDeCaja) {
+            const qr = Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0)
+            sContable.banco += qr
+          } else if ((libroTx === 'SERVICIOS' || libroTx === 'VENTAS' || libroTx === 'CAJA_CHICA') && tx.tipo_movimiento === 'INGRESO' && ['qr', 'tarjeta'].includes(mpLower)) {
+            const qr = Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0)
+            sContable.banco += qr
+          } else if (tx.tipo_movimiento === 'EGRESO' && ['qr', 'tarjeta'].includes(mpLower) && !esCobroQrDeCaja) {
+            const qr = Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0)
+            sContable.banco -= qr
+          }
+        })
+      }
+
+      // 2. Ventas y Servicios en el período seleccionado
       if (txPeriodo) {
         txPeriodo.forEach((t: any) => {
           const costo = Number(t.costo)
           const isIngreso = t.tipo_movimiento === 'INGRESO'
-          const isEgreso = t.tipo_movimiento === 'EGRESO'
-          const signed = isIngreso ? costo : isEgreso ? -costo : costo
-
-          if (t.libro === 'CAJA_CHICA') sContable.caja_chica += signed
-          else if (t.libro === 'VENTAS' || t.libro === 'SERVICIOS') sContable.ventas += signed
-          else if (t.libro === 'BANCO') sContable.banco += signed
-          sContable.total += signed
+          if ((t.libro === 'VENTAS' || t.libro === 'SERVICIOS') && isIngreso) {
+            sContable.ventas += costo
+          }
         })
       }
+      sContable.total = sContable.caja_chica + sContable.banco
 
       const { data: arqueoData } = await supabase
         .from('daily_closures')
@@ -309,13 +365,13 @@ export default function AdminPage() {
     } finally {
       setLoading(false)
     }
-  }, [router, supabase])
+  }, [router, supabase, rangoSeleccionado, fechaInicioStr, fechaFinStr])
 
   useEffect(() => {
     loadData()
     const interval = setInterval(loadData, 45_000)
     return () => clearInterval(interval)
-  }, [loadData, rangoSeleccionado, fechaInicioStr, fechaFinStr])
+  }, [loadData])
 
   const getEstadoBadge = (estado: string) => {
     const variants: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {

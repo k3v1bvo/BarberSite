@@ -125,7 +125,7 @@ export default function ReportesPage() {
           .gte('fecha_hora', `${prevInicioStr}T00:00:00`)
           .lte('fecha_hora', `${prevFinStr}T23:59:59`)
           .limit(50000),
-        supabase.from('transactions').select('tipo_movimiento, costo, libro')
+        supabase.from('transactions').select('tipo_movimiento, costo, libro, metodo_pago, monto_qr')
           .gte('fecha', prevInicioStr)
           .lte('fecha', prevFinStr)
           .limit(50000),
@@ -149,6 +149,34 @@ export default function ReportesPage() {
       const servicios = serviciosRes.data || []
       const inventarioMovs = inventarioRes.data || []
 
+      // Helper para identificar cobros por QR migrados que en el Excel figuraban como egreso de caja
+      const esCobroQrDeCaja = (tx: any) => {
+        const mpLower = String(tx.metodo_pago || '').toLowerCase()
+        const libroTx = String(tx.libro || '').toUpperCase()
+        const tieneQr = ['qr', 'tarjeta'].includes(mpLower) || Number(tx.monto_qr || 0) > 0
+        return (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
+          && tieneQr
+          && tx.tipo_movimiento === 'EGRESO'
+      }
+      // Excluir traspasos, depósitos y movimientos entre cuentas internas de ingresos y gastos
+      const esMovimientoInterno = (tx: any) => {
+        const nombre = String(tx.nombre || '').toUpperCase()
+        const glosa = String(tx.glosa || '').toUpperCase()
+        const codigo = String(tx.cuenta_codigo || '').toUpperCase()
+        return codigo.startsWith('1.1.') || nombre.includes('DEPOSITO') || glosa.includes('DEPOSITO') || nombre.includes('TRANSFERENCIA A BANCO') || glosa.includes('TRANSFERENCIA A BANCO')
+      }
+
+      const checkEsIngreso = (tx: any) => {
+        if (tx.libro === 'USO_TIENDA' || tx.libro === 'BANCO' || esMovimientoInterno(tx)) return false
+        if (esCobroQrDeCaja(tx)) return true
+        return tx.tipo_movimiento === 'INGRESO'
+      }
+      const checkEsEgreso = (tx: any) => {
+        if (tx.libro === 'USO_TIENDA' || tx.libro === 'BANCO' || esMovimientoInterno(tx)) return false
+        if (esCobroQrDeCaja(tx)) return false
+        return tx.tipo_movimiento === 'EGRESO'
+      }
+
       // --- 1. Finanzas y Transacciones ---
       let ingresosTotal = 0
       let egresosTotal = 0
@@ -159,10 +187,10 @@ export default function ReportesPage() {
         if (!finanzasPorDia[d]) finanzasPorDia[d] = { ingresos: 0, egresos: 0 }
         
         const costo = Math.abs(Number(tx.costo || 0))
-        if (tx.tipo_movimiento === 'INGRESO' && tx.libro !== 'USO_TIENDA') {
+        if (checkEsIngreso(tx)) {
           finanzasPorDia[d].ingresos += costo
           ingresosTotal += costo
-        } else if (tx.tipo_movimiento === 'EGRESO' && tx.libro !== 'USO_TIENDA') {
+        } else if (checkEsEgreso(tx)) {
           finanzasPorDia[d].egresos += costo
           egresosTotal += costo
         }
@@ -187,8 +215,8 @@ export default function ReportesPage() {
 
       txs.forEach(tx => {
         const costo = Math.abs(Number(tx.costo || 0))
-        const isIngreso = tx.tipo_movimiento === 'INGRESO' && tx.libro !== 'USO_TIENDA'
-        const isEgreso = tx.tipo_movimiento === 'EGRESO' && tx.libro !== 'USO_TIENDA'
+        const isIngreso = checkEsIngreso(tx)
+        const isEgreso = checkEsEgreso(tx)
 
         // Métodos de pago sólo se suman para ingresos cobrados
         if (isIngreso) {
@@ -217,8 +245,8 @@ export default function ReportesPage() {
       let prevEgresosTotal = 0
       prevTxs.forEach(tx => {
         const costo = Math.abs(Number(tx.costo || 0))
-        if (tx.tipo_movimiento === 'INGRESO' && tx.libro !== 'USO_TIENDA') prevIngresosTotal += costo
-        else if (tx.tipo_movimiento === 'EGRESO' && tx.libro !== 'USO_TIENDA') prevEgresosTotal += costo
+        if (checkEsIngreso(tx)) prevIngresosTotal += costo
+        else if (checkEsEgreso(tx)) prevEgresosTotal += costo
       })
       const prevUtilidadTotal = prevIngresosTotal - prevEgresosTotal
       const citasCompletadas = citas.filter(c => c.estado === 'completado')

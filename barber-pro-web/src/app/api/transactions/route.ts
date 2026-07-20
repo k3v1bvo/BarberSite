@@ -50,7 +50,9 @@ export async function GET(request: NextRequest) {
       .order('creado_en', { ascending: false })
       .limit(limit)
 
-    if (libro === 'BANCO') {
+    const afectaBanco = sp.get('afecta_banco') === 'true'
+
+    if (afectaBanco) {
       query = query.or('libro.eq.BANCO,metodo_pago.eq.qr,metodo_pago.eq.tarjeta,metodo_pago.eq.mixto,monto_qr.gt.0')
     } else if (libro) {
       query = query.eq('libro', libro)

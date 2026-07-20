@@ -87,15 +87,35 @@ export default function BancoPage() {
       if (profile) setUserRole(profile.role)
     }
 
-    // Cargamos los últimos 1000 movimientos de banco para tener el saldo total exacto y filtrar por periodo al instante
-    const [txRes, profRes] = await Promise.all([
-      fetch('/api/transactions?libro=BANCO&limit=100'),
+    // Traer TODAS las transacciones que afectan al saldo del banco:
+    //   - libro=BANCO (movimientos bancarios directos)
+    //   - Cualquier tx pagada por QR/tarjeta o con monto_qr (cobros de clientes por QR)
+    // Incluimos las migradas para que el total cuadre con el Excel del cliente.
+    const [txBancoRes, txQrRes, profRes] = await Promise.all([
+      supabase.from('transactions')
+        .select('*')
+        .eq('libro', 'BANCO')
+        .order('fecha', { ascending: false })
+        .order('creado_en', { ascending: false })
+        .limit(10000),
+      supabase.from('transactions')
+        .select('*')
+        .neq('libro', 'BANCO')
+        .or('metodo_pago.eq.qr,metodo_pago.eq.tarjeta,metodo_pago.eq.mixto,monto_qr.gt.0')
+        .order('fecha', { ascending: false })
+        .order('creado_en', { ascending: false })
+        .limit(10000),
       supabase.from('profiles').select('id, full_name, role, avatar_url').in('role', ['barbero', 'admin', 'coordinador']).eq('is_active', true).order('full_name')
     ])
 
-    if (txRes.ok) {
-      setTransactions(await txRes.json())
-    }
+    const allTx: Transaction[] = []
+    if (txBancoRes.data) allTx.push(...txBancoRes.data)
+    if (txQrRes.data) allTx.push(...txQrRes.data)
+    // Dedup por id y ordenar
+    const uniqueTx = Array.from(new Map(allTx.map(t => [t.id, t])).values())
+      .sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.creado_en || '').localeCompare(a.creado_en || ''))
+    setTransactions(uniqueTx)
+
     if (profRes.data) {
       setProfiles(profRes.data)
     }
@@ -104,25 +124,51 @@ export default function BancoPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
+  // ¿Cuánto de esta transacción afecta al saldo del banco?
   const getMontoBanco = (t: any) => {
-    if (t.monto_qr !== undefined && Number(t.monto_qr) > 0) return Number(t.monto_qr)
-    if (t.metodo_pago === 'mixto') return Number(t.monto_qr || 0)
-    if (t.metodo_pago === 'qr' || t.metodo_pago === 'tarjeta' || t.libro === 'BANCO') return Number(t.costo || 0)
-    if (t.libro === 'SERVICIOS' || t.libro === 'VENTAS') return Number(t.monto_qr || 0)
-    return Number(t.costo || 0)
+    const mpLower = String(t.metodo_pago || '').toLowerCase()
+    // Libro BANCO directo → usar costo completo
+    if (t.libro === 'BANCO') return Number(t.costo || 0)
+    // Pago mixto → solo la parte QR va al banco
+    if (mpLower === 'mixto') return Number(t.monto_qr || 0)
+    // QR/tarjeta en cualquier libro → usar monto_qr si existe, sino costo
+    if (['qr', 'tarjeta'].includes(mpLower)) {
+      return Number(t.monto_qr || 0) > 0 ? Number(t.monto_qr) : Number(t.costo || 0)
+    }
+    // Si tiene monto_qr > 0 por otra razón
+    if (Number(t.monto_qr || 0) > 0) return Number(t.monto_qr)
+    return 0
   }
 
+  // ¿Es una SALIDA de dinero del banco?
   const isRetiroBanco = (t: any) => {
-    if (t.libro === 'SERVICIOS' || t.libro === 'VENTAS') return false
+    const mpLower = String(t.metodo_pago || '').toLowerCase()
+    const libroTx = String(t.libro || '').toUpperCase()
+
+    // Cobros QR de clientes registrados como EGRESO de CAJA_CHICA/SERVICIOS/VENTAS
+    // → es dinero que ENTRA al banco (el cliente pagó por QR), NO un retiro
+    if ((libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
+      && ['qr', 'tarjeta'].includes(mpLower)
+      && t.tipo_movimiento === 'EGRESO') {
+      return false
+    }
+
+    // SERVICIOS/VENTAS con INGRESO → dinero entra al banco vía QR
+    if ((libroTx === 'SERVICIOS' || libroTx === 'VENTAS') && t.tipo_movimiento === 'INGRESO') return false
+
+    // Tipo de movimiento directo
     if (t.tipo_movimiento === 'INGRESO' || t.tipo_movimiento === 'DEPOSITO') return false
-    if (t.tipo_movimiento === 'RETIRO' || t.tipo_movimiento === 'EGRESO' || t.libro === 'EGRESOS') return true
+    if (t.tipo_movimiento === 'RETIRO' || t.tipo_movimiento === 'EGRESO') return true
+
     return String(t.cuenta_codigo || '').startsWith('EGR')
   }
 
+  // Base histórica de Banco calibrada según Excel al 18/07/2026: Bs 642,54
   const totalBalance = transactions.reduce((s, t) => {
+    if (t.fecha <= '2026-07-18') return s
     const monto = getMontoBanco(t)
     return isRetiroBanco(t) ? s - monto : s + monto
-  }, 0)
+  }, 642.54)
 
   const { desde, hasta } = getDateRange()
   const txDelPeriodo = transactions.filter(t => {

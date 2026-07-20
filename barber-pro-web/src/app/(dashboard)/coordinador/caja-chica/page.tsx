@@ -174,18 +174,20 @@ export default function CajaChicaPage() {
     if (txRes.ok) setTransactions(await txRes.json())
     if (ctasRes.ok) setCuentas(await ctasRes.json())
     
-    // Saldo anterior: todos los movimientos antes del periodo seleccionado
-    let antEf = 0
-    let antQr = 0
-    if (desde) {
+    // Saldo anterior calibrado al cierre de Excel (18/07/2026): Efectivo = Bs 210,00 | Banco = Bs 642,54
+    let antEf = 210
+    let antQr = 642.54
+    if (desde && desde > '2026-07-18') {
       const { data: antTx } = await supabase
         .from('transactions')
-        .select('costo, tipo_movimiento, metodo_pago, monto_efectivo, monto_qr, notas')
+        .select('costo, tipo_movimiento, metodo_pago, monto_efectivo, monto_qr, notas, libro, fecha')
+        .gt('fecha', '2026-07-18')
         .lt('fecha', desde)
       if (antTx) {
         antTx.forEach(tx => {
           const ing = tx.tipo_movimiento === 'INGRESO'
           const mpLower = String(tx.metodo_pago || 'efectivo').toLowerCase()
+          const libroTx = String(tx.libro || '').toUpperCase()
           let ef = 0
           let qr = 0
           if (mpLower === 'efectivo') {
@@ -203,8 +205,19 @@ export default function CajaChicaPage() {
               qr = qrMatch ? parseFloat(qrMatch[1]) : Number(tx.costo || 0)
             }
           }
-          if (ing) { antEf += ef; antQr += qr }
-          else { antEf -= ef; antQr -= qr }
+
+          if (ing) { antEf += ef } else { antEf -= ef }
+
+          const esCobroQrDeCaja = (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
+            && ['qr', 'tarjeta'].includes(mpLower)
+            && tx.tipo_movimiento === 'EGRESO'
+          if (esCobroQrDeCaja) {
+            antQr += qr
+          } else if (ing) {
+            antQr += qr
+          } else {
+            antQr -= qr
+          }
         })
       }
     }
@@ -469,6 +482,17 @@ export default function CajaChicaPage() {
   const saldoPeriodo = totalIngresos - totalEgresos
   const totalMovimientos = transactions.length
 
+  // Helper: ¿es un cobro QR de un cliente registrado como "egreso de caja"?
+  // En el Excel, los pagos QR de clientes se registran como salida de caja chica (EGRESO)
+  // pero desde la perspectiva del banco, es dinero que ENTRA.
+  const esCobroQrDeCaja = (tx: Transaction) => {
+    const mpLower = String(tx.metodo_pago || '').toLowerCase()
+    const libroTx = String(tx.libro || '').toUpperCase()
+    return (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
+      && ['qr', 'tarjeta'].includes(mpLower)
+      && tx.tipo_movimiento === 'EGRESO'
+  }
+
   let ingresosEfectivo = 0
   let egresosEfectivo = 0
   let ingresosQR = 0
@@ -477,23 +501,44 @@ export default function CajaChicaPage() {
   transactions.forEach((tx) => {
     const ing = esIngreso(tx)
     const { ef, qr } = getMontosTx(tx)
-    if (ing) {
-      ingresosEfectivo += ef
+
+    // Efectivo: usar tipo_movimiento tal cual
+    if (ing) { ingresosEfectivo += ef } else { egresosEfectivo += ef }
+
+    // QR/Banco: invertir para cobros QR registrados como egreso de caja
+    if (esCobroQrDeCaja(tx)) {
+      ingresosQR += qr  // Es ingreso al banco, no egreso
+    } else if (ing) {
       ingresosQR += qr
     } else {
-      egresosEfectivo += ef
       egresosQR += qr
+    }
+  })
+
+  let flEfTotal = 0
+  let flQrTotal = 0
+  transactions.forEach((tx) => {
+    if (tx.fecha <= '2026-07-18') return
+    const ing = esIngreso(tx)
+    const { ef, qr } = getMontosTx(tx)
+    if (ing) { flEfTotal += ef } else { flEfTotal -= ef }
+    if (esCobroQrDeCaja(tx)) {
+      flQrTotal += qr
+    } else if (ing) {
+      flQrTotal += qr
+    } else {
+      flQrTotal -= qr
     }
   })
 
   const flujoEfectivoPeriodo = ingresosEfectivo - egresosEfectivo
   const flujoQRPeriodo = ingresosQR - egresosQR
-  const saldoEfectivoTotal = (saldoAnterior?.ef || 0) + ingresosEfectivo - egresosEfectivo
-  const saldoQRTotal = (saldoAnterior?.qr || 0) + ingresosQR - egresosQR
+  const saldoEfectivoTotal = (saldoAnterior?.ef || 210) + (periodo !== 'todos' ? flujoEfectivoPeriodo : flEfTotal)
+  const saldoQRTotal = (saldoAnterior?.qr || 642.54) + (periodo !== 'todos' ? flujoQRPeriodo : flQrTotal)
 
   const esPeriodoSeleccionado = periodo !== 'todos'
-  const mostrandoseEfectivo = esPeriodoSeleccionado ? flujoEfectivoPeriodo : saldoEfectivoTotal
-  const mostrandoseQR = esPeriodoSeleccionado ? flujoQRPeriodo : saldoQRTotal
+  const mostrandoseEfectivo = saldoEfectivoTotal
+  const mostrandoseQR = saldoQRTotal
 
   // Desglose por categoría (top 5)
   const categoriaMap: Record<string, { monto: number, count: number, ingreso: boolean }> = {}
@@ -615,18 +660,14 @@ export default function CajaChicaPage() {
             </div>
             <div>
               <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">
-                {esPeriodoSeleccionado ? `Flujo Efectivo (${periodoLabel})` : 'Saldo Efectivo (Total)'}
+                SALDO EN FISICO (EFECTIVO)
               </p>
               <p className={`text-base font-black ${mostrandoseEfectivo >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
                 {mostrandoseEfectivo >= 0 ? '+' : ''}{formatCurrency(mostrandoseEfectivo)}
               </p>
-              {esPeriodoSeleccionado ? (
-                <p className="text-[9px] text-amber-400/80 font-mono mt-0.5">
-                  Ing: +{formatCurrency(ingresosEfectivo)} | Egr: -{formatCurrency(egresosEfectivo)}
-                </p>
-              ) : saldoAnterior.ef !== 0 ? (
-                <p className="text-[9px] text-amber-400/70 font-mono">Arrastre ant: {formatCurrency(saldoAnterior.ef)}</p>
-              ) : null}
+              <p className="text-[9px] text-amber-400/80 font-mono mt-0.5">
+                Flujo ({periodoLabel}): {flujoEfectivoPeriodo >= 0 ? '+' : ''}{formatCurrency(flujoEfectivoPeriodo)}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -639,18 +680,14 @@ export default function CajaChicaPage() {
             </div>
             <div>
               <p className="text-[9px] font-black uppercase tracking-widest text-blue-400">
-                {esPeriodoSeleccionado ? `Flujo QR / Banco (${periodoLabel})` : 'Saldo QR / Banco (Total)'}
+                SALDO REAL EN BANCO / QR
               </p>
               <p className={`text-base font-black ${mostrandoseQR >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
                 {mostrandoseQR >= 0 ? '+' : ''}{formatCurrency(mostrandoseQR)}
               </p>
-              {esPeriodoSeleccionado ? (
-                <p className="text-[9px] text-blue-400/80 font-mono mt-0.5">
-                  Ing: +{formatCurrency(ingresosQR)} | Egr: -{formatCurrency(egresosQR)}
-                </p>
-              ) : saldoAnterior.qr !== 0 ? (
-                <p className="text-[9px] text-blue-400/70 font-mono">Arrastre ant: {formatCurrency(saldoAnterior.qr)}</p>
-              ) : null}
+              <p className="text-[9px] text-blue-400/80 font-mono mt-0.5">
+                Flujo ({periodoLabel}): {flujoQRPeriodo >= 0 ? '+' : ''}{formatCurrency(flujoQRPeriodo)}
+              </p>
             </div>
           </CardContent>
         </Card>
