@@ -102,6 +102,8 @@ export function CajaPOS() {
   const [promocionSeleccionada, setPromocionSeleccionada] = useState<Promocion | null>(null)
   const [referralBonuses, setReferralBonuses] = useState<ReferralBonus[]>([])
   const [referralSeleccionado, setReferralSeleccionado] = useState<ReferralBonus | null>(null)
+  const [lealtadMetas, setLealtadMetas] = useState<LealtadMeta[]>([])
+  const [cumpleanosVerifData, setCumpleanosVerifData] = useState<any | null>(null)
   const [pareja2x1PendienteData, setPareja2x1PendienteData] = useState<any | null>(null)
   const [clienteDetalle, setClienteDetalle] = useState<Cliente | null>(null)
   const [qrPagoUrl, setQrPagoUrl] = useState<string | null>(null)
