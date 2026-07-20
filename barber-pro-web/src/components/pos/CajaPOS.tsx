@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
-import { User, Scissors, DollarSign, Search, CheckCircle, Clock, Package, Plus, Minus, X, Store, Gift, UserPlus, Edit3, Save, Star, Tag, QrCode, AlertTriangle, Calendar, Zap, CreditCard, History } from 'lucide-react'
+import { User, Scissors, DollarSign, Search, CheckCircle, Clock, Package, Plus, Minus, X, Store, Gift, UserPlus, Edit3, Save, Star, Tag, QrCode, AlertTriangle, Calendar, Zap, CreditCard, History, ShoppingBag } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { CATEGORIAS_SERVICIOS } from '@/types'
@@ -99,14 +99,27 @@ export function CajaPOS() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [carrito, setCarrito] = useState<ProductoCarrito[]>([])
   const [promociones, setPromociones] = useState<Promocion[]>([])
-  const [lealtadMetas, setLealtadMetas] = useState<LealtadMeta[]>([])
+  const [promocionSeleccionada, setPromocionSeleccionada] = useState<Promocion | null>(null)
   const [referralBonuses, setReferralBonuses] = useState<ReferralBonus[]>([])
-  const [cumpleanosVerifData, setCumpleanosVerifData] = useState<any | null>(null)
+  const [referralSeleccionado, setReferralSeleccionado] = useState<ReferralBonus | null>(null)
+  const [acompanante, setAcompanante] = useState<string>('')
+  const [tiempoMinimoReserva, setTiempoMinimoReserva] = useState<number>(120)
+  const [updatingTiempo, setUpdatingTiempo] = useState<boolean>(false)
+  
+  const [modoReserva, setModoReserva] = useState<boolean>(false)
+  const [reservaFecha, setReservaFecha] = useState<string>('')
+  const [reservaHora, setReservaHora] = useState<string>('')
+  const [citaSeleccionadaFechaHora, setCitaSeleccionadaFechaHora] = useState<string | null>(null)
+  const [horariosOcupados, setHorariosOcupados] = useState<string[]>([])
+  const [cargandoHorarios, setCargandoHorarios] = useState<boolean>(false)
   const [pareja2x1PendienteData, setPareja2x1PendienteData] = useState<any | null>(null)
   const [clienteDetalle, setClienteDetalle] = useState<Cliente | null>(null)
   const [qrPagoUrl, setQrPagoUrl] = useState<string | null>(null)
   const [citasPendientes, setCitasPendientes] = useState<any[]>([])
   const [ultimosServicios, setUltimosServicios] = useState<any[]>([])
+  const [ultimosMovimientos, setUltimosMovimientos] = useState<any[]>([])
+  const [posTab, setPosTab] = useState<'operar' | 'movimientos'>('operar')
+  const [searchMovimiento, setSearchMovimiento] = useState<string>('')
   const [montoRecibido, setMontoRecibido] = useState<string>('')
 
   const [searchCliente, setSearchCliente] = useState('')
@@ -203,6 +216,14 @@ export function CajaPOS() {
           .order('updated_at', { ascending: false })
           .limit(15)
         setUltimosServicios(ultimosData || [])
+
+        const { data: ultimosTxData } = await supabase
+          .from('transactions')
+          .select('id, fecha, created_at, concepto, subcategoria, costo, monto_efectivo, monto_qr, metodo_pago, libro, tipo_movimiento, glosa, usuario_registro, nombre')
+          .in('libro', ['SERVICIOS', 'VENTAS', 'CAJA_CHICA'])
+          .order('created_at', { ascending: false })
+          .limit(30)
+        setUltimosMovimientos(ultimosTxData || [])
 
         // Calculate barbero rotation (who has the least recent completed appointment today)
         const { data: citasHoy } = await supabase
@@ -612,6 +633,14 @@ export function CajaPOS() {
         .order('updated_at', { ascending: false })
         .limit(15)
       setUltimosServicios(ultimosData || [])
+
+      const { data: ultimosTxData } = await supabase
+        .from('transactions')
+        .select('id, fecha, created_at, concepto, subcategoria, costo, monto_efectivo, monto_qr, metodo_pago, libro, tipo_movimiento, glosa, usuario_registro, nombre')
+        .in('libro', ['SERVICIOS', 'VENTAS', 'CAJA_CHICA'])
+        .order('created_at', { ascending: false })
+        .limit(30)
+      setUltimosMovimientos(ultimosTxData || [])
       
       setFormData({
         cita_id: '', cliente_id: '', nombre: '', email: '', telefono: '', ci: '',
@@ -855,10 +884,132 @@ export function CajaPOS() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* LADO IZQUIERDO: SELECCIÓN DE DATOS */}
-        <div className="lg:col-span-8 space-y-6">
+      {/* TABS DE VISTA EN CAJA POS */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 pb-3">
+        <button
+          onClick={() => setPosTab('operar')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${posTab === 'operar' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-[1.02]' : 'bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+        >
+          <ShoppingBag className="w-4 h-4" /> Operación de Caja (POS)
+        </button>
+        <button
+          onClick={() => setPosTab('movimientos')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${posTab === 'movimientos' ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20 scale-[1.02]' : 'bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+        >
+          <History className="w-4 h-4" /> Últimos Movimientos y Cobros
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${posTab === 'movimientos' ? 'bg-black/20 text-black' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+            {ultimosMovimientos.length > 0 ? ultimosMovimientos.length : ultimosServicios.length} registros
+          </span>
+        </button>
+      </div>
+
+      {posTab === 'movimientos' ? (
+        <Card className="bg-zinc-900 border-zinc-800 animate-in fade-in duration-300">
+          <CardContent className="p-6 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <div className="p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                    <History className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  Historial en Vivo de Movimientos en Caja / POS
+                </h2>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Muestra todos los cobros recientes de servicios, ventas directas de productos e ingresos registrados desde esta terminal.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Input
+                    placeholder="Buscar por cliente, barbero o detalle..."
+                    value={searchMovimiento}
+                    onChange={(e) => setSearchMovimiento(e.target.value)}
+                    className="pl-9 h-10 w-64 bg-zinc-950 border-zinc-800 text-xs"
+                  />
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setPosTab('operar')} className="h-10 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
+                  ← Volver a Operación POS
+                </Button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-zinc-400 text-[11px] font-black uppercase tracking-wider">
+                    <th className="pb-3 pl-2">Hora / Fecha</th>
+                    <th className="pb-3">Libro</th>
+                    <th className="pb-3">Detalle / Cliente</th>
+                    <th className="pb-3">Barbero / Empleado</th>
+                    <th className="pb-3">Método Pago</th>
+                    <th className="pb-3 text-right pr-2">Total Cobrado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/60">
+                  {(ultimosMovimientos.length > 0 ? ultimosMovimientos : ultimosServicios)
+                    .filter((m: any) => {
+                      if (!searchMovimiento) return true
+                      const term = searchMovimiento.toLowerCase()
+                      const nombre = (m.nombre || m.clientes?.nombre || '').toLowerCase()
+                      const barbero = (m.usuario_registro || m.profiles?.full_name || '').toLowerCase()
+                      const detalle = (m.cuenta_detalle || m.glosa || m.servicios?.nombre || '').toLowerCase()
+                      return nombre.includes(term) || barbero.includes(term) || detalle.includes(term)
+                    })
+                    .map((item: any, idx: number) => {
+                      const isTx = item.libro !== undefined
+                      const nombreCliente = isTx ? (item.nombre || 'Cliente') : (item.clientes?.nombre || 'Cliente')
+                      const barberoNombre = isTx ? (item.usuario_registro || 'Barbero') : (item.profiles?.full_name || 'Barbero')
+                      const detalle = isTx ? (item.cuenta_detalle || item.glosa || item.concepto || item.libro) : (item.servicios?.nombre || 'Servicio Barbería')
+                      const monto = isTx ? Number(item.costo || 0) : Number(item.total ?? item.servicios?.precio ?? 0)
+                      const mp = (item.metodo_pago || 'efectivo').toLowerCase()
+                      const libro = isTx ? item.libro : 'SERVICIOS'
+                      
+                      const dateObj = isTx ? (item.created_at ? new Date(item.created_at) : new Date(item.fecha)) : (item.updated_at ? new Date(item.updated_at) : new Date(item.fecha_hora))
+                      const dateFormatted = !isNaN(dateObj.getTime()) ? dateObj.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) + ' · ' + dateObj.toLocaleDateString('es-BO', { day: '2-digit', month: 'short' }) : (item.fecha || '')
+
+                      return (
+                        <tr key={item.id || idx} className="hover:bg-zinc-800/40 transition">
+                          <td className="py-3.5 pl-2 font-mono text-xs text-zinc-400">{dateFormatted}</td>
+                          <td className="py-3.5">
+                            <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider border ${
+                              libro === 'SERVICIOS' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                              libro === 'VENTAS' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                              'bg-zinc-800 text-zinc-300 border-zinc-700'
+                            }`}>
+                              {libro}
+                            </span>
+                          </td>
+                          <td className="py-3.5">
+                            <p className="font-bold text-white text-xs">{nombreCliente}</p>
+                            <p className="text-[11px] text-zinc-400 truncate max-w-xs">{detalle}</p>
+                          </td>
+                          <td className="py-3.5 text-xs font-semibold text-zinc-300">{barberoNombre}</td>
+                          <td className="py-3.5">
+                            <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                              mp === 'efectivo' ? 'bg-emerald-500/10 text-emerald-400' :
+                              mp === 'qr' ? 'bg-purple-500/10 text-purple-400' :
+                              'bg-amber-500/10 text-amber-400'
+                            }`}>
+                              {mp === 'efectivo' ? '💵 Efectivo' : mp === 'qr' ? '📱 QR' : '🔄 Mixto'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 text-right pr-2 font-black text-emerald-400 text-sm">
+                            {formatCurrency(monto)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          
+          {/* LADO IZQUIERDO: SELECCIÓN DE DATOS */}
+          <div className="lg:col-span-8 space-y-6">
           
           {citasPendientes.length > 0 && (
             <div className="space-y-3">
@@ -961,6 +1112,62 @@ export function CajaPOS() {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* RESUMEN RÁPIDO DE ÚLTIMOS COBROS EN POS */}
+          {(ultimosMovimientos.length > 0 || ultimosServicios.length > 0) && (
+            <div className="p-4 bg-zinc-900/90 border border-zinc-800 rounded-2xl shadow-md">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold text-zinc-300 flex items-center gap-2">
+                  <div className="p-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                    <History className="w-3.5 h-3.5 text-emerald-500" />
+                  </div>
+                  Últimos Movimientos y Cobros Recientes
+                </h3>
+                <button
+                  onClick={() => setPosTab('movimientos')}
+                  className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 transition flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20"
+                >
+                  Ver historial completo ({ultimosMovimientos.length || ultimosServicios.length}) →
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                {(ultimosMovimientos.length > 0 ? ultimosMovimientos : ultimosServicios).slice(0, 3).map((item: any, idx: number) => {
+                  const isTx = item.libro !== undefined
+                  const nombreCliente = isTx ? (item.nombre || 'Cliente') : (item.clientes?.nombre || 'Cliente')
+                  const barberoNombre = isTx ? (item.usuario_registro || 'Barbero') : (item.profiles?.full_name || 'Barbero')
+                  const detalle = isTx ? (item.cuenta_detalle || item.glosa || item.concepto || item.libro) : (item.servicios?.nombre || 'Servicio Barbería')
+                  const monto = isTx ? Number(item.costo || 0) : Number(item.total ?? item.servicios?.precio ?? 0)
+                  const mp = (item.metodo_pago || 'efectivo').toLowerCase()
+                  const libro = isTx ? item.libro : 'SERVICIOS'
+
+                  return (
+                    <div key={item.id || idx} className="p-2.5 bg-black/40 border border-white/5 rounded-xl flex flex-col justify-between hover:border-emerald-500/30 transition">
+                      <div className="flex items-start justify-between gap-1 mb-1">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="text-[9px] px-1.5 py-0.2 rounded font-black uppercase tracking-wider bg-zinc-800 text-zinc-300">
+                              {libro}
+                            </span>
+                            <span className="text-xs font-bold text-white truncate">{nombreCliente}</span>
+                          </div>
+                          <p className="text-[11px] text-zinc-400 truncate">{detalle}</p>
+                        </div>
+                        <span className="text-xs font-black text-emerald-400 shrink-0">
+                          {formatCurrency(monto)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-zinc-500 mt-1 pt-1 border-t border-white/5">
+                        <span className="truncate">{barberoNombre}</span>
+                        <span className="font-bold text-zinc-400 uppercase">
+                          {mp === 'efectivo' ? '💵 Efectivo' : mp === 'qr' ? '📱 QR' : '🔄 Mixto'}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
 
@@ -1919,76 +2126,11 @@ export function CajaPOS() {
                   </Button>
                 </div>
               </div>
-
             </CardContent>
           </Card>
-
-          {/* ÚLTIMOS 3 SERVICIOS */}
-          {ultimosServicios.length > 0 && (
-            <Card className="bg-zinc-900 border-zinc-800">
-              <CardContent className="pt-5 pb-4">
-                <h3 className="text-sm font-bold text-zinc-300 flex items-center gap-2 mb-4">
-                  <div className="p-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                    <History className="w-3.5 h-3.5 text-emerald-500" />
-                  </div>
-                  Últimos Servicios Cobrados
-                  <span className="ml-auto text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                    {ultimosServicios.length} recientes
-                  </span>
-                </h3>
-                <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
-                  {ultimosServicios.map((srv, idx) => {
-                    const completedAt = srv.updated_at ? new Date(srv.updated_at) : null
-                    const timeAgo = completedAt ? (() => {
-                      const diffMs = Date.now() - completedAt.getTime()
-                      const diffMin = Math.floor(diffMs / 60000)
-                      if (diffMin < 1) return 'Justo ahora'
-                      if (diffMin < 60) return `Hace ${diffMin} min`
-                      const diffHrs = Math.floor(diffMin / 60)
-                      if (diffHrs < 24) return `Hace ${diffHrs}h`
-                      return completedAt.toLocaleDateString('es-BO', { day: '2-digit', month: 'short' })
-                    })() : ''
-                    const montoTotal = srv.total ?? srv.servicios?.precio ?? 0
-                    return (
-                      <div
-                        key={srv.id}
-                        className="p-3 bg-black/30 border border-white/5 rounded-xl hover:border-emerald-500/20 transition group"
-                      >
-                        <div className="flex items-start justify-between gap-2 mb-1.5">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold text-white truncate">
-                              {srv.clientes?.nombre || 'Cliente'}
-                            </p>
-                            <p className="text-[10px] text-zinc-500 truncate">
-                              {srv.servicios?.nombre || 'Servicio'}
-                            </p>
-                          </div>
-                          <span className="text-sm font-black text-emerald-400 shrink-0">
-                            {formatCurrency(montoTotal)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-600">
-                              {srv.profiles?.full_name || 'Barbero'}
-                            </span>
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-bold uppercase">
-                              {srv.metodo_pago === 'efectivo' ? '💵' : srv.metodo_pago === 'qr' ? '📱' : '🔄'} {srv.metodo_pago || 'N/A'}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-zinc-600 font-mono">
-                            {timeAgo}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
+      )}
     </div>
   )
 }
