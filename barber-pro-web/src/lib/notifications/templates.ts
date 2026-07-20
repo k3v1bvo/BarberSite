@@ -1,13 +1,38 @@
-const BRAND = 'Barber Pro'
+export let BRAND = 'BarberSite'
+export let LOGO_URL = ''
+
+let activeTemplateData: any = null
+
+export function setBrandIdentity(nombre: string, logoUrl: string = '') {
+  if (nombre) BRAND = nombre
+  LOGO_URL = logoUrl
+}
+
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
-function layout(content: string, preheader: string): string {
+function layout(content: string, preheader: string, customBrand?: string, customLogo?: string): string {
+  const brandName = customBrand || activeTemplateData?._brandName || BRAND
+  const logoUrl = customLogo !== undefined ? customLogo : (activeTemplateData?._brandLogo !== undefined ? activeTemplateData._brandLogo : LOGO_URL)
+
+  const headerContent = logoUrl
+    ? `<table border="0" cellpadding="0" cellspacing="0">
+         <tr>
+           <td style="padding-right:12px;vertical-align:middle;">
+             <img src="${logoUrl}" alt="${brandName}" style="max-height:45px;max-width:160px;display:block;" />
+           </td>
+           <td style="vertical-align:middle;">
+             <span style="font-size:22px;font-weight:900;color:#000;letter-spacing:-0.02em;">${brandName}</span>
+           </td>
+         </tr>
+       </table>`
+    : `<p style="margin:0;font-size:22px;font-weight:900;color:#000;letter-spacing:-0.02em;">✂️ ${brandName}</p>`
+
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width" />
-  <title>${BRAND}</title>
+  <title>${brandName}</title>
 </head>
 <body style="margin:0;padding:0;background:#09090b;font-family:'Segoe UI',system-ui,sans-serif;">
   <span style="display:none;max-height:0;overflow:hidden;">${preheader}</span>
@@ -16,7 +41,7 @@ function layout(content: string, preheader: string): string {
       <table width="100%" style="max-width:560px;background:#18181b;border:1px solid #27272a;border-radius:16px;overflow:hidden;">
         <tr>
           <td style="background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);padding:24px 28px;">
-            <p style="margin:0;font-size:22px;font-weight:900;color:#000;letter-spacing:-0.02em;">✂️ ${BRAND}</p>
+            ${headerContent}
           </td>
         </tr>
         <tr>
@@ -27,7 +52,7 @@ function layout(content: string, preheader: string): string {
         <tr>
           <td style="padding:20px 28px;border-top:1px solid #27272a;background:#0a0a0a;">
             <p style="margin:0;font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:0.15em;">
-              ${BRAND} · Notificación automática
+              ${brandName} · Notificación automática
             </p>
             <p style="margin:8px 0 0;font-size:12px;">
               <a href="${SITE}" style="color:#f59e0b;text-decoration:none;">Ir al sistema</a>
@@ -92,6 +117,7 @@ export function buildEmail(
   kind: string,
   data: EmailTemplateInput
 ): { subject: string; html: string } {
+  activeTemplateData = data
   const nombre = data.nombre || data.cliente || 'Cliente'
 
   switch (kind) {
@@ -109,7 +135,7 @@ export function buildEmail(
           ])}
           <p>Te esperamos puntual. Si necesitas cambiar algo, contáctanos con anticipación.</p>
           ${cta(`${SITE}/cliente`, 'Ver mis citas')}`,
-          'Tu cita en Barber Pro está confirmada'
+          `Tu cita en ${BRAND} está confirmada`
         ),
       }
 
@@ -256,7 +282,7 @@ export function buildEmail(
           `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">Alerta importante</h2>
           <p style="color:#e4e4e7;">${data.motivo || 'Revisa el panel de administración.'}</p>
           ${cta(`${SITE}/admin`, 'Ir al panel')}`,
-          'Alerta Barber Pro'
+          `Alerta ${BRAND}`
         ),
       }
 
@@ -273,7 +299,7 @@ export function buildEmail(
 
     case 'pago_pendiente_cliente':
       return {
-        subject: '⏳ Tu comprobante QR está en revisión — Barber Pro',
+        subject: `⏳ Tu comprobante QR está en revisión — ${BRAND}`,
         html: layout(
           `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Recibimos tu comprobante, ${nombre}!</h2>
           <p>Tu pago QR fue registrado exitosamente. Nuestro equipo lo está revisando para confirmar tu reserva.</p>

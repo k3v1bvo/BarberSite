@@ -6,7 +6,7 @@ import { buildEmail, type EmailTemplateInput } from './templates'
 // ==========================================
 // 1. CONFIGURACIÓN CON RESEND (Comentada)
 // ==========================================
-const FROM = process.env.RESEND_FROM_EMAIL || 'Barber Pro <onboarding@resend.dev>'
+const FROM = process.env.RESEND_FROM_EMAIL || 'BarberSite <onboarding@resend.dev>'
 
 let resendClient: Resend | null = null
 
@@ -52,7 +52,7 @@ export async function sendNotificationEmail(
 const SMTP_USER = process.env.SMTP_USER || 'tucorreo@gmail.com'
 // La contraseña de aplicación va aquí o idealmente en tu archivo .env
 const SMTP_PASS = process.env.SMTP_PASS || 'nray vsaf seuo uajn'
-const FROM_EMAIL = process.env.SMTP_FROM || `"Barber Pro" <${SMTP_USER}>`
+const FROM_EMAIL = process.env.SMTP_FROM || `"BarberSite" <${SMTP_USER}>`
 
 let transporter: nodemailer.Transporter | null = null
 

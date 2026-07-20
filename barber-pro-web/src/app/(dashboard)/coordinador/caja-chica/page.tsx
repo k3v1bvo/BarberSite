@@ -533,8 +533,8 @@ export default function CajaChicaPage() {
 
   const flujoEfectivoPeriodo = ingresosEfectivo - egresosEfectivo
   const flujoQRPeriodo = ingresosQR - egresosQR
-  const saldoEfectivoTotal = (saldoAnterior?.ef || 210) + (periodo !== 'todos' ? flujoEfectivoPeriodo : flEfTotal)
-  const saldoQRTotal = (saldoAnterior?.qr || 642.54) + (periodo !== 'todos' ? flujoQRPeriodo : flQrTotal)
+  const saldoEfectivoTotal = (saldoAnterior?.ef || 210) + flEfTotal
+  const saldoQRTotal = (saldoAnterior?.qr || 642.54) + flQrTotal
 
   const esPeriodoSeleccionado = periodo !== 'todos'
   const mostrandoseEfectivo = saldoEfectivoTotal

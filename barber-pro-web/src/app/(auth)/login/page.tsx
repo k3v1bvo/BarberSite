@@ -8,8 +8,10 @@ import { PasswordInput } from '@/components/ui/PasswordInput'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useBrand } from '@/components/providers/BrandProvider'
 
 export default function LoginPage() {
+  const { brand } = useBrand()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -94,9 +96,14 @@ export default function LoginPage() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.15),transparent_70%)]" />
 
       <Card className="relative w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl">
-        <CardHeader className="text-center space-y-2">
+        <CardHeader className="text-center space-y-3">
+          {brand.logo_url && (
+            <div className="flex justify-center mb-1">
+              <img src={brand.logo_url} alt={brand.nombre} className="h-12 max-w-[180px] object-contain" />
+            </div>
+          )}
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">
-            Barber Site
+            {brand.nombre}
           </CardTitle>
           <p className="text-zinc-400 text-sm">
             Inicia sesión para continuar

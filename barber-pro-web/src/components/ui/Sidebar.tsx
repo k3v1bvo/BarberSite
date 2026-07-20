@@ -13,6 +13,7 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useSidebar } from '@/components/providers/SidebarProvider'
+import { useBrand } from '@/components/providers/BrandProvider'
 import {
   getAgendaHref,
   getAdminNavSections,
@@ -193,6 +194,7 @@ function FlatNavItems({
    MAIN SIDEBAR COMPONENT
    —————————————————————————————————————————————— */
 export function Sidebar({ role, userId }: SidebarProps) {
+  const { brand } = useBrand()
   const pathname = usePathname()
   const { collapsed, mobileOpen, toggleCollapsed, closeMobile } = useSidebar()
   const sidebarRef = useRef<HTMLElement>(null)
@@ -240,8 +242,18 @@ export function Sidebar({ role, userId }: SidebarProps) {
               isCollapsed ? 'justify-center text-base' : 'gap-3 text-xl'
             )}
           >
-            <Scissors className={cn('shrink-0', isCollapsed ? 'w-6 h-6' : 'w-7 h-7')} />
-            {!isCollapsed && <span className="sidebar-label">BARBER PRO</span>}
+            {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
+              <img
+                src={brand.logo_url}
+                alt={brand.nombre}
+                className={cn('object-contain shrink-0 transition-all', isCollapsed ? 'w-7 h-7' : 'h-8 max-w-[140px]')}
+              />
+            ) : (
+              <Scissors className={cn('shrink-0', isCollapsed ? 'w-6 h-6' : 'w-7 h-7')} />
+            )}
+            {!isCollapsed && (brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
+              <span className="sidebar-label truncate">{brand.nombre}</span>
+            )}
           </Link>
           {!isCollapsed && (
             <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-2 ml-1 sidebar-label">

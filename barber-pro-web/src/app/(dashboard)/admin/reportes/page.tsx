@@ -169,7 +169,7 @@ export default function ReportesPage() {
       const checkEsIngreso = (tx: any) => {
         if (tx.libro === 'USO_TIENDA' || tx.libro === 'BANCO' || esMovimientoInterno(tx)) return false
         if (esCobroQrDeCaja(tx)) return true
-        return tx.tipo_movimiento === 'INGRESO'
+        return tx.tipo_movimiento === 'INGRESO' || tx.tipo_movimiento === 'VENTA_PRODUCTO' || String(tx.cuenta_codigo || '').startsWith('4')
       }
       const checkEsEgreso = (tx: any) => {
         if (tx.libro === 'USO_TIENDA' || tx.libro === 'BANCO' || esMovimientoInterno(tx)) return false

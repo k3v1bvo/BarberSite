@@ -11,8 +11,10 @@ import Link from 'next/link'
 import { useToast } from '@/components/ui/Toast'
 import { Scissors, Gift } from 'lucide-react'
 import { Suspense } from 'react'
+import { useBrand } from '@/components/providers/BrandProvider'
 
 function RegisterContent() {
+  const { brand } = useBrand()
   const searchParams = useSearchParams()
   const refCode = searchParams.get('ref')
 
@@ -135,11 +137,15 @@ function RegisterContent() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-zinc-950 via-zinc-900 to-black px-4 py-16">
         <Card className="relative w-full max-w-md bg-white/5 backdrop-blur-xl border border-amber-500/30 shadow-2xl rounded-2xl text-center">
           <CardContent className="p-10 space-y-6">
-            <div className="w-16 h-16 mx-auto bg-amber-500/20 rounded-2xl flex items-center justify-center">
-              <Scissors className="w-8 h-8 text-amber-500" />
+            <div className="w-16 h-16 mx-auto bg-amber-500/20 rounded-2xl flex items-center justify-center overflow-hidden">
+              {brand.logo_url ? (
+                <img src={brand.logo_url} alt={brand.nombre} className="w-12 h-12 object-contain" />
+              ) : (
+                <Scissors className="w-8 h-8 text-amber-500" />
+              )}
             </div>
             <h2 className="text-2xl font-black text-white uppercase tracking-tight">
-              ¡Bienvenido a <span className="text-amber-500">Barber Pro</span>!
+              ¡Bienvenido a <span className="text-amber-500">{brand.nombre}</span>!
             </h2>
             <p className="text-zinc-400 text-sm leading-relaxed">
               Tu cuenta está lista. Inicia sesión para reservar citas, ver tu club de lealtad y comprar en la tienda.
@@ -165,10 +171,14 @@ function RegisterContent() {
       <Card className="relative w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl">
         <CardHeader className="text-center space-y-2">
           <div className="flex justify-center mb-2">
-            <Scissors className="w-10 h-10 text-amber-500" />
+            {brand.logo_url ? (
+              <img src={brand.logo_url} alt={brand.nombre} className="h-12 max-w-[180px] object-contain" />
+            ) : (
+              <Scissors className="w-10 h-10 text-amber-500" />
+            )}
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">
-            Únete a Barber Pro
+            Únete a {brand.nombre}
           </CardTitle>
           <p className="text-zinc-400 text-sm mb-4">
             Crea tu cuenta y reserva en segundos

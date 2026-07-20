@@ -29,6 +29,7 @@ import { WhatsappFloat } from '@/components/ui/WhatsappFloat'
 import { useSocialLinks } from '@/components/ui/useSocialLinks'
 import { CATEGORIAS_SERVICIOS } from '@/types'
 import { ServicioGalleryBanner } from '@/components/ui/ServicioGalleryBanner'
+import { useBrand } from '@/components/providers/BrandProvider'
 
 interface UserProfile {
   full_name: string
@@ -72,6 +73,7 @@ interface EquipoHome {
 }
 
 export default function HomePage() {
+  const { brand } = useBrand()
   const [user, setUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [servicios, setServicios] = useState<Servicio[]>([])
@@ -274,9 +276,15 @@ export default function HomePage() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-lg border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-20">
-            <div className="flex items-center gap-2">
-              <Scissors className="w-8 h-8 text-amber-400" />
-              <span className="text-2xl font-bold tracking-wider">BarberSite</span>
+            <div className="flex items-center gap-3">
+              {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
+                <img src={brand.logo_url} alt={brand.nombre} className="h-10 max-w-[160px] object-contain" />
+              ) : (
+                <Scissors className="w-8 h-8 text-amber-400" />
+              )}
+              {(brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
+                <span className="text-2xl font-bold tracking-wider">{brand.nombre}</span>
+              )}
             </div>
 
             {/* Usuario logueado o botones de auth */}
@@ -1024,9 +1032,13 @@ export default function HomePage() {
       <footer className="bg-black border-t border-white/10 py-12">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-            <div className="flex items-center gap-2">
-              <Scissors className="w-8 h-8 text-amber-400" />
-              <span className="text-xl font-bold tracking-wider">BarberSite</span>
+            <div className="flex items-center gap-3">
+              {brand.logo_url ? (
+                <img src={brand.logo_url} alt={brand.nombre} className="h-10 max-w-[150px] object-contain" />
+              ) : (
+                <Scissors className="w-8 h-8 text-amber-400" />
+              )}
+              <span className="text-xl font-bold tracking-wider">{brand.nombre}</span>
             </div>
 
             <div className="flex flex-col items-center gap-6">
@@ -1042,7 +1054,7 @@ export default function HomePage() {
             </div>
 
             <p className="text-gray-500 text-sm text-center md:text-right">
-              © 2026 BarberSite. Todos los derechos reservados. Cochabamba, Bolivia. -k3v1bvo Studios, designed by k3v1bvo
+              © 2026 {brand.nombre}. Todos los derechos reservados. Cochabamba, Bolivia. -k3v1bvo Studios, designed by k3v1bvo
             </p>
           </div>
         </div>

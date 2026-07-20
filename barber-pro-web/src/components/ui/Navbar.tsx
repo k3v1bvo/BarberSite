@@ -19,6 +19,7 @@ import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { OrdenLlegadaBarberos } from './OrdenLlegadaBarberos'
 import { DashboardBreadcrumb } from './DashboardBreadcrumb'
 import { useSidebar } from '@/components/providers/SidebarProvider'
+import { useBrand } from '@/components/providers/BrandProvider'
 import {
   getAgendaHref,
   getAdminNavSections,
@@ -39,6 +40,7 @@ interface UserProfile {
 }
 
 export function Navbar() {
+  const { brand } = useBrand()
   const [user, setUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -122,8 +124,14 @@ export function Navbar() {
     return (
       <header className="h-16 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md flex items-center px-6 sticky top-0 z-40">
          <div className="flex items-center gap-3 text-amber-500 font-black tracking-tighter animate-pulse">
-            <Scissors className="w-6 h-6" />
-            <span>BARBER PRO</span>
+            {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
+              <img src={brand.logo_url} alt={brand.nombre} className="h-7 max-w-[120px] object-contain" />
+            ) : (
+              <Scissors className="w-6 h-6" />
+            )}
+            {(brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
+              <span>{brand.nombre}</span>
+            )}
          </div>
       </header>
     )
@@ -142,8 +150,14 @@ export function Navbar() {
                 href="/"
                 className="flex items-center gap-2 text-amber-500 font-black text-lg tracking-tighter hover:scale-105 transition-transform shrink-0"
               >
-                <Scissors className="w-5 h-5 glow-amber" />
-                <span>BARBER PRO</span>
+                {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
+                  <img src={brand.logo_url} alt={brand.nombre} className="h-7 max-w-[130px] object-contain" />
+                ) : (
+                  <Scissors className="w-5 h-5 glow-amber" />
+                )}
+                {(brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
+                  <span>{brand.nombre}</span>
+                )}
               </Link>
               {!user && (
                 <nav className="flex items-center gap-6 text-zinc-400 font-medium ml-4">
@@ -222,8 +236,14 @@ export function Navbar() {
             </button>
           )}
           <Link href="/" className="flex items-center gap-2 text-amber-500 font-black tracking-tighter">
-            <Scissors className="w-6 h-6 glow-amber" />
-            <span>BARBER PRO</span>
+            {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
+              <img src={brand.logo_url} alt={brand.nombre} className="h-6 max-w-[110px] object-contain" />
+            ) : (
+              <Scissors className="w-6 h-6 glow-amber" />
+            )}
+            {(brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
+              <span>{brand.nombre}</span>
+            )}
           </Link>
         </div>
 

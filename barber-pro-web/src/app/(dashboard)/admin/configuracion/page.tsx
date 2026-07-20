@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useToast } from '@/components/ui/Toast'
-import { QrCode, Save, ArrowLeft, Image as ImageIcon, Info } from 'lucide-react'
+import { QrCode, Save, ArrowLeft, Image as ImageIcon, Info, Sparkles, Tag } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { isValidImageUrl } from '@/lib/validators'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import { useBrand, defaultBrandConfig } from '@/components/providers/BrandProvider'
 
 const defaultAboutUs = {
   imagen_url: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800",
@@ -31,6 +32,9 @@ const defaultHero = {
 }
 
 export default function AdminConfiguracionPage() {
+  const { brand, updateBrand } = useBrand()
+  const [brandConfig, setBrandConfig] = useState(defaultBrandConfig)
+  const [initialBrandConfig, setInitialBrandConfig] = useState(defaultBrandConfig)
   const [qrUrl, setQrUrl] = useState('')
   const [initialQrUrl, setInitialQrUrl] = useState('')
   const [heroConfig, setHeroConfig] = useState(defaultHero)
@@ -49,13 +53,19 @@ export default function AdminConfiguracionPage() {
         const { data, error } = await supabase
           .from('configuraciones')
           .select('llave, valor')
-          .in('llave', ['qr_pago', 'hero_bg_image', 'about_us_config'])
+          .in('llave', ['qr_pago', 'hero_bg_image', 'about_us_config', 'brand_config'])
 
         if (data) {
+          const brandData = data.find(c => c.llave === 'brand_config')
           const qrConfig = data.find(c => c.llave === 'qr_pago')
           const heroConfigData = data.find(c => c.llave === 'hero_bg_image')
           const aboutConfig = data.find(c => c.llave === 'about_us_config')
 
+          if (brandData && brandData.valor) {
+            const mergedBrand = { ...defaultBrandConfig, ...(brandData.valor as any) }
+            setBrandConfig(mergedBrand)
+            setInitialBrandConfig(mergedBrand)
+          }
           if (qrConfig && qrConfig.valor?.url) {
             setQrUrl(qrConfig.valor.url)
             setInitialQrUrl(qrConfig.valor.url)
@@ -78,6 +88,32 @@ export default function AdminConfiguracionPage() {
     }
     loadConfig()
   }, [supabase])
+
+  const handleSaveBrand = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!brandConfig.nombre.trim()) {
+      return toastError('El nombre comercial no puede estar vacío.')
+    }
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from('configuraciones')
+        .upsert({
+          llave: 'brand_config',
+          valor: brandConfig as any,
+          descripcion: 'Identidad de marca: logo PNG y nombre comercial'
+        }, { onConflict: 'llave' })
+
+      if (error) throw error
+      setInitialBrandConfig(brandConfig)
+      updateBrand(brandConfig)
+      toastSuccess('Identidad de marca actualizada correctamente')
+    } catch (err: any) {
+      toastError(err.message || 'Error al guardar la identidad de marca')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const handleSaveQr = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -192,6 +228,81 @@ export default function AdminConfiguracionPage() {
           <p className="text-zinc-500 font-medium mt-2 text-lg">Configuraciones del sistema</p>
         </div>
       </div>
+
+      <Card className="bg-zinc-900 border-white/5 shadow-xl">
+        <CardHeader className="border-b border-white/5 bg-zinc-900/50 p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-black uppercase text-white">Identidad de Marca (General & Correos)</CardTitle>
+              <p className="text-sm text-zinc-400">Personaliza el nombre del negocio y sube tu logo en PNG transparente.</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <form onSubmit={handleSaveBrand} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Nombre Comercial del Negocio</label>
+                <Input
+                  className="mt-1 bg-zinc-950 border-white/10 text-white font-bold h-12 rounded-xl focus:border-amber-500"
+                  placeholder="Ej. BarberSite"
+                  value={brandConfig.nombre}
+                  onChange={(e) => setBrandConfig({ ...brandConfig, nombre: e.target.value })}
+                />
+                <p className="text-xs text-zinc-500 mt-1.5 ml-1">Se utilizará en el título de pestaña, panel administrativo, asuntos de correo y página pública.</p>
+              </div>
+
+              <div className="md:col-span-2 space-y-2">
+                <ImageUpload
+                  label="Logo Transparente de la Marca (PNG Recomendado)"
+                  defaultImage={brandConfig.logo_url || undefined}
+                  onUploadSuccess={(url) => setBrandConfig({ ...brandConfig, logo_url: url })}
+                  onUploadError={(err) => toastError(err)}
+                />
+                {brandConfig.logo_url && (
+                  <div className="flex items-center justify-between bg-zinc-950 p-3 rounded-xl border border-white/5">
+                    <span className="text-xs text-zinc-400 font-medium truncate max-w-xs">{brandConfig.logo_url}</span>
+                    <button
+                      type="button"
+                      onClick={() => setBrandConfig({ ...brandConfig, logo_url: '' })}
+                      className="text-xs text-rose-400 hover:text-rose-300 font-bold ml-4"
+                    >
+                      Quitar logo
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Modo de visualización en la cabecera superior</label>
+                <select
+                  className="w-full mt-1 p-3.5 border border-white/10 bg-zinc-950 rounded-xl text-sm font-bold text-white focus:border-amber-500 outline-none transition-all"
+                  value={brandConfig.mostrar_modo}
+                  onChange={(e) => setBrandConfig({ ...brandConfig, mostrar_modo: e.target.value as any })}
+                >
+                  <option value="ambos">Mostrar Logo + Nombre Comercial (Recomendado)</option>
+                  <option value="logo">Mostrar Solo Logo en la cabecera</option>
+                  <option value="texto">Mostrar Solo Texto en la cabecera</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-white/5">
+              <Button
+                type="submit"
+                disabled={saving}
+                className="bg-amber-500 hover:bg-amber-400 text-black font-black px-8 py-3 rounded-xl transition-all shadow-lg shadow-amber-500/20"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {saving ? 'Guardando...' : 'Guardar Identidad de Marca'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       <Card className="bg-zinc-900 border-white/5">
         <CardHeader className="border-b border-white/5 bg-zinc-900/50 p-6">

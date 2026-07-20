@@ -287,12 +287,16 @@ export default function CoordinadorDashboard() {
         txHastaFecha.forEach((tx: any) => {
           if (tx.fecha && tx.fecha <= '2026-07-18') return
           
-          if (tx.libro === 'CAJA_CHICA') {
-            const ing = tx.tipo_movimiento === 'INGRESO'
+          const mpLower = String(tx.metodo_pago || '').toLowerCase()
+          const libroTx = String(tx.libro || '').toUpperCase()
+          const esIngresoTx = tx.tipo_movimiento === 'INGRESO' || tx.tipo_movimiento === 'VENTA_PRODUCTO' || String(tx.cuenta_codigo || '').startsWith('4')
+
+          // Caja Chica (Efectivo físico de cualquier libro: CAJA_CHICA, SERVICIOS, VENTAS)
+          if (libroTx !== 'BANCO') {
             let ef = 0
-            if (tx.metodo_pago === 'efectivo' || !tx.metodo_pago) {
+            if (mpLower === 'efectivo' || !mpLower) {
               ef = Number(tx.costo || 0)
-            } else if (tx.metodo_pago === 'mixto') {
+            } else if (mpLower === 'mixto') {
               ef = Number(tx.monto_efectivo || 0)
               if (ef === 0 && Number(tx.monto_qr || 0) === 0) {
                 ef = Number(tx.costo || 0)
@@ -301,12 +305,12 @@ export default function CoordinadorDashboard() {
                 ef = efMatch ? parseFloat(efMatch[1]) : 0
               }
             }
-            if (ing) sContable.caja_chica += ef
-            else sContable.caja_chica -= ef
+            if (ef > 0) {
+              if (esIngresoTx) sContable.caja_chica += ef
+              else sContable.caja_chica -= ef
+            }
           }
 
-          const mpLower = String(tx.metodo_pago || '').toLowerCase()
-          const libroTx = String(tx.libro || '').toUpperCase()
           const esCobroQrDeCaja = (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
             && ['qr', 'tarjeta'].includes(mpLower)
             && tx.tipo_movimiento === 'EGRESO'
@@ -318,7 +322,7 @@ export default function CoordinadorDashboard() {
           } else if (esCobroQrDeCaja) {
             const qr = Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0)
             sContable.banco += qr
-          } else if ((libroTx === 'SERVICIOS' || libroTx === 'VENTAS' || libroTx === 'CAJA_CHICA') && tx.tipo_movimiento === 'INGRESO' && ['qr', 'tarjeta'].includes(mpLower)) {
+          } else if ((libroTx === 'SERVICIOS' || libroTx === 'VENTAS' || libroTx === 'CAJA_CHICA') && esIngresoTx && ['qr', 'tarjeta'].includes(mpLower)) {
             const qr = Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0)
             sContable.banco += qr
           } else if (tx.tipo_movimiento === 'EGRESO' && ['qr', 'tarjeta'].includes(mpLower) && !esCobroQrDeCaja) {
@@ -332,7 +336,7 @@ export default function CoordinadorDashboard() {
       if (txPeriodo) {
         txPeriodo.forEach((t: any) => {
           const costo = Number(t.costo)
-          const isIngreso = t.tipo_movimiento === 'INGRESO'
+          const isIngreso = t.tipo_movimiento === 'INGRESO' || t.tipo_movimiento === 'VENTA_PRODUCTO' || String(t.cuenta_codigo || '').startsWith('4')
           if ((t.libro === 'VENTAS' || t.libro === 'SERVICIOS') && isIngreso) {
             sContable.ventas += costo
           }
