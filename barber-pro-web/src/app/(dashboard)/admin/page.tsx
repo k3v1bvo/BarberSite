@@ -325,12 +325,12 @@ export default function AdminPage() {
           } else if (esCobroQrDeCaja) {
             const qr = Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0)
             sContable.banco += qr
-          } else if ((libroTx === 'SERVICIOS' || libroTx === 'VENTAS' || libroTx === 'CAJA_CHICA') && esIngresoTx && ['qr', 'tarjeta'].includes(mpLower)) {
-            const qr = Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0)
-            sContable.banco += qr
-          } else if (tx.tipo_movimiento === 'EGRESO' && ['qr', 'tarjeta'].includes(mpLower) && !esCobroQrDeCaja) {
-            const qr = Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0)
-            sContable.banco -= qr
+          } else if ((libroTx === 'SERVICIOS' || libroTx === 'VENTAS' || libroTx === 'CAJA_CHICA') && esIngresoTx && ['qr', 'tarjeta', 'mixto'].includes(mpLower)) {
+            const qr = mpLower === 'mixto' ? Number(tx.monto_qr || 0) : (Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0))
+            if (qr > 0) sContable.banco += qr
+          } else if (tx.tipo_movimiento === 'EGRESO' && ['qr', 'tarjeta', 'mixto'].includes(mpLower) && !esCobroQrDeCaja) {
+            const qr = mpLower === 'mixto' ? Number(tx.monto_qr || 0) : (Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0))
+            if (qr > 0) sContable.banco -= qr
           }
         })
       }
