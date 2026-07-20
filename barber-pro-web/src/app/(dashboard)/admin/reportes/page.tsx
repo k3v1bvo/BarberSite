@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, getTodayBolivia } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { 
   Users, 
@@ -33,27 +33,33 @@ const GOLD_GRADIENT = ['#fbbf24', '#f59e0b', '#d97706']
 export default function ReportesPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'general' | 'finanzas' | 'rendimiento' | 'clientes' | 'inventario'>('general')
-  const hoyStrInicial = new Date().toISOString().split('T')[0]
+  const hoyStrInicial = getTodayBolivia()
   const [fechaInicio, setFechaInicio] = useState(hoyStrInicial)
   const [fechaFin, setFechaFin] = useState(hoyStrInicial)
   const [periodoRapido, setPeriodoRapido] = useState<'hoy' | 'semana' | 'mes' | 'personalizado'>('hoy')
 
+  const obtenerFechaBoliviaDesplazada = (diasAtras: number) => {
+    const hoyStr = getTodayBolivia()
+    const [y, m, d] = hoyStr.split('-').map(Number)
+    const f = new Date(y, m - 1, d)
+    f.setDate(f.getDate() - diasAtras)
+    const fy = f.getFullYear()
+    const fm = String(f.getMonth() + 1).padStart(2, '0')
+    const fd = String(f.getDate()).padStart(2, '0')
+    return `${fy}-${fm}-${fd}`
+  }
+
   const aplicarPeriodoRapido = (periodo: 'hoy' | 'semana' | 'mes' | 'personalizado') => {
     setPeriodoRapido(periodo)
-    const hoy = new Date()
-    const hoyStr = hoy.toISOString().split('T')[0]
+    const hoyStr = getTodayBolivia()
     if (periodo === 'hoy') {
       setFechaInicio(hoyStr)
       setFechaFin(hoyStr)
     } else if (periodo === 'semana') {
-      const sem = new Date(hoy)
-      sem.setDate(hoy.getDate() - 7)
-      setFechaInicio(sem.toISOString().split('T')[0])
+      setFechaInicio(obtenerFechaBoliviaDesplazada(7))
       setFechaFin(hoyStr)
     } else if (periodo === 'mes') {
-      const mes = new Date(hoy)
-      mes.setDate(hoy.getDate() - 30)
-      setFechaInicio(mes.toISOString().split('T')[0])
+      setFechaInicio(obtenerFechaBoliviaDesplazada(30))
       setFechaFin(hoyStr)
     }
   }
@@ -110,7 +116,7 @@ export default function ReportesPage() {
           .gte('fecha_hora', `${fechaInicio}T00:00:00`)
           .lte('fecha_hora', `${fechaFin}T23:59:59`)
           .limit(50000),
-        supabase.from('transactions').select('tipo_movimiento, costo, fecha, metodo_pago, subcategoria, monto_efectivo, monto_qr')
+        supabase.from('transactions').select('tipo_movimiento, costo, fecha, metodo_pago, subcategoria, monto_efectivo, monto_qr, libro')
           .gte('fecha', fechaInicio)
           .lte('fecha', fechaFin)
           .limit(50000),
@@ -119,7 +125,7 @@ export default function ReportesPage() {
           .gte('fecha_hora', `${prevInicioStr}T00:00:00`)
           .lte('fecha_hora', `${prevFinStr}T23:59:59`)
           .limit(50000),
-        supabase.from('transactions').select('tipo_movimiento, costo')
+        supabase.from('transactions').select('tipo_movimiento, costo, libro')
           .gte('fecha', prevInicioStr)
           .lte('fecha', prevFinStr)
           .limit(50000),
@@ -149,25 +155,30 @@ export default function ReportesPage() {
       const finanzasPorDia: Record<string, { ingresos: number, egresos: number }> = {}
 
       txs.forEach(tx => {
-        const d = tx.fecha
+        const d = tx.fecha || fechaInicio
         if (!finanzasPorDia[d]) finanzasPorDia[d] = { ingresos: 0, egresos: 0 }
         
-        if (tx.tipo_movimiento === 'INGRESO') {
-          finanzasPorDia[d].ingresos += Number(tx.costo)
-          ingresosTotal += Number(tx.costo)
-        } else {
-          finanzasPorDia[d].egresos += Number(tx.costo)
-          egresosTotal += Number(tx.costo)
+        const costo = Math.abs(Number(tx.costo || 0))
+        if (tx.tipo_movimiento === 'INGRESO' && tx.libro !== 'USO_TIENDA') {
+          finanzasPorDia[d].ingresos += costo
+          ingresosTotal += costo
+        } else if (tx.tipo_movimiento === 'EGRESO' && tx.libro !== 'USO_TIENDA') {
+          finanzasPorDia[d].egresos += costo
+          egresosTotal += costo
         }
       })
 
       const finanzasDiarias = Object.entries(finanzasPorDia)
-        .map(([fecha, vals]) => ({
-          fecha: new Date(fecha).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' }),
-          ingresos: vals.ingresos,
-          egresos: vals.egresos,
-          utilidad: vals.ingresos - vals.egresos
-        }))
+        .map(([fecha, vals]) => {
+          const [y, m, dia] = fecha.split('-').map(Number)
+          const dObj = (!isNaN(y) && !isNaN(m) && !isNaN(dia)) ? new Date(y, m - 1, dia) : new Date(fecha)
+          return {
+            fecha: dObj.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' }),
+            ingresos: vals.ingresos,
+            egresos: vals.egresos,
+            utilidad: vals.ingresos - vals.egresos
+          }
+        })
         .sort((a, b) => a.fecha.localeCompare(b.fecha))
 
       const metodos: Record<string, number> = { 'efectivo': 0, 'qr': 0, 'tarjeta': 0, 'descuento_caja': 0 }
@@ -175,19 +186,24 @@ export default function ReportesPage() {
       const egCat: Record<string, number> = {}
 
       txs.forEach(tx => {
-        const costo = Number(tx.costo)
-        // Metodos de pago precisos
-        if (tx.metodo_pago === 'mixto') {
-          metodos['efectivo'] += Number(tx.monto_efectivo || 0)
-          metodos['qr'] += Number(tx.monto_qr || 0)
-        } else if (tx.metodo_pago) {
-          metodos[tx.metodo_pago] = (metodos[tx.metodo_pago] || 0) + costo
+        const costo = Math.abs(Number(tx.costo || 0))
+        const isIngreso = tx.tipo_movimiento === 'INGRESO' && tx.libro !== 'USO_TIENDA'
+        const isEgreso = tx.tipo_movimiento === 'EGRESO' && tx.libro !== 'USO_TIENDA'
+
+        // Métodos de pago sólo se suman para ingresos cobrados
+        if (isIngreso) {
+          if (tx.metodo_pago === 'mixto') {
+            metodos['efectivo'] += Number(tx.monto_efectivo || 0)
+            metodos['qr'] += Number(tx.monto_qr || 0)
+          } else if (tx.metodo_pago) {
+            metodos[tx.metodo_pago] = (metodos[tx.metodo_pago] || 0) + costo
+          }
         }
 
         const sub = tx.subcategoria || 'OTROS'
-        if (tx.tipo_movimiento === 'INGRESO') {
+        if (isIngreso) {
           ingCat[sub] = (ingCat[sub] || 0) + costo
-        } else {
+        } else if (isEgreso) {
           egCat[sub] = (egCat[sub] || 0) + costo
         }
       })
@@ -200,8 +216,9 @@ export default function ReportesPage() {
       let prevIngresosTotal = 0
       let prevEgresosTotal = 0
       prevTxs.forEach(tx => {
-        if (tx.tipo_movimiento === 'INGRESO') prevIngresosTotal += Number(tx.costo)
-        else prevEgresosTotal += Number(tx.costo)
+        const costo = Math.abs(Number(tx.costo || 0))
+        if (tx.tipo_movimiento === 'INGRESO' && tx.libro !== 'USO_TIENDA') prevIngresosTotal += costo
+        else if (tx.tipo_movimiento === 'EGRESO' && tx.libro !== 'USO_TIENDA') prevEgresosTotal += costo
       })
       const prevUtilidadTotal = prevIngresosTotal - prevEgresosTotal
       const citasCompletadas = citas.filter(c => c.estado === 'completado')
