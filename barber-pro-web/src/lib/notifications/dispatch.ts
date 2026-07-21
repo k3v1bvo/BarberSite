@@ -692,6 +692,23 @@ export async function dispatchNotification(
             password: p.password as string,
           })
         }
+
+        // Notificar al Admin y Coordinador sobre el nuevo registro
+        await notifyRole(db, 'admin', {
+          titulo: `👤 Nuevo Usuario Registrado: ${(p.nombre as string) || 'Cliente'}`,
+          mensaje: `Se ha registrado la cuenta de ${p.nombre || 'un nuevo cliente'} (${p.email}).`,
+          tipo: 'exito',
+          categoria: 'sistema',
+          link: '/admin/usuarios',
+        })
+
+        await notifyRole(db, 'coordinador', {
+          titulo: `👤 Nuevo Usuario Registrado: ${(p.nombre as string) || 'Cliente'}`,
+          mensaje: `Se ha registrado la cuenta de ${p.nombre || 'un nuevo cliente'} (${p.email}).`,
+          tipo: 'exito',
+          categoria: 'sistema',
+          link: '/coordinador',
+        })
         break
       }
 

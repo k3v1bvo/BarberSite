@@ -133,6 +133,38 @@ export async function POST(request: Request) {
 
     await adminClient.from('clientes').update(updatePayload).eq('id', new_user_id)
 
+    // Notificar al nuevo cliente
+    await adminClient.from('notificaciones').insert({
+      usuario_id: new_user_id,
+      titulo: '🎉 ¡Historial Sincronizado Exitosamente!',
+      mensaje: `¡Hola ${nombre || 'Cliente'}! Vinculamos automáticamente tus ${totalVisitasSum} visitas anteriores a tu nueva cuenta web.`,
+      tipo: 'exito',
+      categoria: 'sistema',
+      link: '/cliente',
+      leida: false,
+    })
+
+    // Notificar a Admin y Coordinadores
+    const { data: staff } = await adminClient
+      .from('profiles')
+      .select('id, role')
+      .in('role', ['admin', 'coordinador'])
+      .eq('is_active', true)
+
+    if (staff && staff.length > 0) {
+      const notifs = staff.map(s => ({
+        usuario_id: s.id,
+        titulo: `🔗 Sincronización Automática: ${nombre || 'Cliente'}`,
+        mensaje: `El cliente ${nombre || 'Nuevo'} (CI: ${cleanCi || 'N/A'}) se registró y se vincularon automáticamente ${oldClientIds.length} atenciones pasadas (${totalVisitasSum} visitas, Bs ${totalGastadoSum}).`,
+        tipo: 'exito',
+        categoria: 'sistema',
+        link: s.role === 'admin' ? '/admin/sincronizar' : '/coordinador',
+        leida: false,
+      }))
+
+      await adminClient.from('notificaciones').insert(notifs)
+    }
+
     return NextResponse.json({
       success: true,
       message: `Historial sincronizado automáticamente (${oldClientIds.length} cuenta(s) fusionada(s)).`,
