@@ -304,7 +304,7 @@ export default function ClientesAdminPage() {
 
       toastSuccess('Referido registrado exitosamente. Se ha enviado la invitación.')
       setShowReferralModal(false)
-      setReferralData({ nombre: '', telefono: '', email: '', monto_bono: '20' })
+      setReferralData({ nombre: '', telefono: '', email: '', ci: '', monto_bono: '20' })
       loadClientes() // Recargar datos
     } catch (e: any) {
       toastError(e.message)

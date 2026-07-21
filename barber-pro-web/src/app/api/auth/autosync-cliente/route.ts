@@ -88,6 +88,18 @@ export async function POST(request: Request) {
         await adminClient.from('notificaciones').insert(notifs)
       }
 
+      // Enviar correo de bienvenida directo al correo registrado
+      if (cleanEmail) {
+        try {
+          await sendNotificationEmail(cleanEmail, 'registro_bienvenida_nuevo', {
+            nombre: nombre || 'Cliente',
+            ci: cleanCi || 'No especificado',
+          })
+        } catch (eErr) {
+          console.error('Error enviando correo de bienvenida nuevo:', eErr)
+        }
+      }
+
       return NextResponse.json({ 
         success: true, 
         message: 'No se encontraron registros anteriores para sincronizar.', 
