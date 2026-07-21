@@ -23,6 +23,7 @@ function RegisterContent() {
     password: '',
     full_name: '',
     phone: '',
+    ci: '',
   })
 
   const [loading, setLoading] = useState(false)
@@ -46,6 +47,7 @@ function RegisterContent() {
           data: {
             full_name: formData.full_name,
             phone: formData.phone,
+            ci: formData.ci,
           },
         },
       })
@@ -80,6 +82,7 @@ function RegisterContent() {
         id: authData.user.id,
         nombre: formData.full_name,
         telefono: formData.phone,
+        ci: formData.ci?.trim() || null,
         email: formData.email,
         total_visitas: 0,
         total_gastado: 0,
@@ -88,6 +91,22 @@ function RegisterContent() {
 
       if (clienteError) {
         console.warn('Error creando cliente:', clienteError.message)
+      }
+
+      // Auto-sincronizar historial previo por CI, Email o Nombre
+      try {
+        await fetch('/api/auth/autosync-cliente', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            new_user_id: authData.user.id,
+            ci: formData.ci,
+            email: formData.email,
+            nombre: formData.full_name,
+          })
+        })
+      } catch (syncErr) {
+        console.warn('Error al auto-sincronizar historial previo:', syncErr)
       }
 
       if (referidoPorId) {
@@ -199,6 +218,13 @@ function RegisterContent() {
               onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
               placeholder="Juan Pérez"
               required
+            />
+
+            <Input
+              label="Cédula de Identidad (CI / Carnet)"
+              value={formData.ci}
+              onChange={(e) => setFormData({ ...formData, ci: e.target.value })}
+              placeholder="Ej. 1234567"
             />
 
             <Input

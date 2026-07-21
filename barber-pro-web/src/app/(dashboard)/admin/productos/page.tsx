@@ -75,19 +75,21 @@ export default function ProductosPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      const cleanSku = formData.sku?.trim() ? formData.sku.trim() : null
+
       if (editingProducto) {
         const { error } = await supabase
           .from('productos')
           .update({
             nombre: formData.nombre,
-            sku: formData.sku,
-            descripcion: formData.descripcion,
+            sku: cleanSku,
+            descripcion: formData.descripcion || null,
             stock_actual: formData.stock_actual,
             stock_minimo: formData.stock_minimo,
             precio_costo: formData.precio_costo,
             precio_venta: formData.precio_venta,
-            categoria: formData.categoria,
-            image_url: formData.image_url,
+            categoria: formData.categoria || null,
+            image_url: formData.image_url || null,
           })
           .eq('id', editingProducto.id)
 
@@ -97,14 +99,14 @@ export default function ProductosPage() {
           .from('productos')
           .insert({
             nombre: formData.nombre,
-            sku: formData.sku,
-            descripcion: formData.descripcion,
+            sku: cleanSku,
+            descripcion: formData.descripcion || null,
             stock_actual: formData.stock_actual,
             stock_minimo: formData.stock_minimo,
             precio_costo: formData.precio_costo,
             precio_venta: formData.precio_venta,
-            categoria: formData.categoria,
-            image_url: formData.image_url,
+            categoria: formData.categoria || null,
+            image_url: formData.image_url || null,
             is_active: true,
           })
 
