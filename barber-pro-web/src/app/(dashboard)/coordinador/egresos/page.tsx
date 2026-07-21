@@ -982,8 +982,8 @@ export default function EgresosPage() {
 
       {/* Modal para adjuntar voucher a un egreso anterior */}
       {selectedEgresoQr && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-4 sm:p-6 max-w-md w-full my-auto max-h-[92vh] overflow-y-auto shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <h3 className="text-base font-black text-white uppercase">Adjuntar Comprobante / Factura</h3>
               <button onClick={() => setSelectedEgresoQr(null)} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>

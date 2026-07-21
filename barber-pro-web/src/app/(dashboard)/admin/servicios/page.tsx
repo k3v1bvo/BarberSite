@@ -393,45 +393,36 @@ export default function ServiciosPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/95 flex items-start justify-center z-[100] p-4 pt-12 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
-          <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-8 bg-zinc-900/50">
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-2 sm:p-4 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
+          <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto max-h-[92vh] flex flex-col overflow-hidden rounded-2xl">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-4 sm:p-6 bg-zinc-900/50 shrink-0">
               <div>
-                <CardTitle className="text-2xl font-black uppercase text-white leading-none">
+                <CardTitle className="text-xl sm:text-2xl font-black uppercase text-white leading-none">
                   {editingServicio ? 'Editar' : 'Nuevo'} <span className="text-amber-500">Servicio</span>
                 </CardTitle>
-                <p className="text-zinc-500 text-xs mt-2 font-medium">Configura los detalles comerciales del servicio</p>
+                <p className="text-zinc-500 text-xs mt-1.5 font-medium">Configura los detalles comerciales del servicio</p>
               </div>
               <button
                 onClick={() => { setShowModal(false); setEditingServicio(null); }}
-                className="p-3 hover:bg-white/5 rounded-2xl transition-colors border border-white/5"
+                className="p-2 sm:p-3 hover:bg-white/5 rounded-2xl transition-colors border border-white/5"
               >
-                <X className="w-6 h-6 text-zinc-500" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-500" />
               </button>
             </CardHeader>
-            <form onSubmit={handleSubmit}>
-              <CardContent className="p-8 space-y-6">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <CardContent className="p-4 sm:p-6 space-y-6 overflow-y-auto max-h-[60vh] flex-1">
                 <Input
                   label="Nombre del Servicio"
-                  placeholder="Ej. Corte Pro + Barba"
+                  placeholder="Ej. Corte Ejecutivo Fade"
                   value={formData.nombre}
                   onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                   required
                   className="bg-zinc-900"
                 />
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción Detallada</label>
-                  <textarea
-                    className="w-full p-4 border border-white/10 bg-zinc-900 rounded-xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
-                    rows={3}
-                    placeholder="Describe qué incluye este servicio..."
-                    value={formData.descripcion}
-                    onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-6">
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Input
-                    label="Precio de Venta"
+                    label="Precio (Bs.)"
                     type="number"
                     placeholder="0.00"
                     value={formData.precio}
@@ -440,7 +431,7 @@ export default function ServiciosPage() {
                     className="bg-zinc-900"
                   />
                   <Input
-                    label="Duración Estimada (min)"
+                    label="Duración (minutos)"
                     type="number"
                     placeholder="30"
                     value={formData.duracion_minutos}
@@ -449,33 +440,38 @@ export default function ServiciosPage() {
                     className="bg-zinc-900"
                   />
                 </div>
+
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Categoría del Servicio</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {CATEGORIAS_SERVICIOS.map(cat => (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, categoria: cat.id })}
-                        className={cn(
-                          "p-3 rounded-xl border text-left transition-all",
-                          formData.categoria === cat.id
-                            ? "border-amber-500 bg-amber-500/10 text-white shadow-md shadow-amber-500/10"
-                            : "border-white/10 bg-zinc-900 text-zinc-400 hover:border-white/20 hover:text-zinc-200"
-                        )}
-                      >
-                        <p className="font-black text-xs uppercase tracking-tight">{cat.id}</p>
-                        <p className="text-[9px] text-zinc-500 line-clamp-1 mt-0.5">{cat.label}</p>
-                      </button>
+                  <select
+                    className="w-full h-12 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm font-bold focus:border-amber-500/50 outline-none transition-all uppercase"
+                    value={formData.categoria}
+                    onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+                  >
+                    {CATEGORIAS_SERVICIOS.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.id}
+                      </option>
                     ))}
-                  </div>
+                  </select>
                 </div>
 
-                <div className="space-y-2 border-t border-white/5 pt-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción Comercial</label>
+                  <textarea
+                    className="w-full p-4 border border-white/10 bg-zinc-900 rounded-xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                    rows={3}
+                    placeholder="Escribe detalles atractivos para los clientes..."
+                    value={formData.descripcion}
+                    onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <MultiImageUpload
-                    label="Galería de Imágenes del Servicio (puedes agregar 1 o varias)"
                     images={formData.imagenes}
-                    onImagesChange={(imgs) => setFormData({ ...formData, imagenes: imgs, imagen_url: imgs[0] || '' })}
+                    onImagesChange={(imgs) => setFormData({ ...formData, imagenes: imgs })}
+                    label="Galería de Fotos del Servicio (1 o más)"
                   />
                 </div>
 
@@ -516,7 +512,7 @@ export default function ServiciosPage() {
                   <select
                     className="w-full h-12 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm"
                     value={formData.comision_tipo}
-                    onChange={(e) => setFormData({ ...formData, comision_tipo: e.target.value as ComisionTipo })}
+                    onChange={(e) => setFormData({ ...formData, comision_tipo: e.target.value as any })}
                     disabled={!formData.comision_activa}
                   >
                     <option value="porcentaje">Porcentaje</option>
@@ -543,38 +539,36 @@ export default function ServiciosPage() {
                   </label>
                 </div>
 
-                {/* Barberos que pueden hacer este servicio */}
                 <div className="border-t border-white/5 pt-6 space-y-4">
                   <div className="flex items-center gap-2">
                     <UserX size={16} className="text-red-400" />
                     <p className="text-[10px] font-black uppercase tracking-widest text-red-400">Barberos Excluidos</p>
                   </div>
-                  <p className="text-[10px] text-zinc-500 -mt-2">
-                    Desmarca a los barberos que <strong>NO</strong> saben hacer este servicio. Por defecto todos pueden hacerlo.
+                  <p className="text-xs text-zinc-400">
+                    Marca a los barberos que <strong className="text-red-400">NO</strong> pueden realizar este servicio.
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {barberos.map(b => {
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1 border border-white/5 rounded-xl bg-zinc-900/50">
+                    {barberos.map((b) => {
                       const isExcluded = formData.barberos_excluidos.includes(b.id)
                       return (
                         <button
                           key={b.id}
                           type="button"
                           onClick={() => {
-                            setFormData(prev => ({
+                             setFormData(prev => ({
                               ...prev,
                               barberos_excluidos: isExcluded
                                 ? prev.barberos_excluidos.filter(id => id !== b.id)
                                 : [...prev.barberos_excluidos, b.id]
                             }))
                           }}
-                          className={cn(
-                            'flex items-center gap-2 p-3 rounded-xl border text-left transition-all text-sm',
+                          className={`flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all ${
                             isExcluded
-                              ? 'border-red-500/40 bg-red-500/10 text-red-400'
-                              : 'border-green-500/30 bg-green-500/5 text-green-400'
-                          )}
+                              ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                              : 'bg-zinc-900 border-white/5 text-zinc-300 hover:border-white/20'
+                          }`}
                         >
-                          <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden">
+                          <div className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden shrink-0">
                             {b.avatar_url ? (
                               <img src={b.avatar_url} alt={b.full_name} className="w-full h-full object-cover" />
                             ) : (
@@ -587,22 +581,17 @@ export default function ServiciosPage() {
                               {isExcluded ? '✗ No puede' : '✓ Puede'}
                             </p>
                           </div>
-                          {isExcluded ? (
-                            <UserX size={14} className="shrink-0" />
-                          ) : (
-                            <CheckCircle size={14} className="shrink-0" />
-                          )}
                         </button>
                       )
                     })}
                   </div>
                 </div>
               </CardContent>
-              <div className="p-8 bg-zinc-900/30 border-t border-white/5 flex gap-4">
+              <div className="p-4 sm:p-6 bg-zinc-900/30 border-t border-white/5 flex gap-3 shrink-0">
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex-1 h-14 border-white/5 text-zinc-500 hover:text-white uppercase font-black tracking-widest text-[10px]"
+                  className="flex-1 h-12 border-white/5 text-zinc-500 hover:text-white uppercase font-black tracking-widest text-[10px]"
                   onClick={() => { setShowModal(false); setEditingServicio(null); }}
                 >
                   Cancelar
@@ -610,7 +599,7 @@ export default function ServiciosPage() {
                 <Button
                   type="submit"
                   variant="primary"
-                  className="flex-1 h-14 shadow-lg shadow-amber-500/20 uppercase font-black tracking-widest"
+                  className="flex-1 h-12 shadow-lg shadow-amber-500/20 uppercase font-black tracking-widest text-xs"
                 >
                   <Save className="w-4 h-4 mr-2" />
                   {editingServicio ? 'Guardar Cambios' : 'Lanzar Servicio'}

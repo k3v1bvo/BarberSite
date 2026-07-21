@@ -341,80 +341,88 @@ export default function UsuariosPage() {
 
       {/* Modal Usuario */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/95 flex items-start justify-center z-[100] p-4 pt-12 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
-          <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-8 bg-zinc-900/50">
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-2 sm:p-4 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
+          <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto max-h-[92vh] flex flex-col overflow-hidden rounded-2xl">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-4 sm:p-6 bg-zinc-900/50 shrink-0">
               <div>
-                <CardTitle className="text-2xl font-black uppercase text-white leading-none">
+                <CardTitle className="text-xl sm:text-2xl font-black uppercase text-white leading-none">
                    {editingUser ? 'Editar' : 'Nuevo'} <span className="text-amber-500">Usuario</span>
                 </CardTitle>
-                <p className="text-zinc-500 text-xs mt-2 font-medium">Completa el perfil del profesional</p>
+                <p className="text-zinc-500 text-xs mt-1.5 font-medium">Completa el perfil del profesional</p>
               </div>
               <button 
                 onClick={() => { setShowModal(false); setEditingUser(null); }} 
-                className="p-3 hover:bg-white/5 rounded-2xl transition-colors border border-white/5"
+                className="p-2 sm:p-3 hover:bg-white/5 rounded-2xl transition-colors border border-white/5"
               >
-                <X className="w-6 h-6 text-zinc-500" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-500" />
               </button>
             </CardHeader>
-            <form onSubmit={handleSubmit}>
-              <CardContent className="p-8 space-y-6">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <CardContent className="p-4 sm:p-6 space-y-6 overflow-y-auto max-h-[60vh] flex-1">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="md:col-span-2">
-                     <Input
-                        label="Nombre Completo"
-                        placeholder="Ej. Juan Pérez"
-                        value={formData.full_name}
-                        onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                        required
-                        className="bg-zinc-900"
-                      />
-                   </div>
-                   <Input
-                    label="Email Corporativo"
-                    type="email"
-                    placeholder="email@barberpro.com"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  <Input
+                    label="Nombre Completo"
+                    placeholder="Ej. Carlos Barbero"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                     required
                     className="bg-zinc-900"
                   />
                   <Input
-                    label="Teléfono"
-                    type="tel"
-                    placeholder="+591 ..."
+                    label="Correo Electrónico"
+                    type="email"
+                    placeholder="barbero@estilo.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                    disabled={!!editingUser}
+                    className="bg-zinc-900"
+                  />
+                  <Input
+                    label="Teléfono / Celular"
+                    placeholder="71234567"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="bg-zinc-900"
                   />
                   <Input
-                    label="C.I. (Cédula)"
-                    placeholder="Ej. 12345678"
+                    label="CI / Carnet Identidad"
+                    placeholder="Ej. 1234567"
                     value={formData.ci}
                     onChange={(e) => setFormData({ ...formData, ci: e.target.value })}
                     className="bg-zinc-900"
                   />
-
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Rol Operativo</label>
                     <select
+                      className="w-full h-12 px-4 border border-white/10 bg-zinc-900 rounded-xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
-                      className="h-12 w-full border border-white/10 bg-zinc-900 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all appearance-none uppercase"
                     >
-                      <option value="cliente">Cliente</option>
-                      <option value="barbero">Barbero</option>
-                      <option value="coordinador">Coordinador/a</option>
-                      <option value="admin">Administrador</option>
+                      <option value="barbero">Barbero / Estilista</option>
+                      <option value="coordinador">Coordinador / Cajero</option>
+                      <option value="admin">Administrador General</option>
+                      <option value="cliente">Cliente Registrado</option>
                     </select>
                   </div>
-                  <div className="md:col-span-1">
-                     <ImageUpload
-                      label="Foto de Perfil (Avatar)"
-                      defaultImage={formData.avatar_url}
-                      onUploadSuccess={(url) => setFormData({ ...formData, avatar_url: url })}
-                      onUploadError={(err) => toastError(err)}
+                  {!editingUser && (
+                    <PasswordInput
+                      label="Contraseña Inicial"
+                      placeholder="Mínimo 6 caracteres"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      required
+                      minLength={6}
+                      className="bg-zinc-900"
                     />
+                  )}
+                  <div className="md:col-span-2">
+                     <ImageUpload
+                       label="Foto de Perfil del Profesional"
+                       defaultImage={formData.avatar_url || undefined}
+                       onUploadSuccess={(url) => setFormData({ ...formData, avatar_url: url })}
+                       onUploadError={(err) => toastError(err)}
+                     />
                   </div>
                   {editingUser && (
                     <div className="md:col-span-2 pt-4 border-t border-white/5 space-y-3">

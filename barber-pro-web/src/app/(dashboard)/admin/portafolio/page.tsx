@@ -271,104 +271,96 @@ export default function AdminPortafolioPage() {
 
       {/* Modal Nueva Publicación - Redesigned */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/95 flex items-start justify-center z-[100] p-4 pt-12 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
-          <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-8 bg-zinc-900/50">
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-2 sm:p-4 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
+          <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto max-h-[92vh] flex flex-col overflow-hidden rounded-2xl">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-4 sm:p-6 bg-zinc-900/50 shrink-0">
               <div>
-                <CardTitle className="text-2xl font-black uppercase text-white leading-none">
+                <CardTitle className="text-xl sm:text-2xl font-black uppercase text-white leading-none">
                   {editing ? 'Editar' : 'Subir a'} <span className="text-amber-500">Exposición</span>
                 </CardTitle>
-                <p className="text-zinc-500 text-xs mt-2 font-medium">Publica los resultados de tus mejores sesiones</p>
+                <p className="text-zinc-500 text-xs mt-1.5 font-medium">Publica los resultados de tus mejores sesiones</p>
               </div>
               <button
                 onClick={() => { setShowModal(false); }}
-                className="p-3 hover:bg-white/5 rounded-2xl transition-colors border border-white/5"
+                className="p-2 sm:p-3 hover:bg-white/5 rounded-2xl transition-colors border border-white/5"
               >
-                <X className="w-6 h-6 text-zinc-500" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-500" />
               </button>
             </CardHeader>
-            <form onSubmit={handleSubmit}>
-              <CardContent className="p-8 space-y-6">
-                <div>
-                  <ImageUpload
-                    label="Foto del Trabajo (Recomendado 1080x1080px)"
-                    defaultImage={formData.image_url || undefined}
-                    onUploadSuccess={(url) => setFormData({ ...formData, image_url: url })}
-                    onUploadError={(err) => toastError(err)}
-                  />
-                </div>
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <CardContent className="p-4 sm:p-6 space-y-6 overflow-y-auto max-h-[60vh] flex-1">
                 <Input
-                  label="Título (opcional)"
-                  placeholder="Fade premium con diseño"
+                  label="Título de la Obra / Servicio"
+                  placeholder="Ej. Low Fade + Perfilado"
                   value={formData.titulo}
                   onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
-                  className="bg-zinc-900"
-                />
-                <Input
-                  label="Orden en carrusel"
-                  type="number"
-                  value={formData.sort_order}
-                  onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
+                  required
                   className="bg-zinc-900"
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Categoría Estética</label>
-                    <div className="relative">
-                      <select
-                        required
-                        className="h-14 w-full border border-white/10 bg-zinc-900 rounded-2xl px-4 text-sm font-black text-white focus:border-amber-500/50 outline-none transition-all appearance-none uppercase"
-                        value={formData.categoria}
-                        onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
-                      >
-                        {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                      <Layers className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 w-4 h-4 pointer-events-none" />
-                    </div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Barbero Autor</label>
+                    <select
+                      className="w-full h-12 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm font-bold focus:border-amber-500/50 outline-none uppercase"
+                      value={formData.barbero_id}
+                      onChange={(e) => setFormData({ ...formData, barbero_id: e.target.value })}
+                      required
+                    >
+                      <option value="">Seleccionar Barbero</option>
+                      {barberos.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.full_name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Barbero Asociado</label>
-                    <div className="relative">
-                      <select
-                        required
-                        className="h-14 w-full border border-white/10 bg-zinc-900 rounded-2xl px-4 text-sm font-black text-white focus:border-amber-500/50 outline-none transition-all appearance-none uppercase"
-                        value={formData.barbero_id}
-                        onChange={(e) => setFormData({ ...formData, barbero_id: e.target.value })}
-                      >
-                        <option value="">SELECCIONAR...</option>
-                        {barberos.map(b => <option key={b.id} value={b.id}>{b.full_name}</option>)}
-                      </select>
-                      <User className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 w-4 h-4 pointer-events-none" />
-                    </div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Categoría</label>
+                    <select
+                      className="w-full h-12 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm font-bold focus:border-amber-500/50 outline-none uppercase"
+                      value={formData.categoria}
+                      onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+                    >
+                      <option value="cortes">Cortes</option>
+                      <option value="barba">Barba</option>
+                      <option value="combos">Combos</option>
+                      <option value="color">Colorimetría</option>
+                    </select>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Nota del Trabajo</label>
+                  <ImageUpload
+                    label="Fotografía del Resultado"
+                    defaultImage={formData.image_url || undefined}
+                    onUploadSuccess={(url) => setFormData({ ...formData, image_url: url })}
+                    onUploadError={(err) => toastError(err)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción / Técnica Utilizada</label>
                   <textarea
-                    className="w-full p-4 border border-white/10 bg-zinc-900 rounded-2xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                    className="w-full p-4 border border-white/10 bg-zinc-900 rounded-xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
                     rows={2}
-                    maxLength={150}
-                    placeholder="Ej: Fade medio con barba perfilada y acabado premium..."
+                    placeholder="Detalles sobre la técnica o productos aplicados..."
                     value={formData.descripcion}
                     onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                   />
                 </div>
 
                 <label className="flex items-center gap-2 text-sm text-zinc-400">
-                  <input type="checkbox" checked={formData.is_active} onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })} />
+                  <input type="checkbox" checked={formData.is_active} onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })} className="accent-amber-500" />
                   Visible en galería y carrusel del index
                 </label>
-
-                {/* Image Preview handled by ImageUpload */}
               </CardContent>
-              <div className="p-8 bg-zinc-900/30 border-t border-white/5 flex gap-4">
+              <div className="p-4 sm:p-6 bg-zinc-900/30 border-t border-white/5 flex gap-3 shrink-0">
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex-1 h-14 border-white/5 text-zinc-500 hover:text-white uppercase font-black tracking-widest text-[10px]"
+                  className="flex-1 h-12 border-white/5 text-zinc-500 hover:text-white uppercase font-black tracking-widest text-[10px]"
                   onClick={() => { setShowModal(false); }}
                 >
                   Descartar
@@ -376,7 +368,7 @@ export default function AdminPortafolioPage() {
                 <Button
                   type="submit"
                   variant="primary"
-                  className="flex-1 h-14 shadow-lg shadow-amber-500/20 uppercase font-black tracking-widest"
+                  className="flex-1 h-12 shadow-lg shadow-amber-500/20 uppercase font-black tracking-widest text-xs"
                 >
                   <Save className="w-4 h-4 mr-2" />
                   Publicar en Galería

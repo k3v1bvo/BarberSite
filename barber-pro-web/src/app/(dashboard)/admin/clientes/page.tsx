@@ -649,8 +649,8 @@ export default function ClientesAdminPage() {
       </div>
     {/* MODAL REFERIDO */}
     {showReferralModal && (
-      <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto bg-black/80 backdrop-blur-sm animate-in fade-in">
-        <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto bg-black/80 backdrop-blur-sm animate-in fade-in">
+        <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-md my-auto max-h-[92vh] overflow-y-auto shadow-2xl">
           <div className="flex items-center justify-between p-5 border-b border-white/5">
             <div>
               <h3 className="text-lg font-black text-white">Registrar Referido</h3>
