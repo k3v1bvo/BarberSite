@@ -693,14 +693,22 @@ export async function dispatchNotification(
           })
         }
 
-        // Notificar al Admin y Coordinador sobre el nuevo registro
+        const emailStaffAlert = {
+          template: 'alerta_sistema',
+          data: {
+            motivo: `👤 Nuevo cliente registrado en la plataforma: ${p.nombre || 'Cliente'} (${p.email}). Ya puede agendar citas en línea.`,
+            link: `${SITE}/admin/clientes`
+          }
+        }
+
+        // Notificar al Admin y Coordinador por Sistema WEB y por EMAIL (Gmail SMTP)
         await notifyRole(db, 'admin', {
           titulo: `👤 Nuevo Usuario Registrado: ${(p.nombre as string) || 'Cliente'}`,
           mensaje: `Se ha registrado la cuenta de ${p.nombre || 'un nuevo cliente'} (${p.email}).`,
           tipo: 'success',
           categoria: 'sistema',
-          link: '/admin/usuarios',
-        })
+          link: '/admin/clientes',
+        }, emailStaffAlert)
 
         await notifyRole(db, 'coordinador', {
           titulo: `👤 Nuevo Usuario Registrado: ${(p.nombre as string) || 'Cliente'}`,
@@ -708,7 +716,7 @@ export async function dispatchNotification(
           tipo: 'success',
           categoria: 'sistema',
           link: '/coordinador',
-        })
+        }, emailStaffAlert)
         break
       }
 
