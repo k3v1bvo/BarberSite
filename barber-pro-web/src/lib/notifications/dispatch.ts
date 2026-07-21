@@ -62,16 +62,27 @@ async function notifyRole(
   await insertNotifications(db, [{ ...inApp, rol_destino: rol }])
   
   if (emailConfig) {
+    const emailsToSend = new Set<string>()
+
     const { data: users } = await db.from('profiles').select('id, email').eq('role', rol).eq('is_active', true)
     if (users && users.length > 0) {
       for (const u of users) {
-        if (u.email) {
-          const prefs = await getUserPreferences(db, u.id)
-          if (shouldSendEmail(prefs, inApp.categoria)) {
-            const res = await sendNotificationEmail(u.email, emailConfig.template, emailConfig.data)
-            if (!res.ok) console.error(`[notifyRole ${rol}] Error email:`, res.error)
-          }
-        }
+        if (u.email) emailsToSend.add(u.email.toLowerCase().trim())
+      }
+    }
+
+    // Si el rol es admin, asegurar envio al correo maestro de administracion
+    if (rol === 'admin') {
+      const masterAdminEmail = (process.env.SMTP_USER || 'barbersiteadmin@gmail.com').toLowerCase().trim()
+      if (masterAdminEmail) emailsToSend.add(masterAdminEmail)
+    }
+
+    for (const targetEmail of Array.from(emailsToSend)) {
+      const res = await sendNotificationEmail(targetEmail, emailConfig.template, emailConfig.data)
+      if (!res.ok) {
+        console.error(`[notifyRole ${rol}] Error enviando correo a ${targetEmail}:`, res.error)
+      } else {
+        console.log(`[notifyRole ${rol}] Correo enviado exitosamente a ${targetEmail}`)
       }
     }
   }

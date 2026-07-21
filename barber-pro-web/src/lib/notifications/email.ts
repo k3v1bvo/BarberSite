@@ -49,8 +49,7 @@ export async function sendNotificationEmail(
 // ==========================================
 // 2. CONFIGURACIÓN CON NODEMAILER (Gmail App Password)
 // ==========================================
-const SMTP_USER = process.env.SMTP_USER || 'tucorreo@gmail.com'
-// La contraseña de aplicación va aquí o idealmente en tu archivo .env
+const SMTP_USER = process.env.SMTP_USER || 'barbersiteadmin@gmail.com'
 const SMTP_PASS = process.env.SMTP_PASS || 'nray vsaf seuo uajn'
 const FROM_EMAIL = process.env.SMTP_FROM || `"BarberSite" <${SMTP_USER}>`
 

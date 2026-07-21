@@ -88,7 +88,7 @@ export async function POST(request: Request) {
         await adminClient.from('notificaciones').insert(notifs)
       }
 
-      // Enviar correo de bienvenida directo al correo registrado
+      // Enviar correo de bienvenida directo al cliente
       if (cleanEmail) {
         try {
           await sendNotificationEmail(cleanEmail, 'registro_bienvenida_nuevo', {
@@ -98,6 +98,17 @@ export async function POST(request: Request) {
         } catch (eErr) {
           console.error('Error enviando correo de bienvenida nuevo:', eErr)
         }
+      }
+
+      // Enviar correo de notificación al Administrador
+      const masterAdminEmail = process.env.SMTP_USER || 'barbersiteadmin@gmail.com'
+      try {
+        await sendNotificationEmail(masterAdminEmail, 'alerta_sistema', {
+          motivo: `👤 Nuevo Cliente Registrado: ${nombre || 'Cliente'} (CI: ${cleanCi || 'Sin CI'}, Email: ${cleanEmail || 'N/A'}). Se ha registrado exitosamente en la plataforma web.`,
+          link: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://barber-site-livid.vercel.app'}/admin/clientes`
+        })
+      } catch (aErr) {
+        console.error('Error enviando alerta de nuevo usuario al admin:', aErr)
       }
 
       return NextResponse.json({ 
