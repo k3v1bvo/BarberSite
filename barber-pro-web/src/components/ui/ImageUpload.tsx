@@ -23,6 +23,9 @@ export function ImageUpload({
   const inputRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
 
+  const galleryInputId = React.useId()
+  const cameraInputId = React.useId()
+
   const handleFile = async (file: File) => {
     // Validar que sea imagen
     if (!file.type.startsWith('image/')) {
@@ -102,9 +105,9 @@ export function ImageUpload({
           onDragLeave={onDrag}
           onDragOver={onDrag}
           onDrop={onDrop}
-          onClick={() => inputRef.current?.click()}
         >
           <input 
+            id={galleryInputId}
             ref={inputRef}
             type="file" 
             accept="image/*" 
@@ -112,6 +115,7 @@ export function ImageUpload({
             onChange={handleChange}
           />
           <input 
+            id={cameraInputId}
             ref={cameraRef}
             type="file" 
             accept="image/*"
@@ -132,22 +136,20 @@ export function ImageUpload({
                 <span className="font-semibold text-amber-500">Seleccionar imagen</span> o tomar foto ahora
               </p>
               <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  onClick={() => inputRef.current?.click()}
-                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 border border-white/10"
+                <label
+                  htmlFor={galleryInputId}
+                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 border border-white/10 cursor-pointer"
                 >
                   📁 Galería
-                </button>
-                <button
-                  type="button"
-                  onClick={() => cameraRef.current?.click()}
-                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition-colors flex items-center gap-1.5 shadow-lg shadow-amber-500/20"
+                </label>
+                <label
+                  htmlFor={cameraInputId}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition-colors flex items-center gap-1.5 shadow-lg shadow-amber-500/20 cursor-pointer"
                 >
                   📸 Tomar Foto
-                </button>
+                </label>
               </div>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400">PNG, JPG hasta 10MB</p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400">PNG, JPG hasta 10MB (Compresión automática)</p>
             </div>
           )}
         </div>

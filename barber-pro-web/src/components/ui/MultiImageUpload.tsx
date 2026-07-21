@@ -23,6 +23,9 @@ export function MultiImageUpload({
   const [dragActive, setDragActive] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const galleryInputId = React.useId()
+  const cameraInputId = React.useId()
+
   const handleFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       onUploadError?.('El archivo debe ser una imagen.')
@@ -156,15 +159,23 @@ export function MultiImageUpload({
           onDragLeave={onDrag}
           onDragOver={onDrag}
           onDrop={onDrop}
-          onClick={() => !isUploading && inputRef.current?.click()}
-          className={`relative flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
+          className={`relative flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
             dragActive ? 'border-amber-500 bg-amber-500/10' : 'border-white/10 bg-zinc-900/60 hover:border-amber-500/50 hover:bg-zinc-900'
           } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
         >
           <input
+            id={galleryInputId}
             ref={inputRef}
             type="file"
             accept="image/*"
+            onChange={handleChange}
+            className="hidden"
+          />
+          <input
+            id={cameraInputId}
+            type="file"
+            accept="image/*"
+            capture="environment"
             onChange={handleChange}
             className="hidden"
           />
@@ -172,18 +183,32 @@ export function MultiImageUpload({
           {isUploading ? (
             <div className="flex flex-col items-center justify-center text-amber-500">
               <Loader2 className="w-8 h-8 animate-spin mb-2" />
-              <p className="text-xs font-black uppercase tracking-widest">Subiendo imagen...</p>
+              <p className="text-xs font-black uppercase tracking-widest">Subiendo e inflando foto...</p>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center p-4 text-center">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 mb-2">
+            <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
                 <UploadCloud className="w-5 h-5" />
               </div>
               <p className="text-xs font-bold text-zinc-300">
-                <span className="text-amber-500 font-black">Haz clic para añadir una foto</span> o arrástrala aquí
+                <span className="text-amber-500 font-black">Selecciona o toma una foto</span>
               </p>
-              <p className="text-[10px] text-zinc-500 mt-1 uppercase font-semibold">
-                {images.length === 0 ? 'Puedes subir 1 o más fotos (galería del servicio)' : `${images.length} foto${images.length > 1 ? 's' : ''} añadida${images.length > 1 ? 's' : ''} (máx. ${maxImages})`}
+              <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                <label
+                  htmlFor={galleryInputId}
+                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 border border-white/10 cursor-pointer"
+                >
+                  📁 Galería
+                </label>
+                <label
+                  htmlFor={cameraInputId}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition-colors flex items-center gap-1.5 shadow-lg shadow-amber-500/20 cursor-pointer"
+                >
+                  📸 Tomar Foto
+                </label>
+              </div>
+              <p className="text-[10px] text-zinc-500 uppercase font-semibold">
+                {images.length === 0 ? 'Puedes subir 1 o más fotos' : `${images.length} foto${images.length > 1 ? 's' : ''} añadida${images.length > 1 ? 's' : ''} (máx. ${maxImages})`}
               </p>
             </div>
           )}
