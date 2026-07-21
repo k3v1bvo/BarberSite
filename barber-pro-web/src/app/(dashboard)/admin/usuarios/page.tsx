@@ -42,6 +42,7 @@ export default function UsuariosPage() {
     ci: '',
     role: 'cliente' as 'cliente' | 'barbero' | 'coordinador' | 'admin',
     avatar_url: '',
+    password: '',
   })
   const router = useRouter()
   const supabase = createClient()
@@ -167,6 +168,7 @@ export default function UsuariosPage() {
         ci: '',
         role: 'barbero',
         avatar_url: '',
+        password: '',
       })
       loadUsuarios()
     } catch (error: any) {
@@ -296,6 +298,7 @@ export default function UsuariosPage() {
                               ci: usuario.ci || '',
                               role: usuario.role as any,
                               avatar_url: usuario.avatar_url || '',
+                              password: '',
                             })
                             setShowModal(true)
                           }}
