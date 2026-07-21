@@ -697,7 +697,7 @@ export async function dispatchNotification(
         await notifyRole(db, 'admin', {
           titulo: `👤 Nuevo Usuario Registrado: ${(p.nombre as string) || 'Cliente'}`,
           mensaje: `Se ha registrado la cuenta de ${p.nombre || 'un nuevo cliente'} (${p.email}).`,
-          tipo: 'exito',
+          tipo: 'success',
           categoria: 'sistema',
           link: '/admin/usuarios',
         })
@@ -705,7 +705,7 @@ export async function dispatchNotification(
         await notifyRole(db, 'coordinador', {
           titulo: `👤 Nuevo Usuario Registrado: ${(p.nombre as string) || 'Cliente'}`,
           mensaje: `Se ha registrado la cuenta de ${p.nombre || 'un nuevo cliente'} (${p.email}).`,
-          tipo: 'exito',
+          tipo: 'success',
           categoria: 'sistema',
           link: '/coordinador',
         })
