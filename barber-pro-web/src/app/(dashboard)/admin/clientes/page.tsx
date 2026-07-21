@@ -96,12 +96,47 @@ export default function ClientesAdminPage() {
   // Referidos
   const [showReferralModal, setShowReferralModal] = useState(false)
   const [submittingReferral, setSubmittingReferral] = useState(false)
+  const [syncingClient, setSyncingClient] = useState(false)
   const [referralData, setReferralData] = useState({
     nombre: '',
     telefono: '',
     email: '',
+    ci: '',
     monto_bono: '20'
   })
+
+  const handleSyncClienteManualmente = async (cliente: Cliente) => {
+    setSyncingClient(true)
+    try {
+      const res = await fetch('/api/auth/autosync-cliente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          new_user_id: cliente.id,
+          ci: cliente.ci,
+          email: cliente.email,
+          nombre: cliente.nombre,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al sincronizar')
+
+      if (data.synced) {
+        toastSuccess(`✓ ¡Éxito! Se fusionaron ${data.count} historial(es) pasados: +${data.visitas_agregadas} visitas y +Bs. ${data.gastado_agregado}.`)
+      } else {
+        toastSuccess(`No se encontraron cuentas pasadas pendientes de sincronizar para ${cliente.nombre} (CI: ${cliente.ci || 'Sin CI'}).`)
+      }
+      loadClientes()
+      if (clienteSeleccionado) {
+        const { data: updatedClient } = await supabase.from('clientes').select('*').eq('id', cliente.id).single()
+        if (updatedClient) setClienteSeleccionado(updatedClient)
+      }
+    } catch (err: any) {
+      toastError(err.message || 'Error al ejecutar sincronización')
+    } finally {
+      setSyncingClient(false)
+    }
+  }
 
   // Stats generales
   const [stats, setStats] = useState({ total: 0, conEmail: 0, totalGastado: 0, nuevosHoy: 0, nuevosSemana: 0, nuevosMes: 0 })
@@ -441,7 +476,15 @@ export default function ClientesAdminPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                          {c.ci && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><CreditCard className="w-3 h-3" />{c.ci}</span>}
+                          {c.ci ? (
+                            <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1" title="CI registrado y sincronizado">
+                              <CreditCard className="w-3 h-3 text-emerald-400" /> CI: {c.ci} ✓
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-zinc-500 flex items-center gap-1">
+                              <CreditCard className="w-3 h-3" /> Sin CI
+                            </span>
+                          )}
                           {c.telefono && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><Phone className="w-3 h-3" />{c.telefono}</span>}
                           {c.email && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><Mail className="w-3 h-3" />{c.email}</span>}
                           {c.cumpleanos && <span className="text-[11px] text-zinc-500 flex items-center gap-1"><Calendar className="w-3 h-3" />{formatFecha(c.cumpleanos)}</span>}
@@ -479,25 +522,46 @@ export default function ClientesAdminPage() {
                     </div>
                     <div>
                       <h2 className="text-lg font-black text-white leading-tight">{clienteSeleccionado.nombre}</h2>
-                      {clienteSeleccionado.nivel_fidelidad && (() => {
-                        const niv = nivelInfo(clienteSeleccionado.nivel_fidelidad)
-                        const NivIcon = niv.icon
-                        return (
-                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${niv.color}`}>
-                            <NivIcon className="w-3 h-3" /> {niv.label}
+                      <div className="flex items-center gap-2 mt-1">
+                        {clienteSeleccionado.nivel_fidelidad && (() => {
+                          const niv = nivelInfo(clienteSeleccionado.nivel_fidelidad)
+                          const NivIcon = niv.icon
+                          return (
+                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${niv.color}`}>
+                              <NivIcon className="w-3 h-3" /> {niv.label}
+                            </span>
+                          )
+                        })()}
+                        {clienteSeleccionado.ci ? (
+                          <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full inline-flex items-center gap-1" title="Historial sincronizado automáticamente por CI">
+                            ✓ CI: {clienteSeleccionado.ci}
                           </span>
-                        )
-                      })()}
+                        ) : (
+                          <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full inline-flex items-center gap-1" title="Asigna un CI para permitir sincronización de caja">
+                            ⚠️ Sin CI
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={syncingClient}
+                      onClick={() => handleSyncClienteManualmente(clienteSeleccionado)}
+                      className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 font-bold h-8 text-xs"
+                      title="Buscar y sincronizar citas o consumos anteriores por CI/Correo"
+                    >
+                      {syncingClient ? 'Sincronizando...' : '⚡ Forzar Sync por CI'}
+                    </Button>
                     <Button 
                       size="sm" 
                       onClick={() => setShowReferralModal(true)}
                       className="bg-amber-500 hover:bg-amber-600 text-black font-bold h-8 text-xs"
                     >
                       <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-                      Registrar Referido
+                      Referido
                     </Button>
                     <button
                       onClick={() => setClienteSeleccionado(null)}

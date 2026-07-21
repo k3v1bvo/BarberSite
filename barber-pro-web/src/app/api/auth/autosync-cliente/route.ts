@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
+import { sendNotificationEmail } from '@/lib/notifications/email'
+import { formatCurrency } from '@/lib/utils'
 
 export async function POST(request: Request) {
   try {
@@ -56,6 +58,36 @@ export async function POST(request: Request) {
     const oldClientIds = Array.from(matchingIds)
 
     if (oldClientIds.length === 0) {
+      // Notificar bienvenida sin historial previo
+      await adminClient.from('notificaciones').insert({
+        usuario_id: new_user_id,
+        titulo: '🎉 ¡Bienvenido a Barber Site!',
+        mensaje: `¡Hola ${nombre || 'Cliente'}! Tu cuenta ha sido registrada correctamente con tu CI (${cleanCi || 'Sin CI'}).`,
+        tipo: 'success',
+        categoria: 'sistema',
+        link: '/cliente',
+        leida: false,
+      })
+
+      const { data: staff } = await adminClient
+        .from('profiles')
+        .select('id, role')
+        .in('role', ['admin', 'coordinador'])
+        .eq('is_active', true)
+
+      if (staff && staff.length > 0) {
+        const notifs = staff.map(s => ({
+          usuario_id: s.id,
+          titulo: `👤 Nuevo Cliente Registrado: ${nombre || 'Cliente'}`,
+          mensaje: `Se ha registrado el cliente ${nombre || 'Nuevo'} (CI: ${cleanCi || 'Sin CI'}, Email: ${cleanEmail || 'N/A'}). No se encontró historial previo de caja.`,
+          tipo: 'info',
+          categoria: 'sistema',
+          link: s.role === 'admin' ? '/admin/clientes' : '/coordinador',
+          leida: false,
+        }))
+        await adminClient.from('notificaciones').insert(notifs)
+      }
+
       return NextResponse.json({ 
         success: true, 
         message: 'No se encontraron registros anteriores para sincronizar.', 
@@ -133,16 +165,30 @@ export async function POST(request: Request) {
 
     await adminClient.from('clientes').update(updatePayload).eq('id', new_user_id)
 
-    // Notificar al nuevo cliente
+    // Notificar al nuevo cliente en el sistema
     await adminClient.from('notificaciones').insert({
       usuario_id: new_user_id,
-      titulo: '🎉 ¡Historial Sincronizado Exitosamente!',
-      mensaje: `¡Hola ${nombre || 'Cliente'}! Vinculamos automáticamente tus ${totalVisitasSum} visitas anteriores a tu nueva cuenta web.`,
+      titulo: '🎉 ¡Historial Sincronizado por CI Exitosamente!',
+      mensaje: `¡Hola ${nombre || 'Cliente'}! Vinculamos automáticamente tus ${totalVisitasSum} visitas anteriores y Bs. ${totalGastadoSum} gastados a tu perfil web (CI: ${cleanCi || 'N/A'}).`,
       tipo: 'success',
       categoria: 'sistema',
       link: '/cliente',
       leida: false,
     })
+
+    // Enviar Correo de Bienvenida + Sincronización vía Nodemailer (Gmail App Password)
+    if (cleanEmail) {
+      try {
+        await sendNotificationEmail(cleanEmail, 'registro_bienvenida_sync', {
+          nombre: nombre || 'Cliente',
+          ci: cleanCi || 'No especificado',
+          visitas: totalVisitasSum.toString(),
+          gastado: formatCurrency(totalGastadoSum),
+        })
+      } catch (eErr) {
+        console.error('Error enviando correo de bienvenida sync:', eErr)
+      }
+    }
 
     // Notificar a Admin y Coordinadores
     const { data: staff } = await adminClient
@@ -154,11 +200,11 @@ export async function POST(request: Request) {
     if (staff && staff.length > 0) {
       const notifs = staff.map(s => ({
         usuario_id: s.id,
-        titulo: `🔗 Sincronización Automática: ${nombre || 'Cliente'}`,
-        mensaje: `El cliente ${nombre || 'Nuevo'} (CI: ${cleanCi || 'N/A'}) se registró y se vincularon automáticamente ${oldClientIds.length} atenciones pasadas (${totalVisitasSum} visitas, Bs ${totalGastadoSum}).`,
+        titulo: `🔗 Historial Sincronizado: ${nombre || 'Cliente'}`,
+        mensaje: `El cliente ${nombre || 'Nuevo'} (CI: ${cleanCi || 'Sin CI'}) se registró y se vincularon automáticamente ${oldClientIds.length} historial(es) anterior(es) (${totalVisitasSum} visitas, Bs ${totalGastadoSum}).`,
         tipo: 'success',
         categoria: 'sistema',
-        link: s.role === 'admin' ? '/admin/sincronizar' : '/coordinador',
+        link: s.role === 'admin' ? '/admin/clientes' : '/coordinador',
         leida: false,
       }))
 

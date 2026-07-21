@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, Edit, Trash2, Package, AlertTriangle, ArrowLeft, X, Save, Search, Filter } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import { Modal } from '@/components/ui/Modal'
 
 interface Producto {
   id: string
@@ -383,126 +384,111 @@ export default function ProductosPage() {
       </Card>
 
       {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-2 sm:p-4 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
-          <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto max-h-[92vh] flex flex-col overflow-hidden rounded-2xl">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-4 sm:p-6 bg-zinc-900/50 shrink-0">
-              <div>
-                <CardTitle className="text-xl sm:text-2xl font-black uppercase text-white leading-none">
-                   {editingProducto ? 'Editar' : 'Registrar'} <span className="text-amber-500">Producto</span>
-                </CardTitle>
-                <p className="text-zinc-500 text-xs mt-1.5 font-medium">Define las características técnicas y comerciales</p>
-              </div>
-              <button 
-                onClick={() => { setShowModal(false); setEditingProducto(null); }} 
-                className="p-2 sm:p-3 hover:bg-white/5 rounded-2xl transition-colors border border-white/5"
-              >
-                <X className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-500" />
-              </button>
-            </CardHeader>
-            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-              <CardContent className="p-4 sm:p-6 space-y-6 overflow-y-auto max-h-[60vh] flex-1">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="md:col-span-2">
-                     <Input
-                        label="Nombre del Producto"
-                        placeholder="Ej. Pomada Mate Premium"
-                        value={formData.nombre}
-                        onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                        required
-                        className="bg-zinc-900"
-                      />
-                   </div>
-                   <Input
-                    label="SKU / Cod. Barras"
-                    placeholder="EAN-13 ..."
-                    value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                    className="bg-zinc-900"
-                  />
-                  <Input
-                    label="Categoría"
-                    placeholder="Cera, Aftershave, etc."
-                    value={formData.categoria}
-                    onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
-                    className="bg-zinc-900"
-                  />
-                  <div className="md:col-span-2">
-                    <ImageUpload
-                      label="Foto del Producto"
-                      defaultImage={formData.image_url || undefined}
-                      onUploadSuccess={(url) => setFormData({ ...formData, image_url: url })}
-                      onUploadError={(err) => toastError(err)}
-                    />
-                  </div>
-                  <div className="md:col-span-2 space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción Breve</label>
-                    <textarea
-                      className="w-full p-4 border border-white/10 bg-zinc-900 rounded-xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
-                      rows={2}
-                      placeholder="..."
-                      value={formData.descripcion}
-                      onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                    />
-                  </div>
-                  <Input
-                    label="Stock Inicial"
-                    type="number"
-                    value={formData.stock_actual}
-                    onChange={(e) => setFormData({ ...formData, stock_actual: parseInt(e.target.value) })}
-                    required
-                    className="bg-zinc-900"
-                  />
-                  <Input
-                    label="Stock de Seguridad (Mín)"
-                    type="number"
-                    value={formData.stock_minimo}
-                    onChange={(e) => setFormData({ ...formData, stock_minimo: parseInt(e.target.value) })}
-                    required
-                    className="bg-zinc-900"
-                  />
-                  <Input
-                    label="Precio Costo (Inversión)"
-                    type="number"
-                    placeholder="0.00"
-                    value={formData.precio_costo}
-                    onChange={(e) => setFormData({ ...formData, precio_costo: parseFloat(e.target.value) })}
-                    required
-                    className="bg-zinc-900"
-                  />
-                   <Input
-                    label="Precio de Venta (Público)"
-                    type="number"
-                    placeholder="0.00"
-                    value={formData.precio_venta}
-                    onChange={(e) => setFormData({ ...formData, precio_venta: parseFloat(e.target.value) })}
-                    required
-                    className="bg-zinc-900"
-                  />
-                  </div>
-              </CardContent>
-              <div className="p-4 sm:p-6 bg-zinc-900/30 border-t border-white/5 flex gap-3 shrink-0">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="flex-1 h-12 border-white/5 text-zinc-500 hover:text-white uppercase font-black tracking-widest text-[10px]"
-                  onClick={() => { setShowModal(false); setEditingProducto(null); }}
-                >
-                  Descartar
-                </Button>
-                <Button 
-                  type="submit" 
-                  variant="primary" 
-                  className="flex-1 h-12 shadow-lg shadow-amber-500/20 uppercase font-black tracking-widest text-xs"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {editingProducto ? 'Actualizar' : 'Registrar'} Inventario
-                </Button>
-              </div>
-            </form>
-          </Card>
-        </div>
-      )}
+      <Modal
+        isOpen={showModal}
+        onClose={() => { setShowModal(false); setEditingProducto(null); }}
+        title={<>{editingProducto ? 'Editar' : 'Registrar'} <span className="text-amber-500">Producto</span></>}
+        subtitle="Define las características técnicas y comerciales"
+      >
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2">
+              <Input
+                label="Nombre del Producto"
+                placeholder="Ej. Pomada Mate Premium"
+                value={formData.nombre}
+                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                required
+                className="bg-zinc-900"
+              />
+            </div>
+            <Input
+              label="SKU / Cod. Barras"
+              placeholder="EAN-13 ..."
+              value={formData.sku}
+              onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+              className="bg-zinc-900"
+            />
+            <Input
+              label="Categoría"
+              placeholder="Cera, Aftershave, etc."
+              value={formData.categoria}
+              onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+              className="bg-zinc-900"
+            />
+            <div className="md:col-span-2">
+              <ImageUpload
+                label="Foto del Producto"
+                defaultImage={formData.image_url || undefined}
+                onUploadSuccess={(url) => setFormData({ ...formData, image_url: url })}
+                onUploadError={(err) => toastError(err)}
+              />
+            </div>
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción Breve</label>
+              <textarea
+                className="w-full p-4 border border-white/10 bg-zinc-900 rounded-xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                rows={2}
+                placeholder="..."
+                value={formData.descripcion}
+                onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+              />
+            </div>
+            <Input
+              label="Stock Inicial"
+              type="number"
+              value={formData.stock_actual}
+              onChange={(e) => setFormData({ ...formData, stock_actual: parseInt(e.target.value) })}
+              required
+              className="bg-zinc-900"
+            />
+            <Input
+              label="Stock de Seguridad (Mín)"
+              type="number"
+              value={formData.stock_minimo}
+              onChange={(e) => setFormData({ ...formData, stock_minimo: parseInt(e.target.value) })}
+              required
+              className="bg-zinc-900"
+            />
+            <Input
+              label="Precio Costo (Inversión)"
+              type="number"
+              placeholder="0.00"
+              value={formData.precio_costo}
+              onChange={(e) => setFormData({ ...formData, precio_costo: parseFloat(e.target.value) })}
+              required
+              className="bg-zinc-900"
+            />
+            <Input
+              label="Precio de Venta (Público)"
+              type="number"
+              placeholder="0.00"
+              value={formData.precio_venta}
+              onChange={(e) => setFormData({ ...formData, precio_venta: parseFloat(e.target.value) })}
+              required
+              className="bg-zinc-900"
+            />
+          </div>
+          <div className="pt-4 border-t border-white/5 flex gap-3">
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="flex-1 h-12 border-white/5 text-zinc-500 hover:text-white uppercase font-black tracking-widest text-[10px]"
+              onClick={() => { setShowModal(false); setEditingProducto(null); }}
+            >
+              Descartar
+            </Button>
+            <Button 
+              type="submit" 
+              variant="primary" 
+              className="flex-1 h-12 shadow-lg shadow-amber-500/20 uppercase font-black tracking-widest text-xs"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {editingProducto ? 'Actualizar' : 'Registrar'} Inventario
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

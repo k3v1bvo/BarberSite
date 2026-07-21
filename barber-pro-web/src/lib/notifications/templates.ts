@@ -515,6 +515,23 @@ export function buildEmail(
         ),
       }
 
+    case 'registro_bienvenida_sync':
+      return {
+        subject: `🎉 ¡Bienvenido a ${BRAND}! — Historial Sincronizado por CI`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Hola ${nombre}!</h2>
+          <p>Tu cuenta ha sido creada exitosamente. Hemos verificado tu CI (<strong>${data.ci || '—'}</strong>) y sincronizamos automáticamente todo tu historial previo de atenciones y consumos.</p>
+          ${detailBox([
+            { label: 'Carnet de Identidad', value: data.ci || '—' },
+            { label: 'Visitas Sincronizadas', value: data.visitas || '0' },
+            { label: 'Monto Acumulado Sincronizado', value: data.gastado || 'Bs. 0' },
+          ])}
+          <p style="color:#a1a1aa;font-size:13px;">Ya puedes agendar tus citas desde el sitio web y acumular puntos de fidelidad.</p>
+          ${cta(`${SITE}/cliente`, 'Ir a Mi Perfil')}`,
+          `Sincronización de cuenta exitosa en ${BRAND}`
+        ),
+      }
+
     default:
       return {
         subject: `Notificación — ${BRAND}`,
