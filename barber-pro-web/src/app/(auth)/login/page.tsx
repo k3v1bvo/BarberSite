@@ -66,7 +66,7 @@ export default function LoginPage() {
 
       // Obtener perfil para redirigir según rol
       const { data: { user } } = await supabase.auth.getUser()
-      
+
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
@@ -102,10 +102,10 @@ export default function LoginPage() {
         <CardHeader className="text-center space-y-4 pt-6 pb-2">
           {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
             <div className="flex justify-center items-center py-2">
-              <img 
-                src={brand.logo_url} 
-                alt={brand.nombre} 
-                className="h-28 md:h-32 max-w-[320px] w-auto object-contain filter drop-shadow-[0_4px_25px_rgba(245,158,11,0.3)] transition-transform duration-300 hover:scale-105" 
+              <img
+                src={brand.logo_url}
+                alt={brand.nombre}
+                className="h-28 md:h-32 max-w-[320px] w-auto object-contain filter drop-shadow-[0_4px_25px_rgba(245,158,11,0.3)] transition-transform duration-300 hover:scale-105"
               />
             </div>
           ) : (
@@ -164,15 +164,6 @@ export default function LoginPage() {
                 Regístrate aquí
               </Link>
             </p>
-
-            <button
-              type="button"
-              onClick={() => setIsRecoveryOpen(true)}
-              className="text-xs text-amber-500 hover:text-amber-400 font-bold block mx-auto transition-colors"
-            >
-              🔑 ¿Olvidaste tu contraseña o perdiste tu acceso?
-            </button>
-
             <div>
               <Link
                 href="/"
