@@ -153,13 +153,44 @@ export default function SincronizarHistorialPage() {
 
       setBarberos(barberosWithCounts)
 
-      // 2. Cargar primeros clientes para estado inicial
-      const { data: cData } = await supabase
-        .from('clientes')
-        .select('id, nombre, email, telefono, ci, total_visitas, created_at')
-        .order('created_at', { ascending: false })
-        .limit(100)
-      
+      // 2. Cargar clientes y perfiles combinados para total paridad con /admin/clientes
+      const [resClientes, resProfiles] = await Promise.all([
+        supabase
+          .from('clientes')
+          .select('id, nombre, email, telefono, ci, total_visitas, created_at')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('profiles')
+          .select('id, full_name, email, phone, ci, created_at')
+          .eq('role', 'cliente')
+      ])
+
+      const clientesMap = new Map<string, any>()
+      resClientes.data?.forEach(c => clientesMap.set(c.id, c))
+
+      resProfiles.data?.forEach(p => {
+        if (clientesMap.has(p.id)) {
+          const existing = clientesMap.get(p.id)!
+          if (!existing.ci && p.ci) existing.ci = p.ci
+          if (!existing.email && p.email) existing.email = p.email
+          if (!existing.telefono && p.phone) existing.telefono = p.phone
+        } else {
+          clientesMap.set(p.id, {
+            id: p.id,
+            nombre: p.full_name || 'Cliente Registrado',
+            email: p.email || null,
+            telefono: p.phone || null,
+            ci: p.ci || null,
+            total_visitas: 0,
+            created_at: p.created_at || new Date().toISOString(),
+          })
+        }
+      })
+
+      const cData = Array.from(clientesMap.values())
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 100)
+
       if (cData) {
         setClientes(cData)
         setLiveClientesAntiguos(cData)

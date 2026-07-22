@@ -164,22 +164,27 @@ export default function ClientesAdminPage() {
         .order('created_at', { ascending: false }),
       supabase
         .from('profiles')
-        .select('id, full_name, email, phone, created_at')
+        .select('id, full_name, email, phone, ci, created_at')
         .eq('role', 'cliente')
     ])
 
     const clientesMap = new Map<string, Cliente>()
     resClientes.data?.forEach(c => clientesMap.set(c.id, c as Cliente))
 
-    // Garantizar que si un cliente existe en 'profiles' también aparezca en la lista de clientes
+    // Garantizar que si un cliente existe en 'profiles' también aparezca en la lista de clientes con su CI
     resProfiles.data?.forEach(p => {
-      if (!clientesMap.has(p.id)) {
+      if (clientesMap.has(p.id)) {
+        const existing = clientesMap.get(p.id)!
+        if (!existing.ci && p.ci) {
+          existing.ci = p.ci
+        }
+      } else {
         clientesMap.set(p.id, {
           id: p.id,
           nombre: p.full_name || 'Cliente Registrado',
           email: p.email || null,
           telefono: p.phone || null,
-          ci: null,
+          ci: p.ci || null,
           total_visitas: 0,
           total_gastado: 0,
           nivel_fidelidad: 'bronce',

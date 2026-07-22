@@ -41,26 +41,51 @@ export async function POST(request: Request) {
 
     const matchingIds = new Set<string>()
 
-    // 1. Buscar por CI (coincidencia de carnet) - Requiere CI válido de al menos 4 dígitos
-    if (cleanCi && cleanCi.length >= 4 && cleanCi !== '0' && cleanCi !== '0000000') {
-      const { data: byCi } = await adminClient
+    // 1. Buscar por CI (coincidencia de carnet exacta y parcial)
+    if (cleanCi && cleanCi.length >= 3 && cleanCi !== '0' && cleanCi !== '0000000') {
+      const { data: byCiExact } = await adminClient
         .from('clientes')
         .select('id')
-        .or(`ci.eq.${cleanCi},ci.ilike.%${cleanCi}%`)
+        .eq('ci', cleanCi)
         .neq('id', new_user_id)
-      
-      byCi?.forEach(c => matchingIds.add(c.id))
+      byCiExact?.forEach(c => matchingIds.add(c.id))
+
+      const { data: byCiLike } = await adminClient
+        .from('clientes')
+        .select('id')
+        .ilike('ci', `%${cleanCi}%`)
+        .neq('id', new_user_id)
+      byCiLike?.forEach(c => matchingIds.add(c.id))
+
+      const digitsOnly = cleanCi.replace(/\D/g, '')
+      if (digitsOnly && digitsOnly.length >= 4 && digitsOnly !== cleanCi) {
+        const { data: byCiDigits } = await adminClient
+          .from('clientes')
+          .select('id')
+          .ilike('ci', `%${digitsOnly}%`)
+          .neq('id', new_user_id)
+        byCiDigits?.forEach(c => matchingIds.add(c.id))
+      }
     }
 
-    // 2. Buscar por Email exacto si fue provisto
+    // 2. Buscar por Email exacto o parcial si fue provisto
     if (cleanEmail && cleanEmail.includes('@')) {
       const { data: byEmail } = await adminClient
         .from('clientes')
         .select('id')
-        .eq('email', cleanEmail)
+        .ilike('email', cleanEmail)
         .neq('id', new_user_id)
-      
       byEmail?.forEach(c => matchingIds.add(c.id))
+    }
+
+    // 3. Buscar por Nombre exacto si el cliente antiguo no tenía CI o Email cargado previamente
+    if (cleanNombre && cleanNombre.length >= 4) {
+      const { data: byNombre } = await adminClient
+        .from('clientes')
+        .select('id')
+        .ilike('nombre', cleanNombre)
+        .neq('id', new_user_id)
+      byNombre?.forEach(c => matchingIds.add(c.id))
     }
 
     const oldClientIds = Array.from(matchingIds)
