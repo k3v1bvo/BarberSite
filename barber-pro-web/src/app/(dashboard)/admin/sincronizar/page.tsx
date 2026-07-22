@@ -109,16 +109,39 @@ export default function SincronizarHistorialPage() {
 
   const searchClientesLive = useCallback(async (term: string, target: 'antiguo' | 'nuevo') => {
     try {
-      let query = supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas, created_at')
-      if (term.trim()) {
-        const t = term.trim()
-        query = query.or(`nombre.ilike.%${t}%,ci.ilike.%${t}%,telefono.ilike.%${t}%,email.ilike.%${t}%`)
+      const t = term.trim()
+      let clientQuery = supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas, created_at')
+      let profileQuery = supabase.from('profiles').select('id, full_name, email, phone, ci, created_at').eq('role', 'cliente')
+
+      if (t) {
+        clientQuery = clientQuery.or(`nombre.ilike.%${t}%,ci.ilike.%${t}%,telefono.ilike.%${t}%,email.ilike.%${t}%`)
+        profileQuery = profileQuery.or(`full_name.ilike.%${t}%,ci.ilike.%${t}%,phone.ilike.%${t}%,email.ilike.%${t}%`)
       }
-      const { data } = await query.order('created_at', { ascending: false }).limit(50)
-      if (data) {
-        if (target === 'antiguo') setLiveClientesAntiguos(data)
-        else setLiveClientesNuevos(data)
-      }
+
+      const [resC, resP] = await Promise.all([
+        clientQuery.order('created_at', { ascending: false }).limit(50),
+        profileQuery.order('created_at', { ascending: false }).limit(50),
+      ])
+
+      const map = new Map<string, any>()
+      resC.data?.forEach(c => map.set(c.id, c))
+      resP.data?.forEach(p => {
+        if (!map.has(p.id)) {
+          map.set(p.id, {
+            id: p.id,
+            nombre: p.full_name || 'Cliente Registrado',
+            email: p.email || null,
+            telefono: p.phone || null,
+            ci: p.ci || null,
+            total_visitas: 0,
+            created_at: p.created_at || new Date().toISOString(),
+          })
+        }
+      })
+
+      const combined = Array.from(map.values()).slice(0, 50)
+      if (target === 'antiguo') setLiveClientesAntiguos(combined)
+      else setLiveClientesNuevos(combined)
     } catch (err) {
       console.error(err)
     }

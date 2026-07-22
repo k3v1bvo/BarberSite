@@ -18,53 +18,106 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No puedes sincronizar el mismo cliente consigo mismo' }, { status: 400 })
     }
 
-    // Obtener información de ambos clientes para sumar los totales
-    const { data: antiguo } = await adminClient.from('clientes').select('total_visitas, total_gastado').eq('id', cliente_antiguo_id).single()
-    const { data: nuevo } = await adminClient.from('clientes').select('total_visitas, total_gastado').eq('id', cliente_nuevo_id).single()
+    // 1. Garantizar que cliente_antiguo existe en la tabla clientes
+    let { data: antiguo } = await adminClient
+      .from('clientes')
+      .select('*')
+      .eq('id', cliente_antiguo_id)
+      .maybeSingle()
 
-    if (!antiguo || !nuevo) {
-      return NextResponse.json({ error: 'Uno de los clientes no existe' }, { status: 404 })
+    if (!antiguo) {
+      // Buscar en profiles
+      const { data: profAntiguo } = await adminClient
+        .from('profiles')
+        .select('*')
+        .eq('id', cliente_antiguo_id)
+        .maybeSingle()
+
+      if (profAntiguo) {
+        const { data: newAntiguo } = await adminClient.from('clientes').upsert({
+          id: profAntiguo.id,
+          nombre: profAntiguo.full_name || 'Cliente Antiguo',
+          email: profAntiguo.email || null,
+          telefono: profAntiguo.phone || null,
+          ci: profAntiguo.ci || null,
+          total_visitas: 0,
+          total_gastado: 0,
+        }).select('*').single()
+        
+        antiguo = newAntiguo
+      }
     }
 
-    // Actualizar Citas
+    // 2. Garantizar que cliente_nuevo existe en la tabla clientes
+    let { data: nuevo } = await adminClient
+      .from('clientes')
+      .select('*')
+      .eq('id', cliente_nuevo_id)
+      .maybeSingle()
+
+    if (!nuevo) {
+      // Buscar en profiles
+      const { data: profNuevo } = await adminClient
+        .from('profiles')
+        .select('*')
+        .eq('id', cliente_nuevo_id)
+        .maybeSingle()
+
+      if (profNuevo) {
+        const { data: newNuevo } = await adminClient.from('clientes').upsert({
+          id: profNuevo.id,
+          nombre: profNuevo.full_name || 'Cliente Nuevo',
+          email: profNuevo.email || null,
+          telefono: profNuevo.phone || null,
+          ci: profNuevo.ci || null,
+          total_visitas: 0,
+          total_gastado: 0,
+        }).select('*').single()
+
+        nuevo = newNuevo
+      }
+    }
+
+    if (!antiguo || !nuevo) {
+      return NextResponse.json(
+        { error: 'No se pudo ubicar uno de los clientes seleccionados. Verifica que ambos perfiles existan en el sistema.' },
+        { status: 400 }
+      )
+    }
+
+    // 3. Reasignar todas las tablas asociadas
     await adminClient.from('citas').update({ cliente_id: cliente_nuevo_id }).eq('cliente_id', cliente_antiguo_id)
-
-    // Actualizar Transactions (caja)
     await adminClient.from('transactions').update({ cliente_id: cliente_nuevo_id }).eq('cliente_id', cliente_antiguo_id)
-
-    // Actualizar Pedidos
     await adminClient.from('pedidos').update({ cliente_id: cliente_nuevo_id }).eq('cliente_id', cliente_antiguo_id)
-
-    // Actualizar Testimonios
     await adminClient.from('testimonios').update({ cliente_id: cliente_nuevo_id }).eq('cliente_id', cliente_antiguo_id)
+    await adminClient.from('referrals').update({ cliente_recomendante_id: cliente_nuevo_id }).eq('cliente_recomendante_id', cliente_antiguo_id)
+    await adminClient.from('referrals').update({ cliente_recomendado_id: cliente_nuevo_id }).eq('cliente_recomendado_id', cliente_antiguo_id)
 
-    // Fusionar sumando visitas y gastos al nuevo cliente
+    // 4. Sumar los totales acumulados
     const nuevoTotalVisitas = (nuevo.total_visitas || 0) + (antiguo.total_visitas || 0)
     const nuevoTotalGastado = (nuevo.total_gastado || 0) + (antiguo.total_gastado || 0)
 
-    const { error: updateError } = await adminClient.from('clientes')
-      .update({ 
-        total_visitas: nuevoTotalVisitas, 
-        total_gastado: nuevoTotalGastado 
-      })
-      .eq('id', cliente_nuevo_id)
-
-    if (updateError) {
-      throw updateError
+    const updatePayload: any = {
+      total_visitas: nuevoTotalVisitas,
+      total_gastado: nuevoTotalGastado,
     }
 
-    // Opcionalmente calcular nuevo nivel de lealtad, pero lo hará el trigger o la funcion dinámica.
-    // Borrar cliente antiguo
-    const { error: deleteError } = await adminClient.from('clientes').delete().eq('id', cliente_antiguo_id)
+    // Transferir CI o teléfono si el nuevo no los tenía
+    if (!nuevo.ci && antiguo.ci) updatePayload.ci = antiguo.ci
+    if (!nuevo.telefono && antiguo.telefono) updatePayload.telefono = antiguo.telefono
+    if (!nuevo.cumpleanos && antiguo.cumpleanos) updatePayload.cumpleanos = antiguo.cumpleanos
 
-    if (deleteError) {
-      throw deleteError
-    }
+    await adminClient.from('clientes').update(updatePayload).eq('id', cliente_nuevo_id)
 
-    return NextResponse.json({ success: true, message: 'Historial de cliente sincronizado y fusionado correctamente.' })
+    // 5. Borrar el registro antiguo
+    await adminClient.from('clientes').delete().eq('id', cliente_antiguo_id)
 
+    return NextResponse.json({
+      success: true,
+      message: `¡Éxito! Se fusionaron los historiales de "${antiguo.nombre || 'Cliente'}" hacia "${nuevo.nombre || 'Cliente'}". Se sumaron +${antiguo.total_visitas || 0} visitas y +Bs. ${antiguo.total_gastado || 0}.`,
+    })
   } catch (error: any) {
-    console.error('Error al sincronizar cliente:', error)
-    return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 })
+    console.error('Error en sincronizar-cliente:', error)
+    return NextResponse.json({ error: error.message || 'Error interno al fusionar clientes' }, { status: 500 })
   }
 }
