@@ -92,23 +92,16 @@ export default function ProductosPage() {
           precio_venta: formData.precio_venta,
           categoria: formData.categoria || null,
           image_url: formData.imagenes?.[0] || formData.image_url || null,
-          imagenes: formData.imagenes && formData.imagenes.length > 0 ? formData.imagenes : null,
+        }
+
+        if (editingProducto && 'imagenes' in editingProducto && formData.imagenes && formData.imagenes.length > 0) {
+          payload.imagenes = formData.imagenes
         }
 
         let { error } = await supabase
           .from('productos')
           .update(payload)
           .eq('id', editingProducto.id)
-
-        // Si la columna 'imagenes' no existe en la BD de Supabase, reintentar sin esa columna
-        if (error && error.message?.includes('imagenes')) {
-          delete payload.imagenes
-          const retry = await supabase
-            .from('productos')
-            .update(payload)
-            .eq('id', editingProducto.id)
-          error = retry.error
-        }
 
         if (error) throw error
       } else {
@@ -122,21 +115,12 @@ export default function ProductosPage() {
           precio_venta: formData.precio_venta,
           categoria: formData.categoria || null,
           image_url: formData.imagenes?.[0] || formData.image_url || null,
-          imagenes: formData.imagenes && formData.imagenes.length > 0 ? formData.imagenes : null,
           is_active: true,
         }
 
         let { error } = await supabase
           .from('productos')
           .insert(payload)
-
-        if (error && error.message?.includes('imagenes')) {
-          delete payload.imagenes
-          const retry = await supabase
-            .from('productos')
-            .insert(payload)
-          error = retry.error
-        }
 
         if (error) throw error
       }
