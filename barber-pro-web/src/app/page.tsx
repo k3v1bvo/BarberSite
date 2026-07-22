@@ -787,7 +787,7 @@ export default function HomePage() {
                   <div className="p-6 text-center">
                     <h3 className="text-lg font-bold mb-2 line-clamp-1">{producto.nombre}</h3>
                     <p className="text-amber-500 font-black text-xl mb-4">{formatCurrency(producto.precio_venta)}</p>
-                    <Link href="/tienda" className="inline-block w-full py-2 bg-white/5 hover:bg-amber-500 hover:text-black rounded-lg text-sm font-bold uppercase tracking-widest transition-colors border border-white/10 hover:border-amber-500">
+                    <Link href={`/tienda?producto=${producto.id}`} className="inline-block w-full py-2 bg-white/5 hover:bg-amber-500 hover:text-black rounded-lg text-sm font-bold uppercase tracking-widest transition-colors border border-white/10 hover:border-amber-500">
                       Ver Detalles
                     </Link>
                   </div>

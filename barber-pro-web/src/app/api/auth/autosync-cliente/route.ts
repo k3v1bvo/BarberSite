@@ -234,7 +234,7 @@ export async function POST(request: Request) {
     await adminClient.from('notificaciones').insert({
       usuario_id: new_user_id,
       titulo: '🎉 ¡Historial Sincronizado por CI Exitosamente!',
-      mensaje: `¡Hola ${nombre || 'Cliente'}! Vinculamos automáticamente tus ${totalVisitasSum} visitas anteriores y Bs. ${totalGastadoSum} gastados a tu perfil web (CI: ${cleanCi || 'N/A'}).`,
+      mensaje: `¡Hola ${nombre || 'Cliente'}! Vinculamos automáticamente tus ${totalVisitasSum} visitas anteriores y beneficios de lealtad a tu perfil web (CI: ${cleanCi || 'N/A'}).`,
       tipo: 'success',
       categoria: 'sistema',
       link: '/cliente',

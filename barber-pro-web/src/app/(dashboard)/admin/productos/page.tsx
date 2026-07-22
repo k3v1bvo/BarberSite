@@ -416,13 +416,40 @@ export default function ProductosPage() {
               onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
               className="bg-zinc-900"
             />
-            <Input
-              label="Categoría"
-              placeholder="Cera, Aftershave, etc."
-              value={formData.categoria}
-              onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
-              className="bg-zinc-900"
-            />
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
+                Categoría del Producto
+              </label>
+              <Input
+                placeholder="Escribe una categoría nueva..."
+                value={formData.categoria}
+                onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+                className="bg-zinc-900"
+              />
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {Array.from(
+                  new Set(
+                    ['Ceras', 'Pomadas', 'Shampoo', 'Aceite de Barba', 'Aftershave', 'Cuidado Capilar', 'Accesorios', ...productos.map(p => p.categoria).filter(Boolean) as string[]]
+                  )
+                ).map((cat) => {
+                  const isSelected = formData.categoria?.toLowerCase().trim() === cat.toLowerCase().trim()
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, categoria: cat })}
+                      className={`px-3 py-1 text-xs font-bold rounded-full transition-all border ${
+                        isSelected
+                          ? 'bg-amber-400 text-black border-amber-400 shadow-md shadow-amber-400/20'
+                          : 'bg-zinc-800/80 text-zinc-300 border-white/10 hover:border-amber-400/50 hover:text-white'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             <div className="md:col-span-2 space-y-4">
               <ImageUpload
                 label="Foto Principal del Producto"

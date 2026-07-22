@@ -131,7 +131,7 @@ export async function POST(request: Request) {
     await adminClient.from('notificaciones').insert({
       usuario_id: cliente_nuevo_id,
       titulo: '✨ ¡Historial Sincronizado Con Éxito!',
-      mensaje: `¡Hola ${nuevo.nombre || 'Cliente'}! Tu perfil ha sido vinculado exitosamente con tu historial previo en la barbería. Ahora cuentas con ${nuevoTotalVisitas} visitas y Bs. ${nuevoTotalGastado} acumulados.`,
+      mensaje: `¡Hola ${nuevo.nombre || 'Cliente'}! Tu perfil ha sido vinculado exitosamente con tu historial previo en la barbería. Ahora cuentas con ${nuevoTotalVisitas} visitas acumuladas y tus beneficios de lealtad activos.`,
       tipo: 'success',
       categoria: 'sistema',
       link: '/cliente',

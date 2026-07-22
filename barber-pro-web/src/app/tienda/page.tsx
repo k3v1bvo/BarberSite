@@ -92,6 +92,16 @@ export default function TiendaPage() {
         setProductos(prods)
         const cats = Array.from(new Set(prods.map(p => p.categoria || 'Otros')))
         setCategorias(['Todos', ...cats])
+
+        // Auto-abrir modal de producto si viene ?producto=ID en la URL
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search)
+          const prodId = params.get('producto')
+          if (prodId) {
+            const found = prods.find(p => p.id === prodId)
+            if (found) setSelectedProduct(found)
+          }
+        }
       }
     } catch (error) {
       console.error(error)
