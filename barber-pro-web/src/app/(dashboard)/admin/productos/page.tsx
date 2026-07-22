@@ -82,39 +82,61 @@ export default function ProductosPage() {
       const cleanSku = formData.sku?.trim() ? formData.sku.trim() : null
 
       if (editingProducto) {
-        const { error } = await supabase
+        const payload: any = {
+          nombre: toTitleCase(formData.nombre),
+          sku: cleanSku,
+          descripcion: formData.descripcion || null,
+          stock_actual: formData.stock_actual,
+          stock_minimo: formData.stock_minimo,
+          precio_costo: formData.precio_costo,
+          precio_venta: formData.precio_venta,
+          categoria: formData.categoria || null,
+          image_url: formData.imagenes?.[0] || formData.image_url || null,
+          imagenes: formData.imagenes && formData.imagenes.length > 0 ? formData.imagenes : null,
+        }
+
+        let { error } = await supabase
           .from('productos')
-          .update({
-            nombre: toTitleCase(formData.nombre),
-            sku: cleanSku,
-            descripcion: formData.descripcion || null,
-            stock_actual: formData.stock_actual,
-            stock_minimo: formData.stock_minimo,
-            precio_costo: formData.precio_costo,
-            precio_venta: formData.precio_venta,
-            categoria: formData.categoria || null,
-            image_url: formData.imagenes?.[0] || formData.image_url || null,
-            imagenes: formData.imagenes || null,
-          })
+          .update(payload)
           .eq('id', editingProducto.id)
+
+        // Si la columna 'imagenes' no existe en la BD de Supabase, reintentar sin esa columna
+        if (error && error.message?.includes('imagenes')) {
+          delete payload.imagenes
+          const retry = await supabase
+            .from('productos')
+            .update(payload)
+            .eq('id', editingProducto.id)
+          error = retry.error
+        }
 
         if (error) throw error
       } else {
-        const { error } = await supabase
+        const payload: any = {
+          nombre: toTitleCase(formData.nombre),
+          sku: cleanSku,
+          descripcion: formData.descripcion || null,
+          stock_actual: formData.stock_actual,
+          stock_minimo: formData.stock_minimo,
+          precio_costo: formData.precio_costo,
+          precio_venta: formData.precio_venta,
+          categoria: formData.categoria || null,
+          image_url: formData.imagenes?.[0] || formData.image_url || null,
+          imagenes: formData.imagenes && formData.imagenes.length > 0 ? formData.imagenes : null,
+          is_active: true,
+        }
+
+        let { error } = await supabase
           .from('productos')
-          .insert({
-            nombre: toTitleCase(formData.nombre),
-            sku: cleanSku,
-            descripcion: formData.descripcion || null,
-            stock_actual: formData.stock_actual,
-            stock_minimo: formData.stock_minimo,
-            precio_costo: formData.precio_costo,
-            precio_venta: formData.precio_venta,
-            categoria: formData.categoria || null,
-            image_url: formData.imagenes?.[0] || formData.image_url || null,
-            imagenes: formData.imagenes || null,
-            is_active: true,
-          })
+          .insert(payload)
+
+        if (error && error.message?.includes('imagenes')) {
+          delete payload.imagenes
+          const retry = await supabase
+            .from('productos')
+            .insert(payload)
+          error = retry.error
+        }
 
         if (error) throw error
       }
