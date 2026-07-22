@@ -107,7 +107,7 @@ export default function HomePage() {
   const router = useRouter()
   const supabase = createClient()
   const socialLinks = useSocialLinks()
-  const contactPhone = process.env.NEXT_PUBLIC_CONTACT_PHONE || '59171234567'
+  const contactPhone = process.env.NEXT_PUBLIC_CONTACT_PHONE || '59178353814'
 
   useEffect(() => {
     const checkUserAndData = async () => {
@@ -973,8 +973,11 @@ export default function HomePage() {
                     <Clock className="w-6 h-6 text-black" />
                   </div>
                   <div>
-                    <h3 className="font-bold mb-1">Horario</h3>
-                    <p className="text-gray-400">Lunes a Sábado: 9:00 - 21:00<br />Domingo: Cerrado</p>
+                    <h3 className="font-bold mb-1">Horario de Atención</h3>
+                    <p className="text-gray-300">
+                      <span className="font-extrabold text-amber-400">🔥 ¡Abierto Todos los Días!</span><br />
+                      Lunes a Domingo: 09:00 - 21:00
+                    </p>
                   </div>
                 </div>
 

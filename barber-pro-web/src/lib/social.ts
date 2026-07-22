@@ -6,7 +6,7 @@ export interface SocialLinksConfig {
   pinterest?: string
 }
 
-const DEFAULT_PHONE = '59171234567'
+const DEFAULT_PHONE = '59178353814'
 
 function normalizeWhatsAppUrl(value: string, phoneFallback: string): string {
   if (!value) {
