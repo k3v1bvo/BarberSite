@@ -96,16 +96,21 @@ export default function LoginPage() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.15),transparent_70%)]" />
 
       <Card className="relative w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl">
-        <CardHeader className="text-center space-y-3">
-          {brand.logo_url && (
-            <div className="flex justify-center mb-1">
-              <img src={brand.logo_url} alt={brand.nombre} className="h-12 max-w-[180px] object-contain" />
+        <CardHeader className="text-center space-y-4 pt-6 pb-2">
+          {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
+            <div className="flex justify-center items-center py-2">
+              <img 
+                src={brand.logo_url} 
+                alt={brand.nombre} 
+                className="h-28 md:h-32 max-w-[320px] w-auto object-contain filter drop-shadow-[0_4px_25px_rgba(245,158,11,0.3)] transition-transform duration-300 hover:scale-105" 
+              />
             </div>
+          ) : (
+            <CardTitle className="text-3xl font-black tracking-wider uppercase bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent drop-shadow-sm">
+              {brand.nombre}
+            </CardTitle>
           )}
-          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">
-            {brand.nombre}
-          </CardTitle>
-          <p className="text-zinc-400 text-sm">
+          <p className="text-zinc-400 text-sm font-medium tracking-wide">
             Inicia sesión para continuar
           </p>
         </CardHeader>

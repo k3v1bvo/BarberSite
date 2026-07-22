@@ -52,6 +52,7 @@ export default function TiendaPage() {
   const [metodoEntrega, setMetodoEntrega] = useState<'con_reserva'|'recoger'|'envio'>('recoger')
   const [submitting, setSubmitting] = useState(false)
   const [orderSuccess, setOrderSuccess] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null)
 
   const supabase = createClient()
   const router = useRouter()
@@ -379,7 +380,10 @@ export default function TiendaPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {productosFiltrados.map(prod => (
                   <div key={prod.id} className="group bg-white/5 border border-white/5 rounded-2xl overflow-hidden hover:border-amber-500/50 transition-all hover:shadow-[0_0_30px_rgba(245,158,11,0.1)]">
-                    <div className="aspect-square bg-zinc-900 relative">
+                    <div 
+                      onClick={() => setSelectedProduct(prod)}
+                      className="aspect-square bg-zinc-900 relative cursor-pointer overflow-hidden"
+                    >
                       {prod.image_url ? (
                         <img src={prod.image_url} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       ) : (
@@ -396,17 +400,30 @@ export default function TiendaPage() {
                     
                     <div className="p-5">
                       <div className="text-xs text-amber-500 mb-2 font-medium tracking-wider uppercase">{prod.categoria || 'Génico'}</div>
-                      <h3 className="text-lg font-bold mb-1 truncate">{prod.nombre}</h3>
+                      <h3 
+                        onClick={() => setSelectedProduct(prod)}
+                        className="text-lg font-bold mb-1 truncate cursor-pointer hover:text-amber-500 transition-colors"
+                      >
+                        {prod.nombre}
+                      </h3>
                       <p className="text-zinc-400 text-sm mb-4 line-clamp-2 h-10">{prod.descripcion}</p>
                       
                       <div className="flex items-center justify-between mt-auto">
                         <span className="text-2xl font-black">{formatCurrency(prod.precio_venta)}</span>
-                        <button 
-                          onClick={() => addToCart(prod)}
-                          className="w-10 h-10 bg-white/10 hover:bg-amber-500 hover:text-black rounded-full flex items-center justify-center transition-colors"
-                        >
-                          <Plus className="w-5 h-5" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedProduct(prod)}
+                            className="text-xs font-bold text-amber-500 hover:text-amber-400 mr-2"
+                          >
+                            Ver Detalles
+                          </button>
+                          <button 
+                            onClick={() => addToCart(prod)}
+                            className="w-10 h-10 bg-white/10 hover:bg-amber-500 hover:text-black rounded-full flex items-center justify-center transition-colors"
+                          >
+                            <Plus className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -422,6 +439,75 @@ export default function TiendaPage() {
             </>
           )}
         </main>
+
+        {/* Product Details Modal */}
+        {selectedProduct && (
+          <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 backdrop-blur-md">
+            <div className="bg-zinc-950 border border-white/10 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto scrollbar-thin">
+              <button 
+                onClick={() => setSelectedProduct(null)}
+                className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-black/50 hover:bg-white/10 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                {/* Image Section */}
+                <div className="bg-zinc-900 aspect-square md:aspect-auto md:h-full relative flex items-center justify-center">
+                  {selectedProduct.image_url ? (
+                    <img src={selectedProduct.image_url} alt={selectedProduct.nombre} className="w-full h-full object-cover" />
+                  ) : (
+                    <Package className="w-24 h-24 text-zinc-700" />
+                  )}
+                  {selectedProduct.stock_actual < 5 && (
+                    <span className="absolute top-4 left-4 bg-red-500 text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-md">
+                      ¡Últimas {selectedProduct.stock_actual} unidades!
+                    </span>
+                  )}
+                </div>
+
+                {/* Details Section */}
+                <div className="p-6 md:p-8 flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs text-amber-500 font-bold tracking-widest uppercase mb-2 block">
+                      {selectedProduct.categoria || 'Cuidado Personal'}
+                    </span>
+                    <h2 className="text-2xl font-black text-white uppercase tracking-tight mb-3">
+                      {selectedProduct.nombre}
+                    </h2>
+                    
+                    <div className="text-3xl font-black text-amber-400 mb-6">
+                      {formatCurrency(selectedProduct.precio_venta)}
+                    </div>
+
+                    <div className="border-t border-white/5 pt-4">
+                      <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-2">Descripción del producto</p>
+                      <p className="text-zinc-300 text-sm leading-relaxed max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                        {selectedProduct.descripcion || 'Sin descripción detallada disponible.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 pt-4 border-t border-white/5 flex items-center justify-between gap-3">
+                    <Button 
+                      onClick={() => {
+                        addToCart(selectedProduct)
+                        setSelectedProduct(null)
+                      }}
+                      className="flex-1 bg-amber-500 hover:bg-amber-400 text-black py-4 font-black uppercase text-xs tracking-wider rounded-xl shadow-lg shadow-amber-500/10 active:scale-95 transition-all mr-2"
+                    >
+                      Añadir al Carrito
+                    </Button>
+                    
+                    <span className="text-xs text-zinc-500 font-bold uppercase shrink-0">
+                      Stock: {selectedProduct.stock_actual} uds.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </SidebarProvider>
   )
