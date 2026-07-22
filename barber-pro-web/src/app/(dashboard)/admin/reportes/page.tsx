@@ -494,7 +494,7 @@ export default function ReportesPage() {
         </CardHeader>
         <CardContent className="pt-6">
           <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <ComposedChart data={data.finanzasDiarias}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
                 <XAxis dataKey="fecha" stroke="#52525b" fontSize={10} fontStyle="bold" />
@@ -521,7 +521,7 @@ export default function ReportesPage() {
           </CardHeader>
           <CardContent className="pt-6">
             <div className="h-80 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <AreaChart data={data.finanzasDiarias}>
                   <defs>
                     <linearGradient id="colorUtil" x1="0" y1="0" x2="0" y2="1">
@@ -546,7 +546,7 @@ export default function ReportesPage() {
           </CardHeader>
           <CardContent className="pt-6">
             <div className="h-80 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
                     data={data.metodosPago}
@@ -619,7 +619,7 @@ export default function ReportesPage() {
           </CardHeader>
           <CardContent className="pt-6">
             <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={data.ingresosPorDiaArr}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
                   <XAxis dataKey="dia" stroke="#52525b" fontSize={10} fontStyle="bold" />
@@ -639,7 +639,7 @@ export default function ReportesPage() {
           </CardHeader>
           <CardContent className="pt-6">
             <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={data.topServicios} layout="vertical" margin={{ left: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#ffffff05" />
                   <XAxis type="number" hide />
@@ -659,7 +659,7 @@ export default function ReportesPage() {
           </CardHeader>
           <CardContent className="pt-6">
             <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={data.horasPico}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
                   <XAxis dataKey="hora" stroke="#52525b" fontSize={10} fontStyle="bold" />
@@ -725,7 +725,7 @@ export default function ReportesPage() {
           </CardHeader>
           <CardContent>
             <div className="h-32 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie data={data.fidelidadDistribucion} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={50} innerRadius={35}>
                     {data.fidelidadDistribucion.map((entry: any, index: number) => {

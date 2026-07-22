@@ -404,7 +404,7 @@ export default function ClientesAdminPage() {
         </CardHeader>
         <CardContent className="px-4 pb-4">
           <div className="h-28">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={registrosDiarios} margin={{ top: 2, right: 2, left: -30, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
                 <XAxis

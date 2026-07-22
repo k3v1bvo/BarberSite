@@ -727,7 +727,7 @@ export default function BarberoPage() {
             <CardContent className="pt-6">
               {stats.semana.citas > 0 ? (
                 <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <LineChart data={citas.slice(0, 7).reverse()}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
                       <XAxis dataKey="fecha_hora" hide />
