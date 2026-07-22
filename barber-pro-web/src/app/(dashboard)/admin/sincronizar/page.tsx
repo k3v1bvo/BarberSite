@@ -26,6 +26,12 @@ interface Cliente {
   created_at?: string | null
 }
 
+interface OperarioSummary {
+  nombre: string
+  pendientes: number
+  sincronizadas: number
+}
+
 export default function SincronizarHistorialPage() {
   const [tab, setTab] = useState<'barberos' | 'clientes'>('barberos')
   const [barberos, setBarberos] = useState<Barbero[]>([])
@@ -56,33 +62,45 @@ export default function SincronizarHistorialPage() {
 
   // Live Search States
   const [liveOperadores, setLiveOperadores] = useState<string[]>([])
+  const [operadoresSummary, setOperadoresSummary] = useState<OperarioSummary[]>([])
   const [liveClientesAntiguos, setLiveClientesAntiguos] = useState<Cliente[]>([])
   const [liveClientesNuevos, setLiveClientesNuevos] = useState<Cliente[]>([])
 
   const searchOperadoresLive = useCallback(async (term: string) => {
     try {
-      let query = supabase.from('citas').select('notas').is('barbero_id', null).not('notas', 'is', null)
+      let query = supabase.from('citas').select('barbero_id, notas').not('notas', 'is', null)
       if (term.trim()) {
         const t = term.trim()
         query = query.or(`notas.ilike.%Barbero: %${t}%,notas.ilike.%Op: %${t}%,notas.ilike.%${t}%`)
       }
-      const { data } = await query.limit(500)
+      const { data } = await query.limit(1000)
       if (data) {
-        const ops = new Set<string>()
+        const map = new Map<string, { pendientes: number, sincronizadas: number }>()
         data.forEach(cita => {
           if (cita.notas) {
             const match = cita.notas.match(/(?:Barbero:|Op:)\s*([^|.]+)/i)
             if (match && match[1]) {
               const name = match[1].trim().toUpperCase()
               if (!term.trim() || name.includes(term.trim().toUpperCase())) {
-                ops.add(name)
+                const current = map.get(name) || { pendientes: 0, sincronizadas: 0 }
+                if (!cita.barbero_id) {
+                  current.pendientes++
+                } else {
+                  current.sincronizadas++
+                }
+                map.set(name, current)
               }
             }
           }
         })
-        const sortedOps = Array.from(ops).sort()
-        setLiveOperadores(sortedOps)
-        setOperadoresAntiguos(sortedOps)
+        const list: OperarioSummary[] = Array.from(map.entries()).map(([nombre, counts]) => ({
+          nombre,
+          pendientes: counts.pendientes,
+          sincronizadas: counts.sincronizadas
+        })).sort((a, b) => a.nombre.localeCompare(b.nombre))
+
+        setLiveOperadores(list.map(o => o.nombre))
+        setOperadoresSummary(list)
       }
     } catch (err) {
       console.error(err)
@@ -599,7 +617,7 @@ export default function SincronizarHistorialPage() {
         </CardContent>
       </Card>
 
-      {/* ── LISTA DE OPERARIOS PENDIENTES (TAB BARBEROS) ── */}
+      {/* ── LISTA DE OPERARIOS DE EXCEL (TAB BARBEROS) ── */}
       {tab === 'barberos' && (
         <Card className="bg-zinc-900 border-white/5 shadow-2xl">
           <CardHeader>
@@ -607,37 +625,47 @@ export default function SincronizarHistorialPage() {
               <div>
                 <CardTitle className="text-lg text-white font-black uppercase flex items-center gap-2">
                   <Users className="text-amber-500 w-5 h-5" />
-                  Operarios de Excel Pendientes por Vincular
+                  Estado de Operarios Detectados en Excel
                 </CardTitle>
                 <p className="text-xs text-zinc-500 mt-1">
-                  Lista completa de nombres de operarios detectados en citas importadas sin barbero asignado ({operadoresAntiguos.length}).
+                  Lista de operarios de las hojas de Excel y su estado de vinculación ({operadoresSummary.length} detectados).
                 </p>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {operadoresAntiguos.length === 0 ? (
+            {operadoresSummary.length === 0 ? (
               <div className="py-12 text-center text-zinc-600 text-sm">
-                🎉 ¡Excelente! No hay operarios de Excel pendientes por vincular. Todas las citas tienen barbero.
+                Cargando operarios del sistema...
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-96 overflow-y-auto pr-1">
-                {operadoresAntiguos.map((op, idx) => (
+                {operadoresSummary.map((op, idx) => (
                   <div key={idx} className="bg-black/30 border border-white/5 rounded-xl p-3 flex flex-col justify-between gap-2 hover:border-amber-500/30 transition-all">
                     <div>
-                      <p className="font-black text-white text-xs uppercase truncate">{op}</p>
-                      <p className="text-[10px] text-amber-500/80 font-bold uppercase mt-0.5">Nota importada de Excel</p>
+                      <p className="font-black text-white text-xs uppercase truncate">{op.nombre}</p>
+                      <div className="mt-1 flex items-center gap-2 flex-wrap">
+                        {op.pendientes > 0 ? (
+                          <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                            ⚠️ {op.pendientes} citas sin vincular
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                            ✓ {op.sincronizadas} citas vinculadas
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        setNombreAntiguo(op)
+                        setNombreAntiguo(op.nombre)
                         window.scrollTo({ top: 100, behavior: 'smooth' })
                       }}
                       className="w-full h-8 text-[10px] font-black uppercase border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
                     >
-                      ⚡ Vincular a Barbero
+                      {op.pendientes > 0 ? '⚡ Vincular a Barbero' : '⚡ Re-vincular Citas'}
                     </Button>
                   </div>
                 ))}
