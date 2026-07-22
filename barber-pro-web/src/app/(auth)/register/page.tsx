@@ -46,8 +46,8 @@ function RegisterContent() {
           emailRedirectTo: `${window.location.origin}/login`,
           data: {
             full_name: formData.full_name,
-            phone: formData.phone,
-            ci: formData.ci,
+            phone: formData.phone?.trim() || null,
+            ci: formData.ci?.trim() || null,
           },
         },
       })
@@ -81,7 +81,7 @@ function RegisterContent() {
       const { error: clienteError } = await supabase.from('clientes').insert({
         id: authData.user.id,
         nombre: formData.full_name,
-        telefono: formData.phone,
+        telefono: formData.phone?.trim() || null,
         ci: formData.ci?.trim() || null,
         email: formData.email,
         total_visitas: 0,

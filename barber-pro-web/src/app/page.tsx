@@ -32,44 +32,45 @@ import { ServicioGalleryBanner } from '@/components/ui/ServicioGalleryBanner'
 import { useBrand } from '@/components/providers/BrandProvider'
 
 interface UserProfile {
-  full_name: string
+  id: string
   email: string
+  full_name: string | null
   role: string
-  avatar_url?: string
 }
 
 interface Servicio {
   id: string
   nombre: string
-  descripcion: string
   precio: number
   duracion_minutos: number
+  descripcion: string | null
+  categoria?: string
   imagen_url?: string | null
   imagenes?: string[] | null
-  categoria?: string
 }
 
 interface Producto {
   id: string
   nombre: string
   precio_venta: number
+  stock_actual: number
   image_url: string | null
 }
 
 interface PortafolioItem {
   id: string
-  image_url: string
-  categoria: string
-  descripcion: string
+  titulo: string
+  descripcion: string | null
+  imagen_url: string
+  tipo: string
 }
 
 interface EquipoHome {
   id: string
-  nombre: string
-  especialidad: string
-  imagen_url: string
-  descripcion?: string
-  redes_sociales?: any
+  full_name: string
+  avatar_url: string | null
+  role: string
+  especialidad?: string
 }
 
 export default function HomePage() {
@@ -77,6 +78,7 @@ export default function HomePage() {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [servicios, setServicios] = useState<Servicio[]>([])
+  const [selectedServicioForDetail, setSelectedServicioForDetail] = useState<Servicio | null>(null)
   const [productos, setProductos] = useState<Producto[]>([])
   const [portafolio, setPortafolio] = useState<PortafolioItem[]>([])
   const [equipo, setEquipo] = useState<EquipoHome[]>([])

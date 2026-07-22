@@ -10,6 +10,8 @@ import { ShoppingBag, X, Plus, Minus, Truck, Store, Calendar, CreditCard, Packag
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/Toast'
 
+import { ServicioGalleryBanner } from '@/components/ui/ServicioGalleryBanner'
+
 interface Producto {
   id: string
   nombre: string
@@ -18,6 +20,7 @@ interface Producto {
   stock_actual: number
   categoria: string | null
   image_url: string | null
+  imagenes?: string[] | null
 }
 
 interface CartItem extends Producto {
@@ -453,14 +456,26 @@ export default function TiendaPage() {
               
               <div className="grid grid-cols-1 md:grid-cols-2">
                 {/* Image Section */}
-                <div className="bg-zinc-900 aspect-square md:aspect-auto md:h-full relative flex items-center justify-center">
-                  {selectedProduct.image_url ? (
-                    <img src={selectedProduct.image_url} alt={selectedProduct.nombre} className="w-full h-full object-cover" />
-                  ) : (
-                    <Package className="w-24 h-24 text-zinc-700" />
-                  )}
+                <div className="bg-zinc-900 aspect-square md:aspect-auto md:h-full relative flex items-center justify-center overflow-hidden">
+                  {(() => {
+                    const prodImgs = selectedProduct.imagenes && selectedProduct.imagenes.length > 0 
+                      ? selectedProduct.imagenes 
+                      : (selectedProduct.image_url ? [selectedProduct.image_url] : [])
+                    
+                    if (prodImgs.length > 0) {
+                      return (
+                        <ServicioGalleryBanner 
+                          imagenes={prodImgs}
+                          categoria={selectedProduct.categoria || 'Producto'}
+                          aspectRatio="w-full h-full min-h-[280px]"
+                          showBadge={false}
+                        />
+                      )
+                    }
+                    return <Package className="w-24 h-24 text-zinc-700" />
+                  })()}
                   {selectedProduct.stock_actual < 5 && (
-                    <span className="absolute top-4 left-4 bg-red-500 text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-md">
+                    <span className="absolute top-4 left-4 bg-red-500 text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-md z-20">
                       ¡Últimas {selectedProduct.stock_actual} unidades!
                     </span>
                   )}

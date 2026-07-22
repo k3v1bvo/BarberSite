@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { CATEGORIAS_SERVICIOS } from '@/types'
 import { ServicioGalleryBanner } from '@/components/ui/ServicioGalleryBanner'
+import { ServicioDetailModal } from '@/components/ui/ServicioDetailModal'
 
 // Interfaces
 interface Servicio {
@@ -61,6 +62,7 @@ function ReservarContent() {
   const { error: toastError, success: toastSuccess } = useToast()
   
   const [servicios, setServicios] = useState<Servicio[]>([])
+  const [selectedServicioForDetail, setSelectedServicioForDetail] = useState<Servicio | null>(null)
   const [productos, setProductos] = useState<Producto[]>([])
   const [carrito, setCarrito] = useState<ProductoCarrito[]>([])
   const [barberos, setBarberos] = useState<Barbero[]>([])
@@ -664,7 +666,19 @@ function ReservarContent() {
                                 </div>
                                 <div className="flex justify-between items-center mt-4 pt-4 border-t border-zinc-800/50">
                                   <span className="text-amber-400 font-black text-xl tracking-tight">{formatCurrency(s.precio)}</span>
-                                  <span className="text-xs font-bold text-zinc-400 bg-zinc-950 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-inner"><Clock className="w-3.5 h-3.5 text-amber-500"/> {s.duracion_minutos} min</span>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setSelectedServicioForDetail(s)
+                                      }}
+                                      className="text-[11px] font-black uppercase text-amber-500 hover:text-amber-300 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 transition-all hover:scale-105"
+                                    >
+                                      🔍 Detalles
+                                    </button>
+                                    <span className="text-xs font-bold text-zinc-400 bg-zinc-950 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-inner"><Clock className="w-3.5 h-3.5 text-amber-500"/> {s.duracion_minutos} min</span>
+                                  </div>
                                 </div>
                               </div>
                               )
@@ -1222,6 +1236,16 @@ function ReservarContent() {
           )}
         </div>
       </div>
+      
+      {/* Servicio Detail Modal */}
+      <ServicioDetailModal 
+        servicio={selectedServicioForDetail} 
+        onClose={() => setSelectedServicioForDetail(null)} 
+        onSelect={(srv) => { 
+          setFormData({ ...formData, servicio_id: srv.id, barbero_id: '' })
+          setTimeout(() => setStep(2), 250)
+        }} 
+      />
     </div>
   )
 }

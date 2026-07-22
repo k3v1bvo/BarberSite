@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, Edit, Trash2, Package, AlertTriangle, ArrowLeft, X, Save, Search, Filter } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import { MultiImageUpload } from '@/components/ui/MultiImageUpload'
 import { Modal } from '@/components/ui/Modal'
 
 interface Producto {
@@ -24,6 +25,7 @@ interface Producto {
   precio_venta: number
   categoria: string | null
   image_url: string | null
+  imagenes?: string[] | null
   is_active: boolean
 }
 
@@ -43,6 +45,7 @@ export default function ProductosPage() {
     precio_venta: 0,
     categoria: '',
     image_url: '',
+    imagenes: [] as string[],
   })
   const router = useRouter()
   const supabase = createClient()
@@ -90,7 +93,8 @@ export default function ProductosPage() {
             precio_costo: formData.precio_costo,
             precio_venta: formData.precio_venta,
             categoria: formData.categoria || null,
-            image_url: formData.image_url || null,
+            image_url: formData.imagenes?.[0] || formData.image_url || null,
+            imagenes: formData.imagenes || null,
           })
           .eq('id', editingProducto.id)
 
@@ -107,7 +111,8 @@ export default function ProductosPage() {
             precio_costo: formData.precio_costo,
             precio_venta: formData.precio_venta,
             categoria: formData.categoria || null,
-            image_url: formData.image_url || null,
+            image_url: formData.imagenes?.[0] || formData.image_url || null,
+            imagenes: formData.imagenes || null,
             is_active: true,
           })
 
@@ -126,6 +131,7 @@ export default function ProductosPage() {
         precio_venta: 0,
         categoria: '',
         image_url: '',
+        imagenes: [],
       })
       toastSuccess(editingProducto ? 'Producto actualizado con éxito' : 'Producto creado con éxito')
       loadProductos()
@@ -350,6 +356,7 @@ export default function ProductosPage() {
                                 precio_venta: producto.precio_venta,
                                 categoria: producto.categoria || '',
                                 image_url: producto.image_url || '',
+                                imagenes: producto.imagenes || (producto.image_url ? [producto.image_url] : []),
                               })
                               setShowModal(true)
                             }}
@@ -416,12 +423,29 @@ export default function ProductosPage() {
               onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
               className="bg-zinc-900"
             />
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 space-y-4">
               <ImageUpload
-                label="Foto del Producto"
+                label="Foto Principal del Producto"
                 defaultImage={formData.image_url || undefined}
-                onUploadSuccess={(url) => setFormData({ ...formData, image_url: url })}
+                onUploadSuccess={(url) => {
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    image_url: url,
+                    imagenes: prev.imagenes.length === 0 ? [url] : prev.imagenes 
+                  }))
+                }}
                 onUploadError={(err) => toastError(err)}
+              />
+              <MultiImageUpload
+                images={formData.imagenes}
+                onImagesChange={(imgs) => {
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    imagenes: imgs,
+                    image_url: imgs[0] || prev.image_url 
+                  }))
+                }}
+                label="Galería de Fotos Adicionales (1 o más)"
               />
             </div>
             <div className="md:col-span-2 space-y-2">
