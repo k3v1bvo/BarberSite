@@ -189,7 +189,7 @@ export default function AdminPortafolioPage() {
         {items.map(item => (
           <Card key={item.id} className={cn(
             "group relative overflow-hidden bg-zinc-900 border-white/5 shadow-2xl transition-all card-hover rounded-3xl",
-            (!item.is_active || item.deleted_at) && "opacity-50"
+            !item.is_active && "opacity-50"
           )}>
             <div className="aspect-[4/5] bg-zinc-800 relative overflow-hidden">
               <img 
@@ -204,47 +204,34 @@ export default function AdminPortafolioPage() {
               <Badge variant="warning" className="absolute top-4 left-4 bg-amber-500 text-black border-none uppercase font-black text-[10px] tracking-widest px-3 py-1 shadow-xl">
                 {item.categoria}
               </Badge>
-
-              {item.deleted_at ? (
-                <Badge variant="outline" className="absolute top-4 right-4 bg-red-500/80 text-white border-red-400 uppercase font-black text-[10px] tracking-widest px-3 py-1">
-                  Eliminado
+              {!item.is_active && (
+                <Badge variant="outline" className="absolute top-4 right-4 bg-red-500/20 text-red-400 border-red-500/30 uppercase font-black text-[10px] tracking-widest px-3 py-1">
+                  Inactivo
                 </Badge>
-              ) : !item.is_active ? (
-                <Badge variant="outline" className="absolute top-4 right-4 bg-zinc-500/20 text-zinc-300 border-zinc-500/30 uppercase font-black text-[10px] tracking-widest px-3 py-1">
-                  Oculto
-                </Badge>
-              ) : null}
+              )}
 
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-sm gap-3">
-                {item.deleted_at ? (
-                  <button
-                    onClick={() => restoreItem(item.id)}
-                    className="w-12 h-12 rounded-full bg-green-500 text-white flex items-center justify-center shadow-2xl hover:bg-green-600 transition-colors"
-                  >
-                    <RotateCcw className="w-5 h-5" />
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => { setEditing(item); setFormData({ image_url: item.image_url, categoria: item.categoria, descripcion: item.descripcion, barbero_id: item.barbero_id, titulo: item.titulo || '', sort_order: item.sort_order ?? 0, is_active: item.is_active !== false }); setShowModal(true) }}
-                      className="w-12 h-12 rounded-full bg-amber-500 text-black flex items-center justify-center shadow-2xl"
-                    >
-                      <Edit className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => toggleActive(item)}
-                      className="w-12 h-12 rounded-full bg-zinc-800 text-white flex items-center justify-center shadow-2xl"
-                    >
-                      {item.is_active === false ? <Eye size={18} /> : <EyeOff size={18} />}
-                    </button>
-                    <button
-                      onClick={() => deleteItem(item.id)}
-                      className="w-12 h-12 rounded-full bg-red-500 text-white flex items-center justify-center shadow-2xl hover:bg-red-600 transition-colors"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={() => { setEditing(item); setFormData({ image_url: item.image_url, categoria: item.categoria, descripcion: item.descripcion, barbero_id: item.barbero_id, titulo: item.titulo || '', sort_order: item.sort_order ?? 0, is_active: item.is_active !== false }); setShowModal(true) }}
+                  className="w-12 h-12 rounded-full bg-amber-500 text-black flex items-center justify-center shadow-2xl hover:scale-110 transition-transform"
+                  title="Editar publicación"
+                >
+                  <Edit className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => toggleActive(item)}
+                  className="w-12 h-12 rounded-full bg-zinc-800 text-white flex items-center justify-center shadow-2xl hover:bg-zinc-700 transition-colors"
+                  title={item.is_active ? 'Ocultar' : 'Visibilizar'}
+                >
+                  {item.is_active ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5 text-amber-400" />}
+                </button>
+                <button
+                  onClick={() => deleteItem(item.id)}
+                  className="w-12 h-12 rounded-full bg-red-500 text-white flex items-center justify-center shadow-2xl hover:bg-red-600 transition-colors"
+                  title="Eliminar permanentemente"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
               </div>
             </div>
 
