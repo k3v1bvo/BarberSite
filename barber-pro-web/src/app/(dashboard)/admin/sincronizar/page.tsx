@@ -21,12 +21,14 @@ interface Cliente {
   telefono: string | null
   ci: string | null
   total_visitas: number
+  created_at?: string | null
 }
 
 export default function SincronizarHistorialPage() {
   const [tab, setTab] = useState<'barberos' | 'clientes'>('barberos')
   const [barberos, setBarberos] = useState<Barbero[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
+  const [searchFilterList, setSearchFilterList] = useState('')
   
   // States Barbero
   const [selectedBarbero, setSelectedBarbero] = useState<string>('')
@@ -50,39 +52,89 @@ export default function SincronizarHistorialPage() {
   const { success, error: toastError } = useToast()
   const supabase = createClient()
 
-  const loadDatos = useCallback(async () => {
+  // Live Search States
+  const [liveOperadores, setLiveOperadores] = useState<string[]>([])
+  const [liveClientesAntiguos, setLiveClientesAntiguos] = useState<Cliente[]>([])
+  const [liveClientesNuevos, setLiveClientesNuevos] = useState<Cliente[]>([])
+
+  const searchOperadoresLive = useCallback(async (term: string) => {
     try {
-      const [barberosRes, clientesRes, citasRes] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, email').in('role', ['barbero', 'coordinador']).order('full_name'),
-        supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas').order('nombre').range(0, 9999),
-        supabase.from('citas').select('notas').is('barbero_id', null).ilike('notas', '%Op:%').range(0, 49999)
-      ])
-      
-      if (barberosRes.error) throw barberosRes.error
-      if (clientesRes.error) throw clientesRes.error
-
-      setBarberos(barberosRes.data || [])
-      setClientes(clientesRes.data || [])
-
-      if (citasRes.data) {
-        const uniqueOps = new Set<string>()
-        citasRes.data.forEach(cita => {
+      let query = supabase.from('citas').select('notas').is('barbero_id', null).ilike('notas', '%Op:%')
+      if (term.trim()) {
+        query = query.ilike('notas', `%Op:%${term.trim()}%`)
+      }
+      const { data } = await query.limit(300)
+      if (data) {
+        const ops = new Set<string>()
+        data.forEach(cita => {
           if (cita.notas) {
             const match = cita.notas.match(/Op:\s*([^.]+)\./)
             if (match && match[1]) {
-              uniqueOps.add(match[1].trim().toUpperCase())
+              const name = match[1].trim().toUpperCase()
+              if (!term.trim() || name.includes(term.trim().toUpperCase())) {
+                ops.add(name)
+              }
             }
           }
         })
-        setOperadoresAntiguos(Array.from(uniqueOps).sort())
+        setLiveOperadores(Array.from(ops).sort())
       }
     } catch (err) {
+      console.error(err)
+    }
+  }, [supabase])
+
+  const searchClientesLive = useCallback(async (term: string, target: 'antiguo' | 'nuevo') => {
+    try {
+      let query = supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas, created_at')
+      if (term.trim()) {
+        const t = term.trim()
+        query = query.or(`nombre.ilike.%${t}%,ci.ilike.%${t}%,telefono.ilike.%${t}%,email.ilike.%${t}%`)
+      }
+      const { data } = await query.order('created_at', { ascending: false }).limit(50)
+      if (data) {
+        if (target === 'antiguo') setLiveClientesAntiguos(data)
+        else setLiveClientesNuevos(data)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }, [supabase])
+
+  const loadDatos = useCallback(async () => {
+    try {
+      // 1. Cargar barberos
+      const { data: bData, error: bErr } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('role', ['barbero', 'coordinador'])
+        .order('full_name')
+      if (bErr) throw bErr
+      setBarberos(bData || [])
+
+      // 2. Cargar primeros clientes para estado inicial
+      const { data: cData } = await supabase
+        .from('clientes')
+        .select('id, nombre, email, telefono, ci, total_visitas, created_at')
+        .order('created_at', { ascending: false })
+        .limit(100)
+      
+      if (cData) {
+        setClientes(cData)
+        setLiveClientesAntiguos(cData)
+        setLiveClientesNuevos(cData)
+      }
+
+      // 3. Cargar primeros operarios para estado inicial
+      searchOperadoresLive('')
+
+    } catch (err) {
       console.error('Error loading data:', err)
-      toastError('Error al cargar datos')
+      toastError('Error al cargar datos de sincronización')
     } finally {
       setLoading(false)
     }
-  }, [supabase, toastError])
+  }, [supabase, toastError, searchOperadoresLive])
 
   useEffect(() => {
     loadDatos()
@@ -248,13 +300,18 @@ export default function SincronizarHistorialPage() {
                     <input
                       type="text"
                       required
-                      placeholder="Ej: JHOEL LEÓN MORUCHE"
+                      placeholder="Escribe para buscar operario... (Ej: JHOEL)"
                       value={nombreAntiguo}
                       onChange={(e) => {
-                        setNombreAntiguo(e.target.value.toUpperCase())
+                        const val = e.target.value.toUpperCase()
+                        setNombreAntiguo(val)
                         setShowOperadoresDropdown(true)
+                        searchOperadoresLive(val)
                       }}
-                      onFocus={() => setShowOperadoresDropdown(true)}
+                      onFocus={() => {
+                        setShowOperadoresDropdown(true)
+                        searchOperadoresLive(nombreAntiguo)
+                      }}
                       onBlur={() => setTimeout(() => setShowOperadoresDropdown(false), 200)}
                       className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all uppercase"
                     />
@@ -262,27 +319,24 @@ export default function SincronizarHistorialPage() {
                     {/* Dropdown Operadores Antiguos */}
                     {showOperadoresDropdown && (
                       <div className="absolute z-50 w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
-                        {operadoresAntiguos
-                          .filter(op => op.toUpperCase().includes(nombreAntiguo.toUpperCase()))
-                          .slice(0, 100)
-                          .map((op, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-amber-500/10 hover:text-amber-400 transition-colors border-b border-white/5 last:border-0"
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                setNombreAntiguo(op)
-                                setShowOperadoresDropdown(false)
-                              }}
-                            >
-                              <div className="font-bold uppercase text-white">{op}</div>
-                              <div className="text-[10px] text-amber-500/80 mt-0.5">Operario importado de Excel</div>
-                            </button>
-                          ))}
-                        {operadoresAntiguos.filter(op => op.toUpperCase().includes(nombreAntiguo.toUpperCase())).length === 0 && (
+                        {liveOperadores.map((op, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-amber-500/10 hover:text-amber-400 transition-colors border-b border-white/5 last:border-0"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              setNombreAntiguo(op)
+                              setShowOperadoresDropdown(false)
+                            }}
+                          >
+                            <div className="font-bold uppercase text-white">{op}</div>
+                            <div className="text-[10px] text-amber-500/80 mt-0.5">Operario detectado en citas pasadas</div>
+                          </button>
+                        ))}
+                        {liveOperadores.length === 0 && (
                           <div className="px-4 py-3 text-sm text-zinc-500 text-center">
-                            {nombreAntiguo ? 'Escribe o presiona Sincronizar para vincular este nombre exacto' : 'Escribe el nombre del operario'}
+                            {nombreAntiguo ? 'Escribe o presiona Sincronizar para vincular este nombre exacto' : 'Escribe para buscar...'}
                           </div>
                         )}
                       </div>
@@ -383,14 +437,19 @@ export default function SincronizarHistorialPage() {
                     <input
                       type="text"
                       required
-                      placeholder="Buscar Cliente..."
+                      placeholder="Escribe nombre, CI o teléfono... (Ej: PEREZ)"
                       value={searchClienteAntiguo}
                       onChange={(e) => {
-                        setSearchClienteAntiguo(e.target.value)
+                        const val = e.target.value
+                        setSearchClienteAntiguo(val)
                         setClienteAntiguoId('')
                         setShowClienteAntiguoDropdown(true)
+                        searchClientesLive(val, 'antiguo')
                       }}
-                      onFocus={() => setShowClienteAntiguoDropdown(true)}
+                      onFocus={() => {
+                        setShowClienteAntiguoDropdown(true)
+                        searchClientesLive(searchClienteAntiguo, 'antiguo')
+                      }}
                       onBlur={() => setTimeout(() => setShowClienteAntiguoDropdown(false), 200)}
                       className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-red-500/50 outline-none transition-all uppercase"
                     />
@@ -398,29 +457,29 @@ export default function SincronizarHistorialPage() {
                     {/* Dropdown Cliente Antiguo */}
                     {showClienteAntiguoDropdown && (
                       <div className="absolute z-50 w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
-                        {clientes
-                          .filter(c => c.nombre.toUpperCase().includes(searchClienteAntiguo.toUpperCase()) || c.ci?.includes(searchClienteAntiguo) || c.telefono?.includes(searchClienteAntiguo))
-                          .slice(0, 50)
-                          .map((c) => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-red-500/10 hover:text-red-400 transition-colors border-b border-white/5 last:border-0"
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                setClienteAntiguoId(c.id)
-                                setSearchClienteAntiguo(`${c.nombre} ${c.ci ? `(C.I. ${c.ci})` : c.telefono ? `(${c.telefono})` : ''}`)
-                                setShowClienteAntiguoDropdown(false)
-                              }}
-                            >
-                              <div className="font-bold uppercase text-white">{c.nombre}</div>
-                              <div className="text-[10px] text-zinc-500 mt-0.5">
-                                {c.ci && <span className="mr-2">CI: {c.ci}</span>}
-                                {c.telefono && <span className="mr-2">Tel: {c.telefono}</span>}
-                                <span>Visitas: {c.total_visitas}</span>
-                              </div>
-                            </button>
-                          ))}
+                        {liveClientesAntiguos.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-red-500/10 hover:text-red-400 transition-colors border-b border-white/5 last:border-0"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              setClienteAntiguoId(c.id)
+                              setSearchClienteAntiguo(`${c.nombre} ${c.ci ? `(C.I. ${c.ci})` : c.telefono ? `(${c.telefono})` : ''}`)
+                              setShowClienteAntiguoDropdown(false)
+                            }}
+                          >
+                            <div className="font-bold uppercase text-white">{c.nombre}</div>
+                            <div className="text-[10px] text-zinc-500 mt-0.5">
+                              {c.ci && <span className="mr-2">CI: {c.ci}</span>}
+                              {c.telefono && <span className="mr-2">Tel: {c.telefono}</span>}
+                              <span>Visitas: {c.total_visitas}</span>
+                            </div>
+                          </button>
+                        ))}
+                        {liveClientesAntiguos.length === 0 && (
+                          <div className="px-4 py-3 text-sm text-zinc-500 text-center">No se encontraron clientes coincidentes</div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -441,14 +500,19 @@ export default function SincronizarHistorialPage() {
                     <input
                       type="text"
                       required
-                      placeholder="Buscar Cliente..."
+                      placeholder="Escribe nombre, CI o teléfono..."
                       value={searchClienteNuevo}
                       onChange={(e) => {
-                        setSearchClienteNuevo(e.target.value)
+                        const val = e.target.value
+                        setSearchClienteNuevo(val)
                         setClienteNuevoId('')
                         setShowClienteNuevoDropdown(true)
+                        searchClientesLive(val, 'nuevo')
                       }}
-                      onFocus={() => setShowClienteNuevoDropdown(true)}
+                      onFocus={() => {
+                        setShowClienteNuevoDropdown(true)
+                        searchClientesLive(searchClienteNuevo, 'nuevo')
+                      }}
                       onBlur={() => setTimeout(() => setShowClienteNuevoDropdown(false), 200)}
                       className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-green-500/50 outline-none transition-all uppercase"
                     />
@@ -456,29 +520,29 @@ export default function SincronizarHistorialPage() {
                     {/* Dropdown Cliente Nuevo */}
                     {showClienteNuevoDropdown && (
                       <div className="absolute z-50 w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
-                        {clientes
-                          .filter(c => c.nombre.toUpperCase().includes(searchClienteNuevo.toUpperCase()) || c.ci?.includes(searchClienteNuevo) || c.telefono?.includes(searchClienteNuevo))
-                          .slice(0, 50)
-                          .map((c) => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-green-500/10 hover:text-green-400 transition-colors border-b border-white/5 last:border-0"
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                setClienteNuevoId(c.id)
-                                setSearchClienteNuevo(`${c.nombre} ${c.ci ? `(C.I. ${c.ci})` : c.telefono ? `(${c.telefono})` : ''}`)
-                                setShowClienteNuevoDropdown(false)
-                              }}
-                            >
-                              <div className="font-bold uppercase text-white">{c.nombre}</div>
-                              <div className="text-[10px] text-zinc-500 mt-0.5">
-                                {c.ci && <span className="mr-2">CI: {c.ci}</span>}
-                                {c.telefono && <span className="mr-2">Tel: {c.telefono}</span>}
-                                <span>Visitas: {c.total_visitas}</span>
-                              </div>
-                            </button>
-                          ))}
+                        {liveClientesNuevos.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-green-500/10 hover:text-green-400 transition-colors border-b border-white/5 last:border-0"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              setClienteNuevoId(c.id)
+                              setSearchClienteNuevo(`${c.nombre} ${c.ci ? `(C.I. ${c.ci})` : c.telefono ? `(${c.telefono})` : ''}`)
+                              setShowClienteNuevoDropdown(false)
+                            }}
+                          >
+                            <div className="font-bold uppercase text-white">{c.nombre}</div>
+                            <div className="text-[10px] text-zinc-500 mt-0.5">
+                              {c.ci && <span className="mr-2">CI: {c.ci}</span>}
+                              {c.telefono && <span className="mr-2">Tel: {c.telefono}</span>}
+                              <span>Visitas: {c.total_visitas}</span>
+                            </div>
+                          </button>
+                        ))}
+                        {liveClientesNuevos.length === 0 && (
+                          <div className="px-4 py-3 text-sm text-zinc-500 text-center">No se encontraron clientes coincidentes</div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -563,42 +627,66 @@ export default function SincronizarHistorialPage() {
       {/* ── LISTA Y ESTADO DE CLIENTES (TAB CLIENTES) ── */}
       {tab === 'clientes' && (
         <Card className="bg-zinc-900 border-white/5 shadow-2xl">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <CardHeader className="border-b border-white/5 pb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <CardTitle className="text-lg text-white font-black uppercase flex items-center gap-2">
                   <Users className="text-amber-500 w-5 h-5" />
-                  Estado de Clientes y Auto-Sincronización
+                  Últimos Clientes Registrados y Auto-Sync
                 </CardTitle>
                 <p className="text-xs text-zinc-500 mt-1">
-                  Revisa los clientes registrados y fuerza la sincronización por CI o Correo con 1 clic ({clientes.length} registrados).
+                  Lista ordenada con los registros más recientes primero ({clientes.length} clientes en total).
                 </p>
+              </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder="Buscar en lista..."
+                  value={searchFilterList}
+                  onChange={(e) => setSearchFilterList(e.target.value)}
+                  className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl pl-9 pr-3 text-xs font-bold text-white focus:border-amber-500/50 outline-none uppercase"
+                />
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-4 space-y-4">
             <div className="divide-y divide-white/5 max-h-96 overflow-y-auto pr-1">
-              {clientes.slice(0, 100).map((c) => (
-                <div key={c.id} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-white/[0.02] px-2 rounded-lg transition-colors">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-bold text-white text-sm uppercase">{c.nombre}</p>
-                      {c.ci ? (
-                        <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                          ✓ CI: {c.ci} (Sincronizado)
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                          ⚠️ Sin CI
-                        </span>
-                      )}
+              {clientes
+                .filter(c => 
+                  !searchFilterList || 
+                  c.nombre.toUpperCase().includes(searchFilterList.toUpperCase()) || 
+                  c.ci?.includes(searchFilterList) || 
+                  c.email?.toUpperCase().includes(searchFilterList.toUpperCase()) ||
+                  c.telefono?.includes(searchFilterList)
+                )
+                .slice(0, 100)
+                .map((c) => (
+                  <div key={c.id} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-white/[0.02] px-2 rounded-lg transition-colors">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-white text-sm uppercase">{c.nombre}</p>
+                        {c.ci ? (
+                          <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                            ✓ CI: {c.ci} (Sincronizado)
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                            ⚠️ Sin CI (Manual)
+                          </span>
+                        )}
+                        {c.created_at && (
+                          <span className="text-[9px] font-bold text-zinc-500 bg-white/5 px-2 py-0.5 rounded-full">
+                            {new Date(c.created_at).toLocaleDateString('es-BO', { day: '2-digit', month: 'short' })}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-[11px] text-zinc-500 flex-wrap">
+                        {c.email && <span>{c.email}</span>}
+                        {c.telefono && <span>Tel: {c.telefono}</span>}
+                        <span className="text-amber-500/90 font-bold">Visitas: {c.total_visitas || 0}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-[11px] text-zinc-500 flex-wrap">
-                      {c.email && <span>{c.email}</span>}
-                      {c.telefono && <span>Tel: {c.telefono}</span>}
-                      <span className="text-amber-500/90 font-bold">Visitas: {c.total_visitas || 0}</span>
-                    </div>
-                  </div>
 
                   <div className="flex items-center gap-2 shrink-0">
                     <Button

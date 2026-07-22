@@ -20,30 +20,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Faltan parámetros requeridos' }, { status: 400 })
     }
 
-    // El patrón exacto es algo como 'Importado Excel. Op: NOMBRE_ANTIGUO. Glosa...'
-    // Haremos LIKE '%Op: NOMBRE_ANTIGUO.%' para ser seguros
-    const searchPattern = `%Op: ${nombre_antiguo}.%`
+    // El patrón busca cualquier cita donde la nota contenga Op: NOMBRE_ANTIGUO
+    const searchPattern = `%Op: ${nombre_antiguo.trim()}%`
 
-    // Primero consultamos cuántas hay para poder reportar
+    // Consultamos las citas que corresponden a este operario
     const { data: citasToUpdate, error: searchError } = await supabase
       .from('citas')
       .select('id')
       .is('barbero_id', null)
       .ilike('notas', searchPattern)
+      .range(0, 9999)
 
     if (searchError) throw searchError
 
     if (!citasToUpdate || citasToUpdate.length === 0) {
       return NextResponse.json({ 
         success: true, 
-        message: 'No se encontraron citas huérfanas con ese nombre exacto.',
+        message: `No se encontraron citas pendientes para "${nombre_antiguo}".`,
         count: 0 
       })
     }
 
     const idsToUpdate = citasToUpdate.map(c => c.id)
 
-    // Actualizamos
+    // Actualizamos masivamente
     const { error: updateError } = await supabase
       .from('citas')
       .update({ barbero_id: nuevo_barbero_id })
