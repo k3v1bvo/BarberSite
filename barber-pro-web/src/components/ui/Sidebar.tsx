@@ -238,25 +238,34 @@ export function Sidebar({ role, userId }: SidebarProps) {
             href={role === 'admin' ? '/admin' : '/'}
             onClick={isMobile ? closeMobile : undefined}
             className={cn(
-              'flex items-center text-amber-500 font-black tracking-tighter glow-amber transition-all duration-300',
-              isCollapsed ? 'justify-center text-base' : 'gap-3 text-xl'
+              'flex text-amber-500 font-black tracking-tighter transition-all duration-300',
+              isCollapsed
+                ? 'justify-center items-center text-base'
+                : brand.mostrar_modo === 'ambos'
+                  ? 'flex-col items-start gap-1'
+                  : 'flex-row items-center gap-3 text-xl'
             )}
           >
             {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
               <img
                 src={brand.logo_url}
                 alt={brand.nombre}
-                className={cn('object-contain shrink-0 transition-all', isCollapsed ? 'w-7 h-7' : 'h-8 max-w-[140px]')}
+                className={cn(
+                  'object-contain shrink-0 transition-all mix-blend-screen',
+                  isCollapsed ? 'w-8 h-8' : brand.mostrar_modo === 'ambos' ? 'h-9 max-w-[160px]' : 'h-10 max-w-[180px]'
+                )}
               />
             ) : (
-              <Scissors className={cn('shrink-0', isCollapsed ? 'w-6 h-6' : 'w-7 h-7')} />
+              <Scissors className={cn('shrink-0 text-amber-500', isCollapsed ? 'w-6 h-6' : 'w-7 h-7')} />
             )}
             {!isCollapsed && (brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
-              <span className="sidebar-label truncate">{brand.nombre}</span>
+              <span className={cn('sidebar-label font-bold text-amber-400 truncate', brand.mostrar_modo === 'ambos' ? 'text-xs tracking-wider uppercase opacity-90' : 'text-lg')}>
+                {brand.nombre}
+              </span>
             )}
           </Link>
           {!isCollapsed && (
-            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-2 ml-1 sidebar-label">
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1 ml-0.5 sidebar-label">
               {areaLabel}
             </p>
           )}
