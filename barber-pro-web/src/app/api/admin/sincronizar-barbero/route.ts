@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
@@ -21,16 +22,20 @@ export async function POST(request: NextRequest) {
     }
 
     const namePattern = nombre_antiguo.trim()
+    const db = createAdminSupabaseClient() || supabase
 
-    // Consultamos las citas que corresponden a este operario (acepta Barbero: o Op:)
-    const { data: citasToUpdate, error: searchError } = await supabase
+    // Consultamos las citas que corresponden a este operario
+    const { data: citasToUpdate, error: searchError } = await db
       .from('citas')
       .select('id')
       .is('barbero_id', null)
-      .or(`notas.ilike.%Barbero: ${namePattern}%,notas.ilike.%Op: ${namePattern}%,notas.ilike.%${namePattern}%`)
+      .ilike('notas', `%${namePattern}%`)
       .range(0, 9999)
 
-    if (searchError) throw searchError
+    if (searchError) {
+      console.error('Error buscando citas:', searchError)
+      throw searchError
+    }
 
     if (!citasToUpdate || citasToUpdate.length === 0) {
       return NextResponse.json({ 
@@ -42,18 +47,27 @@ export async function POST(request: NextRequest) {
 
     const idsToUpdate = citasToUpdate.map(c => c.id)
 
-    // Actualizamos masivamente
-    const { error: updateError } = await supabase
-      .from('citas')
-      .update({ barbero_id: nuevo_barbero_id })
-      .in('id', idsToUpdate)
+    // Actualizamos masivamente en bloques de 500
+    let updatedCount = 0
+    const chunkSize = 500
+    for (let i = 0; i < idsToUpdate.length; i += chunkSize) {
+      const chunk = idsToUpdate.slice(i, i + chunkSize)
+      const { error: updateError } = await db
+        .from('citas')
+        .update({ barbero_id: nuevo_barbero_id })
+        .in('id', chunk)
 
-    if (updateError) throw updateError
+      if (updateError) {
+        console.error('Error actualizando citas chunk:', updateError)
+        throw updateError
+      }
+      updatedCount += chunk.length
+    }
 
     return NextResponse.json({ 
       success: true, 
-      message: `¡Se sincronizaron ${idsToUpdate.length} citas exitosamente!`,
-      count: idsToUpdate.length
+      message: `¡Se sincronización exitosa! ${updatedCount} citas fueron vinculadas al barbero.`,
+      count: updatedCount
     })
 
   } catch (error: any) {
