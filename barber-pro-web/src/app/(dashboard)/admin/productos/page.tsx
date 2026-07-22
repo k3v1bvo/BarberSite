@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, toTitleCase } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { Plus, Edit, Trash2, Package, AlertTriangle, ArrowLeft, X, Save, Search, Filter } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
@@ -82,7 +82,7 @@ export default function ProductosPage() {
         const { error } = await supabase
           .from('productos')
           .update({
-            nombre: formData.nombre,
+            nombre: toTitleCase(formData.nombre),
             sku: cleanSku,
             descripcion: formData.descripcion || null,
             stock_actual: formData.stock_actual,
@@ -99,7 +99,7 @@ export default function ProductosPage() {
         const { error } = await supabase
           .from('productos')
           .insert({
-            nombre: formData.nombre,
+            nombre: toTitleCase(formData.nombre),
             sku: cleanSku,
             descripcion: formData.descripcion || null,
             stock_actual: formData.stock_actual,

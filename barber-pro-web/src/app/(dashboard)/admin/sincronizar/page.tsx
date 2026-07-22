@@ -12,6 +12,8 @@ interface Barbero {
   id: string
   full_name: string
   email: string
+  role?: string
+  citasCount?: number
 }
 
 interface Cliente {
@@ -106,14 +108,32 @@ export default function SincronizarHistorialPage() {
 
   const loadDatos = useCallback(async () => {
     try {
-      // 1. Cargar barberos
+      // 1. Cargar barberos y coordinadores con conteo de citas vinculadas
       const { data: bData, error: bErr } = await supabase
         .from('profiles')
-        .select('id, full_name, email')
+        .select('id, full_name, email, role')
         .in('role', ['barbero', 'coordinador'])
         .order('full_name')
       if (bErr) throw bErr
-      setBarberos(bData || [])
+
+      const { data: citasBarberos } = await supabase
+        .from('citas')
+        .select('barbero_id')
+        .not('barbero_id', 'is', null)
+
+      const countsMap: Record<string, number> = {}
+      citasBarberos?.forEach(c => {
+        if (c.barbero_id) {
+          countsMap[c.barbero_id] = (countsMap[c.barbero_id] || 0) + 1
+        }
+      })
+
+      const barberosWithCounts = (bData || []).map(b => ({
+        ...b,
+        citasCount: countsMap[b.id] || 0
+      }))
+
+      setBarberos(barberosWithCounts)
 
       // 2. Cargar primeros clientes para estado inicial
       const { data: cData } = await supabase
@@ -623,6 +643,65 @@ export default function SincronizarHistorialPage() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── LISTA DE BARBEROS Y COORDINADORES (TAB BARBEROS) ── */}
+      {tab === 'barberos' && (
+        <Card className="bg-zinc-900 border-white/5 shadow-2xl">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <CardTitle className="text-lg text-white font-black uppercase flex items-center gap-2">
+                  <Users className="text-amber-500 w-5 h-5" />
+                  Barberos y Coordinadores Sincronizados
+                </CardTitle>
+                <p className="text-xs text-zinc-500 mt-1">
+                  Lista de perfiles del sistema y la cantidad total de citas históricas vinculadas a cada uno ({barberos.length} perfiles).
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-96 overflow-y-auto pr-1">
+              {barberos.map((b) => (
+                <div key={b.id} className="bg-black/30 border border-white/5 rounded-xl p-3 flex flex-col justify-between gap-2 hover:border-green-500/30 transition-all">
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-black text-white text-xs uppercase truncate">{b.full_name}</p>
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-white/5 text-zinc-400">
+                        {b.role || 'Barbero'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-zinc-500 truncate mt-0.5">{b.email}</p>
+                    <div className="mt-2">
+                      {(b.citasCount ?? 0) > 0 ? (
+                        <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-lg inline-block">
+                          ✓ {b.citasCount} citas vinculadas
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-zinc-500 bg-zinc-800 border border-zinc-700 px-2 py-1 rounded-lg inline-block">
+                          0 citas vinculadas
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedBarbero(b.id)
+                      setSearchBarbero(`${b.full_name} (${b.email})`)
+                      window.scrollTo({ top: 100, behavior: 'smooth' })
+                    }}
+                    className="w-full h-8 text-[10px] font-black uppercase border-green-500/30 text-green-400 hover:bg-green-500/10 mt-1"
+                  >
+                    ⚡ Seleccionar Perfil
+                  </Button>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

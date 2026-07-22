@@ -34,6 +34,20 @@ export function getInitials(name: string): string {
     .slice(0, 2)
 }
 
+/**
+ * Convierte cualquier texto a formato Título / Mayúscula en cada palabra.
+ * Ej: "corte de cabello clasico" -> "Corte De Cabello Clasico"
+ */
+export function toTitleCase(str: string | null | undefined): string {
+  if (!str) return ''
+  return str
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
 export function getTodayBolivia(): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/La_Paz',

@@ -278,7 +278,7 @@ export default function HomePage() {
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-3">
               {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
-                <img src={brand.logo_url} alt={brand.nombre} className="h-10 max-w-[160px] object-contain" />
+                <img src={brand.logo_url} alt={brand.nombre} className="h-11 sm:h-14 max-w-[180px] sm:max-w-[220px] object-contain mix-blend-screen" />
               ) : (
                 <Scissors className="w-8 h-8 text-amber-400" />
               )}

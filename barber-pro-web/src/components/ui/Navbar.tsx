@@ -140,7 +140,7 @@ export function Navbar() {
   return (
     <>
       {/* --- DESKTOP TOP HEADER --- */}
-      <header className="hidden lg:flex h-14 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md items-center justify-between px-6 sticky top-0 z-40">
+      <header className="hidden lg:flex h-16 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md items-center justify-between px-6 sticky top-0 z-40">
         <div className="flex items-center gap-4 min-w-0 flex-1">
           {user && inDashboard ? (
             <DashboardBreadcrumb />
@@ -151,7 +151,7 @@ export function Navbar() {
                 className="flex items-center gap-2 text-amber-500 font-black text-lg tracking-tighter hover:scale-105 transition-transform shrink-0"
               >
                 {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
-              <img src={brand.logo_url} alt={brand.nombre} className="h-7 max-w-[130px] object-contain mix-blend-screen" />
+                  <img src={brand.logo_url} alt={brand.nombre} className="h-10 lg:h-11 max-w-[180px] object-contain mix-blend-screen" />
                 ) : (
                   <Scissors className="w-5 h-5 glow-amber" />
                 )}
@@ -237,7 +237,7 @@ export function Navbar() {
           )}
           <Link href="/" className="flex items-center gap-2 text-amber-500 font-black tracking-tighter">
             {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
-              <img src={brand.logo_url} alt={brand.nombre} className="h-6 max-w-[110px] object-contain mix-blend-screen" />
+              <img src={brand.logo_url} alt={brand.nombre} className="h-9 max-w-[150px] object-contain mix-blend-screen" />
             ) : (
               <Scissors className="w-6 h-6 glow-amber" />
             )}

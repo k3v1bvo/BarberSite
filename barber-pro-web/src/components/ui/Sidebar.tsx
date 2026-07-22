@@ -252,7 +252,7 @@ export function Sidebar({ role, userId }: SidebarProps) {
                 alt={brand.nombre}
                 className={cn(
                   'object-contain shrink-0 transition-all mix-blend-screen',
-                  isCollapsed ? 'w-8 h-8' : brand.mostrar_modo === 'ambos' ? 'h-9 max-w-[160px]' : 'h-10 max-w-[180px]'
+                  isCollapsed ? 'w-9 h-9' : brand.mostrar_modo === 'ambos' ? 'h-11 max-w-[170px]' : 'h-12 max-w-[200px]'
                 )}
               />
             ) : (
