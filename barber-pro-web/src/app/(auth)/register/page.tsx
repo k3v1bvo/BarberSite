@@ -226,10 +226,10 @@ function RegisterContent() {
             />
 
             <Input
-              label="Cédula de Identidad (CI / Carnet)"
+              label="Cédula de Identidad (CI / Carnet / Pasaporte) *"
               value={formData.ci}
               onChange={(e) => setFormData({ ...formData, ci: e.target.value })}
-              placeholder="Ej. 1234567 (Indispensable para vincular tu historial previo)"
+              placeholder="Ej. 1234567 o N° Pasaporte (Indispensable para vincular tu historial)"
               required
             />
 
