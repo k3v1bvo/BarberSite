@@ -157,12 +157,41 @@ export default function ClientesAdminPage() {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     if (profile?.role !== 'admin') return router.push('/')
 
-    const { data } = await supabase
-      .from('clientes')
-      .select('id, nombre, email, telefono, ci, total_visitas, total_gastado, nivel_fidelidad, created_at, cumpleanos, ultima_visita, codigo_tarjeta')
-      .order('created_at', { ascending: false })
+    const [resClientes, resProfiles] = await Promise.all([
+      supabase
+        .from('clientes')
+        .select('id, nombre, email, telefono, ci, total_visitas, total_gastado, nivel_fidelidad, created_at, cumpleanos, ultima_visita, codigo_tarjeta')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('profiles')
+        .select('id, full_name, email, phone, created_at')
+        .eq('role', 'cliente')
+    ])
 
-    const lista = (data || []) as Cliente[]
+    const clientesMap = new Map<string, Cliente>()
+    resClientes.data?.forEach(c => clientesMap.set(c.id, c as Cliente))
+
+    // Garantizar que si un cliente existe en 'profiles' también aparezca en la lista de clientes
+    resProfiles.data?.forEach(p => {
+      if (!clientesMap.has(p.id)) {
+        clientesMap.set(p.id, {
+          id: p.id,
+          nombre: p.full_name || 'Cliente Registrado',
+          email: p.email || null,
+          telefono: p.phone || null,
+          ci: null,
+          total_visitas: 0,
+          total_gastado: 0,
+          nivel_fidelidad: 'bronce',
+          created_at: p.created_at || new Date().toISOString(),
+          cumpleanos: null,
+          ultima_visita: null,
+          codigo_tarjeta: null,
+        })
+      }
+    })
+
+    const lista = Array.from(clientesMap.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     setClientes(lista)
 
     const urlId = searchParams.get('id')

@@ -20,39 +20,47 @@ export async function POST(request: Request) {
     const cleanEmail = email?.toString().trim().toLowerCase()
     const cleanNombre = nombre?.toString().trim().toLowerCase()
 
+    // 0. Garantizar que el cliente existe en la tabla 'clientes' usando adminClient (para evitar fallos por RLS)
+    const { data: existingTarget } = await adminClient
+      .from('clientes')
+      .select('id, ci, email, nombre')
+      .eq('id', new_user_id)
+      .maybeSingle()
+
+    if (!existingTarget) {
+      await adminClient.from('clientes').upsert({
+        id: new_user_id,
+        nombre: nombre || 'Cliente Registrado',
+        email: cleanEmail || null,
+        ci: cleanCi || null,
+        total_visitas: 0,
+        total_gastado: 0,
+        created_at: new Date().toISOString(),
+      })
+    }
+
     const matchingIds = new Set<string>()
 
-    // 1. Buscar por CI si fue provisto
-    if (cleanCi && cleanCi !== '0' && cleanCi !== '0000000') {
+    // 1. Buscar por CI (coincidencia de carnet) - Requiere CI válido de al menos 4 dígitos
+    if (cleanCi && cleanCi.length >= 4 && cleanCi !== '0' && cleanCi !== '0000000') {
       const { data: byCi } = await adminClient
         .from('clientes')
         .select('id')
-        .eq('ci', cleanCi)
+        .or(`ci.eq.${cleanCi},ci.ilike.%${cleanCi}%`)
         .neq('id', new_user_id)
       
       byCi?.forEach(c => matchingIds.add(c.id))
     }
 
-    // 2. Buscar por Email si fue provisto
-    if (cleanEmail) {
+    // 2. Buscar por Email exacto si fue provisto
+    if (cleanEmail && cleanEmail.includes('@')) {
       const { data: byEmail } = await adminClient
         .from('clientes')
         .select('id')
-        .ilike('email', cleanEmail)
+        .eq('email', cleanEmail)
         .neq('id', new_user_id)
       
       byEmail?.forEach(c => matchingIds.add(c.id))
-    }
-
-    // 3. Buscar por Nombre exacto si fue provisto
-    if (cleanNombre && cleanNombre.length > 2) {
-      const { data: byNombre } = await adminClient
-        .from('clientes')
-        .select('id')
-        .ilike('nombre', cleanNombre)
-        .neq('id', new_user_id)
-      
-      byNombre?.forEach(c => matchingIds.add(c.id))
     }
 
     const oldClientIds = Array.from(matchingIds)
