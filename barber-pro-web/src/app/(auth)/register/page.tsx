@@ -229,12 +229,11 @@ function RegisterContent() {
             />
 
             <Input
-              label="Teléfono"
+              label="Teléfono (Opcional)"
               type="tel"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               placeholder="71234567"
-              required
             />
 
             <Input

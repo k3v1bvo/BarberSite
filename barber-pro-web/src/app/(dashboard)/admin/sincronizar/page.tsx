@@ -776,13 +776,18 @@ export default function SincronizarHistorialPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-bold text-white text-sm uppercase">{c.nombre}</p>
-                        {c.ci ? (
+                        {c.total_visitas > 0 ? (
                           <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                            ✓ CI: {c.ci} (Sincronizado)
+                            🟢 Sincronizado ({c.total_visitas} visitas)
                           </span>
                         ) : (
-                          <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                            ⚠️ Sin CI (Manual)
+                          <span className="text-[10px] font-black text-zinc-400 bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded-full">
+                            ⚪ Sin historial vinculado
+                          </span>
+                        )}
+                        {c.ci && (
+                          <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                            CI: {c.ci}
                           </span>
                         )}
                         {c.created_at && (

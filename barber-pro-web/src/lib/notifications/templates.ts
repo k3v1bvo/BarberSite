@@ -522,7 +522,7 @@ export function buildEmail(
         subject: `🎉 ¡Bienvenido a ${BRAND}! — Registro Exitoso`,
         html: layout(
           `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Hola ${nombre}!</h2>
-          <p>Tu cuenta ha sido creada exitosamente en <strong>${BRAND}</strong> con tu CI (<strong>${data.ci || '—'}</strong>).</p>
+          <p>Tu cuenta ha sido creada exitosamente en <strong>${BRAND}</strong>.</p>
           <p>Ya puedes ingresar a nuestro portal web para agendar tus citas, elegir a tu barbero preferido y acumular beneficios de fidelidad.</p>
           ${cta(`${SITE}/login`, 'Iniciar Sesión en la Web')}`,
           `Registro exitoso en ${BRAND}`
@@ -531,16 +531,15 @@ export function buildEmail(
 
     case 'registro_bienvenida_sync':
       return {
-        subject: `🎉 ¡Bienvenido a ${BRAND}! — Historial Sincronizado por CI`,
+        subject: `🎉 ¡Bienvenido a ${BRAND}! — Historial Sincronizado`,
         html: layout(
           `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Hola ${nombre}!</h2>
-          <p>Tu cuenta ha sido creada exitosamente. Hemos verificado tu CI (<strong>${data.ci || '—'}</strong>) y sincronizamos automáticamente todo tu historial previo de atenciones y consumos.</p>
+          <p>Tu cuenta ha sido creada exitosamente. Hemos vinculado de manera segura todo tu historial previo de atenciones, consumos y puntos de lealtad a tu perfil web.</p>
           ${detailBox([
-            { label: 'Carnet de Identidad', value: data.ci || '—' },
             { label: 'Visitas Sincronizadas', value: data.visitas || '0' },
-            { label: 'Monto Acumulado Sincronizado', value: data.gastado || 'Bs. 0' },
+            { label: 'Historial de Consumo', value: data.gastado || 'Bs. 0' },
           ])}
-          <p style="color:#a1a1aa;font-size:13px;">Ya puedes ingresar a la web para agendar tus citas y ver tu historial completo.</p>
+          <p style="color:#a1a1aa;font-size:13px;">Ya puedes ingresar a la web para agendar tus citas y ver tu historial completo de visitas.</p>
           ${cta(`${SITE}/login`, 'Iniciar Sesión en la Web')}`,
           `Sincronización de cuenta exitosa en ${BRAND}`
         ),
