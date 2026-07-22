@@ -3,6 +3,7 @@ export interface SocialLinksConfig {
   whatsapp: string
   tiktok: string
   instagram: string
+  pinterest?: string
 }
 
 const DEFAULT_PHONE = '59171234567'
@@ -24,15 +25,20 @@ export function getSocialLinksFromEnv(): SocialLinksConfig {
   return {
     facebook:
       process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK ||
-      'https://www.facebook.com/',
+      'https://www.facebook.com/profile.php?id=100071866484782',
     whatsapp: normalizeWhatsAppUrl(
       process.env.NEXT_PUBLIC_SOCIAL_WHATSAPP || '',
       phone
     ),
     tiktok:
       process.env.NEXT_PUBLIC_SOCIAL_TIKTOK ||
-      'https://www.tiktok.com/',
-    instagram: process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM || '',
+      'https://www.tiktok.com/@barber_site',
+    instagram:
+      process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM ||
+      'https://www.instagram.com/barber_site_barbershop/',
+    pinterest:
+      process.env.NEXT_PUBLIC_SOCIAL_PINTEREST ||
+      'https://es.pinterest.com/barber_site/',
   }
 }
 
@@ -50,5 +56,6 @@ export function mergeSocialFromConfig(
       : base.whatsapp,
     tiktok: map.social_tiktok || base.tiktok,
     instagram: map.social_instagram || base.instagram,
+    pinterest: map.social_pinterest || base.pinterest,
   }
 }
