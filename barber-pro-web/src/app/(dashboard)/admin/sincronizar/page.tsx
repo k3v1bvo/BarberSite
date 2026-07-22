@@ -54,8 +54,8 @@ export default function SincronizarHistorialPage() {
     try {
       const [barberosRes, clientesRes, citasRes] = await Promise.all([
         supabase.from('profiles').select('id, full_name, email').in('role', ['barbero', 'coordinador']).order('full_name'),
-        supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas').order('nombre'),
-        supabase.from('citas').select('notas').is('barbero_id', null).not('notas', 'is', null)
+        supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas').order('nombre').range(0, 9999),
+        supabase.from('citas').select('notas').is('barbero_id', null).ilike('notas', '%Op:%').range(0, 49999)
       ])
       
       if (barberosRes.error) throw barberosRes.error
@@ -70,7 +70,7 @@ export default function SincronizarHistorialPage() {
           if (cita.notas) {
             const match = cita.notas.match(/Op:\s*([^.]+)\./)
             if (match && match[1]) {
-              uniqueOps.add(match[1].trim())
+              uniqueOps.add(match[1].trim().toUpperCase())
             }
           }
         })
@@ -259,32 +259,31 @@ export default function SincronizarHistorialPage() {
                       className="w-full h-12 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all uppercase"
                     />
                     
-                    {/* Dropdown Operadores */}
+                    {/* Dropdown Operadores Antiguos */}
                     {showOperadoresDropdown && (
                       <div className="absolute z-50 w-full mt-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
-                        {clientes
-                          .filter(c => c.nombre.toUpperCase().includes(nombreAntiguo.toUpperCase()) || c.ci?.includes(nombreAntiguo) || c.telefono?.includes(nombreAntiguo))
-                          .slice(0, 50)
-                          .map((c) => (
+                        {operadoresAntiguos
+                          .filter(op => op.toUpperCase().includes(nombreAntiguo.toUpperCase()))
+                          .slice(0, 100)
+                          .map((op, idx) => (
                             <button
-                              key={c.id}
+                              key={idx}
                               type="button"
                               className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-amber-500/10 hover:text-amber-400 transition-colors border-b border-white/5 last:border-0"
                               onMouseDown={(e) => {
                                 e.preventDefault()
-                                setNombreAntiguo(c.nombre)
+                                setNombreAntiguo(op)
                                 setShowOperadoresDropdown(false)
                               }}
                             >
-                              <div className="font-bold uppercase text-white">{c.nombre}</div>
-                              <div className="text-[10px] text-zinc-500 mt-0.5">
-                                {c.ci && <span className="mr-2">CI: {c.ci}</span>}
-                                {c.telefono && <span className="mr-2">Tel: {c.telefono}</span>}
-                              </div>
+                              <div className="font-bold uppercase text-white">{op}</div>
+                              <div className="text-[10px] text-amber-500/80 mt-0.5">Operario importado de Excel</div>
                             </button>
                           ))}
-                        {clientes.filter(c => c.nombre.toUpperCase().includes(nombreAntiguo.toUpperCase()) || c.ci?.includes(nombreAntiguo) || c.telefono?.includes(nombreAntiguo)).length === 0 && (
-                          <div className="px-4 py-3 text-sm text-zinc-500 text-center">No hay coincidencias en clientes importados</div>
+                        {operadoresAntiguos.filter(op => op.toUpperCase().includes(nombreAntiguo.toUpperCase())).length === 0 && (
+                          <div className="px-4 py-3 text-sm text-zinc-500 text-center">
+                            {nombreAntiguo ? 'Escribe o presiona Sincronizar para vincular este nombre exacto' : 'Escribe el nombre del operario'}
+                          </div>
                         )}
                       </div>
                     )}
@@ -512,6 +511,154 @@ export default function SincronizarHistorialPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── LISTA DE OPERARIOS PENDIENTES (TAB BARBEROS) ── */}
+      {tab === 'barberos' && (
+        <Card className="bg-zinc-900 border-white/5 shadow-2xl">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <CardTitle className="text-lg text-white font-black uppercase flex items-center gap-2">
+                  <Users className="text-amber-500 w-5 h-5" />
+                  Operarios de Excel Pendientes por Vincular
+                </CardTitle>
+                <p className="text-xs text-zinc-500 mt-1">
+                  Lista completa de nombres de operarios detectados en citas importadas sin barbero asignado ({operadoresAntiguos.length}).
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {operadoresAntiguos.length === 0 ? (
+              <div className="py-12 text-center text-zinc-600 text-sm">
+                🎉 ¡Excelente! No hay operarios de Excel pendientes por vincular. Todas las citas tienen barbero.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-96 overflow-y-auto pr-1">
+                {operadoresAntiguos.map((op, idx) => (
+                  <div key={idx} className="bg-black/30 border border-white/5 rounded-xl p-3 flex flex-col justify-between gap-2 hover:border-amber-500/30 transition-all">
+                    <div>
+                      <p className="font-black text-white text-xs uppercase truncate">{op}</p>
+                      <p className="text-[10px] text-amber-500/80 font-bold uppercase mt-0.5">Nota importada de Excel</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setNombreAntiguo(op)
+                        window.scrollTo({ top: 100, behavior: 'smooth' })
+                      }}
+                      className="w-full h-8 text-[10px] font-black uppercase border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                    >
+                      ⚡ Vincular a Barbero
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── LISTA Y ESTADO DE CLIENTES (TAB CLIENTES) ── */}
+      {tab === 'clientes' && (
+        <Card className="bg-zinc-900 border-white/5 shadow-2xl">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <CardTitle className="text-lg text-white font-black uppercase flex items-center gap-2">
+                  <Users className="text-amber-500 w-5 h-5" />
+                  Estado de Clientes y Auto-Sincronización
+                </CardTitle>
+                <p className="text-xs text-zinc-500 mt-1">
+                  Revisa los clientes registrados y fuerza la sincronización por CI o Correo con 1 clic ({clientes.length} registrados).
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="divide-y divide-white/5 max-h-96 overflow-y-auto pr-1">
+              {clientes.slice(0, 100).map((c) => (
+                <div key={c.id} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-white/[0.02] px-2 rounded-lg transition-colors">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-white text-sm uppercase">{c.nombre}</p>
+                      {c.ci ? (
+                        <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                          ✓ CI: {c.ci} (Sincronizado)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                          ⚠️ Sin CI
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-[11px] text-zinc-500 flex-wrap">
+                      {c.email && <span>{c.email}</span>}
+                      {c.telefono && <span>Tel: {c.telefono}</span>}
+                      <span className="text-amber-500/90 font-bold">Visitas: {c.total_visitas || 0}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/auth/autosync-cliente', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ new_user_id: c.id, ci: c.ci, email: c.email, nombre: c.nombre })
+                          })
+                          const d = await res.json()
+                          if (d.synced) {
+                            success(`✓ Se fusionaron ${d.count} historial(es) pasados para ${c.nombre}.`)
+                          } else {
+                            success(`No se encontraron cuentas pendientes por sincronizar para ${c.nombre}.`)
+                          }
+                          loadDatos()
+                        } catch (err: any) {
+                          toastError(err.message)
+                        }
+                      }}
+                      className="h-8 text-[10px] font-bold border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                    >
+                      ⚡ Auto-Sync por CI
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setClienteAntiguoId(c.id)
+                        setSearchClienteAntiguo(`${c.nombre} ${c.ci ? `(CI: ${c.ci})` : ''}`)
+                        window.scrollTo({ top: 100, behavior: 'smooth' })
+                      }}
+                      className="h-8 text-[10px] font-bold border-red-500/30 text-red-400 hover:bg-red-500/10"
+                      title="Seleccionar para transferir sus datos a otro y borrarlo"
+                    >
+                      🔴 Origen
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setClienteNuevoId(c.id)
+                        setSearchClienteNuevo(`${c.nombre} ${c.ci ? `(CI: ${c.ci})` : ''}`)
+                        window.scrollTo({ top: 100, behavior: 'smooth' })
+                      }}
+                      className="h-8 text-[10px] font-bold border-green-500/30 text-green-400 hover:bg-green-500/10"
+                      title="Seleccionar para mantener esta cuenta y recibir el historial"
+                    >
+                      🟢 Destino
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
