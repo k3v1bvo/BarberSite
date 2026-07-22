@@ -20,15 +20,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Faltan parámetros requeridos' }, { status: 400 })
     }
 
-    // El patrón busca cualquier cita donde la nota contenga Op: NOMBRE_ANTIGUO
-    const searchPattern = `%Op: ${nombre_antiguo.trim()}%`
+    const namePattern = nombre_antiguo.trim()
 
-    // Consultamos las citas que corresponden a este operario
+    // Consultamos las citas que corresponden a este operario (acepta Barbero: o Op:)
     const { data: citasToUpdate, error: searchError } = await supabase
       .from('citas')
       .select('id')
       .is('barbero_id', null)
-      .ilike('notas', searchPattern)
+      .or(`notas.ilike.%Barbero: ${namePattern}%,notas.ilike.%Op: ${namePattern}%,notas.ilike.%${namePattern}%`)
       .range(0, 9999)
 
     if (searchError) throw searchError

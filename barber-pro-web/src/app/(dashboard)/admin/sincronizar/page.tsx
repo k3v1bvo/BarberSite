@@ -59,16 +59,17 @@ export default function SincronizarHistorialPage() {
 
   const searchOperadoresLive = useCallback(async (term: string) => {
     try {
-      let query = supabase.from('citas').select('notas').is('barbero_id', null).ilike('notas', '%Op:%')
+      let query = supabase.from('citas').select('notas').is('barbero_id', null).not('notas', 'is', null)
       if (term.trim()) {
-        query = query.ilike('notas', `%Op:%${term.trim()}%`)
+        const t = term.trim()
+        query = query.or(`notas.ilike.%Barbero: %${t}%,notas.ilike.%Op: %${t}%,notas.ilike.%${t}%`)
       }
-      const { data } = await query.limit(300)
+      const { data } = await query.limit(500)
       if (data) {
         const ops = new Set<string>()
         data.forEach(cita => {
           if (cita.notas) {
-            const match = cita.notas.match(/Op:\s*([^.]+)\./)
+            const match = cita.notas.match(/(?:Barbero:|Op:)\s*([^|.]+)/i)
             if (match && match[1]) {
               const name = match[1].trim().toUpperCase()
               if (!term.trim() || name.includes(term.trim().toUpperCase())) {
@@ -77,7 +78,9 @@ export default function SincronizarHistorialPage() {
             }
           }
         })
-        setLiveOperadores(Array.from(ops).sort())
+        const sortedOps = Array.from(ops).sort()
+        setLiveOperadores(sortedOps)
+        setOperadoresAntiguos(sortedOps)
       }
     } catch (err) {
       console.error(err)
