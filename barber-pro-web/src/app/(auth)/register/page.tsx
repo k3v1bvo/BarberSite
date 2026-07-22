@@ -12,11 +12,14 @@ import { useToast } from '@/components/ui/Toast'
 import { Scissors, Gift } from 'lucide-react'
 import { Suspense } from 'react'
 import { useBrand } from '@/components/providers/BrandProvider'
+import { RecoveryModal } from '@/components/ui/RecoveryModal'
 
 function RegisterContent() {
   const { brand } = useBrand()
+  const { error: toastError, success } = useToast()
   const searchParams = useSearchParams()
   const refCode = searchParams.get('ref')
+  const [isRecoveryOpen, setIsRecoveryOpen] = useState(false)
 
   const [formData, setFormData] = useState({
     email: '',
@@ -31,7 +34,6 @@ function RegisterContent() {
   const [welcome, setWelcome] = useState(false)
   const router = useRouter()
   const supabase = createClient()
-  const { success, error: toastError } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -273,16 +275,26 @@ function RegisterContent() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-3">
             <p className="text-zinc-400 text-sm">
               ¿Ya tienes cuenta?{' '}
               <Link href="/login" className="text-amber-400 hover:text-amber-300 font-medium">
                 Inicia sesión
               </Link>
             </p>
+
+            <button
+              type="button"
+              onClick={() => setIsRecoveryOpen(true)}
+              className="text-xs text-amber-500 hover:text-amber-400 font-bold block mx-auto transition-colors"
+            >
+              🔑 ¿Olvidaste tu contraseña o perdiste tu acceso?
+            </button>
           </div>
         </CardContent>
       </Card>
+
+      <RecoveryModal isOpen={isRecoveryOpen} onClose={() => setIsRecoveryOpen(false)} />
     </div>
   )
 }

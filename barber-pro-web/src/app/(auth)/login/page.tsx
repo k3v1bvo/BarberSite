@@ -10,12 +10,15 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useBrand } from '@/components/providers/BrandProvider'
 
+import { RecoveryModal } from '@/components/ui/RecoveryModal'
+
 export default function LoginPage() {
   const { brand } = useBrand()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [isRecoveryOpen, setIsRecoveryOpen] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -151,7 +154,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center space-y-2">
+          <div className="mt-6 text-center space-y-3">
             <p className="text-zinc-400 text-sm">
               ¿No tienes cuenta?{' '}
               <Link
@@ -162,15 +165,27 @@ export default function LoginPage() {
               </Link>
             </p>
 
-            <Link
-              href="/"
-              className="text-zinc-500 hover:text-zinc-300 text-xs"
+            <button
+              type="button"
+              onClick={() => setIsRecoveryOpen(true)}
+              className="text-xs text-amber-500 hover:text-amber-400 font-bold block mx-auto transition-colors"
             >
-              ← Volver al inicio
-            </Link>
+              🔑 ¿Olvidaste tu contraseña o perdiste tu acceso?
+            </button>
+
+            <div>
+              <Link
+                href="/"
+                className="text-zinc-500 hover:text-zinc-300 text-xs"
+              >
+                ← Volver al inicio
+              </Link>
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      <RecoveryModal isOpen={isRecoveryOpen} onClose={() => setIsRecoveryOpen(false)} />
     </div>
   )
 }

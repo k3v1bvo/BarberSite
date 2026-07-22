@@ -29,13 +29,15 @@ import { WhatsappFloat } from '@/components/ui/WhatsappFloat'
 import { useSocialLinks } from '@/components/ui/useSocialLinks'
 import { CATEGORIAS_SERVICIOS } from '@/types'
 import { ServicioGalleryBanner } from '@/components/ui/ServicioGalleryBanner'
+import { ServicioDetailModal } from '@/components/ui/ServicioDetailModal'
 import { useBrand } from '@/components/providers/BrandProvider'
 
 interface UserProfile {
-  id: string
+  id?: string
   email: string
   full_name: string | null
   role: string
+  avatar_url?: string | null
 }
 
 interface Servicio {
@@ -53,24 +55,31 @@ interface Producto {
   id: string
   nombre: string
   precio_venta: number
-  stock_actual: number
+  stock_actual?: number
   image_url: string | null
+  imagenes?: string[] | null
 }
 
 interface PortafolioItem {
   id: string
-  titulo: string
-  descripcion: string | null
-  imagen_url: string
-  tipo: string
+  image_url?: string
+  imagen_url?: string
+  categoria?: string
+  descripcion?: string | null
+  titulo?: string
+  tipo?: string
 }
 
 interface EquipoHome {
   id: string
-  full_name: string
-  avatar_url: string | null
-  role: string
+  nombre?: string
+  full_name?: string
   especialidad?: string
+  imagen_url?: string
+  avatar_url?: string | null
+  descripcion?: string
+  redes_sociales?: any
+  role?: string
 }
 
 export default function HomePage() {
@@ -119,7 +128,7 @@ export default function HomePage() {
       if (authUser) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name, email, role, avatar_url')
+          .select('id, full_name, email, role, avatar_url')
           .eq('id', authUser.id)
           .single()
 
@@ -571,12 +580,21 @@ export default function HomePage() {
                           <Clock className="w-3 h-3 text-amber-400" /> {servicio.duracion_minutos} min
                         </p>
                       </div>
-                      <Link
-                        href={`/reservar?servicio=${servicio.id}`}
-                        className="px-5 py-2.5 bg-amber-400 text-black rounded-full text-xs font-black hover:bg-amber-300 hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-amber-400/20"
-                      >
-                        Reservar
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedServicioForDetail(servicio)}
+                          className="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-amber-400 border border-amber-400/30 rounded-full text-xs font-black transition-all uppercase tracking-wider"
+                        >
+                          🔍 Detalles
+                        </button>
+                        <Link
+                          href={`/reservar?servicio=${servicio.id}`}
+                          className="px-5 py-2.5 bg-amber-400 text-black rounded-full text-xs font-black hover:bg-amber-300 hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-amber-400/20"
+                        >
+                          Reservar
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -807,16 +825,16 @@ export default function HomePage() {
                       {barbero.imagen_url ? (
                         <img
                           src={barbero.imagen_url}
-                          alt={barbero.nombre}
+                          alt={barbero.nombre || 'Barbero'}
                           className="w-full h-full object-cover blur-[3px] grayscale opacity-70 group-hover:blur-[0px] group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-500"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre)}&background=f59e0b&color=000&size=256`;
+                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre || 'Barbero')}&background=f59e0b&color=000&size=256`;
                           }}
                         />
                       ) : (
                         <img
-                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre)}&background=f59e0b&color=000&size=256`}
-                          alt={barbero.nombre}
+                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre || 'Barbero')}&background=f59e0b&color=000&size=256`}
+                          alt={barbero.nombre || 'Barbero'}
                           className="w-full h-full object-cover blur-[3px] grayscale opacity-70 group-hover:blur-[0px] group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-500"
                         />
                       )}
@@ -1064,6 +1082,12 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+
+      {/* Servicio Detail Modal */}
+      <ServicioDetailModal
+        servicio={selectedServicioForDetail}
+        onClose={() => setSelectedServicioForDetail(null)}
+      />
     </div>
   )
 }
