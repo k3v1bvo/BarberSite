@@ -289,8 +289,8 @@ export default function SincronizarHistorialPage() {
       return
     }
 
-    const nameAntiguo = clientes.find(c => c.id === clienteAntiguoId)?.nombre
-    const nameNuevo = clientes.find(c => c.id === clienteNuevoId)?.nombre
+    const nameAntiguo = clientes.find(c => c.id === clienteAntiguoId)?.nombre || liveClientesAntiguos.find(c => c.id === clienteAntiguoId)?.nombre || searchClienteAntiguo || 'Cliente Antiguo'
+    const nameNuevo = clientes.find(c => c.id === clienteNuevoId)?.nombre || liveClientesNuevos.find(c => c.id === clienteNuevoId)?.nombre || searchClienteNuevo || 'Cliente Nuevo'
 
     if (!confirm(`¿Estás seguro de fusionar el historial de "${nameAntiguo}" hacia "${nameNuevo}"? Esta acción no se puede deshacer y el cliente antiguo será eliminado.`)) {
       return

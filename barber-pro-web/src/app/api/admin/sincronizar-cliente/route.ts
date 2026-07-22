@@ -93,24 +93,50 @@ export async function POST(request: Request) {
     await adminClient.from('referrals').update({ cliente_recomendante_id: cliente_nuevo_id }).eq('cliente_recomendante_id', cliente_antiguo_id)
     await adminClient.from('referrals').update({ cliente_recomendado_id: cliente_nuevo_id }).eq('cliente_recomendado_id', cliente_antiguo_id)
 
-    // 4. Sumar los totales acumulados
+    // 4. Sumar los totales acumulados y complementar datos faltantes
     const nuevoTotalVisitas = (nuevo.total_visitas || 0) + (antiguo.total_visitas || 0)
     const nuevoTotalGastado = (nuevo.total_gastado || 0) + (antiguo.total_gastado || 0)
+
+    const finalCi = nuevo.ci?.trim() || antiguo.ci?.trim() || null
+    const finalTelefono = nuevo.telefono?.trim() || antiguo.telefono?.trim() || null
+    const finalCumpleanos = nuevo.cumpleanos || antiguo.cumpleanos || null
+    const finalEmail = nuevo.email?.trim() || antiguo.email?.trim() || null
+    const finalCodigoTarjeta = nuevo.codigo_tarjeta || antiguo.codigo_tarjeta || null
 
     const updatePayload: any = {
       total_visitas: nuevoTotalVisitas,
       total_gastado: nuevoTotalGastado,
+      ci: finalCi,
+      telefono: finalTelefono,
+      cumpleanos: finalCumpleanos,
+      email: finalEmail,
+      codigo_tarjeta: finalCodigoTarjeta,
     }
-
-    // Transferir CI o teléfono si el nuevo no los tenía
-    if (!nuevo.ci && antiguo.ci) updatePayload.ci = antiguo.ci
-    if (!nuevo.telefono && antiguo.telefono) updatePayload.telefono = antiguo.telefono
-    if (!nuevo.cumpleanos && antiguo.cumpleanos) updatePayload.cumpleanos = antiguo.cumpleanos
 
     await adminClient.from('clientes').update(updatePayload).eq('id', cliente_nuevo_id)
 
+    // Sincronizar también la tabla profiles para que el CI y teléfono estén disponibles en auth
+    const profileUpdates: any = {}
+    if (finalCi) profileUpdates.ci = finalCi
+    if (finalTelefono) profileUpdates.phone = finalTelefono
+
+    if (Object.keys(profileUpdates).length > 0) {
+      await adminClient.from('profiles').update(profileUpdates).eq('id', cliente_nuevo_id)
+    }
+
     // 5. Borrar el registro antiguo
     await adminClient.from('clientes').delete().eq('id', cliente_antiguo_id)
+
+    // 6. Crear notificación en el sistema para el cliente
+    await adminClient.from('notificaciones').insert({
+      usuario_id: cliente_nuevo_id,
+      titulo: '✨ ¡Historial Sincronizado Con Éxito!',
+      mensaje: `¡Hola ${nuevo.nombre || 'Cliente'}! Tu perfil ha sido vinculado exitosamente con tu historial previo en la barbería. Ahora cuentas con ${nuevoTotalVisitas} visitas y Bs. ${nuevoTotalGastado} acumulados.`,
+      tipo: 'success',
+      categoria: 'sistema',
+      link: '/cliente',
+      leida: false,
+    })
 
     return NextResponse.json({
       success: true,

@@ -221,6 +221,15 @@ export async function POST(request: Request) {
 
     await adminClient.from('clientes').update(updatePayload).eq('id', new_user_id)
 
+    // Sincronizar también la tabla profiles para auth
+    const profileUpdates: any = {}
+    if (updatePayload.ci) profileUpdates.ci = updatePayload.ci
+    if (updatePayload.telefono) profileUpdates.phone = updatePayload.telefono
+
+    if (Object.keys(profileUpdates).length > 0) {
+      await adminClient.from('profiles').update(profileUpdates).eq('id', new_user_id)
+    }
+
     // Notificar al nuevo cliente en el sistema
     await adminClient.from('notificaciones').insert({
       usuario_id: new_user_id,
