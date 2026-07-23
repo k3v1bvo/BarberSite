@@ -111,7 +111,7 @@ export default function SincronizarHistorialPage() {
     try {
       const t = term.trim()
       const normT = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      const words = normT.split(/\s+/).filter(w => w.length >= 2)
+      const words = normT.split(/\s+/).filter((w: string) => w.length >= 2)
 
       let clientQuery = supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas, created_at')
       let profileQuery = supabase.from('profiles').select('id, full_name, email, phone, ci, created_at').eq('role', 'cliente')
@@ -146,9 +146,9 @@ export default function SincronizarHistorialPage() {
       let combined = Array.from(map.values())
 
       if (words.length > 1) {
-        combined = combined.filter(item => {
+        combined = combined.filter((item: any) => {
           const itemNorm = (item.nombre || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') + ' ' + (item.email || '').toLowerCase()
-          return words.every(w => itemNorm.includes(w.toLowerCase()))
+          return words.every((w: string) => itemNorm.includes(w.toLowerCase()))
         })
       }
 

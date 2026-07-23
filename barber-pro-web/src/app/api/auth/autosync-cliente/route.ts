@@ -91,7 +91,7 @@ export async function POST(request: Request) {
 
       // Normalizar tildes y dividir en palabras (ej: "Fabrice Sánchez" -> ["fabrice", "sanchez"])
       const normNombre = cleanNombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      const nameWords = normNombre.split(/\s+/).filter(w => w.length >= 3)
+      const nameWords = normNombre.split(/\s+/).filter((w: string) => w.length >= 3)
 
       if (nameWords.length > 0) {
         const { data: allOtherClients } = await adminClient
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
           .select('id, nombre')
           .neq('id', new_user_id)
 
-        allOtherClients?.forEach(c => {
+        allOtherClients?.forEach((c: { id: string; nombre: string | null }) => {
           if (!c.nombre) return
           const cNorm = c.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
           // Si el nombre en la BD contiene al menos la primera y última palabra (ej: fabrice y sanchez en FABRICE MAURICIO SANCHEZ)
