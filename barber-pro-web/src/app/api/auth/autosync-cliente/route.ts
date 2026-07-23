@@ -22,23 +22,90 @@ export async function POST(request: Request) {
     const cleanEmail = email?.toString().trim().toLowerCase()
     const cleanNombre = nombre?.toString().trim().toLowerCase()
 
-    // 0. Garantizar que el cliente existe en la tabla 'clientes' usando adminClient (para evitar fallos por RLS)
+    // 0. Garantizar que el cliente existe en la tabla 'clientes'
+    //    Si el CI ya pertenece a un registro antiguo, ESE ES el mismo cliente.
+    //    Fusionamos su historial al nuevo auth user ANTES de buscar más coincidencias.
     const { data: existingTarget } = await adminClient
       .from('clientes')
-      .select('id, ci, email, nombre')
+      .select('id, ci, email, nombre, total_visitas, total_gastado, telefono, cumpleanos, codigo_tarjeta')
       .eq('id', new_user_id)
       .maybeSingle()
 
     if (!existingTarget) {
-      await adminClient.from('clientes').upsert({
-        id: new_user_id,
-        nombre: nombre || 'Cliente Registrado',
-        email: cleanEmail || null,
-        ci: cleanCi || null,
-        total_visitas: 0,
-        total_gastado: 0,
-        created_at: new Date().toISOString(),
-      })
+      // Verificar si ya hay un cliente con este mismo CI → fusión directa
+      let ciOwner = null as any
+      if (cleanCi && cleanCi.length >= 3) {
+        const { data: owner } = await adminClient
+          .from('clientes')
+          .select('*')
+          .eq('ci', cleanCi)
+          .neq('id', new_user_id)
+          .maybeSingle()
+        ciOwner = owner
+      }
+
+      if (ciOwner) {
+        // ── FUSIÓN DIRECTA POR CI ──
+        // Este registro antiguo ES el mismo cliente.
+        // ORDEN CRÍTICO (por FK citas.cliente_id → clientes.id):
+        //   1. Crear nuevo registro SIN CI (para que las FK puedan apuntar aquí)
+        //   2. Reasignar todas las FK del viejo → nuevo
+        //   3. Borrar el registro viejo (libera el CI UNIQUE)
+        //   4. Actualizar el nuevo con el CI liberado
+
+        // 1. Crear registro placeholder para el nuevo user_id (sin CI para evitar UNIQUE)
+        const nivelInicial = await calcularNivelFidelidad(adminClient, ciOwner.total_visitas || 0)
+        await adminClient.from('clientes').insert({
+          id: new_user_id,
+          nombre: nombre || ciOwner.nombre || 'Cliente Registrado',
+          email: cleanEmail || ciOwner.email || null,
+          telefono: ciOwner.telefono || null,
+          ci: null, // ← temporalmente null, se actualiza al final
+          cumpleanos: ciOwner.cumpleanos || null,
+          codigo_tarjeta: ciOwner.codigo_tarjeta || null,
+          total_visitas: ciOwner.total_visitas || 0,
+          total_gastado: ciOwner.total_gastado || 0,
+          nivel_fidelidad: nivelInicial,
+          created_at: ciOwner.created_at || new Date().toISOString(),
+        })
+
+        // 2. Reasignar todas las FK del viejo → nuevo
+        await adminClient.from('citas').update({ cliente_id: new_user_id }).eq('cliente_id', ciOwner.id)
+        await adminClient.from('transactions').update({ cliente_id: new_user_id }).eq('cliente_id', ciOwner.id)
+        await adminClient.from('pedidos').update({ cliente_id: new_user_id }).eq('cliente_id', ciOwner.id)
+        await adminClient.from('testimonios').update({ cliente_id: new_user_id }).eq('cliente_id', ciOwner.id)
+        await adminClient.from('referrals').update({ cliente_recomendante_id: new_user_id }).eq('cliente_recomendante_id', ciOwner.id)
+        await adminClient.from('referrals').update({ cliente_recomendado_id: new_user_id }).eq('cliente_recomendado_id', ciOwner.id)
+        await adminClient.from('cumpleanos_verificados').update({ cliente_id: new_user_id }).eq('cliente_id', ciOwner.id)
+        await adminClient.from('canjes_lealtad').update({ cliente_id: new_user_id }).eq('cliente_id', ciOwner.id)
+
+        // 3. Borrar el registro antiguo (libera el CI en la restricción UNIQUE)
+        await adminClient.from('clientes').delete().eq('id', ciOwner.id)
+
+        // 4. Ahora sí: actualizar el nuevo registro con el CI real (ya libre)
+        await adminClient.from('clientes').update({ ci: cleanCi }).eq('id', new_user_id)
+
+        // Actualizar profiles con el CI y teléfono
+        const profileSync: any = { ci: cleanCi }
+        if (ciOwner.telefono) profileSync.phone = ciOwner.telefono
+        await adminClient.from('profiles').update(profileSync).eq('id', new_user_id)
+
+        console.log(`[autosync] Fusión directa por CI ${cleanCi}: ${ciOwner.nombre} → ${nombre} (${ciOwner.total_visitas} visitas)`)
+      } else {
+        // No hay conflicto de CI — crear registro nuevo normalmente
+        await adminClient.from('clientes').upsert({
+          id: new_user_id,
+          nombre: nombre || 'Cliente Registrado',
+          email: cleanEmail || null,
+          ci: cleanCi || null,
+          total_visitas: 0,
+          total_gastado: 0,
+          created_at: new Date().toISOString(),
+        })
+      }
+    } else if (existingTarget && cleanCi && !existingTarget.ci) {
+      // El registro existe pero sin CI — actualizarlo con el CI del registro
+      await adminClient.from('clientes').update({ ci: cleanCi }).eq('id', new_user_id)
     }
 
     const matchingIds = new Set<string>()
@@ -189,7 +256,7 @@ export async function POST(request: Request) {
         .from('clientes')
         .select('*')
         .eq('id', oldId)
-        .single()
+        .maybeSingle()
 
       if (oldClient) {
         totalVisitasSum += oldClient.total_visitas || 0
@@ -215,16 +282,32 @@ export async function POST(request: Request) {
       await adminClient.from('referrals').update({ cliente_recomendante_id: new_user_id }).eq('cliente_recomendante_id', oldId)
       await adminClient.from('referrals').update({ cliente_recomendado_id: new_user_id }).eq('cliente_recomendado_id', oldId)
 
-      // Eliminar registro antiguo de cliente
+      await adminClient.from('cumpleanos_verificados').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
+      await adminClient.from('canjes_lealtad').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
+
+      // Eliminar registro antiguo de cliente PRIMERO para liberar la restricción UNIQUE de CI
       await adminClient.from('clientes').delete().eq('id', oldId)
     }
 
-    // Obtener cliente actual para actualizar agregados
-    const { data: currentNewClient } = await adminClient
+    // Garantizar que new_user_id exista en la tabla clientes antes de leer agregados
+    let { data: currentNewClient } = await adminClient
       .from('clientes')
       .select('total_visitas, total_gastado, ci, telefono, cumpleanos')
       .eq('id', new_user_id)
-      .single()
+      .maybeSingle()
+
+    if (!currentNewClient) {
+      await adminClient.from('clientes').upsert({
+        id: new_user_id,
+        nombre: nombre || 'Cliente Registrado',
+        email: cleanEmail || null,
+        ci: ciFound || cleanCi || null,
+        total_visitas: 0,
+        total_gastado: 0,
+        created_at: new Date().toISOString(),
+      })
+      currentNewClient = { total_visitas: 0, total_gastado: 0, ci: ciFound || cleanCi || null, telefono: null, cumpleanos: null }
+    }
 
     const finalVisitas = (currentNewClient?.total_visitas || 0) + totalVisitasSum
     const finalGastado = (currentNewClient?.total_gastado || 0) + totalGastadoSum
@@ -236,8 +319,8 @@ export async function POST(request: Request) {
       nivel_fidelidad: finalNivel,
     }
 
-    if (ciFound && (!currentNewClient?.ci || currentNewClient.ci === '')) {
-      updatePayload.ci = ciFound
+    if (ciFound || cleanCi) {
+      updatePayload.ci = ciFound || cleanCi
     }
     if (telefonoFound && (!currentNewClient?.telefono || currentNewClient.telefono === '')) {
       updatePayload.telefono = telefonoFound

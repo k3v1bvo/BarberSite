@@ -36,7 +36,7 @@ export async function POST(request: Request) {
         .maybeSingle()
 
       if (profAntiguo) {
-        const { data: newAntiguo } = await adminClient.from('clientes').upsert({
+        const { data: newAntiguo, error: errAnt } = await adminClient.from('clientes').upsert({
           id: profAntiguo.id,
           nombre: profAntiguo.full_name || 'Cliente Antiguo',
           email: profAntiguo.email || null,
@@ -44,9 +44,39 @@ export async function POST(request: Request) {
           ci: profAntiguo.ci || null,
           total_visitas: 0,
           total_gastado: 0,
-        }).select('*').single()
-        
-        antiguo = newAntiguo
+        }).select('*').maybeSingle()
+
+        if (errAnt || !newAntiguo) {
+          const { data: fallbackAnt } = await adminClient.from('clientes').upsert({
+            id: profAntiguo.id,
+            nombre: profAntiguo.full_name || 'Cliente Antiguo',
+            email: profAntiguo.email || null,
+            telefono: profAntiguo.phone || null,
+            ci: null,
+            total_visitas: 0,
+            total_gastado: 0,
+          }).select('*').maybeSingle()
+          antiguo = fallbackAnt
+        } else {
+          antiguo = newAntiguo
+        }
+      } else {
+        const { data: citaAnt } = await adminClient
+          .from('citas')
+          .select('id')
+          .eq('cliente_id', cliente_antiguo_id)
+          .limit(1)
+          .maybeSingle()
+
+        if (citaAnt) {
+          const { data: stubAnt } = await adminClient.from('clientes').upsert({
+            id: cliente_antiguo_id,
+            nombre: 'Cliente Antiguo / Importado',
+            total_visitas: 0,
+            total_gastado: 0,
+          }).select('*').maybeSingle()
+          antiguo = stubAnt
+        }
       }
     }
 
@@ -66,7 +96,7 @@ export async function POST(request: Request) {
         .maybeSingle()
 
       if (profNuevo) {
-        const { data: newNuevo } = await adminClient.from('clientes').upsert({
+        const { data: newNuevo, error: errNue } = await adminClient.from('clientes').upsert({
           id: profNuevo.id,
           nombre: profNuevo.full_name || 'Cliente Nuevo',
           email: profNuevo.email || null,
@@ -74,9 +104,30 @@ export async function POST(request: Request) {
           ci: profNuevo.ci || null,
           total_visitas: 0,
           total_gastado: 0,
-        }).select('*').single()
+        }).select('*').maybeSingle()
 
-        nuevo = newNuevo
+        if (errNue || !newNuevo) {
+          const { data: fallbackNue } = await adminClient.from('clientes').upsert({
+            id: profNuevo.id,
+            nombre: profNuevo.full_name || 'Cliente Nuevo',
+            email: profNuevo.email || null,
+            telefono: profNuevo.phone || null,
+            ci: null,
+            total_visitas: 0,
+            total_gastado: 0,
+          }).select('*').maybeSingle()
+          nuevo = fallbackNue
+        } else {
+          nuevo = newNuevo
+        }
+      } else {
+        const { data: stubNue } = await adminClient.from('clientes').upsert({
+          id: cliente_nuevo_id,
+          nombre: 'Cliente Nuevo',
+          total_visitas: 0,
+          total_gastado: 0,
+        }).select('*').maybeSingle()
+        nuevo = stubNue
       }
     }
 
@@ -94,6 +145,8 @@ export async function POST(request: Request) {
     await adminClient.from('testimonios').update({ cliente_id: cliente_nuevo_id }).eq('cliente_id', cliente_antiguo_id)
     await adminClient.from('referrals').update({ cliente_recomendante_id: cliente_nuevo_id }).eq('cliente_recomendante_id', cliente_antiguo_id)
     await adminClient.from('referrals').update({ cliente_recomendado_id: cliente_nuevo_id }).eq('cliente_recomendado_id', cliente_antiguo_id)
+    await adminClient.from('cumpleanos_verificados').update({ cliente_id: cliente_nuevo_id }).eq('cliente_id', cliente_antiguo_id)
+    await adminClient.from('canjes_lealtad').update({ cliente_id: cliente_nuevo_id }).eq('cliente_id', cliente_antiguo_id)
 
     // 4. Sumar los totales acumulados y complementar datos faltantes
     const nuevoTotalVisitas = (nuevo.total_visitas || 0) + (antiguo.total_visitas || 0)
@@ -106,6 +159,10 @@ export async function POST(request: Request) {
     const finalEmail = nuevo.email?.trim() || antiguo.email?.trim() || null
     const finalCodigoTarjeta = nuevo.codigo_tarjeta || antiguo.codigo_tarjeta || null
 
+    // 5. Borrar el registro antiguo PRIMERO para liberar la restricción UNIQUE del CI
+    await adminClient.from('clientes').delete().eq('id', cliente_antiguo_id)
+
+    // 6. Actualizar el registro nuevo con los totales y datos consolidados (incluyendo el CI)
     const updatePayload: any = {
       total_visitas: nuevoTotalVisitas,
       total_gastado: nuevoTotalGastado,
@@ -128,10 +185,7 @@ export async function POST(request: Request) {
       await adminClient.from('profiles').update(profileUpdates).eq('id', cliente_nuevo_id)
     }
 
-    // 5. Borrar el registro antiguo
-    await adminClient.from('clientes').delete().eq('id', cliente_antiguo_id)
-
-    // 6. Crear notificación en el sistema para el cliente
+    // 7. Crear notificación en el sistema para el cliente
     await adminClient.from('notificaciones').insert({
       usuario_id: cliente_nuevo_id,
       titulo: '✨ ¡Historial Sincronizado Con Éxito!',

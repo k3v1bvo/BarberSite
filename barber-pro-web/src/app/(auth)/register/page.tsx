@@ -80,19 +80,38 @@ function RegisterContent() {
         }
       }
 
-      const { error: clienteError } = await supabase.from('clientes').insert({
-        id: authData.user.id,
-        nombre: formData.full_name,
-        telefono: formData.phone?.trim() || null,
-        ci: formData.ci?.trim() || null,
-        email: formData.email,
-        total_visitas: 0,
-        total_gastado: 0,
-        referido_por: referidoPorId,
-      })
+      // Intentar crear el registro en clientes — si el CI ya existe, saltar (autosync fusionará)
+      const cleanCi = formData.ci?.trim() || null
+      let skipInsert = false
 
-      if (clienteError) {
-        console.warn('Error creando cliente:', clienteError.message)
+      if (cleanCi) {
+        const { data: existingByCi } = await supabase
+          .from('clientes')
+          .select('id')
+          .eq('ci', cleanCi)
+          .maybeSingle()
+
+        if (existingByCi) {
+          // Ya existe un cliente con este CI — autosync lo fusionará con el nuevo user
+          skipInsert = true
+        }
+      }
+
+      if (!skipInsert) {
+        const { error: clienteError } = await supabase.from('clientes').insert({
+          id: authData.user.id,
+          nombre: formData.full_name,
+          telefono: formData.phone?.trim() || null,
+          ci: cleanCi,
+          email: formData.email,
+          total_visitas: 0,
+          total_gastado: 0,
+          referido_por: referidoPorId,
+        })
+
+        if (clienteError) {
+          console.warn('Error creando cliente:', clienteError.message)
+        }
       }
 
       // Auto-sincronizar historial previo por CI, Email o Nombre
