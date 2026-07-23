@@ -1240,6 +1240,7 @@ function ReservarContent() {
       {/* Servicio Detail Modal */}
       <ServicioDetailModal 
         servicio={selectedServicioForDetail} 
+        isOpen={!!selectedServicioForDetail}
         onClose={() => setSelectedServicioForDetail(null)} 
         onSelect={(srv) => { 
           setFormData({ ...formData, servicio_id: srv.id, barbero_id: '' })

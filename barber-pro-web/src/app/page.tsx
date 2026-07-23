@@ -421,7 +421,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 flex flex-wrap justify-center gap-8 text-sm font-bold uppercase tracking-widest">
           <span className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            Lun-Sáb: 9:00 - 21:00
+            Lun-Dom: 9:00 - 21:00
           </span>
           <span className="flex items-center gap-2">
             <Phone className="w-4 h-4" />
@@ -1045,7 +1045,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 flex flex-wrap justify-center gap-8 text-sm font-bold uppercase tracking-widest">
           <span className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            Lun-Sáb: 9:00 - 21:00
+            Lun-Dom: 9:00 - 21:00
           </span>
           <span className="flex items-center gap-2">
             <Phone className="w-4 h-4" />
@@ -1065,12 +1065,14 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-8">
             <div className="flex items-center gap-3">
-              {brand.logo_url ? (
-                <img src={brand.logo_url} alt={brand.nombre} className="h-10 max-w-[150px] object-contain" />
+              {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
+                <img src={brand.logo_url} alt={brand.nombre} className="h-12 max-w-[200px] object-contain filter drop-shadow-[0_2px_15px_rgba(245,158,11,0.2)]" />
               ) : (
-                <Scissors className="w-8 h-8 text-amber-400" />
+                <>
+                  <Scissors className="w-8 h-8 text-amber-400" />
+                  <span className="text-xl font-bold tracking-wider">{brand.nombre}</span>
+                </>
               )}
-              <span className="text-xl font-bold tracking-wider">{brand.nombre}</span>
             </div>
 
             <div className="flex flex-col items-center gap-6">
@@ -1095,6 +1097,7 @@ export default function HomePage() {
       {/* Servicio Detail Modal */}
       <ServicioDetailModal
         servicio={selectedServicioForDetail}
+        isOpen={!!selectedServicioForDetail}
         onClose={() => setSelectedServicioForDetail(null)}
       />
     </div>
