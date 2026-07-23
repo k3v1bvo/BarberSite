@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { formatCurrency, toTitleCase } from '@/lib/utils'
+import { formatCurrency, toTitleCase, toSentenceCase } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { Plus, Edit, Trash2, Scissors, ArrowLeft, X, Save, Clock, Palette, UserX, CheckCircle, Tag, Image as ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -95,8 +95,8 @@ export default function ServiciosPage() {
         const { error } = await supabase
           .from('servicios')
           .update({
-            nombre: toTitleCase(formData.nombre),
-            descripcion: formData.descripcion,
+            nombre: toSentenceCase(formData.nombre),
+            descripcion: formData.descripcion ? toSentenceCase(formData.descripcion) : null,
             precio: formData.precio,
             duracion_minutos: formData.duracion_minutos,
             color: formData.color,
@@ -116,8 +116,8 @@ export default function ServiciosPage() {
         const { error } = await supabase
           .from('servicios')
           .insert({
-            nombre: toTitleCase(formData.nombre),
-            descripcion: formData.descripcion,
+            nombre: toSentenceCase(formData.nombre),
+            descripcion: formData.descripcion ? toSentenceCase(formData.descripcion) : null,
             precio: formData.precio,
             duracion_minutos: formData.duracion_minutos,
             color: formData.color,

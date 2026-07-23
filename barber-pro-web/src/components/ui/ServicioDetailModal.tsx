@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { X, Clock, Calendar, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, toSentenceCase } from '@/lib/utils'
 import { ServicioGalleryBanner } from './ServicioGalleryBanner'
 import Link from 'next/link'
 
@@ -19,45 +19,36 @@ interface Servicio {
 
 interface ServicioDetailModalProps {
   servicio: Servicio | null
+  isOpen: boolean
   onClose: () => void
   onSelect?: (servicio: Servicio) => void
 }
 
-export function ServicioDetailModal({ servicio, onClose, onSelect }: ServicioDetailModalProps) {
-  if (!servicio) return null
+export function ServicioDetailModal({ servicio, isOpen, onClose, onSelect }: ServicioDetailModalProps) {
+  if (!isOpen || !servicio) return null
 
   const allImgs = servicio.imagenes && servicio.imagenes.length > 0
     ? servicio.imagenes
     : (servicio.imagen_url ? [servicio.imagen_url] : [])
 
   return (
-    <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-zinc-950 border border-white/10 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto scrollbar-thin">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+      <div className="relative w-full max-w-2xl bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Close Button */}
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-black/60 hover:bg-white/20 border border-white/20 flex items-center justify-center text-zinc-300 hover:text-white transition-all backdrop-blur-md"
+          className="absolute top-4 right-4 z-20 p-2 bg-black/60 hover:bg-black text-zinc-400 hover:text-white rounded-full transition-all border border-white/10"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Banner de Galería de Fotos */}
-        {allImgs.length > 0 ? (
-          <ServicioGalleryBanner 
-            imagenes={allImgs} 
-            categoria={servicio.categoria || 'Cuidado Personal'} 
-            aspectRatio="aspect-[16/9] md:aspect-[21/9]"
-            showBadge={true}
-          />
-        ) : (
-          <div className="h-32 bg-gradient-to-r from-amber-500/20 via-zinc-900 to-black p-6 flex items-end">
-            <span className="text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full bg-amber-500 text-black">
-              {servicio.categoria || 'Servicio Barbería'}
-            </span>
-          </div>
-        )}
+        {/* Gallery / Main Banner */}
+        <div className="shrink-0">
+          <ServicioGalleryBanner imagenes={allImgs} categoria={servicio.categoria || 'Cortes'} />
+        </div>
 
-        <div className="p-6 md:p-8 space-y-6">
+        {/* Content */}
+        <div className="p-6 md:p-8 space-y-6 overflow-y-auto">
           {/* Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-4">
             <div>
@@ -67,8 +58,8 @@ export function ServicioDetailModal({ servicio, onClose, onSelect }: ServicioDet
                   {servicio.categoria || 'Servicio Exclusivo'}
                 </span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight">
-                {servicio.nombre}
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                {toSentenceCase(servicio.nombre)}
               </h2>
             </div>
             
@@ -85,8 +76,8 @@ export function ServicioDetailModal({ servicio, onClose, onSelect }: ServicioDet
             <h4 className="text-xs font-black uppercase text-zinc-500 tracking-wider mb-2">
               Detalles y Beneficios del Servicio
             </h4>
-            <p className="text-zinc-300 text-sm md:text-base leading-relaxed bg-white/[0.02] p-4 rounded-2xl border border-white/5">
-              {servicio.descripcion || 'Servicio profesional realizado por barberos expertos utilizando productos de máxima calidad e higiene.'}
+            <p className="text-zinc-300 text-sm md:text-base leading-relaxed bg-white/[0.02] p-4 rounded-2xl border border-white/5 whitespace-pre-line">
+              {servicio.descripcion ? toSentenceCase(servicio.descripcion) : 'Servicio profesional realizado por barberos expertos utilizando productos de máxima calidad e higiene.'}
             </p>
           </div>
 

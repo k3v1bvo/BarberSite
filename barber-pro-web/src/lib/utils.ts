@@ -48,6 +48,17 @@ export function toTitleCase(str: string | null | undefined): string {
     .join(' ')
 }
 
+/**
+ * Convierte cualquier texto a formato Oración (Solo la primera letra en mayúscula y el resto en minúsculas).
+ * Ej: "COMBO CORTE DE CABELLO + MASCARILLA NEGRA" -> "Combo corte de cabello + mascarilla negra"
+ */
+export function toSentenceCase(str: string | null | undefined): string {
+  if (!str) return ''
+  const trimmed = str.trim()
+  if (!trimmed) return ''
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
+}
+
 export function getTodayBolivia(): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/La_Paz',

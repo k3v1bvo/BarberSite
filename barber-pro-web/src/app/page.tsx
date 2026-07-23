@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, toSentenceCase } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -507,7 +507,7 @@ export default function HomePage() {
                                   <ServicioGalleryBanner imagenes={allImgs} categoria={servicio.categoria || 'Cortes'} />
                                   <div className="p-6">
                                     <div className="flex items-center justify-between mb-3">
-                                      <h4 className="text-xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{servicio.nombre}</h4>
+                                      <h4 className="text-xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{toSentenceCase(servicio.nombre)}</h4>
                                       {allImgs.length === 0 && (
                                         <span className="text-[9px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/20">
                                           {servicio.categoria || 'Cortes'}
@@ -515,7 +515,7 @@ export default function HomePage() {
                                       )}
                                     </div>
                                     <p className="text-gray-400 text-sm mb-4 line-clamp-2 leading-relaxed">
-                                      {servicio.descripcion || 'Servicio premium de barbería y estilismo.'}
+                                      {toSentenceCase(servicio.descripcion) || 'Servicio premium de barbería y estilismo.'}
                                     </p>
                                   </div>
                                 </>
@@ -530,12 +530,21 @@ export default function HomePage() {
                                   <Clock className="w-3 h-3 text-amber-400" /> {servicio.duracion_minutos} min
                                 </p>
                               </div>
-                              <Link
-                                href={`/reservar?servicio=${servicio.id}`}
-                                className="px-5 py-2.5 bg-amber-400 text-black rounded-full text-xs font-black hover:bg-amber-300 hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-amber-400/20"
-                              >
-                                Reservar
-                              </Link>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedServicioForDetail(servicio)}
+                                  className="px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full text-xs font-black transition-all uppercase tracking-wider hover:scale-105"
+                                >
+                                  🔍 Detalles
+                                </button>
+                                <Link
+                                  href={`/reservar?servicio=${servicio.id}`}
+                                  className="px-4 py-2.5 bg-amber-400 text-black rounded-full text-xs font-black hover:bg-amber-300 hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-amber-400/20"
+                                >
+                                  Reservar
+                                </Link>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -560,7 +569,7 @@ export default function HomePage() {
                     <ServicioGalleryBanner imagenes={allImgs} categoria={servicio.categoria || 'Cortes'} />
                     <div className="p-6">
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{servicio.nombre}</h4>
+                        <h4 className="text-xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{toSentenceCase(servicio.nombre)}</h4>
                         {allImgs.length === 0 && (
                           <span className="text-[9px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/20">
                             {servicio.categoria || 'Cortes'}
@@ -568,7 +577,7 @@ export default function HomePage() {
                         )}
                       </div>
                       <p className="text-gray-400 text-sm mb-4 line-clamp-2 leading-relaxed">
-                        {servicio.descripcion || 'Servicio premium de barbería y estilismo.'}
+                        {toSentenceCase(servicio.descripcion) || 'Servicio premium de barbería y estilismo.'}
                       </p>
                     </div>
                   </div>
