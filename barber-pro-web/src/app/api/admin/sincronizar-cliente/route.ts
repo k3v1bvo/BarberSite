@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 
+import { calcularNivelFidelidad } from '@/lib/lealtad/calcular-nivel'
+
 export async function POST(request: Request) {
   try {
     const adminClient = createAdminSupabaseClient()
@@ -96,6 +98,7 @@ export async function POST(request: Request) {
     // 4. Sumar los totales acumulados y complementar datos faltantes
     const nuevoTotalVisitas = (nuevo.total_visitas || 0) + (antiguo.total_visitas || 0)
     const nuevoTotalGastado = (nuevo.total_gastado || 0) + (antiguo.total_gastado || 0)
+    const nuevoNivelFidelidad = await calcularNivelFidelidad(adminClient, nuevoTotalVisitas)
 
     const finalCi = nuevo.ci?.trim() || antiguo.ci?.trim() || null
     const finalTelefono = nuevo.telefono?.trim() || antiguo.telefono?.trim() || null
@@ -106,6 +109,7 @@ export async function POST(request: Request) {
     const updatePayload: any = {
       total_visitas: nuevoTotalVisitas,
       total_gastado: nuevoTotalGastado,
+      nivel_fidelidad: nuevoNivelFidelidad,
       ci: finalCi,
       telefono: finalTelefono,
       cumpleanos: finalCumpleanos,

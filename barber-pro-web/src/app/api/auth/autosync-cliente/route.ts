@@ -3,6 +3,8 @@ import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 import { sendNotificationEmail } from '@/lib/notifications/email'
 import { formatCurrency } from '@/lib/utils'
 
+import { calcularNivelFidelidad } from '@/lib/lealtad/calcular-nivel'
+
 export async function POST(request: Request) {
   try {
     const adminClient = createAdminSupabaseClient()
@@ -78,14 +80,37 @@ export async function POST(request: Request) {
       byEmail?.forEach(c => matchingIds.add(c.id))
     }
 
-    // 3. Buscar por Nombre exacto si el cliente antiguo no tenía CI o Email cargado previamente
-    if (cleanNombre && cleanNombre.length >= 4) {
-      const { data: byNombre } = await adminClient
+    // 3. Buscar por Nombre inteligente (flexibilidad con segundo nombre, tildes y mayúsculas)
+    if (cleanNombre && cleanNombre.length >= 3) {
+      const { data: byNombreExact } = await adminClient
         .from('clientes')
         .select('id')
         .ilike('nombre', cleanNombre)
         .neq('id', new_user_id)
-      byNombre?.forEach(c => matchingIds.add(c.id))
+      byNombreExact?.forEach(c => matchingIds.add(c.id))
+
+      // Normalizar tildes y dividir en palabras (ej: "Fabrice Sánchez" -> ["fabrice", "sanchez"])
+      const normNombre = cleanNombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      const nameWords = normNombre.split(/\s+/).filter(w => w.length >= 3)
+
+      if (nameWords.length > 0) {
+        const { data: allOtherClients } = await adminClient
+          .from('clientes')
+          .select('id, nombre')
+          .neq('id', new_user_id)
+
+        allOtherClients?.forEach(c => {
+          if (!c.nombre) return
+          const cNorm = c.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          // Si el nombre en la BD contiene al menos la primera y última palabra (ej: fabrice y sanchez en FABRICE MAURICIO SANCHEZ)
+          const matchesFirst = nameWords[0] ? cNorm.includes(nameWords[0]) : false
+          const matchesLast = nameWords.length > 1 ? cNorm.includes(nameWords[nameWords.length - 1]) : true
+          
+          if (matchesFirst && matchesLast) {
+            matchingIds.add(c.id)
+          }
+        })
+      }
     }
 
     const oldClientIds = Array.from(matchingIds)
@@ -203,10 +228,12 @@ export async function POST(request: Request) {
 
     const finalVisitas = (currentNewClient?.total_visitas || 0) + totalVisitasSum
     const finalGastado = (currentNewClient?.total_gastado || 0) + totalGastadoSum
+    const finalNivel = await calcularNivelFidelidad(adminClient, finalVisitas)
 
     const updatePayload: any = {
       total_visitas: finalVisitas,
       total_gastado: finalGastado,
+      nivel_fidelidad: finalNivel,
     }
 
     if (ciFound && (!currentNewClient?.ci || currentNewClient.ci === '')) {

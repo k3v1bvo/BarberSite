@@ -110,17 +110,21 @@ export default function SincronizarHistorialPage() {
   const searchClientesLive = useCallback(async (term: string, target: 'antiguo' | 'nuevo') => {
     try {
       const t = term.trim()
+      const normT = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      const words = normT.split(/\s+/).filter(w => w.length >= 2)
+
       let clientQuery = supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas, created_at')
       let profileQuery = supabase.from('profiles').select('id, full_name, email, phone, ci, created_at').eq('role', 'cliente')
 
       if (t) {
-        clientQuery = clientQuery.or(`nombre.ilike.%${t}%,ci.ilike.%${t}%,telefono.ilike.%${t}%,email.ilike.%${t}%`)
-        profileQuery = profileQuery.or(`full_name.ilike.%${t}%,ci.ilike.%${t}%,phone.ilike.%${t}%,email.ilike.%${t}%`)
+        const firstWord = words[0] || t
+        clientQuery = clientQuery.or(`nombre.ilike.%${firstWord}%,ci.ilike.%${t}%,telefono.ilike.%${t}%,email.ilike.%${t}%`)
+        profileQuery = profileQuery.or(`full_name.ilike.%${firstWord}%,ci.ilike.%${t}%,phone.ilike.%${t}%,email.ilike.%${t}%`)
       }
 
       const [resC, resP] = await Promise.all([
-        clientQuery.order('created_at', { ascending: false }).limit(50),
-        profileQuery.order('created_at', { ascending: false }).limit(50),
+        clientQuery.order('created_at', { ascending: false }).limit(100),
+        profileQuery.order('created_at', { ascending: false }).limit(100),
       ])
 
       const map = new Map<string, any>()
@@ -139,7 +143,16 @@ export default function SincronizarHistorialPage() {
         }
       })
 
-      const combined = Array.from(map.values()).slice(0, 50)
+      let combined = Array.from(map.values())
+
+      if (words.length > 1) {
+        combined = combined.filter(item => {
+          const itemNorm = (item.nombre || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') + ' ' + (item.email || '').toLowerCase()
+          return words.every(w => itemNorm.includes(w.toLowerCase()))
+        })
+      }
+
+      combined = combined.slice(0, 50)
       if (target === 'antiguo') setLiveClientesAntiguos(combined)
       else setLiveClientesNuevos(combined)
     } catch (err) {
@@ -564,11 +577,16 @@ export default function SincronizarHistorialPage() {
                               setShowClienteAntiguoDropdown(false)
                             }}
                           >
-                            <div className="font-bold uppercase text-white">{c.nombre}</div>
-                            <div className="text-[10px] text-zinc-500 mt-0.5">
-                              {c.ci && <span className="mr-2">CI: {c.ci}</span>}
-                              {c.telefono && <span className="mr-2">Tel: {c.telefono}</span>}
-                              <span>Visitas: {c.total_visitas}</span>
+                            <div className="font-bold uppercase text-white flex items-center justify-between">
+                              <span>{c.nombre}</span>
+                              <span className={`text-[9px] px-2 py-0.5 rounded-full ${c.email ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                                {c.email || 'Sin Correo'}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-zinc-500 mt-1 flex items-center gap-3">
+                              {c.ci && <span className="text-amber-400 font-bold">CI: {c.ci}</span>}
+                              {c.telefono && <span>Tel: {c.telefono}</span>}
+                              <span className="font-black text-white">Visitas: {c.total_visitas || 0}</span>
                             </div>
                           </button>
                         ))}
@@ -627,11 +645,16 @@ export default function SincronizarHistorialPage() {
                               setShowClienteNuevoDropdown(false)
                             }}
                           >
-                            <div className="font-bold uppercase text-white">{c.nombre}</div>
-                            <div className="text-[10px] text-zinc-500 mt-0.5">
-                              {c.ci && <span className="mr-2">CI: {c.ci}</span>}
-                              {c.telefono && <span className="mr-2">Tel: {c.telefono}</span>}
-                              <span>Visitas: {c.total_visitas}</span>
+                            <div className="font-bold uppercase text-white flex items-center justify-between">
+                              <span>{c.nombre}</span>
+                              <span className={`text-[9px] px-2 py-0.5 rounded-full ${c.email ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                                {c.email || 'Sin Correo'}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-zinc-500 mt-1 flex items-center gap-3">
+                              {c.ci && <span className="text-amber-400 font-bold">CI: {c.ci}</span>}
+                              {c.telefono && <span>Tel: {c.telefono}</span>}
+                              <span className="font-black text-white">Visitas: {c.total_visitas || 0}</span>
                             </div>
                           </button>
                         ))}
