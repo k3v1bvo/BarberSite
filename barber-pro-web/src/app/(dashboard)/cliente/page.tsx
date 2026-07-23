@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { formatCurrency, cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import {
-  Scissors, Calendar, Clock, CheckCircle, XCircle,
+  Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
   Trophy, Zap, Shield, Crown, Flame, Users
 } from 'lucide-react'
@@ -65,7 +65,13 @@ export default function ClientePage() {
   const [birthdayGlow, setBirthdayGlow] = useState(false)
   
   // Reseñas
-  const [reviewModal, setReviewModal] = useState<{ open: boolean; citaId: string | null; barberoId: string | null }>({ open: false, citaId: null, barberoId: null })
+  const [reviewModal, setReviewModal] = useState<{
+    open: boolean;
+    citaId: string | null;
+    barberoId: string | null;
+    servicioNombre?: string;
+    barberoNombre?: string;
+  }>({ open: false, citaId: null, barberoId: null })
   const [reviewData, setReviewData] = useState({ estrellas: 5, comentario: '' })
   const [submittingReview, setSubmittingReview] = useState(false)
   
@@ -783,7 +789,13 @@ export default function ClientePage() {
                       <button
                         className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-black transition-all text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0"
                         onClick={() => {
-                          setReviewModal({ open: true, citaId: cita.id, barberoId: (cita as any).barbero_id || null })
+                          setReviewModal({
+                            open: true,
+                            citaId: cita.id,
+                            barberoId: (cita as any).barbero_id || null,
+                            servicioNombre: (cita as any).servicios?.nombre || 'Servicio de Barbería',
+                            barberoNombre: (cita as any).profiles?.full_name || (cita as any).barberos?.full_name || 'Tu Barbero'
+                          })
                         }}
                         title="Dejar un comentario sobre el servicio"
                       >
@@ -823,102 +835,246 @@ export default function ClientePage() {
         </div>
       </div>
 
-      {/* Modal de Review */}
+      {/* Modal de Reseña Mobile Responsive */}
       {reviewModal.open && (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-4 backdrop-blur-md animate-in fade-in duration-300">
-          <Card className="w-full max-w-sm border-white/10 shadow-2xl bg-zinc-950">
-            <div className="p-6">
-              <h3 className="text-xl font-black uppercase text-white mb-4">Califica el Servicio</h3>
-              
-              <div className="flex justify-center gap-2 mb-6">
-                {[1, 2, 3, 4, 5].map(star => (
-                  <button
-                    key={star}
-                    onClick={() => setReviewData({ ...reviewData, estrellas: star })}
-                    className="transition-transform hover:scale-110"
-                  >
-                    <Star
-                      size={32}
-                      className={cn(
-                        star <= reviewData.estrellas ? "fill-amber-500 text-amber-500" : "text-zinc-700"
-                      )}
-                    />
-                  </button>
-                ))}
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-300">
+          <div className="w-full sm:max-w-md bg-zinc-950 border-t sm:border border-white/10 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col animate-in slide-in-from-bottom-5 duration-300">
+            {/* Handle visual indicator for mobile bottom sheet */}
+            <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
+
+            {/* Header */}
+            <div className="px-6 pt-2 pb-4 border-b border-white/5 flex items-center justify-between shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <h3 className="text-lg font-black uppercase tracking-tight text-white">Calificar Servicio</h3>
+                </div>
+                <p className="text-xs text-zinc-400 mt-0.5 font-medium">
+                  {reviewModal.servicioNombre || 'Servicio Barbería'}
+                </p>
+              </div>
+              <button
+                onClick={() => setReviewModal({ open: false, citaId: null, barberoId: null })}
+                className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-6 overflow-y-auto">
+              {/* Star Rating Controls */}
+              <div className="text-center bg-white/5 p-4 rounded-2xl border border-white/5 space-y-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Toca las estrellas para calificar</p>
+                <div className="flex justify-center items-center gap-2 py-1">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setReviewData({ ...reviewData, estrellas: star })}
+                      className="p-1.5 transition-all duration-200 hover:scale-125 active:scale-95 touch-manipulation focus:outline-none"
+                    >
+                      <Star
+                        size={36}
+                        className={cn(
+                          "transition-colors duration-200 drop-shadow-md",
+                          star <= reviewData.estrellas
+                            ? "fill-amber-500 text-amber-500 scale-110"
+                            : "text-zinc-700 hover:text-zinc-500"
+                        )}
+                      />
+                    </button>
+                  ))}
+                </div>
+                {/* Dynamic Label */}
+                <Badge className={cn(
+                  "font-black uppercase text-[10px] tracking-widest px-3 py-1 border transition-all",
+                  reviewData.estrellas === 5 && "bg-green-500/10 text-green-400 border-green-500/30",
+                  reviewData.estrellas === 4 && "bg-amber-500/10 text-amber-400 border-amber-500/30",
+                  reviewData.estrellas === 3 && "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+                  reviewData.estrellas <= 2 && "bg-red-500/10 text-red-400 border-red-500/30"
+                )}>
+                  {reviewData.estrellas === 5 && "🌟 ¡Excelente! Servicio impecable"}
+                  {reviewData.estrellas === 4 && "👍 Muy Bueno, gran atención"}
+                  {reviewData.estrellas === 3 && "😐 Aceptable, todo normal"}
+                  {reviewData.estrellas === 2 && "👎 Regular, puede mejorar"}
+                  {reviewData.estrellas === 1 && "🙁 Deficiente"}
+                </Badge>
               </div>
 
-              <textarea
-                className="w-full p-4 border border-white/10 bg-zinc-900 rounded-2xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all mb-4"
-                rows={4}
-                placeholder="Opcional: ¿Qué te pareció el corte, el ambiente y el barbero?"
-                value={reviewData.comentario}
-                onChange={(e) => setReviewData({ ...reviewData, comentario: e.target.value })}
-              />
+              {/* Chips rápidos de cortesía */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">
+                  Recomendación rápida (opcional)
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    "💈 Excelente corte",
+                    "⚡ Muy puntual",
+                    "☕ Excelente atención",
+                    "🧼 Higiénico & Limpio",
+                    "🎵 Buen ambiente"
+                  ].map((chip) => {
+                    const active = reviewData.comentario.includes(chip)
+                    return (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => {
+                          if (active) {
+                            setReviewData({
+                              ...reviewData,
+                              comentario: reviewData.comentario.replace(chip, "").trim()
+                            })
+                          } else {
+                            setReviewData({
+                              ...reviewData,
+                              comentario: (reviewData.comentario + " " + chip).trim()
+                            })
+                          }
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-xl text-xs font-bold transition-all border text-left",
+                          active
+                            ? "bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/20"
+                            : "bg-white/5 text-zinc-400 border-white/10 hover:border-amber-500/30 hover:text-white"
+                        )}
+                      >
+                        {chip}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
 
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1 border-white/10 text-zinc-400"
-                  onClick={() => setReviewModal({ open: false, citaId: null, barberoId: null })}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  variant="primary"
-                  className="flex-1 font-black uppercase tracking-widest text-xs"
-                  onClick={submitReview}
-                  disabled={submittingReview}
-                >
-                  {submittingReview ? 'Enviando...' : 'Enviar Reseña'}
-                </Button>
+              {/* Textarea */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                    Tu Comentario
+                  </label>
+                  <span className="text-[10px] font-mono text-zinc-600">
+                    {reviewData.comentario.length}/300
+                  </span>
+                </div>
+                <textarea
+                  maxLength={300}
+                  className="w-full p-4 bg-zinc-900 border border-white/10 rounded-2xl text-sm font-medium text-white placeholder:text-zinc-600 focus:border-amber-500/50 outline-none transition-all resize-none min-h-[110px]"
+                  placeholder="¿Qué te pareció el corte, la puntualidad o la atención del barbero?"
+                  value={reviewData.comentario}
+                  onChange={(e) => setReviewData({ ...reviewData, comentario: e.target.value })}
+                />
               </div>
             </div>
-          </Card>
+
+            {/* Footer Buttons */}
+            <div className="p-6 pt-2 border-t border-white/5 bg-zinc-950 flex gap-3 shrink-0">
+              <Button
+                variant="outline"
+                className="flex-1 h-12 border-white/10 text-zinc-400 hover:text-white hover:bg-white/5 rounded-2xl font-bold uppercase text-xs"
+                onClick={() => setReviewModal({ open: false, citaId: null, barberoId: null })}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1 h-12 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-wider text-xs rounded-2xl shadow-lg shadow-amber-500/20"
+                onClick={submitReview}
+                disabled={submittingReview}
+              >
+                {submittingReview ? 'Enviando...' : 'Publicar Reseña ⭐'}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Modal de Reprogramación */}
+      {/* Modal de Reprogramación Mobile Responsive */}
       {reprogramarModal.open && (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-4 backdrop-blur-md animate-in fade-in duration-300">
-          <Card className="w-full max-w-sm border-white/10 shadow-2xl bg-zinc-950">
-            <div className="p-6">
-              <h3 className="text-xl font-black uppercase text-amber-500 mb-4">Solicitar Reprogramación</h3>
-              <p className="text-xs text-zinc-400 mb-4 leading-tight">
-                Elige la nueva fecha y hora. El barbero deberá aprobar este cambio. Si rechaza, la cita se mantendrá en su horario original.
-              </p>
-              
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-1 block">Nueva Fecha</label>
-                  <input type="date" min={new Date().toISOString().split('T')[0]} value={reprogramarData.fecha} onChange={e => setReprogramarData({ ...reprogramarData, fecha: e.target.value })}
-                    className="w-full h-10 bg-zinc-900 border border-white/10 rounded-lg px-3 text-sm text-white focus:border-amber-500/50 outline-none" />
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-300">
+          <div className="w-full sm:max-w-md bg-zinc-950 border-t sm:border border-white/10 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col animate-in slide-in-from-bottom-5 duration-300">
+            {/* Handle visual indicator for mobile */}
+            <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
+
+            {/* Header */}
+            <div className="px-6 pt-2 pb-4 border-b border-white/5 flex items-center justify-between shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-amber-500" />
+                  <h3 className="text-lg font-black uppercase tracking-tight text-white">Solicitar Reprogramación</h3>
                 </div>
-                <div>
-                  <label className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-1 block">Nueva Hora</label>
-                  <input type="time" value={reprogramarData.hora} onChange={e => setReprogramarData({ ...reprogramarData, hora: e.target.value })}
-                    className="w-full h-10 bg-zinc-900 border border-white/10 rounded-lg px-3 text-sm text-white focus:border-amber-500/50 outline-none" />
-                </div>
+                <p className="text-xs text-zinc-400 mt-0.5 font-medium">Cambio de fecha y hora para tu cita</p>
+              </div>
+              <button
+                onClick={() => setReprogramarModal({ open: false, citaId: null })}
+                className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-5 overflow-y-auto">
+              <div className="bg-amber-500/10 border border-amber-500/20 p-3.5 rounded-2xl flex items-start gap-3">
+                <Clock className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-200/80 leading-relaxed font-medium">
+                  Al enviar la solicitud, el barbero recibirá una notificación para autorizar el nuevo horario.
+                </p>
               </div>
 
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1 border-white/10 text-zinc-400"
-                  onClick={() => setReprogramarModal({ open: false, citaId: null })}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  variant="primary"
-                  className="flex-1 font-black uppercase tracking-widest text-xs"
-                  onClick={submitReprogramacion}
-                  disabled={submittingReprogramar}
-                >
-                  {submittingReprogramar ? 'Enviando...' : 'Solicitar'}
-                </Button>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
+                    Nueva Fecha Deseada
+                  </label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+                    <input
+                      type="date"
+                      min={new Date().toISOString().split('T')[0]}
+                      value={reprogramarData.fecha}
+                      onChange={e => setReprogramarData({ ...reprogramarData, fecha: e.target.value })}
+                      className="w-full h-12 bg-zinc-900 border border-white/10 rounded-2xl pl-10 pr-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all appearance-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
+                    Nueva Hora Deseada
+                  </label>
+                  <div className="relative">
+                    <Clock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+                    <input
+                      type="time"
+                      value={reprogramarData.hora}
+                      onChange={e => setReprogramarData({ ...reprogramarData, hora: e.target.value })}
+                      className="w-full h-12 bg-zinc-900 border border-white/10 rounded-2xl pl-10 pr-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all appearance-none"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          </Card>
+
+            {/* Footer */}
+            <div className="p-6 pt-2 border-t border-white/5 bg-zinc-950 flex gap-3 shrink-0">
+              <Button
+                variant="outline"
+                className="flex-1 h-12 border-white/10 text-zinc-400 hover:text-white hover:bg-white/5 rounded-2xl font-bold uppercase text-xs"
+                onClick={() => setReprogramarModal({ open: false, citaId: null })}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1 h-12 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-wider text-xs rounded-2xl shadow-lg shadow-amber-500/20"
+                onClick={submitReprogramacion}
+                disabled={submittingReprogramar}
+              >
+                {submittingReprogramar ? 'Enviando...' : 'Enviar Solicitud 📅'}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

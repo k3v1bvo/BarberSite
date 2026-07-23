@@ -457,6 +457,11 @@ export default function BarberoPage() {
         </div>
       </div>
 
+      {/* Marcador de Asistencia / Turno Principal (Top Priority) */}
+      <div className="w-full">
+        <AsistenciaWidget />
+      </div>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
         <Card className="border-none bg-zinc-900 shadow-xl">
@@ -717,9 +722,8 @@ export default function BarberoPage() {
           </Card>
         </div>
 
-        {/* Weekly Chart & Asistencia */}
+        {/* Weekly Chart */}
         <div className="space-y-6">
-          <AsistenciaWidget />
           <Card className="border-white/5 h-fit xl:sticky xl:top-24">
             <CardHeader>
                <CardTitle className="text-sm">📈 Rendimiento Semanal</CardTitle>
