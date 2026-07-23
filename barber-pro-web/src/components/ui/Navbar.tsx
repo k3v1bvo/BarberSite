@@ -161,6 +161,9 @@ export function Navbar() {
               </Link>
               {!user && (
                 <nav className="flex items-center gap-6 text-zinc-400 font-medium ml-4">
+                  <Link href="/servicios" className="hover:text-amber-400 transition-colors">
+                    Servicios
+                  </Link>
                   <Link href="/galeria" className="hover:text-amber-400 transition-colors">
                     Galería
                   </Link>
@@ -275,9 +278,9 @@ export function Navbar() {
         ) : (
           <>
             <Link href="/" className="flex flex-col items-center justify-center text-amber-500"><Home size={22} /><span className="text-[10px] uppercase font-black mt-1">Inicio</span></Link>
-            <Link href="/galeria" className="text-zinc-500"><Scissors size={22} /></Link>
-            <Link href="/tienda" className="text-zinc-500"><ShoppingBag size={22} /></Link>
-            <Link href="/login" className="text-zinc-500"><User size={22} /></Link>
+            <Link href="/servicios" className="text-zinc-500 hover:text-amber-400"><Scissors size={22} /></Link>
+            <Link href="/tienda" className="text-zinc-500 hover:text-amber-400"><ShoppingBag size={22} /></Link>
+            <Link href="/login" className="text-zinc-500 hover:text-amber-400"><User size={22} /></Link>
           </>
         )}
       </nav>

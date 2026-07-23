@@ -122,117 +122,104 @@ export default function HomePage() {
 
   useEffect(() => {
     const checkUserAndData = async () => {
-      // 1. Verificar usuario
-      const { data: { user: authUser } } = await supabase.auth.getUser()
+      try {
+        const [
+          authRes,
+          serviciosRes,
+          prodsRes,
+          portafolioRes,
+          barberosRes,
+          equipoRes,
+          configRes,
+          testimoniosRes
+        ] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase
+            .from('servicios')
+            .select('id, nombre, precio, duracion_minutos, descripcion, categoria, imagen_url, imagenes')
+            .eq('is_active', true)
+            .order('nombre')
+            .limit(6),
+          supabase
+            .from('productos')
+            .select('id, nombre, precio_venta, image_url')
+            .eq('is_active', true)
+            .gt('stock_actual', 0)
+            .limit(4),
+          supabase
+            .from('portafolio')
+            .select('id, image_url, categoria, descripcion')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(12),
+          supabase
+            .from('profiles')
+            .select('id, full_name, avatar_url')
+            .eq('role', 'barbero')
+            .eq('is_active', true),
+          supabase
+            .from('equipo_home')
+            .select('id, nombre, especialidad, imagen_url, profile_id, descripcion, redes_sociales')
+            .eq('is_active', true)
+            .order('sort_order', { ascending: true }),
+          supabase
+            .from('configuraciones')
+            .select('llave, valor')
+            .in('llave', ['hero_bg_image', 'about_us_config']),
+          supabase
+            .from('reviews')
+            .select(`
+              id, estrellas, comentario,
+              cliente:cliente_id(full_name),
+              barbero:barbero_id(full_name)
+            `)
+            .eq('is_public', true)
+            .order('created_at', { ascending: false })
+            .limit(6)
+        ])
 
-      if (authUser) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id, full_name, email, role, avatar_url')
-          .eq('id', authUser.id)
-          .single()
-
-        if (profile) {
-          setUser(profile as UserProfile)
+        const authUser = authRes.data?.user
+        if (authUser) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id, full_name, email, role, avatar_url')
+            .eq('id', authUser.id)
+            .single()
+          if (profile) setUser(profile as UserProfile)
         }
-      }
 
-      // 2. Cargar servicios
-      const { data: serviciosData } = await supabase
-        .from('servicios')
-        .select('*')
-        .eq('is_active', true)
-        .order('nombre')
+        if (serviciosRes.data) setServicios(serviciosRes.data as Servicio[])
+        if (prodsRes.data) setProductos(prodsRes.data as Producto[])
+        if (portafolioRes.data) setPortafolio(portafolioRes.data as PortafolioItem[])
 
-      if (serviciosData) {
-        setServicios(serviciosData)
-      }
+        const barberosData = barberosRes.data
+        const equipoData = equipoRes.data
+        const mergedEquipo = barberosData?.map(prof => {
+          const equipoConfig = equipoData?.find(e => e.profile_id === prof.id || e.nombre === prof.full_name)
+          return {
+            id: prof.id,
+            nombre: prof.full_name || 'Barbero',
+            especialidad: equipoConfig?.especialidad || 'Barbero Especialista',
+            imagen_url: equipoConfig?.imagen_url || prof.avatar_url || '',
+            descripcion: equipoConfig?.descripcion,
+            redes_sociales: equipoConfig?.redes_sociales
+          }
+        }) || []
+        setEquipo(mergedEquipo)
 
-      // 3. Cargar Productos Destacados
-      const { data: prodsData } = await supabase
-        .from('productos')
-        .select('id, nombre, precio_venta, image_url')
-        .eq('is_active', true)
-        .gt('stock_actual', 0)
-        .limit(4)
-
-      if (prodsData) {
-        setProductos(prodsData)
-      }
-
-      const { data: portafolioData } = await supabase
-        .from('portafolio')
-        .select('id, image_url, categoria, descripcion')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(12)
-
-      if (portafolioData) {
-        setPortafolio(portafolioData)
-      }
-
-      // Cargar barberos activos para mostrarlos en el equipo
-      const { data: barberosData } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url')
-        .eq('role', 'barbero')
-        .eq('is_active', true)
-
-      const { data: equipoData } = await supabase
-        .from('equipo_home')
-        .select('id, nombre, especialidad, imagen_url, profile_id, descripcion, redes_sociales')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
-
-      const mergedEquipo = barberosData?.map(prof => {
-        const equipoConfig = equipoData?.find(e => e.profile_id === prof.id || e.nombre === prof.full_name)
-        return {
-          id: prof.id,
-          nombre: prof.full_name || 'Barbero',
-          especialidad: equipoConfig?.especialidad || 'Barbero Especialista',
-          imagen_url: equipoConfig?.imagen_url || prof.avatar_url || '',
-          descripcion: equipoConfig?.descripcion,
-          redes_sociales: equipoConfig?.redes_sociales
+        if (configRes.data) {
+          const heroConfig = configRes.data.find(c => c.llave === 'hero_bg_image')
+          const aboutConfig = configRes.data.find(c => c.llave === 'about_us_config')
+          if (heroConfig?.valor) setHeroConfigState({ ...defaultHero, ...(heroConfig.valor as any) })
+          if (aboutConfig?.valor) setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
         }
-      }) || []
 
-      setEquipo(mergedEquipo)
-
-      // 6. Cargar configuración global
-      const { data: configData } = await supabase
-        .from('configuraciones')
-        .select('llave, valor')
-        .in('llave', ['hero_bg_image', 'about_us_config'])
-
-      if (configData) {
-        const heroConfig = configData.find(c => c.llave === 'hero_bg_image')
-        const aboutConfig = configData.find(c => c.llave === 'about_us_config')
-
-        if (heroConfig && heroConfig.valor) {
-          setHeroConfigState({ ...defaultHero, ...(heroConfig.valor as any) })
-        }
-        if (aboutConfig && aboutConfig.valor) {
-          setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
-        }
+        if (testimoniosRes.data) setTestimonios(testimoniosRes.data)
+      } catch (err) {
+        console.error('Error cargando datos:', err)
+      } finally {
+        setLoading(false)
       }
-
-      // 7. Cargar Testimonios
-      const { data: testimoniosData } = await supabase
-        .from('reviews')
-        .select(`
-          id, estrellas, comentario,
-          cliente:cliente_id(full_name),
-          barbero:barbero_id(full_name)
-        `)
-        .eq('is_public', true)
-        .order('created_at', { ascending: false })
-        .limit(6)
-
-      if (testimoniosData) {
-        setTestimonios(testimoniosData)
-      }
-
-      setLoading(false)
     }
 
     checkUserAndData()
@@ -434,133 +421,36 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Servicios */}
+      {/* Servicios Destacados */}
       <section id="servicios" className="py-24 bg-zinc-900">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-12">
-            <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-3">Nuestros Servicios</p>
-            <h2 className="text-5xl font-extrabold tracking-tight text-white mb-8">Catálogo de Servicios & Especialidades</h2>
-
-            {/* Pestañas de categoría */}
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => setCategoriaActiva('todos')}
-                className={`px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${
-                  categoriaActiva === 'todos'
-                    ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20 scale-105'
-                    : 'bg-black/60 border border-white/10 text-zinc-400 hover:border-amber-400/50 hover:text-white'
-                }`}
-              >
-                Todos ({servicios?.length || 0})
-              </button>
-              {CATEGORIAS_SERVICIOS.map(cat => {
-                const count = servicios?.filter(s => (s.categoria || 'Cortes') === cat.id).length || 0
-                if (count === 0 && categoriaActiva !== cat.id) return null
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setCategoriaActiva(cat.id)}
-                    className={`px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
-                      categoriaActiva === cat.id
-                        ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20 scale-105'
-                        : 'bg-black/60 border border-white/10 text-zinc-400 hover:border-amber-400/50 hover:text-white'
-                    }`}
-                  >
-                    <span>{cat.id}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 font-mono">{count}</span>
-                  </button>
-                )
-              })}
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+            <div>
+              <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-3 flex items-center gap-2">
+                <Scissors className="w-4 h-4" /> Especialidades Más Solicitadas
+              </p>
+              <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white">
+                Servicios Destacados
+              </h2>
             </div>
+            <Link
+              href="/servicios"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-amber-400/10 border border-amber-400/30 text-amber-400 hover:bg-amber-400 hover:text-black rounded-full font-black text-xs uppercase tracking-widest transition-all self-start md:self-auto"
+            >
+              Ver Catálogo Completo <ChevronRight className="w-4 h-4" />
+            </Link>
           </div>
 
-          {/* Renderizado de Servicios (Agrupado por Categoría si es "todos", o grid si es específico) */}
-          {categoriaActiva === 'todos' ? (
-            <div className="space-y-16">
-              {CATEGORIAS_SERVICIOS.map(cat => {
-                const servsDeCat = servicios?.filter(s => (s.categoria || 'Cortes') === cat.id) || []
-                if (servsDeCat.length === 0) return null
-                return (
-                  <div key={cat.id} className="space-y-6">
-                    <div className="flex items-center gap-4 border-b border-white/10 pb-4">
-                      <div className="w-2.5 h-8 bg-amber-400 rounded-full" />
-                      <div>
-                        <h3 className="text-2xl font-black uppercase tracking-tight text-white">{cat.label}</h3>
-                        <p className="text-xs font-medium text-zinc-400">{cat.descripcion}</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {servsDeCat.map((servicio) => (
-                        <div
-                          key={servicio.id}
-                          className="group bg-black border border-white/10 rounded-2xl overflow-hidden hover:border-amber-400/50 transition-all duration-300 flex flex-col justify-between"
-                        >
-                          <div>
-                            {(() => {
-                              const allImgs = servicio.imagenes && servicio.imagenes.length > 0
-                                ? servicio.imagenes
-                                : (servicio.imagen_url ? [servicio.imagen_url] : [])
-                              return (
-                                <>
-                                  <ServicioGalleryBanner imagenes={allImgs} categoria={servicio.categoria || 'Cortes'} />
-                                  <div className="p-6">
-                                    <div className="flex items-center justify-between mb-3">
-                                      <h4 className="text-xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{toSentenceCase(servicio.nombre)}</h4>
-                                      {allImgs.length === 0 && (
-                                        <span className="text-[9px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/20">
-                                          {servicio.categoria || 'Cortes'}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="text-gray-400 text-sm mb-4 line-clamp-2 leading-relaxed">
-                                      {toSentenceCase(servicio.descripcion) || 'Servicio premium de barbería y estilismo.'}
-                                    </p>
-                                  </div>
-                                </>
-                              )
-                            })()}
-                          </div>
-                          <div className="p-6 pt-0 mt-auto">
-                            <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                              <div>
-                                <p className="text-2xl font-black text-amber-400 leading-none mb-1">{formatCurrency(servicio.precio)}</p>
-                                <p className="text-xs text-gray-500 font-bold flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-amber-400" /> {servicio.duracion_minutos} min
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedServicioForDetail(servicio)}
-                                  className="px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full text-xs font-black transition-all uppercase tracking-wider hover:scale-105"
-                                >
-                                  🔍 Detalles
-                                </button>
-                                <Link
-                                  href={`/reservar?servicio=${servicio.id}`}
-                                  className="px-4 py-2.5 bg-amber-400 text-black rounded-full text-xs font-black hover:bg-amber-300 hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-amber-400/20"
-                                >
-                                  Reservar
-                                </Link>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {servicios?.filter(s => (s.categoria || 'Cortes') === categoriaActiva).map((servicio) => {
-                const allImgs = servicio.imagenes && servicio.imagenes.length > 0
+          {/* Grid de Servicios Destacados */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {servicios?.map((servicio) => {
+              const allImgs =
+                servicio.imagenes && servicio.imagenes.length > 0
                   ? servicio.imagenes
-                  : (servicio.imagen_url ? [servicio.imagen_url] : [])
-                return (
+                  : servicio.imagen_url
+                  ? [servicio.imagen_url]
+                  : []
+              return (
                 <div
                   key={servicio.id}
                   className="group bg-black border border-white/10 rounded-2xl overflow-hidden hover:border-amber-400/50 transition-all duration-300 flex flex-col justify-between"
@@ -569,7 +459,9 @@ export default function HomePage() {
                     <ServicioGalleryBanner imagenes={allImgs} categoria={servicio.categoria || 'Cortes'} />
                     <div className="p-6">
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{toSentenceCase(servicio.nombre)}</h4>
+                        <h4 className="text-xl font-extrabold text-white group-hover:text-amber-400 transition-colors">
+                          {toSentenceCase(servicio.nombre)}
+                        </h4>
                         {allImgs.length === 0 && (
                           <span className="text-[9px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/20">
                             {servicio.categoria || 'Cortes'}
@@ -584,7 +476,9 @@ export default function HomePage() {
                   <div className="p-6 pt-0 mt-auto">
                     <div className="flex items-center justify-between pt-4 border-t border-white/10">
                       <div>
-                        <p className="text-2xl font-black text-amber-400 leading-none mb-1">{formatCurrency(servicio.precio)}</p>
+                        <p className="text-2xl font-black text-amber-400 leading-none mb-1">
+                          {formatCurrency(servicio.precio)}
+                        </p>
                         <p className="text-xs text-gray-500 font-bold flex items-center gap-1">
                           <Clock className="w-3 h-3 text-amber-400" /> {servicio.duracion_minutos} min
                         </p>
@@ -593,13 +487,13 @@ export default function HomePage() {
                         <button
                           type="button"
                           onClick={() => setSelectedServicioForDetail(servicio)}
-                          className="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-amber-400 border border-amber-400/30 rounded-full text-xs font-black transition-all uppercase tracking-wider"
+                          className="px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full text-xs font-black transition-all uppercase tracking-wider hover:scale-105"
                         >
                           🔍 Detalles
                         </button>
                         <Link
                           href={`/reservar?servicio=${servicio.id}`}
-                          className="px-5 py-2.5 bg-amber-400 text-black rounded-full text-xs font-black hover:bg-amber-300 hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-amber-400/20"
+                          className="px-4 py-2.5 bg-amber-400 text-black rounded-full text-xs font-black hover:bg-amber-300 hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-amber-400/20"
                         >
                           Reservar
                         </Link>
@@ -607,10 +501,32 @@ export default function HomePage() {
                     </div>
                   </div>
                 </div>
-                )
-              })}
+              )
+            })}
+          </div>
+
+          {/* Banner Promocional / Llamado a explorar el catálogo completo */}
+          <div className="mt-16 text-center bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 border border-amber-400/30 rounded-3xl p-8 sm:p-12 relative overflow-hidden backdrop-blur-md">
+            <div className="max-w-2xl mx-auto space-y-4">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 text-amber-400 text-xs font-black uppercase tracking-widest">
+                <Scissors className="w-3.5 h-3.5" /> Menú de Servicios Completo
+              </span>
+              <h3 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-tight">
+                ¿Buscas un corte o tratamiento específico?
+              </h3>
+              <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
+                Explora todo nuestro menú con filtrado por categorías (cortes, barbas, combos, tintes y tratamientos) y buscador en tiempo real.
+              </p>
+              <div className="pt-2">
+                <Link
+                  href="/servicios"
+                  className="inline-flex items-center gap-2 px-8 py-4 bg-amber-400 text-black font-black uppercase tracking-widest rounded-full hover:bg-amber-300 hover:scale-105 transition-all shadow-xl shadow-amber-400/20 text-xs sm:text-sm"
+                >
+                  Ver Catálogo Completo de Servicios <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
             </div>
-          )}
+          </div>
 
           {(!servicios || servicios.length === 0) && (
             <div className="text-center py-16">
