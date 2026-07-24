@@ -25,6 +25,7 @@ interface CardData {
   esCumpleanos: boolean
   cumpleVerificado: boolean
   diasParaCumple: number | null
+  metas?: any[]
   proximaMeta: any | null
   metasAlcanzadas: any[]
   canjes: any[]

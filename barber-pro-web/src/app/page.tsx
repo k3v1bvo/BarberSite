@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency, toSentenceCase } from '@/lib/utils'
+import { formatCurrency, toSentenceCase, toTitleCase } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -412,7 +412,7 @@ export default function HomePage() {
           </span>
           <span className="flex items-center gap-2">
             <Phone className="w-4 h-4" />
-            +591 71234567
+            +591 78353814
           </span>
           <span className="flex items-center gap-2">
             <MapPin className="w-4 h-4" />
@@ -710,7 +710,7 @@ export default function HomePage() {
                     )}
                   </div>
                   <div className="p-6 text-center">
-                    <h3 className="text-lg font-bold mb-2 line-clamp-1">{producto.nombre}</h3>
+                    <h3 className="text-lg font-bold mb-2 line-clamp-1">{toTitleCase(producto.nombre)}</h3>
                     <p className="text-amber-500 font-black text-xl mb-4">{formatCurrency(producto.precio_venta)}</p>
                     <Link href={`/tienda?producto=${producto.id}`} className="inline-block w-full py-2 bg-white/5 hover:bg-amber-500 hover:text-black rounded-lg text-sm font-bold uppercase tracking-widest transition-colors border border-white/10 hover:border-amber-500">
                       Ver Detalles
@@ -765,10 +765,10 @@ export default function HomePage() {
                       )}
                     </div>
                     <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-amber-400 text-black px-4 py-1 rounded-full text-sm font-bold truncate max-w-[200px]">
-                      {barbero.especialidad}
+                      {toTitleCase(barbero.especialidad || 'Barbero Especialista')}
                     </div>
                   </div>
-                  <h3 className="text-xl font-bold mb-2">{barbero.nombre}</h3>
+                  <h3 className="text-xl font-bold mb-2">{toTitleCase(barbero.nombre)}</h3>
                   {barbero.descripcion && (
                     <p className="text-gray-400 text-sm mb-4 max-w-xs mx-auto line-clamp-3">
                       {barbero.descripcion}
@@ -864,10 +864,10 @@ export default function HomePage() {
                 ) : (
                   <div className="mb-6 h-6"></div>
                 )}
-                <p className="font-bold text-amber-400">{testimonio.cliente?.full_name || 'Cliente'}</p>
+                <p className="font-bold text-amber-400">{toTitleCase(testimonio.cliente?.full_name || 'Cliente')}</p>
                 {testimonio.barbero && (
                   <p className="text-xs text-zinc-500 font-bold uppercase mt-1">
-                    Atendido por: {testimonio.barbero.full_name}
+                    Atendido por: {toTitleCase(testimonio.barbero.full_name)}
                   </p>
                 )}
               </div>
@@ -965,7 +965,7 @@ export default function HomePage() {
           </span>
           <span className="flex items-center gap-2">
             <Phone className="w-4 h-4" />
-            +591 71234567
+            +591 78353814
           </span>
           <span className="flex items-center gap-2">
             <MapPin className="w-4 h-4" />
