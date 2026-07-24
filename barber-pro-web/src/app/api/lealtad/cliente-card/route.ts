@@ -15,11 +15,39 @@ export async function GET() {
       .single()
 
     // 2. Datos del cliente (tabla clientes) vinculado por email
-    const { data: cliente } = await supabase
+    let { data: cliente } = await supabase
       .from('clientes')
-      .select('id, nombre, cumpleanos, total_visitas, total_gastado, nivel_fidelidad, ultima_visita, ci, referral_code, numero_cliente')
+      .select('id, nombre, cumpleanos, total_visitas, total_gastado, nivel_fidelidad, ultima_visita, ci, referral_code, codigo_tarjeta, numero_cliente')
       .eq('email', user.email)
-      .single()
+      .maybeSingle()
+
+    // Si no se encontró por email, intentar buscar por id = user.id
+    if (!cliente) {
+      const { data: cById } = await supabase
+        .from('clientes')
+        .select('id, nombre, cumpleanos, total_visitas, total_gastado, nivel_fidelidad, ultima_visita, ci, referral_code, codigo_tarjeta, numero_cliente')
+        .eq('id', user.id)
+        .maybeSingle()
+      cliente = cById
+    }
+
+    // Auto-generar y guardar permanentemente referral_code y codigo_tarjeta en la BD si faltan
+    if (cliente && (!cliente.referral_code || !cliente.codigo_tarjeta)) {
+      const numPart = cliente.numero_cliente 
+        ? cliente.numero_cliente.toString().padStart(4, '0').slice(-4) 
+        : cliente.ci 
+          ? cliente.ci.replace(/\D/g, '').slice(-4) 
+          : cliente.id.replace(/-/g, '').slice(-4).toUpperCase()
+      
+      const generatedCode = cliente.referral_code || cliente.codigo_tarjeta || `REF-${numPart}`
+      const updatesToDb: any = {}
+      if (!cliente.referral_code) updatesToDb.referral_code = generatedCode
+      if (!cliente.codigo_tarjeta) updatesToDb.codigo_tarjeta = generatedCode
+
+      await supabase.from('clientes').update(updatesToDb).eq('id', cliente.id)
+      cliente.referral_code = cliente.referral_code || generatedCode
+      cliente.codigo_tarjeta = cliente.codigo_tarjeta || generatedCode
+    }
 
     // 3. Calcular si HOY es su cumpleaños
     let esCumpleanos = false

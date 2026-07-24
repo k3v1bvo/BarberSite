@@ -24,6 +24,8 @@ interface Cliente {
   ci: string | null
   total_visitas: number
   created_at?: string | null
+  codigo_tarjeta?: string | null
+  referral_code?: string | null
 }
 
 interface OperarioSummary {
@@ -113,12 +115,12 @@ export default function SincronizarHistorialPage() {
       const normT = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       const words = normT.split(/\s+/).filter((w: string) => w.length >= 2)
 
-      let clientQuery = supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas, created_at')
+      let clientQuery = supabase.from('clientes').select('id, nombre, email, telefono, ci, total_visitas, created_at, codigo_tarjeta, referral_code')
       let profileQuery = supabase.from('profiles').select('id, full_name, email, phone, ci, created_at').eq('role', 'cliente')
 
       if (t) {
         const firstWord = words[0] || t
-        clientQuery = clientQuery.or(`nombre.ilike.%${firstWord}%,ci.ilike.%${t}%,telefono.ilike.%${t}%,email.ilike.%${t}%`)
+        clientQuery = clientQuery.or(`nombre.ilike.%${firstWord}%,ci.ilike.%${t}%,telefono.ilike.%${t}%,email.ilike.%${t}%,codigo_tarjeta.ilike.%${t}%,referral_code.ilike.%${t}%`)
         profileQuery = profileQuery.or(`full_name.ilike.%${firstWord}%,ci.ilike.%${t}%,phone.ilike.%${t}%,email.ilike.%${t}%`)
       }
 
@@ -128,9 +130,13 @@ export default function SincronizarHistorialPage() {
       ])
 
       const map = new Map<string, any>()
-      resC.data?.forEach(c => map.set(c.id, c))
+      resC.data?.forEach(c => {
+        const code = c.codigo_tarjeta || c.referral_code || (c.ci ? `REF-${c.ci.replace(/\D/g, '').slice(-4)}` : null)
+        map.set(c.id, { ...c, codigo_tarjeta: code, referral_code: code })
+      })
       resP.data?.forEach(p => {
         if (!map.has(p.id)) {
+          const code = p.ci ? `REF-${p.ci.replace(/\D/g, '').slice(-4)}` : null
           map.set(p.id, {
             id: p.id,
             nombre: p.full_name || 'Cliente Registrado',
@@ -139,6 +145,8 @@ export default function SincronizarHistorialPage() {
             ci: p.ci || null,
             total_visitas: 0,
             created_at: p.created_at || new Date().toISOString(),
+            codigo_tarjeta: code,
+            referral_code: code,
           })
         }
       })
@@ -193,7 +201,7 @@ export default function SincronizarHistorialPage() {
       const [resClientes, resProfiles] = await Promise.all([
         supabase
           .from('clientes')
-          .select('id, nombre, email, telefono, ci, total_visitas, created_at')
+          .select('id, nombre, email, telefono, ci, total_visitas, created_at, codigo_tarjeta, referral_code')
           .order('created_at', { ascending: false }),
         supabase
           .from('profiles')
@@ -202,7 +210,10 @@ export default function SincronizarHistorialPage() {
       ])
 
       const clientesMap = new Map<string, any>()
-      resClientes.data?.forEach(c => clientesMap.set(c.id, c))
+      resClientes.data?.forEach(c => {
+        const code = c.codigo_tarjeta || c.referral_code || (c.ci ? `REF-${c.ci.replace(/\D/g, '').slice(-4)}` : null)
+        clientesMap.set(c.id, { ...c, codigo_tarjeta: code, referral_code: code })
+      })
 
       resProfiles.data?.forEach(p => {
         if (clientesMap.has(p.id)) {
@@ -210,7 +221,9 @@ export default function SincronizarHistorialPage() {
           if (!existing.ci && p.ci) existing.ci = p.ci
           if (!existing.email && p.email) existing.email = p.email
           if (!existing.telefono && p.phone) existing.telefono = p.phone
+          if (!existing.codigo_tarjeta && p.ci) existing.codigo_tarjeta = `REF-${p.ci.replace(/\D/g, '').slice(-4)}`
         } else {
+          const code = p.ci ? `REF-${p.ci.replace(/\D/g, '').slice(-4)}` : null
           clientesMap.set(p.id, {
             id: p.id,
             nombre: p.full_name || 'Cliente Registrado',
@@ -219,6 +232,8 @@ export default function SincronizarHistorialPage() {
             ci: p.ci || null,
             total_visitas: 0,
             created_at: p.created_at || new Date().toISOString(),
+            codigo_tarjeta: code,
+            referral_code: code,
           })
         }
       })
@@ -865,6 +880,11 @@ export default function SincronizarHistorialPage() {
                         {c.ci && (
                           <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
                             CI: {c.ci}
+                          </span>
+                        )}
+                        {(c.codigo_tarjeta || c.referral_code) && (
+                          <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                            Cód: {c.codigo_tarjeta || c.referral_code}
                           </span>
                         )}
                         {c.created_at && (

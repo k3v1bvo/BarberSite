@@ -168,7 +168,7 @@ function ReservarContent() {
             const visitasActuales = clienteData.total_visitas || 0
             const enCiclo = visitasActuales % 10
             if (enCiclo === 4) {
-              setLealtadInfo({ descuento: 0.5, mensaje: '¡5to Corte! Tienes 50% de descuento en el servicio.' })
+              setLealtadInfo({ descuento: 15, mensaje: '¡5to Corte! Tienes 15 Bs de descuento en el servicio.' })
             } else if (enCiclo === 9) {
               setLealtadInfo({ descuento: 1, mensaje: '¡10mo Corte! Tu servicio es GRATIS.' })
             }

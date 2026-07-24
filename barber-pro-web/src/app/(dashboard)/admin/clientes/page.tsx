@@ -32,6 +32,8 @@ interface Cliente {
   cumpleanos: string | null
   ultima_visita: string | null
   codigo_tarjeta: string | null
+  referral_code?: string | null
+  numero_cliente?: number | null
 }
 
 interface Cita {
@@ -160,7 +162,7 @@ export default function ClientesAdminPage() {
     const [resClientes, resProfiles] = await Promise.all([
       supabase
         .from('clientes')
-        .select('id, nombre, email, telefono, ci, total_visitas, total_gastado, nivel_fidelidad, created_at, cumpleanos, ultima_visita, codigo_tarjeta')
+        .select('id, nombre, email, telefono, ci, total_visitas, total_gastado, nivel_fidelidad, created_at, cumpleanos, ultima_visita, codigo_tarjeta, referral_code, numero_cliente')
         .order('created_at', { ascending: false }),
       supabase
         .from('profiles')
@@ -169,16 +171,29 @@ export default function ClientesAdminPage() {
     ])
 
     const clientesMap = new Map<string, Cliente>()
-    resClientes.data?.forEach(c => clientesMap.set(c.id, c as Cliente))
+    resClientes.data?.forEach(c => {
+      const code = c.codigo_tarjeta || c.referral_code || (c.ci ? `REF-${c.ci.replace(/\D/g, '').slice(-4)}` : (c.numero_cliente ? `REF-${c.numero_cliente.toString().padStart(4, '0').slice(-4)}` : null))
+      clientesMap.set(c.id, {
+        ...c,
+        codigo_tarjeta: code,
+        referral_code: c.referral_code || code,
+      } as Cliente)
+    })
 
-    // Garantizar que si un cliente existe en 'profiles' también aparezca en la lista de clientes con su CI
+    // Garantizar que si un cliente existe en 'profiles' también aparezca en la lista de clientes con su CI y código
     resProfiles.data?.forEach(p => {
       if (clientesMap.has(p.id)) {
         const existing = clientesMap.get(p.id)!
         if (!existing.ci && p.ci) {
           existing.ci = p.ci
         }
+        if (!existing.codigo_tarjeta && p.ci) {
+          const code = `REF-${p.ci.replace(/\D/g, '').slice(-4)}`
+          existing.codigo_tarjeta = code
+          existing.referral_code = code
+        }
       } else {
+        const code = p.ci ? `REF-${p.ci.replace(/\D/g, '').slice(-4)}` : null
         clientesMap.set(p.id, {
           id: p.id,
           nombre: p.full_name || 'Cliente Registrado',
@@ -191,7 +206,8 @@ export default function ClientesAdminPage() {
           created_at: p.created_at || new Date().toISOString(),
           cumpleanos: null,
           ultima_visita: null,
-          codigo_tarjeta: null,
+          codigo_tarjeta: code,
+          referral_code: code,
         })
       }
     })

@@ -429,7 +429,14 @@ export default function ClientePage() {
                       )}
                       
                       {/* Text */}
-                      {isHalfReward && <span className="text-[8px] font-black uppercase text-center leading-tight">50%<br/>OFF</span>}
+                      {isHalfReward && (
+                        <span className="text-[8px] font-black uppercase text-center leading-tight">
+                          {(cardData?.metas || []).find((m: any) => m.visitas_requeridas === 5)?.tipo_recompensa === 'porcentaje'
+                            ? `${(cardData?.metas || []).find((m: any) => m.visitas_requeridas === 5)?.valor_recompensa}%`
+                            : `${(cardData?.metas || []).find((m: any) => m.visitas_requeridas === 5)?.valor_recompensa || 15} BS`
+                          }<br/>OFF
+                        </span>
+                      )}
                       {isFullReward && <span className="text-[8px] font-black uppercase text-center leading-tight text-amber-400">CORTE<br/>GRATIS</span>}
                     </div>
                   );
@@ -444,7 +451,7 @@ export default function ClientePage() {
                   </p>
                   <p className="text-white font-bold text-sm">
                     {visitas % 10 < 5 
-                      ? `En ${5 - (visitas % 10)} visitas obtienes 50% de descuento.` 
+                      ? `En ${5 - (visitas % 10)} visitas obtienes ${(cardData?.metas || []).find((m: any) => m.visitas_requeridas === 5)?.tipo_recompensa === 'porcentaje' ? `${(cardData?.metas || []).find((m: any) => m.visitas_requeridas === 5)?.valor_recompensa}%` : `${(cardData?.metas || []).find((m: any) => m.visitas_requeridas === 5)?.valor_recompensa || 15} Bs`} de descuento.` 
                       : `En ${10 - (visitas % 10)} visitas obtienes un corte GRATIS.`
                     }
                   </p>
