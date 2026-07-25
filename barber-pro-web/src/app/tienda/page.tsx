@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Navbar } from '@/components/ui/Navbar'
 import { SidebarProvider } from '@/components/providers/SidebarProvider'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, toTitleCase, toSentenceCase } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { ShoppingBag, X, Plus, Minus, Truck, Store, Calendar, CreditCard, Package } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -199,7 +199,7 @@ export default function TiendaPage() {
                         )}
                       </div>
                       <div className="flex-1">
-                        <h4 className="font-medium text-sm">{item.nombre}</h4>
+                        <h4 className="font-medium text-sm">{toTitleCase(item.nombre)}</h4>
                         <p className="text-amber-500 font-bold">{formatCurrency(item.precio_venta)}</p>
                         
                         <div className="flex items-center gap-3 mt-2">
@@ -417,9 +417,9 @@ export default function TiendaPage() {
                         onClick={() => setSelectedProduct(prod)}
                         className="text-lg font-bold mb-1 truncate cursor-pointer hover:text-amber-500 transition-colors"
                       >
-                        {prod.nombre}
+                        {toTitleCase(prod.nombre)}
                       </h3>
-                      <p className="text-zinc-400 text-sm mb-4 line-clamp-2 h-10">{prod.descripcion}</p>
+                      <p className="text-zinc-400 text-sm mb-4 line-clamp-2 h-10">{toSentenceCase(prod.descripcion)}</p>
                       
                       <div className="flex items-center justify-between mt-auto">
                         <span className="text-2xl font-black">{formatCurrency(prod.precio_venta)}</span>

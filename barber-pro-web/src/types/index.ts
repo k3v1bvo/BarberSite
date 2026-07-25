@@ -11,6 +11,8 @@ export interface Profile {
   role: Role
   is_active: boolean
   comision_porcentaje: number
+  avatar_url?: string | null
+  qr_code_url?: string | null
   created_at: string
 }
 

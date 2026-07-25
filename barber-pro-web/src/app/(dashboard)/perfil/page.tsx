@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
-import { User, Save, Shield, Mail, Phone, CreditCard, Image as ImageIcon } from 'lucide-react'
+import { User, Save, Shield, Mail, Phone, CreditCard, Image as ImageIcon, QrCode } from 'lucide-react'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 
 export default function PerfilPage() {
@@ -23,6 +23,7 @@ export default function PerfilPage() {
     ci: '',
     role: '',
     avatar_url: '',
+    qr_code_url: '',
   })
 
   useEffect(() => {
@@ -32,7 +33,7 @@ export default function PerfilPage() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('id, full_name, email, phone, ci, role, avatar_url')
+        .select('id, full_name, email, phone, ci, role, avatar_url, qr_code_url')
         .eq('id', user.id)
         .single()
 
@@ -45,6 +46,7 @@ export default function PerfilPage() {
           ci: data.ci || '',
           role: data.role || 'cliente',
           avatar_url: data.avatar_url || '',
+          qr_code_url: data.qr_code_url || '',
         })
       }
       setLoading(false)
@@ -62,6 +64,7 @@ export default function PerfilPage() {
           phone: profile.phone,
           ci: profile.ci,
           avatar_url: profile.avatar_url,
+          qr_code_url: profile.qr_code_url,
         })
         .eq('id', profile.id)
 
@@ -178,6 +181,25 @@ export default function PerfilPage() {
               <CreditCard className="absolute right-3 top-9 w-4 h-4 text-zinc-600" />
             </div>
           </div>
+
+          {['barbero', 'admin', 'coordinador'].includes(profile.role) && (
+            <div className="pt-6 border-t border-zinc-800 space-y-3">
+              <h3 className="text-sm font-black uppercase tracking-widest text-amber-500 flex items-center gap-2">
+                <QrCode className="w-4 h-4" /> QR de Pago Personal (Yape / Plin / Banco)
+              </h3>
+              <p className="text-xs text-zinc-400">
+                Sube la imagen de tu código QR de pago personal. Cuando los clientes hagan una reserva contigo, se les mostrará este QR para transferirte.
+              </p>
+              <div className="max-w-md">
+                <ImageUpload
+                  label="Cargar tu Código QR de Pago"
+                  defaultImage={profile.qr_code_url || undefined}
+                  onUploadSuccess={(url) => setProfile(p => ({ ...p, qr_code_url: url }))}
+                  onUploadError={(err) => toastError(err)}
+                />
+              </div>
+            </div>
+          )}
 
           <div className="pt-4 flex justify-end">
             <Button

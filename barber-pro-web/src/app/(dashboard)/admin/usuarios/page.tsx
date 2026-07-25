@@ -8,7 +8,7 @@ import { PasswordInput } from '@/components/ui/PasswordInput'
 import { Badge } from '@/components/ui/Badge'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit, Trash2, Users, ArrowLeft, X, Save, KeyRound } from 'lucide-react'
+import { Plus, Edit, Trash2, Users, ArrowLeft, X, Save, KeyRound, QrCode } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { Modal } from '@/components/ui/Modal'
@@ -23,6 +23,7 @@ interface Usuario {
   is_active: boolean
   comision_porcentaje: number
   avatar_url: string | null
+  qr_code_url: string | null
   created_at: string
 }
 
@@ -43,6 +44,7 @@ export default function UsuariosPage() {
     ci: '',
     role: 'cliente' as 'cliente' | 'barbero' | 'coordinador' | 'admin',
     avatar_url: '',
+    qr_code_url: '',
     password: '',
   })
   const router = useRouter()
@@ -117,6 +119,7 @@ export default function UsuariosPage() {
             ci: formData.ci || null,
             role: formData.role,
             avatar_url: formData.avatar_url,
+            qr_code_url: formData.qr_code_url,
             is_active: true,
           })
           .eq('id', editingUser.id)
@@ -149,7 +152,8 @@ export default function UsuariosPage() {
             phone: formData.phone,
             ci: formData.ci,
             role: formData.role,
-            avatar_url: formData.avatar_url
+            avatar_url: formData.avatar_url,
+            qr_code_url: formData.qr_code_url,
           })
         })
 
@@ -169,6 +173,7 @@ export default function UsuariosPage() {
         ci: '',
         role: 'barbero',
         avatar_url: '',
+        qr_code_url: '',
         password: '',
       })
       loadUsuarios()
@@ -185,6 +190,7 @@ export default function UsuariosPage() {
         .eq('id', usuario.id)
 
       if (error) throw error
+      toastSuccess(`Usuario ${usuario.is_active ? 'desactivado' : 'activado'}`)
       loadUsuarios()
     } catch (error: any) {
       toastError('Error: ' + error.message)
@@ -192,10 +198,11 @@ export default function UsuariosPage() {
   }
 
   const getRoleBadge = (role: string) => {
-    const variants: Record<string, 'default' | 'success' | 'warning' | 'info'> = {
-      admin: 'info',
+    const variants: Record<string, any> = {
+      admin: 'danger',
       coordinador: 'warning',
-      barbero: 'success',
+      barbero: 'info',
+      cliente: 'default'
     }
     return variants[role] || 'default'
   }
@@ -299,6 +306,7 @@ export default function UsuariosPage() {
                               ci: usuario.ci || '',
                               role: usuario.role as any,
                               avatar_url: usuario.avatar_url || '',
+                              qr_code_url: usuario.qr_code_url || '',
                               password: '',
                             })
                             setShowModal(true)
@@ -409,13 +417,27 @@ export default function UsuariosPage() {
                 className="bg-zinc-900"
               />
             )}
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 space-y-4">
                <ImageUpload
                  label="Foto de Perfil del Profesional"
                  defaultImage={formData.avatar_url || undefined}
                  onUploadSuccess={(url) => setFormData({ ...formData, avatar_url: url })}
                  onUploadError={(err) => toastError(err)}
                />
+
+               {['barbero', 'admin', 'coordinador'].includes(formData.role) && (
+                 <div className="p-4 bg-zinc-950 rounded-2xl border border-white/5 space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-amber-500 flex items-center gap-1.5">
+                     <QrCode className="w-3.5 h-3.5" /> QR de Pago del Barbero (Yape/Plin/Banco)
+                   </label>
+                   <ImageUpload
+                     label="Cargar QR de Pago para Reservas"
+                     defaultImage={formData.qr_code_url || undefined}
+                     onUploadSuccess={(url) => setFormData({ ...formData, qr_code_url: url })}
+                     onUploadError={(err) => toastError(err)}
+                   />
+                 </div>
+               )}
             </div>
             {editingUser && (
               <div className="md:col-span-2 pt-4 border-t border-white/5 space-y-3">

@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, ArrowLeft, X, Save, Edit, Eye, EyeOff, Users, Instagram, Globe, GripVertical, RotateCcw, Link, Link2Off } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
-import { cn } from '@/lib/utils'
+import { cn, toTitleCase } from '@/lib/utils'
 import { useToast } from '@/components/ui/Toast'
 import { isValidImageUrl } from '@/lib/validators'
 import { ImageUpload } from '@/components/ui/ImageUpload'
@@ -193,8 +193,8 @@ export default function AdminEquipoPage() {
       if (formData.redes_sociales.web?.trim()) redes.web = formData.redes_sociales.web.trim()
 
       const payload = {
-        nombre: formData.nombre.trim(),
-        especialidad: formData.especialidad.trim(),
+        nombre: toTitleCase(formData.nombre.trim()),
+        especialidad: toTitleCase(formData.especialidad.trim()),
         descripcion: formData.descripcion.trim() || null,
         imagen_url: formData.imagen_url.trim(),
         redes_sociales: redes,

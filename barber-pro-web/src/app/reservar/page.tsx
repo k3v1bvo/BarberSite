@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, toTitleCase, toSentenceCase } from '@/lib/utils'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Calendar, User, Scissors, CheckCircle, Package, Plus, Minus, X, Info, AlertTriangle, Clock, UserPlus, Gift } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
@@ -42,6 +42,7 @@ interface Barbero {
   full_name: string
   email: string
   avatar_url: string | null
+  qr_code_url?: string | null
 }
 interface UserProfile {
   id: string
@@ -178,7 +179,7 @@ function ReservarContent() {
 
       const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo] = await Promise.all([
         supabase.from('servicios').select('*').eq('is_active', true),
-        supabase.from('profiles').select('id, full_name, email, avatar_url').eq('role', 'barbero').eq('is_active', true),
+        supabase.from('profiles').select('id, full_name, email, avatar_url, qr_code_url').eq('role', 'barbero').eq('is_active', true),
         supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url').eq('is_active', true).gt('stock_actual', 0).order('nombre'),
         supabase.from('configuraciones').select('valor').eq('llave', 'qr_pago').maybeSingle(),
         supabase.from('promociones').select('*').eq('activa', true),
@@ -656,12 +657,12 @@ function ReservarContent() {
                                   )}
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between gap-2 mb-1">
-                                      <h4 className="font-black text-lg text-white group-hover:text-amber-400 transition-colors truncate">{s.nombre}</h4>
+                                      <h4 className="font-black text-lg text-white group-hover:text-amber-400 transition-colors truncate">{toSentenceCase(s.nombre)}</h4>
                                       <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-zinc-800 text-amber-400 border border-zinc-700 shrink-0">
                                         {s.categoria || 'Cortes'}
                                       </span>
                                     </div>
-                                    {s.descripcion && <p className="text-xs text-zinc-400 mb-2 line-clamp-2 leading-relaxed">{s.descripcion}</p>}
+                                    {s.descripcion && <p className="text-xs text-zinc-400 mb-2 line-clamp-2 leading-relaxed">{toSentenceCase(s.descripcion)}</p>}
                                   </div>
                                 </div>
                                 <div className="flex justify-between items-center mt-4 pt-4 border-t border-zinc-800/50">
@@ -824,7 +825,7 @@ function ReservarContent() {
                         )}
                       </div>
                       <div className="text-center">
-                        <h3 className="font-black text-base text-white group-hover:text-amber-400 transition-colors">{b.full_name}</h3>
+                        <h3 className="font-black text-base text-white group-hover:text-amber-400 transition-colors">{toTitleCase(b.full_name)}</h3>
                         <span className="inline-block mt-2 text-[10px] uppercase tracking-[0.2em] text-amber-500 font-bold bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">Especialista</span>
                       </div>
                     </div>
@@ -1065,26 +1066,40 @@ function ReservarContent() {
                       <div className="mt-10 space-y-5 p-6 md:p-8 bg-zinc-950 rounded-3xl border border-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.03)] relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500/0 via-amber-500 to-amber-500/0"></div>
                         <p className="text-sm font-black text-center text-amber-500 mb-4 uppercase tracking-[0.2em]">Escanea y Sube tu Comprobante</p>
-                        {qrPago ? (
-                          <div className="flex flex-col items-center mb-6">
-                            <div className="p-3 bg-white rounded-2xl shadow-lg shadow-white/5 mb-3">
-                              <img src={qrPago} alt="QR de Pago" className="w-56 h-56 object-contain rounded-xl" />
+                        {(() => {
+                          const barberoSeleccionado = barberos.find(b => b.id === formData.barbero_id)
+                          const activeQr = barberoSeleccionado?.qr_code_url || qrPago
+                          
+                          if (!activeQr) {
+                            return (
+                              <div className="w-48 h-48 bg-zinc-900 rounded-2xl mx-auto flex items-center justify-center border-2 border-dashed border-zinc-800 mb-6">
+                                <span className="text-xs text-zinc-600 text-center px-4 font-bold uppercase tracking-widest">QR no configurado</span>
+                              </div>
+                            )
+                          }
+
+                          return (
+                            <div className="flex flex-col items-center mb-6">
+                              <span className="text-[11px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full mb-3">
+                                {barberoSeleccionado?.qr_code_url 
+                                  ? `QR Personal de ${toTitleCase(barberoSeleccionado.full_name)}`
+                                  : 'QR General de la Barbería'}
+                              </span>
+                              <div className="p-3 bg-white rounded-2xl shadow-lg shadow-white/5 mb-3">
+                                <img src={activeQr} alt="QR de Pago" className="w-56 h-56 object-contain rounded-xl" />
+                              </div>
+                              <a
+                                href={activeQr}
+                                download={`QR_Pago_${barberoSeleccionado?.full_name ? barberoSeleccionado.full_name.replace(/\s+/g, '_') : 'Barberia'}.png`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black text-xs font-black uppercase tracking-wider rounded-xl transition shadow-lg"
+                              >
+                                📥 Descargar QR para Pagar
+                              </a>
                             </div>
-                            <a
-                              href={qrPago}
-                              download="QR_Pago_Barberia.png"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black text-xs font-black uppercase tracking-wider rounded-xl transition shadow-lg"
-                            >
-                              📥 Descargar QR para Pagar
-                            </a>
-                          </div>
-                        ) : (
-                          <div className="w-48 h-48 bg-zinc-900 rounded-2xl mx-auto flex items-center justify-center border-2 border-dashed border-zinc-800 mb-6">
-                            <span className="text-xs text-zinc-600 text-center px-4 font-bold uppercase tracking-widest">QR no configurado</span>
-                          </div>
-                        )}
+                          )
+                        })()}
                         <ImageUpload
                           label="Captura del Comprobante (Obligatorio)"
                           defaultImage={formData.comprobante_url || undefined}
