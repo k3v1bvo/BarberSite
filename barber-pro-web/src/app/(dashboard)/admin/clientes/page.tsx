@@ -57,12 +57,36 @@ interface Transaccion {
   creado_en: string
 }
 
-const NIVEL_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  bronce:   { label: 'Bronce',   color: 'text-amber-600 bg-amber-600/10 border-amber-600/30',   icon: Star  },
-  plata:    { label: 'Plata',    color: 'text-zinc-300 bg-zinc-300/10 border-zinc-300/30',       icon: Star  },
-  oro:      { label: 'Oro',      color: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30', icon: Crown },
-  platino:  { label: 'Platino',  color: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30',       icon: Crown },
-  diamante: { label: 'Diamante', color: 'text-violet-400 bg-violet-400/10 border-violet-400/30', icon: Crown },
+const NIVEL_CONFIG: Record<string, { label: string; color: string; icon: any; key: string }> = {
+  bronce:   { label: 'Bronce',   color: 'text-amber-500 bg-amber-500/10 border-amber-500/30',   icon: Star,  key: 'bronce' },
+  plata:    { label: 'Plata',    color: 'text-zinc-300 bg-zinc-300/10 border-zinc-300/30',       icon: Star,  key: 'plata' },
+  oro:      { label: 'Oro',      color: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30', icon: Crown, key: 'oro' },
+  platino:  { label: 'Platino',  color: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30',       icon: Crown, key: 'platino' },
+  diamante: { label: 'Diamante', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30', icon: Crown, key: 'diamante' },
+}
+
+const NIVEL_ORDEN: Record<string, number> = { bronce: 0, plata: 1, oro: 2, platino: 3, diamante: 4 }
+
+const getNivelKey = (nivel: string | null, visitas: number = 0): string => {
+  // Calcular tier dinámico basado en visitas acumuladas
+  let calculado: string
+  if (visitas >= 50) calculado = 'diamante'
+  else if (visitas >= 20) calculado = 'platino'
+  else if (visitas >= 10) calculado = 'oro'
+  else if (visitas >= 5) calculado = 'plata'
+  else calculado = 'bronce'
+
+  // Normalizar el valor guardado en BD
+  const dbKey = (nivel || '').toLowerCase().trim()
+  const dbValido = dbKey && NIVEL_ORDEN[dbKey] !== undefined ? dbKey : 'bronce'
+
+  // Retornar el mayor entre el calculado por visitas y el guardado en BD
+  return (NIVEL_ORDEN[calculado] ?? 0) >= (NIVEL_ORDEN[dbValido] ?? 0) ? calculado : dbValido
+}
+
+const nivelInfo = (nivel: string | null, visitas: number = 0) => {
+  const key = getNivelKey(nivel, visitas)
+  return NIVEL_CONFIG[key] || { label: 'Bronce', color: 'text-amber-500 bg-amber-500/10 border-amber-500/30', icon: Star, key: 'bronce' }
 }
 
 const TIPO_ICON: Record<string, { icon: any; color: string }> = {
@@ -229,6 +253,29 @@ export default function ClientesAdminPage() {
     const inicioMes = new Date(hoy)
     inicioMes.setDate(hoy.getDate() - 30)
 
+    // Detectar si hubo importación masiva en algún día (más de 30 clientes creados el mismo día)
+    const conteoPorFecha: Record<string, number> = {}
+    lista.forEach(c => {
+      const f = c.created_at?.split('T')[0]
+      if (f) conteoPorFecha[f] = (conteoPorFecha[f] || 0) + 1
+    })
+
+    const fechasImportacionMasiva = new Set(
+      Object.keys(conteoPorFecha).filter(f => conteoPorFecha[f] > 30)
+    )
+
+    // Un cliente es un "Nuevo Registro Real" si no forma parte de una migración masiva de clientes antiguos
+    const esNuevoOrganico = (c: Cliente, desdeFecha: Date) => {
+      if (!c.created_at) return false
+      const fechaCrea = new Date(c.created_at)
+      if (fechaCrea < desdeFecha) return false
+      const diaStr = c.created_at.split('T')[0]
+      if (fechasImportacionMasiva.has(diaStr) && (c.total_visitas || 0) > 0) {
+        return false
+      }
+      return true
+    }
+
     // Registros de los últimos 30 días agrupados por día
     const diasMap: Record<string, number> = {}
     for (let i = 29; i >= 0; i--) {
@@ -238,7 +285,11 @@ export default function ClientesAdminPage() {
     }
     lista.forEach(c => {
       const dia = c.created_at?.split('T')[0]
-      if (dia && diasMap[dia] !== undefined) diasMap[dia]++
+      if (dia && diasMap[dia] !== undefined) {
+        if (!fechasImportacionMasiva.has(dia) || (c.total_visitas || 0) === 0) {
+          diasMap[dia]++
+        }
+      }
     })
     const registros = Object.entries(diasMap).map(([dia, nuevos]) => ({
       dia,
@@ -251,9 +302,9 @@ export default function ClientesAdminPage() {
       total: lista.length,
       conEmail: lista.filter(c => c.email).length,
       totalGastado: lista.reduce((s, c) => s + (c.total_gastado || 0), 0),
-      nuevosHoy: lista.filter(c => c.created_at?.startsWith(hoyStr)).length,
-      nuevosSemana: lista.filter(c => c.created_at && new Date(c.created_at) >= inicioSemana).length,
-      nuevosMes: lista.filter(c => c.created_at && new Date(c.created_at) >= inicioMes).length,
+      nuevosHoy: lista.filter(c => c.created_at?.startsWith(hoyStr) && esNuevoOrganico(c, new Date(hoyStr))).length,
+      nuevosSemana: lista.filter(c => esNuevoOrganico(c, inicioSemana)).length,
+      nuevosMes: lista.filter(c => esNuevoOrganico(c, inicioMes)).length,
     })
     setLoading(false)
   }
@@ -273,7 +324,10 @@ export default function ClientesAdminPage() {
     }
 
     if (filtroNivel !== 'todos') {
-      result = result.filter(c => c.nivel_fidelidad === filtroNivel)
+      result = result.filter(c => {
+        const key = getNivelKey(c.nivel_fidelidad, c.total_visitas || 0)
+        return key === filtroNivel.toLowerCase()
+      })
     }
 
     result.sort((a, b) => {
@@ -321,7 +375,8 @@ export default function ClientesAdminPage() {
     return new Date(iso).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })
   }
 
-  const nivelInfo = (nivel: string | null) => NIVEL_CONFIG[nivel || ''] || { label: nivel || 'Sin nivel', color: 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20', icon: Star }
+
+
 
   const ESTADO_COLOR: Record<string, string> = {
     completado: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -501,7 +556,7 @@ export default function ClientesAdminPage() {
                 </div>
               ) : (
                 filtrados.map(c => {
-                  const niv = nivelInfo(c.nivel_fidelidad)
+                  const niv = nivelInfo(c.nivel_fidelidad, c.total_visitas || 0)
                   const NivIcon = niv.icon
                   const isSelected = clienteSeleccionado?.id === c.id
                   return (
@@ -519,11 +574,9 @@ export default function ClientesAdminPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-white text-sm truncate">{c.nombre}</p>
-                          {c.nivel_fidelidad && (
-                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${niv.color} hidden sm:flex items-center gap-0.5`}>
-                              <NivIcon className="w-2.5 h-2.5" /> {niv.label}
-                            </span>
-                          )}
+                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${niv.color} flex items-center gap-1 shadow-sm`}>
+                            <NivIcon className="w-2.5 h-2.5" /> {niv.label}
+                          </span>
                         </div>
                         <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                           {c.ci ? (
@@ -573,11 +626,11 @@ export default function ClientesAdminPage() {
                     <div>
                       <h2 className="text-lg font-black text-white leading-tight">{clienteSeleccionado.nombre}</h2>
                       <div className="flex items-center gap-2 mt-1">
-                        {clienteSeleccionado.nivel_fidelidad && (() => {
-                          const niv = nivelInfo(clienteSeleccionado.nivel_fidelidad)
+                        {(() => {
+                          const niv = nivelInfo(clienteSeleccionado.nivel_fidelidad, clienteSeleccionado.total_visitas || 0)
                           const NivIcon = niv.icon
                           return (
-                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${niv.color}`}>
+                            <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border inline-flex items-center gap-1 ${niv.color} shadow-sm`}>
                               <NivIcon className="w-3 h-3" /> {niv.label}
                             </span>
                           )

@@ -41,3 +41,16 @@ python migrar_clientes.py
 1. El script leerá de manera automática el archivo `.env.local` que está en tu carpeta de Next.js para saber cómo conectarse a tu Supabase de forma segura.
 2. Empezará a importar cliente por cliente. Verás en la consola un mensaje verde ✅ por cada éxito o rojo ❌ si hubo algún error en una fila específica.
 3. ¡Felicidades! Todos los clientes aparecerán al instante en tu base de datos y en el Dashboard de BarberWeb con su respectivo historial de visitas intacto.
+
+---
+
+## 5. ⚠️ REGLA CRÍTICA: Conciliación de Saldos y Corte Contable (`18/07/2026`)
+
+Al realizar auditorías, limpieza de tablas o futuras migraciones/importaciones de transacciones contables, **se debe respetar estrictamente la conciliación base del Excel finalizada al 18 de julio de 2026**:
+
+* **Saldo Físico en Caja Chica al 18/07/2026**: `Bs. 210,00`
+* **Saldo Real en Banco / QR al 18/07/2026**: `Bs. 642,54`
+
+### Directriz de Consulta e Importación:
+* **Solo procesar datos posteriores al corte (`> '2026-07-18'`)**: Todo el historial de transacciones desde 2024 hasta el 18 de julio de 2026 ya se encuentra auditado, resumido y fijado como punto de anclaje inicial en los paneles de **BarberWeb** (`/admin`, `/coordinador`, `/caja-chica` y `/banco`).
+* **Inmutabilidad del Historial Antiguo**: Si en una futura importación masiva de Excel o limpieza de base de datos se requiere alterar, borrar o sobreescribir transacciones viejas de 2024 o 2025, no afectarán los saldos actuales del sistema siempre que se mantenga este punto de corte en el código para sumar únicamente las operaciones posteriores al **18/07/2026**.
