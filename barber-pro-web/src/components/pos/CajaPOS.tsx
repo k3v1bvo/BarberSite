@@ -2137,33 +2137,54 @@ export function CajaPOS() {
                       
                       {(formData.metodo_pago === 'qr' || formData.metodo_pago === 'mixto') && (() => {
                         const barberoSeleccionado = barberos.find(b => b.id === formData.barbero_id)
-                        const activeQr = qrPagoUrl || barberoSeleccionado?.qr_code_url
+                        const validGeneralQr = (qrPagoUrl && qrPagoUrl.trim().length > 5) ? qrPagoUrl.trim() : null
+                        const validBarberQr = (barberoSeleccionado?.qr_code_url && barberoSeleccionado.qr_code_url.trim().length > 5) ? barberoSeleccionado.qr_code_url.trim() : null
+
+                        const activeQr = validGeneralQr || validBarberQr
+                        const isGeneral = Boolean(validGeneralQr)
 
                         return (
                           <div className="mt-4 p-3 bg-zinc-900 border border-white/5 rounded-xl space-y-4">
                             <div className="flex flex-col items-center justify-center p-4 bg-black/40 rounded-lg border border-white/5">
                               <span className="text-[11px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full mb-3 text-center">
-                                {qrPagoUrl 
+                                {isGeneral 
                                   ? '🏢 QR Oficial de la Barbería (Caja POS)'
-                                  : barberoSeleccionado?.qr_code_url 
-                                    ? `QR Personal de ${toTitleCase(barberoSeleccionado.full_name)}`
-                                    : 'QR Oficial de la Barbería'}
+                                  : validBarberQr 
+                                    ? `📱 QR Personal de ${toTitleCase(barberoSeleccionado?.full_name || 'Barbero')}`
+                                    : '⚠️ QR de Pago No Configurado'}
                               </span>
-                              <p className="text-xs text-zinc-400 mb-3 text-center">Escanea este código para pagar</p>
+
                               {activeQr ? (
-                                <div className="space-y-3 flex flex-col items-center">
-                                  <img src={activeQr} alt="QR de Pago" className="w-48 h-48 object-contain rounded-md bg-white p-2" />
+                                <div className="space-y-3 flex flex-col items-center w-full">
+                                  <p className="text-xs text-zinc-400 text-center">Escanea este código para realizar el pago</p>
+                                  <div className="p-3 bg-white rounded-xl shadow-lg flex items-center justify-center">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img 
+                                      src={activeQr} 
+                                      alt="QR de Pago" 
+                                      className="w-48 h-48 object-contain"
+                                      onError={(e) => {
+                                        (e.target as HTMLElement).style.display = 'none'
+                                      }}
+                                    />
+                                  </div>
                                   <a 
                                     href={activeQr} 
                                     target="_blank" 
                                     rel="noreferrer"
-                                    className="text-xs flex items-center gap-1 text-amber-500 hover:text-amber-400 transition font-bold"
+                                    className="text-xs flex items-center gap-1.5 text-amber-400 hover:text-amber-300 transition font-black bg-white/5 px-4 py-2 rounded-xl border border-white/10"
                                   >
-                                    <QrCode className="w-4 h-4" /> Ampliar / Descargar
+                                    <QrCode className="w-4 h-4" /> Ampliar / Descargar QR
                                   </a>
                                 </div>
                               ) : (
-                                <p className="text-xs text-zinc-500 italic text-center">QR no configurado por el barbero ni en la barbería</p>
+                                <div className="p-4 text-center border border-dashed border-amber-500/30 rounded-xl bg-amber-500/5 my-2 w-full">
+                                  <QrCode className="w-8 h-8 text-amber-500 mx-auto mb-2 opacity-50 animate-pulse" />
+                                  <p className="text-xs font-bold text-amber-400">QR de Pago pendiente de subir</p>
+                                  <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                                    Sube el QR Oficial en <strong>Admin ➔ Configuración</strong> o el QR del barbero en su perfil.
+                                  </p>
+                                </div>
                               )}
                             </div>
 
