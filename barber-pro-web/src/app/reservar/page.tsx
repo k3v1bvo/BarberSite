@@ -1134,15 +1134,28 @@ function ReservarContent() {
                               <div className="p-3 bg-white rounded-2xl shadow-lg shadow-white/5 mb-3">
                                 <img src={activeQr} alt="QR de Pago" className="w-56 h-56 object-contain rounded-xl" />
                               </div>
-                              <a
-                                href={activeQr}
-                                download={`QR_Pago_${barberoSeleccionado?.full_name ? barberoSeleccionado.full_name.replace(/\s+/g, '_') : 'Barberia'}.png`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    const response = await fetch(activeQr)
+                                    const blob = await response.blob()
+                                    const blobUrl = URL.createObjectURL(blob)
+                                    const link = document.createElement('a')
+                                    link.href = blobUrl
+                                    link.download = `QR_Pago_${barberoSeleccionado?.full_name ? barberoSeleccionado.full_name.replace(/\s+/g, '_') : 'Barberia'}.png`
+                                    document.body.appendChild(link)
+                                    link.click()
+                                    document.body.removeChild(link)
+                                    URL.revokeObjectURL(blobUrl)
+                                  } catch {
+                                    window.open(activeQr, '_blank')
+                                  }
+                                }}
                                 className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black text-xs font-black uppercase tracking-wider rounded-xl transition shadow-lg"
                               >
                                 📥 Descargar QR para Pagar
-                              </a>
+                              </button>
                             </div>
                           )
                         })()}
