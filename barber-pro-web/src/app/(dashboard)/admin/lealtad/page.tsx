@@ -116,7 +116,7 @@ export default function AdminLealtadPage() {
   const saveMeta = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const cleanServicioId = form.servicio_id ? form.servicio_id.split(',').filter(Boolean)[0] || null : null
+      const cleanServicioId = form.servicio_id ? form.servicio_id.split(',').filter(Boolean).join(',') || null : null
       const payload = { ...form, servicio_id: cleanServicioId, producto_id: form.producto_id || null }
       const res = await fetch('/api/lealtad/metas', {
         method: editing ? 'PUT' : 'POST',
@@ -313,7 +313,7 @@ export default function AdminLealtadPage() {
     e.preventDefault()
     setSavingPromo(true)
     try {
-      const cleanServicioId = promoForm.servicio_id ? promoForm.servicio_id.split(',').filter(Boolean)[0] || null : null
+      const cleanServicioId = promoForm.servicio_id ? promoForm.servicio_id.split(',').filter(Boolean).join(',') || null : null
       const payload = {
         ...promoForm,
         servicio_id: cleanServicioId,
@@ -542,23 +542,30 @@ export default function AdminLealtadPage() {
                   <strong className="text-amber-400"> Cumpleañero</strong> (verificación de carnet de identidad).
                 </p>
               </div>
-              {(!promociones.some(p => p.tipo === '2x1') || !promociones.some(p => p.tipo === 'referido') || !promociones.some(p => p.tipo === 'cumpleanos')) && (
-                <Button 
-                  variant="primary" 
-                  onClick={activarTodasPromosBase} 
-                  disabled={savingPromo}
-                  className="shrink-0 bg-gradient-to-r from-amber-500 to-amber-400 text-black font-black uppercase text-xs tracking-wider px-6 py-4 shadow-lg shadow-amber-500/20 hover:scale-105 transition-all"
-                >
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Activar las 3 Promos Base
-                </Button>
-              )}
+              {(() => {
+                const isPromo2x1 = (p: any) => p.tipo === '2x1' || p.nombre?.toLowerCase().includes('2x1') || p.nombre?.toLowerCase().includes('2×1')
+                const isPromoReferidos = (p: any) => p.tipo === 'referido' || p.nombre?.toLowerCase().includes('referido')
+                const isPromoCumpleanos = (p: any) => p.tipo === 'cumpleanos' || p.nombre?.toLowerCase().includes('cumpleañ')
+                const faltanPromosBase = !promociones.some(isPromo2x1) || !promociones.some(isPromoReferidos) || !promociones.some(isPromoCumpleanos)
+
+                return faltanPromosBase ? (
+                  <Button 
+                    variant="primary" 
+                    onClick={activarTodasPromosBase} 
+                    disabled={savingPromo}
+                    className="shrink-0 bg-gradient-to-r from-amber-500 to-amber-400 text-black font-black uppercase text-xs tracking-wider px-6 py-4 shadow-lg shadow-amber-500/20 hover:scale-105 transition-all"
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    Activar las 3 Promos Base
+                  </Button>
+                ) : null
+              })()}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t border-white/10">
               {/* TARJETA 2X1 */}
               {(() => {
-                const p = promociones.find(promo => promo.tipo === '2x1')
+                const p = promociones.find(promo => promo.tipo === '2x1' || promo.nombre?.toLowerCase().includes('2x1') || promo.nombre?.toLowerCase().includes('2×1'))
                 return (
                   <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${p ? (p.activa ? 'bg-black/60 border-amber-500/40 shadow-md' : 'bg-black/40 border-white/10 opacity-75') : 'bg-black/30 border-dashed border-white/20'}`}>
                     <div>
@@ -602,7 +609,7 @@ export default function AdminLealtadPage() {
 
               {/* TARJETA REFERIDOS */}
               {(() => {
-                const p = promociones.find(promo => promo.tipo === 'referido')
+                const p = promociones.find(promo => promo.tipo === 'referido' || promo.nombre?.toLowerCase().includes('referido'))
                 const pendCount = referidos.filter(r => !r.bono_otorgado).length
                 return (
                   <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${p ? (p.activa ? 'bg-black/60 border-purple-500/40 shadow-md' : 'bg-black/40 border-white/10 opacity-75') : 'bg-black/30 border-dashed border-white/20'}`}>
@@ -648,7 +655,7 @@ export default function AdminLealtadPage() {
 
               {/* TARJETA CUMPLEAÑERO */}
               {(() => {
-                const p = promociones.find(promo => promo.tipo === 'cumpleanos')
+                const p = promociones.find(promo => promo.tipo === 'cumpleanos' || promo.nombre?.toLowerCase().includes('cumpleañ'))
                 return (
                   <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${p ? (p.activa ? 'bg-black/60 border-amber-500/40 shadow-md' : 'bg-black/40 border-white/10 opacity-75') : 'bg-black/30 border-dashed border-white/20'}`}>
                     <div>
@@ -700,12 +707,23 @@ export default function AdminLealtadPage() {
               </div>
             </div>
 
-            {promociones.filter(p => !['2x1', 'referido', 'cumpleanos'].includes(p.tipo)).length === 0 ? (
-              <div className="text-center py-12 bg-zinc-900/40 border border-white/5 rounded-2xl">
-                <p className="text-zinc-600 font-black uppercase text-xs tracking-widest">No tienes otras promociones adicionales creadas</p>
-              </div>
-            ) : (
-              promociones.filter(p => !['2x1', 'referido', 'cumpleanos'].includes(p.tipo)).map((p) => (
+            {(() => {
+              const isBase = (p: any) => 
+                p.tipo === '2x1' || p.tipo === 'referido' || p.tipo === 'cumpleanos' ||
+                p.nombre?.toLowerCase().includes('2x1') || p.nombre?.toLowerCase().includes('2×1') ||
+                p.nombre?.toLowerCase().includes('referido') || p.nombre?.toLowerCase().includes('cumpleañ')
+
+              const otras = promociones.filter(p => !isBase(p))
+
+              if (otras.length === 0) {
+                return (
+                  <div className="text-center py-12 bg-zinc-900/40 border border-white/5 rounded-2xl">
+                    <p className="text-zinc-600 font-black uppercase text-xs tracking-widest">No tienes otras promociones adicionales creadas</p>
+                  </div>
+                )
+              }
+
+              return otras.map((p) => (
                 <Card key={p.id} className={`border transition-all ${p.activa ? 'border-amber-500/20 bg-zinc-900' : 'border-white/5 bg-zinc-900/40 opacity-60'}`}>
                   <CardContent className="p-5 flex flex-col md:flex-row justify-between items-start gap-4">
                     <div className="flex items-start gap-4">
@@ -737,7 +755,7 @@ export default function AdminLealtadPage() {
                   </CardContent>
                 </Card>
               ))
-            )}
+            })()}
           </div>
         </div>
       )}
