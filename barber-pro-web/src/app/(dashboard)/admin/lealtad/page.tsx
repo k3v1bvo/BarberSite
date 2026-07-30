@@ -286,11 +286,21 @@ export default function AdminLealtadPage() {
           activa: true
         }
       }
+
+      // Buscar si ya existe para hacer PUT y evitar duplicados
+      const isMatch = (p: any) => {
+        if (tipoBase === '2x1') return p.tipo === '2x1' || p.nombre?.toLowerCase().includes('2x1') || p.nombre?.toLowerCase().includes('2×1')
+        if (tipoBase === 'referido') return p.tipo === 'referido' || p.nombre?.toLowerCase().includes('referido')
+        return p.tipo === 'cumpleanos' || p.nombre?.toLowerCase().includes('cumpleañ')
+      }
+      const existing = promociones.find(isMatch)
+
       const res = await fetch('/api/promociones', {
-        method: 'POST',
+        method: existing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(existing ? { id: existing.id, ...payload } : payload)
       })
+
       if (!res.ok) throw new Error((await res.json()).error)
       success(`Promoción "${payload.nombre}" activada con éxito`)
       loadAll()
@@ -304,26 +314,46 @@ export default function AdminLealtadPage() {
   const activarTodasPromosBase = async () => {
     setSavingPromo(true)
     try {
-      const isPromo2x1 = (p: any) => p.tipo === '2x1' || p.nombre?.toLowerCase().includes('2x1') || p.nombre?.toLowerCase().includes('2×1')
-      const isPromoReferidos = (p: any) => p.tipo === 'referido' || p.nombre?.toLowerCase().includes('referido')
-      const isPromoCumpleanos = (p: any) => p.tipo === 'cumpleanos' || p.nombre?.toLowerCase().includes('cumpleañ') || p.nombre?.toLowerCase().includes('cumpleañero')
-
-      const p2x1 = promociones.find(isPromo2x1)
-      const pRef = promociones.find(isPromoReferidos)
-      const pCump = promociones.find(isPromoCumpleanos)
-      
-      const toCreate: ('2x1' | 'referido' | 'cumpleanos')[] = []
-      if (!p2x1) toCreate.push('2x1')
-      if (!pRef) toCreate.push('referido')
-      if (!pCump) toCreate.push('cumpleanos')
-
-      for (const t of toCreate) {
-        await activarPromoBase(t)
-      }
+      await activarPromoBase('2x1')
+      await activarPromoBase('referido')
+      await activarPromoBase('cumpleanos')
       success('Todas las promociones base han sido activadas e integradas en la plataforma.')
       loadAll()
     } catch (e: any) {
       toastError(e.message || 'Error al activar promociones')
+    } finally {
+      setSavingPromo(false)
+    }
+  }
+
+  const limpiarDuplicadosPromos = async () => {
+    setSavingPromo(true)
+    try {
+      const seen = new Set<string>()
+      const duplicatesToDelete: string[] = []
+
+      for (const p of promociones) {
+        const key = (p.nombre || '').toLowerCase().trim()
+        if (seen.has(key)) {
+          duplicatesToDelete.push(p.id)
+        } else {
+          seen.add(key)
+        }
+      }
+
+      if (duplicatesToDelete.length === 0) {
+        success('No se encontraron promociones duplicadas')
+        return
+      }
+
+      for (const id of duplicatesToDelete) {
+        await fetch(`/api/promociones?id=${id}`, { method: 'DELETE' })
+      }
+
+      success(`Se limpiaron ${duplicatesToDelete.length} promociones duplicadas`)
+      loadAll()
+    } catch (e: any) {
+      toastError('Error al limpiar duplicados')
     } finally {
       setSavingPromo(false)
     }
@@ -761,6 +791,17 @@ export default function AdminLealtadPage() {
                 <h3 className="text-lg font-black text-white uppercase tracking-wider">Otras Promociones Personalizadas</h3>
                 <p className="text-zinc-500 text-xs">Descuentos especiales, promociones por temporada o por nivel de lealtad</p>
               </div>
+              {promociones.length > 3 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={limpiarDuplicadosPromos}
+                  disabled={savingPromo}
+                  className="text-xs font-bold text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+                >
+                  🧹 Limpiar Duplicados
+                </Button>
+              )}
             </div>
 
             {(() => {

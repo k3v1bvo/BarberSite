@@ -1509,7 +1509,7 @@ export function CajaPOS() {
                   >
                     Sin promo
                   </button>
-                  {promociones.map(p => (
+                  {Array.from(new Map(promociones.map(p => [p.nombre.toLowerCase().trim(), p])).values()).map(p => (
                     <button
                       key={p.id}
                       onClick={() => setPromoSeleccionada(p.id === promoSeleccionada ? '' : p.id)}
