@@ -112,17 +112,31 @@ export default function AdminLealtadPage() {
     supabase.from('productos').select('id, nombre').eq('is_active', true).then(({ data }) => { if (data) setProductos(data) })
   }, [])
 
-  // ── Meta CRUD ──
   const saveMeta = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const cleanServicioId = form.servicio_id ? form.servicio_id.split(',').filter(Boolean).join(',') || null : null
-      const payload = { ...form, servicio_id: cleanServicioId, producto_id: form.producto_id || null }
-      const res = await fetch('/api/lealtad/metas', {
+      const primaryUuid = form.servicio_id ? form.servicio_id.split(',').filter(Boolean)[0] || null : null
+      const fullList = form.servicio_id ? form.servicio_id.split(',').filter(Boolean).join(',') : null
+
+      const payloadFull = { ...form, servicio_id: fullList, producto_id: form.producto_id || null }
+      let res = await fetch('/api/lealtad/metas', {
         method: editing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editing ? { id: editing.id, ...payload } : payload),
+        body: JSON.stringify(editing ? { id: editing.id, ...payloadFull } : payloadFull),
       })
+
+      if (!res.ok) {
+        const errJson = await res.json()
+        if (errJson.error?.includes('invalid input syntax for type uuid') || errJson.error?.includes('22P02')) {
+          const payloadPrimary = { ...form, servicio_id: primaryUuid, producto_id: form.producto_id || null }
+          res = await fetch('/api/lealtad/metas', {
+            method: editing ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(editing ? { id: editing.id, ...payloadPrimary } : payloadPrimary),
+          })
+        }
+      }
+
       if (!res.ok) throw new Error((await res.json()).error)
       success(editing ? 'Meta actualizada' : 'Meta creada')
       setShowModal(false); setEditing(null); setForm(emptyMeta); loadAll()
@@ -313,23 +327,52 @@ export default function AdminLealtadPage() {
     e.preventDefault()
     setSavingPromo(true)
     try {
-      const cleanServicioId = promoForm.servicio_id ? promoForm.servicio_id.split(',').filter(Boolean).join(',') || null : null
-      const payload = {
+      const primaryUuid = promoForm.servicio_id ? promoForm.servicio_id.split(',').filter(Boolean)[0] || null : null
+      const fullList = promoForm.servicio_id ? promoForm.servicio_id.split(',').filter(Boolean).join(',') : null
+
+      const payloadFull = {
         ...promoForm,
-        servicio_id: cleanServicioId,
+        servicio_id: fullList,
         nivel_requerido: promoForm.nivel_requerido || null,
         fecha_inicio: promoForm.fecha_inicio || null,
         fecha_fin: promoForm.fecha_fin || null,
       }
-      const res = await fetch('/api/promociones', {
+
+      let res = await fetch('/api/promociones', {
         method: editingPromo ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingPromo ? { id: editingPromo.id, ...payload } : payload),
+        body: JSON.stringify(editingPromo ? { id: editingPromo.id, ...payloadFull } : payloadFull),
       })
+
+      if (!res.ok) {
+        const errJson = await res.json()
+        if (errJson.error?.includes('invalid input syntax for type uuid') || errJson.error?.includes('22P02')) {
+          const payloadPrimary = {
+            ...promoForm,
+            servicio_id: primaryUuid,
+            nivel_requerido: promoForm.nivel_requerido || null,
+            fecha_inicio: promoForm.fecha_inicio || null,
+            fecha_fin: promoForm.fecha_fin || null,
+          }
+          res = await fetch('/api/promociones', {
+            method: editingPromo ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(editingPromo ? { id: editingPromo.id, ...payloadPrimary } : payloadPrimary),
+          })
+        }
+      }
+
       if (!res.ok) throw new Error((await res.json()).error)
       success(editingPromo ? 'Promoción actualizada' : 'Promoción creada')
-      setShowPromoModal(false); setEditingPromo(null); setPromoForm(emptyPromo); loadAll()
-    } catch (e) { toastError(e instanceof Error ? e.message : 'Error') } finally { setSavingPromo(false) }
+      setShowPromoModal(false)
+      setEditingPromo(null)
+      setPromoForm(emptyPromo)
+      loadAll()
+    } catch (e: any) {
+      toastError(e.message || 'Error al guardar promoción')
+    } finally {
+      setSavingPromo(false)
+    }
   }
 
   const deletePromo = async (id: string) => {

@@ -1669,34 +1669,51 @@ export function CajaPOS() {
                   <div
                     key={s.id}
                     onClick={() => setFormData({ ...formData, servicio_id: s.id })}
-                    className={`p-3 border rounded-xl cursor-pointer transition flex items-center gap-3 ${
+                    className={`p-3.5 border-2 rounded-2xl cursor-pointer transition-all duration-200 flex items-center gap-3.5 relative overflow-hidden group ${
                       formData.servicio_id === s.id
-                        ? 'border-amber-400 bg-amber-500/10 shadow-sm ring-1 ring-amber-400'
-                        : 'border-white/10 hover:border-amber-400/40 bg-black/20'
+                        ? 'border-amber-400 bg-amber-500/15 shadow-[0_0_20px_rgba(245,158,11,0.25)] ring-2 ring-amber-400'
+                        : 'border-white/10 hover:border-amber-400/50 bg-zinc-900/90 hover:bg-zinc-800'
                     }`}
                   >
+                    {formData.servicio_id === s.id && (
+                      <div className="absolute top-0 right-0 bg-amber-400 text-black text-[9px] font-black uppercase px-2 py-0.5 rounded-bl-lg shadow-md flex items-center gap-1">
+                        <Check className="w-3 h-3 stroke-[3]" /> Seleccionado
+                      </div>
+                    )}
+
                     {(() => {
                       const firstImg = (s.imagenes && s.imagenes.length > 0) ? s.imagenes[0] : s.imagen_url
-                      return firstImg ? (
-                        <img
-                          src={firstImg}
-                          alt={s.nombre}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-12 h-12 rounded-lg object-cover shrink-0 bg-zinc-950 border border-zinc-800"
-                        />
-                      ) : null
+                      return (
+                        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-950 border border-white/10 relative flex items-center justify-center group-hover:scale-105 transition-transform">
+                          {firstImg ? (
+                            <img
+                              src={firstImg}
+                              alt={s.nombre}
+                              loading="lazy"
+                              decoding="async"
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.currentTarget.style.display = 'none' }}
+                            />
+                          ) : (
+                            <Scissors className="w-6 h-6 text-amber-500/60" />
+                          )}
+                        </div>
+                      )
                     })()}
-                    <div className="flex-1 min-w-0">
+
+                    <div className="flex-1 min-w-0 pr-6 sm:pr-0">
                       <div className="flex items-center justify-between gap-1 mb-1">
-                        <h3 className="font-semibold text-sm line-clamp-1 truncate">{s.nombre}</h3>
-                        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-zinc-800 text-amber-400 shrink-0">
-                          {s.categoria || 'Cortes'}
-                        </span>
+                        <h3 className="font-black text-sm text-white line-clamp-1 truncate group-hover:text-amber-400 transition-colors">
+                          {s.nombre}
+                        </h3>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <p className="text-xs text-zinc-400">{s.duracion_minutos} min</p>
-                        <p className="font-bold text-amber-400">{formatCurrency(s.precio)}</p>
+                      <div className="flex items-center justify-between gap-2 mt-1">
+                        <span className="text-[10px] font-bold text-zinc-400 bg-zinc-950 px-2 py-0.5 rounded-md border border-white/5">
+                          ⏱ {s.duracion_minutos} min
+                        </span>
+                        <span className="font-black text-amber-400 text-sm tracking-tight">
+                          {formatCurrency(s.precio)}
+                        </span>
                       </div>
                     </div>
                   </div>
