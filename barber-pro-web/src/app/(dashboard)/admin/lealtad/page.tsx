@@ -865,11 +865,51 @@ export default function AdminLealtadPage() {
                 )}
                 {form.tipo_recompensa === 'servicio_gratis' && (
                   <div>
-                    <label className="text-[10px] font-black uppercase text-zinc-500">Servicio gratis</label>
-                    <select className="w-full h-12 mt-1 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white" value={form.servicio_id} onChange={(e) => setForm({ ...form, servicio_id: e.target.value })}>
-                      <option value="">Cualquier servicio</option>
-                      {servicios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                    </select>
+                    <label className="text-[10px] font-black uppercase text-zinc-500 mb-1.5 block">
+                      Servicios aplicables para beneficio gratis (vacío = cualquier servicio)
+                    </label>
+                    <div className="flex flex-wrap gap-2 p-3 bg-zinc-900 border border-white/10 rounded-xl max-h-48 overflow-y-auto">
+                      <button
+                        type="button"
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
+                          !form.servicio_id ? 'bg-amber-500 text-black shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                        }`}
+                        onClick={() => setForm({ ...form, servicio_id: '' })}
+                      >
+                        ✨ Cualquier Servicio
+                      </button>
+                      {servicios.map((s) => {
+                        const selectedList = form.servicio_id ? form.servicio_id.split(',').filter(Boolean) : []
+                        const isSelected = selectedList.includes(s.id)
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                              isSelected
+                                ? 'bg-amber-500 text-black font-black shadow-md'
+                                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                            }`}
+                            onClick={() => {
+                              let newSelected: string[]
+                              if (isSelected) {
+                                newSelected = selectedList.filter(id => id !== s.id)
+                              } else {
+                                newSelected = [...selectedList, s.id]
+                              }
+                              setForm({ ...form, servicio_id: newSelected.join(',') })
+                            }}
+                          >
+                            {isSelected ? '✓ ' : ''}{s.nombre}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p className="text-[10px] text-zinc-500 mt-1">
+                      {form.servicio_id
+                        ? `Seleccionados: ${form.servicio_id.split(',').filter(Boolean).length} servicio(s)`
+                        : 'Aplica a cualquier servicio registrado.'}
+                    </p>
                   </div>
                 )}
                 {form.tipo_recompensa === 'producto_gratis' && (

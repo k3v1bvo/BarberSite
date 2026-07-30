@@ -638,7 +638,7 @@ export function CajaPOS() {
       
       setFormData({
         cita_id: '', cliente_id: '', nombre: '', email: '', telefono: '', ci: '',
-        servicio_id: '', barbero_id: '', metodo_pago: 'efectivo', propinas: 0, notas: 'Venta desde Caja', comprobante_url: '', monto_efectivo: 0, monto_qr: 0
+        servicio_id: '', barbero_id: '', metodo_pago: 'efectivo', propinas: 0, notas: 'Venta desde Caja', comprobante_url: '', monto_efectivo: 0, monto_qr: 0, anticipo_monto: 0
       })
       setSearchCliente('')
       setSearchCi('')
@@ -705,7 +705,10 @@ export function CajaPOS() {
       } else if (meta.tipo_recompensa === 'monto_fijo') {
         descuentoLealtad = meta.valor_recompensa
       } else if (meta.tipo_recompensa === 'servicio_gratis') {
-        descuentoLealtad = subtotalServicio
+        const allowedServices = meta.servicio_id ? meta.servicio_id.split(',').filter(Boolean) : []
+        if (allowedServices.length === 0 || (formData.servicio_id && allowedServices.includes(formData.servicio_id))) {
+          descuentoLealtad = subtotalServicio
+        }
       }
     }
   }
@@ -1096,7 +1099,7 @@ export function CajaPOS() {
                   <button onClick={() => {
                     setFormData({
                       cita_id: '', cliente_id: '', nombre: '', email: '', telefono: '', ci: '',
-                      servicio_id: '', barbero_id: '', metodo_pago: 'efectivo', propinas: 0, notas: 'Venta desde Caja', comprobante_url: '', monto_efectivo: 0, monto_qr: 0
+                      servicio_id: '', barbero_id: '', metodo_pago: 'efectivo', propinas: 0, notas: 'Venta desde Caja', comprobante_url: '', monto_efectivo: 0, monto_qr: 0, anticipo_monto: 0
                     })
                     setSearchCliente('')
                     setSearchCi('')
