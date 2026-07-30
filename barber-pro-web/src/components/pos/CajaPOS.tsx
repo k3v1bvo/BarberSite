@@ -95,7 +95,8 @@ export function CajaPOS() {
 
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [servicios, setServicios] = useState<Servicio[]>([])
-  const [filterCategoriaPOS, setFilterCategoriaPOS] = useState<string>('todos')
+  const [filterCategoriaPOS, setFilterCategoriaPOS] = useState<string>('populares')
+  const [searchServicioPOS, setSearchServicioPOS] = useState<string>('')
   const [barberos, setBarberos] = useState<Barbero[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
   const [carrito, setCarrito] = useState<ProductoCarrito[]>([])
@@ -1577,17 +1578,28 @@ export function CajaPOS() {
           {/* SERVICIO */}
           <Card className="bg-zinc-900 border-zinc-800">
             <CardContent className="pt-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
                 <h2 className="text-xl font-semibold flex items-center gap-2">
                   <Scissors className="w-5 h-5 text-amber-500" /> 2. Selección de Servicio
                 </h2>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
+                    onClick={() => setFilterCategoriaPOS('populares')}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                      filterCategoriaPOS === 'populares'
+                        ? 'bg-amber-500 text-black shadow-md'
+                        : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    🔥 Populares / Recurrentes
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setFilterCategoriaPOS('todos')}
                     className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
                       filterCategoriaPOS === 'todos'
-                        ? 'bg-amber-500 text-black'
+                        ? 'bg-amber-500 text-black shadow-md'
                         : 'bg-zinc-800 text-zinc-400 hover:text-white'
                     }`}
                   >
@@ -1603,7 +1615,7 @@ export function CajaPOS() {
                         onClick={() => setFilterCategoriaPOS(cat.id)}
                         className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
                           filterCategoriaPOS === cat.id
-                            ? 'bg-amber-500 text-black'
+                            ? 'bg-amber-500 text-black shadow-md'
                             : 'bg-zinc-800 text-zinc-400 hover:text-white'
                         }`}
                       >
@@ -1614,16 +1626,50 @@ export function CajaPOS() {
                 </div>
               </div>
 
+              {/* Buscador de servicio rápido */}
+              <div className="mb-4">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3.5 top-3 text-zinc-500" />
+                  <input
+                    type="text"
+                    placeholder="Buscar servicio por nombre (ej: Corte, Barba, Exfoliación)..."
+                    value={searchServicioPOS}
+                    onChange={(e) => setSearchServicioPOS(e.target.value)}
+                    className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl pl-10 pr-4 text-xs font-semibold text-white outline-none focus:border-amber-500/50"
+                  />
+                  {searchServicioPOS && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchServicioPOS('')}
+                      className="absolute right-3 top-2.5 text-zinc-500 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {servicios
-                  .filter(s => filterCategoriaPOS === 'todos' || (s.categoria || 'Cortes') === filterCategoriaPOS)
+                  .filter(s => {
+                    if (searchServicioPOS.trim()) {
+                      return s.nombre.toLowerCase().includes(searchServicioPOS.toLowerCase().trim())
+                    }
+                    if (filterCategoriaPOS === 'populares') {
+                      // Priorizar servicios más recurrentes
+                      const nom = s.nombre.toLowerCase()
+                      return nom.includes('corte') || nom.includes('barba') || nom.includes('combo')
+                    }
+                    if (filterCategoriaPOS === 'todos') return true
+                    return (s.categoria || 'Cortes') === filterCategoriaPOS
+                  })
                   .map((s) => (
                   <div
                     key={s.id}
                     onClick={() => setFormData({ ...formData, servicio_id: s.id })}
                     className={`p-3 border rounded-xl cursor-pointer transition flex items-center gap-3 ${
                       formData.servicio_id === s.id
-                        ? 'border-amber-400 bg-amber-500/10 shadow-sm'
+                        ? 'border-amber-400 bg-amber-500/10 shadow-sm ring-1 ring-amber-400'
                         : 'border-white/10 hover:border-amber-400/40 bg-black/20'
                     }`}
                   >
@@ -1633,6 +1679,8 @@ export function CajaPOS() {
                         <img
                           src={firstImg}
                           alt={s.nombre}
+                          loading="lazy"
+                          decoding="async"
                           className="w-12 h-12 rounded-lg object-cover shrink-0 bg-zinc-950 border border-zinc-800"
                         />
                       ) : null

@@ -1023,13 +1023,53 @@ export default function AdminLealtadPage() {
                   </div>
                 )}
 
-                {/* Servicio asociado */}
+                {/* Servicios asociados */}
                 <div>
-                  <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">Servicio (opcional)</label>
-                  <select className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white" value={promoForm.servicio_id} onChange={e => setPromoForm({ ...promoForm, servicio_id: e.target.value })}>
-                    <option value="">Todos los servicios</option>
-                    {servicios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                  </select>
+                  <label className="text-[10px] font-black uppercase text-zinc-500 mb-1.5 block">
+                    Servicios permitidos para esta promo (vacío = todos los servicios)
+                  </label>
+                  <div className="flex flex-wrap gap-2 p-3 bg-zinc-900 border border-white/10 rounded-xl max-h-48 overflow-y-auto">
+                    <button
+                      type="button"
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
+                        !promoForm.servicio_id ? 'bg-amber-500 text-black shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                      }`}
+                      onClick={() => setPromoForm({ ...promoForm, servicio_id: '' })}
+                    >
+                      ✨ Todos los servicios
+                    </button>
+                    {servicios.map((s) => {
+                      const selectedList = promoForm.servicio_id ? promoForm.servicio_id.split(',').filter(Boolean) : []
+                      const isSelected = selectedList.includes(s.id)
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            isSelected
+                              ? 'bg-amber-500 text-black font-black shadow-md'
+                              : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                          }`}
+                          onClick={() => {
+                            let newSelected: string[]
+                            if (isSelected) {
+                              newSelected = selectedList.filter(id => id !== s.id)
+                            } else {
+                              newSelected = [...selectedList, s.id]
+                            }
+                            setPromoForm({ ...promoForm, servicio_id: newSelected.join(',') })
+                          }}
+                        >
+                          {isSelected ? '✓ ' : ''}{s.nombre}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[10px] text-zinc-500 mt-1">
+                    {promoForm.servicio_id
+                      ? `Permitidos: ${promoForm.servicio_id.split(',').filter(Boolean).length} servicio(s)`
+                      : 'Esta promoción aplica a cualquier servicio del catálogo.'}
+                  </p>
                 </div>
 
                 {/* Vigencia */}

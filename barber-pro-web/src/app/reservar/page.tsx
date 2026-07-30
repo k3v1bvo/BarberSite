@@ -271,10 +271,36 @@ function ReservarContent() {
       let notasFinales = formData.notas
 
       const promoElegida = promociones.find(p => p.id === promoSeleccionada)
-      if (promoElegida?.tipo === '2x1' && !acompanante.nombre.trim()) {
-        setSubmitting(false)
-        toastError('Debe ingresar el nombre del acompañante para la promoción 2x1.')
-        return
+      if (promoElegida?.tipo === '2x1') {
+        if (!acompanante.nombre.trim()) {
+          setSubmitting(false)
+          toastError('Debe ingresar el nombre del acompañante para la promoción 2x1.')
+          return
+        }
+
+        // 1. Validar restricción de servicios autorizados para la promo
+        if (promoElegida.servicio_id) {
+          const allowedList = promoElegida.servicio_id.split(',').filter(Boolean)
+          if (allowedList.length > 0 && formData.servicio_id && !allowedList.includes(formData.servicio_id)) {
+            setSubmitting(false)
+            toastError('La promoción 2×1 solo aplica para servicios específicos (ej: Corte de cabello, Arreglo de barba).')
+            return
+          }
+        }
+
+        // 2. Restricción de horario Martes de 08:00 a 17:00 para 2x1 web
+        if (formData.fecha && formData.hora) {
+          const [year, month, day] = formData.fecha.split('-').map(Number)
+          const fechaObj = new Date(year, month - 1, day)
+          const diaSemana = fechaObj.getDay() // 2 = Martes
+          const horaNum = parseInt(formData.hora.split(':')[0], 10)
+          
+          if (diaSemana === 2 && horaNum >= 8 && horaNum < 17) {
+            setSubmitting(false)
+            toastError('Los martes de 08:00 a 17:00 solo se agendan servicios individuales en web. El beneficio 2×1 se valida directamente al venir juntos en el local.')
+            return
+          }
+        }
       }
 
       if (lealtadInfo && servicio) {
