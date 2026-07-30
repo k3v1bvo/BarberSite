@@ -2137,20 +2137,20 @@ export function CajaPOS() {
                       
                       {(formData.metodo_pago === 'qr' || formData.metodo_pago === 'mixto') && (() => {
                         const barberoSeleccionado = barberos.find(b => b.id === formData.barbero_id)
-                        const validGeneralQr = (qrPagoUrl && qrPagoUrl.trim().length > 5) ? qrPagoUrl.trim() : null
                         const validBarberQr = (barberoSeleccionado?.qr_code_url && barberoSeleccionado.qr_code_url.trim().length > 5) ? barberoSeleccionado.qr_code_url.trim() : null
+                        const validGeneralQr = (qrPagoUrl && qrPagoUrl.trim().length > 5) ? qrPagoUrl.trim() : null
 
-                        const activeQr = validGeneralQr || validBarberQr
-                        const isGeneral = Boolean(validGeneralQr)
+                        const activeQr = validBarberQr || validGeneralQr
+                        const isBarber = Boolean(validBarberQr)
 
                         return (
                           <div className="mt-4 p-3 bg-zinc-900 border border-white/5 rounded-xl space-y-4">
                             <div className="flex flex-col items-center justify-center p-4 bg-black/40 rounded-lg border border-white/5">
                               <span className="text-[11px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full mb-3 text-center">
-                                {isGeneral 
-                                  ? '🏢 QR Oficial de la Barbería (Caja POS)'
-                                  : validBarberQr 
-                                    ? `📱 QR Personal de ${toTitleCase(barberoSeleccionado?.full_name || 'Barbero')}`
+                                {isBarber 
+                                  ? `📱 QR Personal de ${toTitleCase(barberoSeleccionado?.full_name || 'Barbero')}`
+                                  : validGeneralQr 
+                                    ? '🏢 QR General de la Barbería'
                                     : '⚠️ QR de Pago No Configurado'}
                               </span>
 
