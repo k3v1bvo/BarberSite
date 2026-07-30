@@ -110,31 +110,14 @@ export async function POST(request: Request) {
 
     const matchingIds = new Set<string>()
 
-    // 1. Buscar por CI (coincidencia de carnet exacta y parcial)
+    // 1. Buscar por CI (coincidencia de carnet EXACTA únicamente, sin comas ni % parciales que crucen sufijos como -1)
     if (cleanCi && cleanCi.length >= 3 && cleanCi !== '0' && cleanCi !== '0000000') {
       const { data: byCiExact } = await adminClient
         .from('clientes')
         .select('id')
-        .eq('ci', cleanCi)
+        .ilike('ci', cleanCi)
         .neq('id', new_user_id)
       byCiExact?.forEach(c => matchingIds.add(c.id))
-
-      const { data: byCiLike } = await adminClient
-        .from('clientes')
-        .select('id')
-        .ilike('ci', `%${cleanCi}%`)
-        .neq('id', new_user_id)
-      byCiLike?.forEach(c => matchingIds.add(c.id))
-
-      const digitsOnly = cleanCi.replace(/\D/g, '')
-      if (digitsOnly && digitsOnly.length >= 4 && digitsOnly !== cleanCi) {
-        const { data: byCiDigits } = await adminClient
-          .from('clientes')
-          .select('id')
-          .ilike('ci', `%${digitsOnly}%`)
-          .neq('id', new_user_id)
-        byCiDigits?.forEach(c => matchingIds.add(c.id))
-      }
     }
 
     // 2. Buscar por Email exacto o parcial si fue provisto
@@ -259,35 +242,41 @@ export async function POST(request: Request) {
         .maybeSingle()
 
       if (oldClient) {
+        // SALVAGUARDA CRÍTICA: Si el cliente encontrado tiene un CI distinto al nuevo usuario
+        // (por ejemplo "7990776-1" vs "7990776"), NO fusionar porque son personas diferentes (hijo/padre).
+        if (oldClient.ci && cleanCi && oldClient.ci.trim().toLowerCase() !== cleanCi.trim().toLowerCase()) {
+          console.warn(`[autosync] Ignorando fusión de ${oldClient.nombre} (${oldClient.ci}) con nuevo usuario (${cleanCi}) por CIs diferentes.`)
+          continue
+        }
+
         totalVisitasSum += oldClient.total_visitas || 0
         totalGastadoSum += oldClient.total_gastado || 0
         if (!ciFound && oldClient.ci) ciFound = oldClient.ci
         if (!telefonoFound && oldClient.telefono) telefonoFound = oldClient.telefono
         if (!cumpleanosFound && oldClient.cumpleanos) cumpleanosFound = oldClient.cumpleanos
+
+        // Reasignar citas
+        await adminClient.from('citas').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
+
+        // Reasignar transacciones
+        await adminClient.from('transactions').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
+
+        // Reasignar pedidos
+        await adminClient.from('pedidos').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
+
+        // Reasignar testimonios
+        await adminClient.from('testimonios').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
+
+        // Reasignar referrals si los hay
+        await adminClient.from('referrals').update({ cliente_recomendante_id: new_user_id }).eq('cliente_recomendante_id', oldId)
+        await adminClient.from('referrals').update({ cliente_recomendado_id: new_user_id }).eq('cliente_recomendado_id', oldId)
+
+        await adminClient.from('cumpleanos_verificados').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
+        await adminClient.from('canjes_lealtad').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
+
+        // Eliminar registro antiguo de cliente PRIMERO para liberar la restricción UNIQUE de CI
+        await adminClient.from('clientes').delete().eq('id', oldId)
       }
-
-      // Reasignar citas
-      await adminClient.from('citas').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
-
-      // Reasignar transacciones
-      await adminClient.from('transactions').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
-
-      // Reasignar pedidos
-      await adminClient.from('pedidos').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
-
-      // Reasignar testimonios
-      await adminClient.from('testimonios').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
-
-      // Reasignar referrals si los hay
-      await adminClient.from('referrals').update({ cliente_recomendante_id: new_user_id }).eq('cliente_recomendante_id', oldId)
-      await adminClient.from('referrals').update({ cliente_recomendado_id: new_user_id }).eq('cliente_recomendado_id', oldId)
-
-      await adminClient.from('cumpleanos_verificados').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
-      await adminClient.from('canjes_lealtad').update({ cliente_id: new_user_id }).eq('cliente_id', oldId)
-
-      // Eliminar registro antiguo de cliente PRIMERO para liberar la restricción UNIQUE de CI
-      await adminClient.from('clientes').delete().eq('id', oldId)
-    }
 
     // Garantizar que new_user_id exista en la tabla clientes antes de leer agregados
     let { data: currentNewClient } = await adminClient
