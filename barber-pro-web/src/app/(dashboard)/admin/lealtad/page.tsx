@@ -98,7 +98,8 @@ export default function AdminLealtadPage() {
       setMetas(mJson.metas ?? [])
       setClientes(aJson.clientes ?? [])
       setCanjes(aJson.canjes ?? [])
-      setPromociones(pJson.promociones ?? [])
+      const proms = pJson.promociones ?? []
+      setPromociones(proms)
       setVerifs(vJson.verificaciones ?? [])
       setReferidos(rJson ?? [])
     } finally {
@@ -126,18 +127,27 @@ export default function AdminLealtadPage() {
       })
 
       if (!res.ok) {
-        const errJson = await res.json()
-        if (errJson.error?.includes('invalid input syntax for type uuid') || errJson.error?.includes('22P02')) {
+        let errJson: any = {}
+        try { errJson = await res.json() } catch {}
+        const errMsg = errJson?.error || ''
+
+        if (errMsg.includes('invalid input syntax for type uuid') || errMsg.includes('22P02')) {
           const payloadPrimary = { ...form, servicio_id: primaryUuid, producto_id: form.producto_id || null }
           res = await fetch('/api/lealtad/metas', {
             method: editing ? 'PUT' : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(editing ? { id: editing.id, ...payloadPrimary } : payloadPrimary),
           })
+          if (!res.ok) {
+            let err2: any = {}
+            try { err2 = await res.json() } catch {}
+            throw new Error(err2?.error || 'Error al guardar meta')
+          }
+        } else {
+          throw new Error(errMsg || 'Error al guardar meta')
         }
       }
 
-      if (!res.ok) throw new Error((await res.json()).error)
       success(editing ? 'Meta actualizada' : 'Meta creada')
       setShowModal(false); setEditing(null); setForm(emptyMeta); loadAll()
     } catch (e) { toastError(e instanceof Error ? e.message : 'Error') }
@@ -238,7 +248,6 @@ export default function AdminLealtadPage() {
     }
   }
 
-  // ── Promo CRUD ──
   const activarPromoBase = async (tipoBase: '2x1' | 'referido' | 'cumpleanos') => {
     setSavingPromo(true)
     try {
@@ -247,8 +256,8 @@ export default function AdminLealtadPage() {
         payload = {
           nombre: '✂️ 2×1 Todos los Martes',
           descripcion: 'Ven con un amigo o familiar los martes y pagan solo por 1 corte. Al seleccionar esta promo al agendar, pedirá los datos del acompañante.',
-          tipo: '2x1',
-          valor: 0,
+          tipo: 'descuento_porcentaje',
+          valor: 50,
           dias_semana: [2],
           icono: '✂️',
           color: 'amber',
@@ -269,7 +278,7 @@ export default function AdminLealtadPage() {
         payload = {
           nombre: '🎂 Regalo de Cumpleañero',
           descripcion: '¡Celebra tu cumpleaños con nosotros! Presenta tu carnet de identidad en tu semana de cumpleaños para validar y obtener tu corte especial o regalo.',
-          tipo: 'cumpleanos',
+          tipo: 'servicio_gratis',
           valor: 0,
           dias_semana: [],
           icono: '🎂',
@@ -295,9 +304,13 @@ export default function AdminLealtadPage() {
   const activarTodasPromosBase = async () => {
     setSavingPromo(true)
     try {
-      const p2x1 = promociones.find(p => p.tipo === '2x1')
-      const pRef = promociones.find(p => p.tipo === 'referido')
-      const pCump = promociones.find(p => p.tipo === 'cumpleanos')
+      const isPromo2x1 = (p: any) => p.tipo === '2x1' || p.nombre?.toLowerCase().includes('2x1') || p.nombre?.toLowerCase().includes('2×1')
+      const isPromoReferidos = (p: any) => p.tipo === 'referido' || p.nombre?.toLowerCase().includes('referido')
+      const isPromoCumpleanos = (p: any) => p.tipo === 'cumpleanos' || p.nombre?.toLowerCase().includes('cumpleañ') || p.nombre?.toLowerCase().includes('cumpleañero')
+
+      const p2x1 = promociones.find(isPromo2x1)
+      const pRef = promociones.find(isPromoReferidos)
+      const pCump = promociones.find(isPromoCumpleanos)
       
       const toCreate: ('2x1' | 'referido' | 'cumpleanos')[] = []
       if (!p2x1) toCreate.push('2x1')
