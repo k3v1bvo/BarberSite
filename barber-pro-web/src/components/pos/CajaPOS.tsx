@@ -42,6 +42,8 @@ interface LealtadMeta {
   visitas_requeridas: number
   tipo_recompensa: string
   valor_recompensa: number
+  servicio_id?: string | null
+  producto_id?: string | null
   is_active: boolean
 }
 
@@ -177,7 +179,7 @@ export function CajaPOS() {
           supabase.from('promociones').select('id, nombre, tipo, valor, activa, icono, servicio_id, nivel_requerido').eq('activa', true),
           supabase.from('configuraciones').select('valor').eq('llave', 'qr_pago').maybeSingle(),
           supabase.from('configuraciones').select('valor').eq('llave', 'tiempo_minimo_reserva').maybeSingle(),
-          supabase.from('lealtad_metas').select('id, nombre, visitas_requeridas, tipo_recompensa, valor_recompensa, is_active').eq('is_active', true)
+          supabase.from('lealtad_metas').select('id, nombre, visitas_requeridas, tipo_recompensa, valor_recompensa, servicio_id, producto_id, is_active').eq('is_active', true)
         ])
 
         setServicios(resServicios.data || [])
