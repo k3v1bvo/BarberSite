@@ -243,7 +243,7 @@ export default function AdminLealtadPage() {
         payload = {
           nombre: '🤝 Programa de Referidos',
           descripcion: 'Trae a un nuevo cliente a la barbería. Cuando tu referido asista a su primer corte, tú recibes tu bono/descuento especial.',
-          tipo: 'referido',
+          tipo: 'descuento_fijo',
           valor: 10,
           dias_semana: [],
           icono: '🤝',
