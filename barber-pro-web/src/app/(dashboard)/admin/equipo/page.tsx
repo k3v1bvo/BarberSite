@@ -399,6 +399,17 @@ export default function AdminEquipoPage() {
                     <span className="text-[10px] font-bold uppercase tracking-widest">Orden: {member.sort_order}</span>
                   </div>
                 </div>
+
+                <div className="mt-4 pt-3 border-t border-white/5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push('/admin/horarios')}
+                    className="w-full text-xs font-bold text-amber-400 border-amber-500/20 bg-amber-500/5 hover:bg-amber-500 hover:text-black transition-all"
+                  >
+                    🕒 Horario de Trabajo
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )

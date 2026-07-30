@@ -933,10 +933,17 @@ function ReservarContent() {
                   </div>
                   {formData.fecha && (
                     <div className="animate-in fade-in slide-in-from-bottom-8 duration-500">
-                      <label className="flex items-center justify-center gap-2 text-sm text-zinc-400 mb-6 font-black uppercase tracking-[0.2em]">
-                        2. Horarios Disponibles 
-                        {loadingDisponibilidad && <span className="text-amber-500 text-xs animate-pulse bg-amber-500/10 px-2 py-1 rounded-full ml-2">Cargando...</span>}
-                      </label>
+                      <div className="text-center mb-6">
+                        <label className="flex items-center justify-center gap-2 text-sm text-zinc-400 font-black uppercase tracking-[0.2em] mb-2">
+                          2. Horarios Disponibles 
+                          {loadingDisponibilidad && <span className="text-amber-500 text-xs animate-pulse bg-amber-500/10 px-2 py-1 rounded-full ml-2">Cargando...</span>}
+                        </label>
+                        {disponibleAgenda && (
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs font-black text-amber-400 shadow-md">
+                            🕒 Horario de atención este día: {rangoHorario.inicio} a {rangoHorario.fin}
+                          </span>
+                        )}
+                      </div>
                       {!disponibleAgenda ? (
                         <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-2xl text-center">
                           <p className="text-red-300 font-black text-base mb-1">⚠️ Barbero No Disponible</p>
