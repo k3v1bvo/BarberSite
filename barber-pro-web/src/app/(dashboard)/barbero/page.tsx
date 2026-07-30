@@ -998,9 +998,41 @@ export default function BarberoPage() {
                 <div className="flex flex-col w-full gap-3">
                   <div className="flex w-full gap-3">
                     {selectedCita.comprobante_url && (
-                      <Button onClick={() => window.open(selectedCita.comprobante_url!, '_blank')} variant="outline" className="flex-1 h-12 uppercase tracking-widest font-black text-amber-500 border-amber-500/20 hover:bg-amber-500/10">
-                        📷 Comprobante
-                      </Button>
+                      <div className="w-full rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950 mb-1">
+                        <div className="flex items-center justify-between px-3 py-2 bg-zinc-900 border-b border-zinc-800">
+                          <span className="text-[10px] font-black uppercase text-amber-400 tracking-widest">📷 Comprobante</span>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch(selectedCita.comprobante_url!)
+                                  const blob = await res.blob()
+                                  const blobUrl = URL.createObjectURL(blob)
+                                  const a = document.createElement('a')
+                                  a.href = blobUrl
+                                  a.download = `Comprobante_${selectedCita.id}.jpg`
+                                  document.body.appendChild(a); a.click()
+                                  document.body.removeChild(a)
+                                  URL.revokeObjectURL(blobUrl)
+                                } catch { window.open(selectedCita.comprobante_url!, '_blank') }
+                              }}
+                              className="text-[10px] font-black uppercase px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition"
+                            >⬇ Guardar</button>
+                            <button
+                              type="button"
+                              onClick={() => window.open(selectedCita.comprobante_url!, '_blank')}
+                              className="text-[10px] font-black uppercase px-2 py-1 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700 transition"
+                            >🔍 Pantalla completa</button>
+                          </div>
+                        </div>
+                        <img
+                          src={selectedCita.comprobante_url}
+                          alt="Comprobante de pago"
+                          loading="eager"
+                          className="w-full max-h-72 object-contain bg-zinc-950"
+                        />
+                      </div>
                     )}
                     <Button 
                       onClick={async () => {
