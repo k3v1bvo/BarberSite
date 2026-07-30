@@ -163,6 +163,7 @@ export function CajaPOS() {
     comprobante_url: '',
     monto_efectivo: 0,
     monto_qr: 0,
+    anticipo_monto: 0,
   })
 
   useEffect(() => {
@@ -195,7 +196,7 @@ export function CajaPOS() {
         
         const { data: citasPendientesData } = await supabase
           .from('citas')
-          .select('id, cliente_id, barbero_id, servicio_id, estado, fecha_hora, notas, clientes(nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado, codigo_tarjeta), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
+          .select('id, cliente_id, barbero_id, servicio_id, estado, fecha_hora, notas, anticipo_monto, clientes(nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado, codigo_tarjeta), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
           .in('estado', ['en_proceso', 'pendiente', 'pendiente_pago', 'confirmado'])
           .order('fecha_hora', { ascending: true })
 
@@ -711,7 +712,8 @@ export function CajaPOS() {
 
   const descuentoReservaProducto = (formData.servicio_id && carrito.length > 0) ? 10 : 0
   const descuentoTotal = descuentoPromo + totalBonoReferido + descuentoReservaProducto + descuentoLealtad
-  const totalACobrar = Math.max(0, subtotalServicio + totalProductos + Number(formData.propinas || 0) - descuentoTotal)
+  const anticipoPagado = Number(formData.anticipo_monto || 0)
+  const totalACobrar = Math.max(0, subtotalServicio + totalProductos + Number(formData.propinas || 0) - descuentoTotal - anticipoPagado)
 
   const checkDisponibilidad = (hora: string) => {
     const servicioSeleccionado = servicios.find(s => s.id === formData.servicio_id)
@@ -1024,7 +1026,8 @@ export function CajaPOS() {
                         telefono: cita.clientes?.telefono || '',
                         ci: cita.clientes?.ci || '',
                         servicio_id: cita.servicio_id || '',
-                        barbero_id: cita.barbero_id || ''
+                        barbero_id: cita.barbero_id || '',
+                        anticipo_monto: Number(cita.anticipo_monto || 0),
                       }))
                       setSearchCliente(cita.clientes?.nombre || 'Cliente')
                       setSearchCi(cita.clientes?.ci || '')
@@ -1972,8 +1975,17 @@ export function CajaPOS() {
                     </div>
                   )}
 
+                  {anticipoPagado > 0 && (
+                    <div className="flex justify-between items-center text-sm mb-2">
+                      <span className="text-blue-400 text-xs flex items-center gap-1">
+                        💳 Anticipo ya pagado (QR)
+                      </span>
+                      <span className="text-blue-400 font-semibold">-{formatCurrency(anticipoPagado)}</span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-center pt-4 border-t border-zinc-800">
-                    <span className="text-lg font-bold">Total a Cobrar</span>
+                    <span className="text-lg font-bold">{anticipoPagado > 0 ? 'Resta Pagar' : 'Total a Cobrar'}</span>
                     <span className="text-2xl font-black text-amber-400">
                       {formatCurrency(totalACobrar)}
                     </span>
