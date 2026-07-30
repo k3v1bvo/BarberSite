@@ -384,15 +384,15 @@ export default function AdminConfiguracionPage() {
         </CardContent>
       </Card>
 
-      <Card className="bg-zinc-900 border-white/5">
+      <Card className="bg-zinc-900 border-amber-500/20 shadow-xl">
         <CardHeader className="border-b border-white/5 bg-zinc-900/50 p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500">
+            <div className="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500 shrink-0">
               <QrCode className="w-6 h-6" />
             </div>
             <div>
-              <CardTitle className="text-xl font-black uppercase text-white">Código QR de Pagos</CardTitle>
-              <p className="text-sm text-zinc-400">URL de la imagen del QR de tu cuenta bancaria o billetera móvil.</p>
+              <CardTitle className="text-xl font-black uppercase text-white">QR Oficial de la Barbería (Caja POS y Cobros)</CardTitle>
+              <p className="text-sm text-zinc-400">Sube aquí la imagen del QR oficial del local. Este es el QR que se mostrará en la Caja POS al cobrar los servicios y productos a los clientes.</p>
             </div>
           </div>
         </CardHeader>
@@ -400,7 +400,7 @@ export default function AdminConfiguracionPage() {
           <form onSubmit={handleSaveQr} className="space-y-6">
             <div>
               <ImageUpload
-                label="Imagen del QR de Pagos (Recomendado 500x500px)"
+                label="Imagen del QR Oficial de la Barbería (Recomendado 500x500px)"
                 defaultImage={qrUrl || undefined}
                 onUploadSuccess={(url) => setQrUrl(url)}
                 onUploadError={(err) => toastError(err)}

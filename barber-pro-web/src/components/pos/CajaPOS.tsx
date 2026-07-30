@@ -2137,15 +2137,17 @@ export function CajaPOS() {
                       
                       {(formData.metodo_pago === 'qr' || formData.metodo_pago === 'mixto') && (() => {
                         const barberoSeleccionado = barberos.find(b => b.id === formData.barbero_id)
-                        const activeQr = barberoSeleccionado?.qr_code_url || qrPagoUrl
+                        const activeQr = qrPagoUrl || barberoSeleccionado?.qr_code_url
 
                         return (
                           <div className="mt-4 p-3 bg-zinc-900 border border-white/5 rounded-xl space-y-4">
                             <div className="flex flex-col items-center justify-center p-4 bg-black/40 rounded-lg border border-white/5">
                               <span className="text-[11px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full mb-3 text-center">
-                                {barberoSeleccionado?.qr_code_url 
-                                  ? `QR Personal de ${toTitleCase(barberoSeleccionado.full_name)}`
-                                  : 'QR General de la Barbería'}
+                                {qrPagoUrl 
+                                  ? '🏢 QR Oficial de la Barbería (Caja POS)'
+                                  : barberoSeleccionado?.qr_code_url 
+                                    ? `QR Personal de ${toTitleCase(barberoSeleccionado.full_name)}`
+                                    : 'QR Oficial de la Barbería'}
                               </span>
                               <p className="text-xs text-zinc-400 mb-3 text-center">Escanea este código para pagar</p>
                               {activeQr ? (
