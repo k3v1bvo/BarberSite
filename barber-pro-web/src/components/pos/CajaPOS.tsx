@@ -785,7 +785,7 @@ export function CajaPOS() {
       if (formData.cita_id === citaId) {
         setFormData({
           cita_id: '', cliente_id: '', nombre: '', email: '', telefono: '', ci: '',
-          servicio_id: '', barbero_id: '', metodo_pago: 'efectivo', propinas: 0, notas: 'Venta desde Caja', comprobante_url: '', monto_efectivo: 0, monto_qr: 0
+          servicio_id: '', barbero_id: '', metodo_pago: 'efectivo', propinas: 0, notas: 'Venta desde Caja', comprobante_url: '', monto_efectivo: 0, monto_qr: 0, anticipo_monto: 0
         })
         setSearchCliente('')
       }

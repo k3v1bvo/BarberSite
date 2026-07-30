@@ -116,7 +116,8 @@ export default function AdminLealtadPage() {
   const saveMeta = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const payload = { ...form, servicio_id: form.servicio_id || null, producto_id: form.producto_id || null }
+      const cleanServicioId = form.servicio_id ? form.servicio_id.split(',').filter(Boolean)[0] || null : null
+      const payload = { ...form, servicio_id: cleanServicioId, producto_id: form.producto_id || null }
       const res = await fetch('/api/lealtad/metas', {
         method: editing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -312,9 +313,10 @@ export default function AdminLealtadPage() {
     e.preventDefault()
     setSavingPromo(true)
     try {
+      const cleanServicioId = promoForm.servicio_id ? promoForm.servicio_id.split(',').filter(Boolean)[0] || null : null
       const payload = {
         ...promoForm,
-        servicio_id: promoForm.servicio_id || null,
+        servicio_id: cleanServicioId,
         nivel_requerido: promoForm.nivel_requerido || null,
         fecha_inicio: promoForm.fecha_inicio || null,
         fecha_fin: promoForm.fecha_fin || null,
