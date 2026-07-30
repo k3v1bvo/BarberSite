@@ -640,45 +640,63 @@ function ReservarContent() {
                                   setFormData({ ...formData, servicio_id: s.id, barbero_id: '' })
                                   setTimeout(() => setStep(2), 250)
                                 }}
-                                className={`p-5 border-2 rounded-2xl cursor-pointer transition-all duration-300 flex flex-col justify-between group hover:-translate-y-1 ${
+                                className={`rounded-2xl cursor-pointer overflow-hidden transition-all duration-300 border-2 group hover:-translate-y-1 ${
                                   formData.servicio_id === s.id
-                                    ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_25px_rgba(245,158,11,0.15)] scale-[1.02]'
-                                    : 'border-zinc-800 bg-black/50 hover:border-amber-500/50 hover:bg-zinc-800/80'
+                                    ? 'border-amber-500 shadow-[0_0_25px_rgba(245,158,11,0.2)] scale-[1.01]'
+                                    : 'border-zinc-800 bg-zinc-900/80 hover:border-amber-500/50'
                                 }`}
                               >
-                                <div className="flex gap-4 items-start">
-                                  {allImgs.length > 0 && (
-                                    <ServicioGalleryBanner
-                                      imagenes={allImgs}
-                                      categoria={s.categoria}
-                                      aspectRatio="w-24 h-24 sm:w-28 sm:h-28 rounded-xl shrink-0 border border-zinc-800"
-                                      showBadge={false}
+                                {/* Imagen banner compacta - nombre VISIBLE encima */}
+                                <div className="relative w-full h-36 overflow-hidden bg-zinc-950">
+                                  {allImgs.length > 0 ? (
+                                    <img
+                                      src={allImgs[0]}
+                                      alt={s.nombre}
+                                      loading="lazy"
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                     />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-900 to-zinc-950">
+                                      <Scissors className="w-10 h-10 text-zinc-700" />
+                                    </div>
                                   )}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between gap-2 mb-1">
-                                      <h4 className="font-black text-lg text-white group-hover:text-amber-400 transition-colors truncate">{toSentenceCase(s.nombre)}</h4>
-                                      <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-zinc-800 text-amber-400 border border-zinc-700 shrink-0">
-                                        {s.categoria || 'Cortes'}
+                                  {/* Badge categoría */}
+                                  <span className="absolute top-2 left-2 text-[9px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-amber-400 border border-amber-400/30">
+                                    {s.categoria || 'Cortes'}
+                                  </span>
+                                  {/* Check si está seleccionado */}
+                                  {formData.servicio_id === s.id && (
+                                    <div className="absolute inset-0 bg-amber-500/20 flex items-center justify-center">
+                                      <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center shadow-lg">
+                                        <CheckCircle className="w-6 h-6 text-black" />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                {/* Contenido: nombre + descripción + precio */}
+                                <div className={`p-4 ${ formData.servicio_id === s.id ? 'bg-amber-500/5' : 'bg-zinc-900/80' }`}>
+                                  <h4 className="font-black text-base text-white group-hover:text-amber-400 transition-colors mb-1 leading-tight">
+                                    {toSentenceCase(s.nombre)}
+                                  </h4>
+                                  {s.descripcion && (
+                                    <p className="text-xs text-zinc-500 line-clamp-2 mb-3 leading-relaxed">
+                                      {toSentenceCase(s.descripcion)}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-zinc-800/50">
+                                    <span className="text-amber-400 font-black text-xl tracking-tight">{formatCurrency(s.precio)}</span>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); setSelectedServicioForDetail(s) }}
+                                        className="text-[10px] font-black uppercase text-amber-500 hover:text-amber-300 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 transition-all hover:scale-105"
+                                      >
+                                        🔍 Info
+                                      </button>
+                                      <span className="text-xs font-bold text-zinc-400 flex items-center gap-1">
+                                        <Clock className="w-3.5 h-3.5 text-amber-500"/> {s.duracion_minutos} min
                                       </span>
                                     </div>
-                                    {s.descripcion && <p className="text-xs text-zinc-400 mb-2 line-clamp-2 leading-relaxed">{toSentenceCase(s.descripcion)}</p>}
-                                  </div>
-                                </div>
-                                <div className="flex justify-between items-center mt-4 pt-4 border-t border-zinc-800/50">
-                                  <span className="text-amber-400 font-black text-xl tracking-tight">{formatCurrency(s.precio)}</span>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setSelectedServicioForDetail(s)
-                                      }}
-                                      className="text-[11px] font-black uppercase text-amber-500 hover:text-amber-300 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 transition-all hover:scale-105"
-                                    >
-                                      🔍 Detalles
-                                    </button>
-                                    <span className="text-xs font-bold text-zinc-400 bg-zinc-950 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-inner"><Clock className="w-3.5 h-3.5 text-amber-500"/> {s.duracion_minutos} min</span>
                                   </div>
                                 </div>
                               </div>
@@ -702,34 +720,62 @@ function ReservarContent() {
                           setFormData({ ...formData, servicio_id: s.id, barbero_id: '' })
                           setTimeout(() => setStep(2), 250)
                         }}
-                        className={`p-5 border-2 rounded-2xl cursor-pointer transition-all duration-300 flex flex-col justify-between group hover:-translate-y-1 ${
+                        className={`rounded-2xl cursor-pointer overflow-hidden transition-all duration-300 border-2 group hover:-translate-y-1 ${
                           formData.servicio_id === s.id
-                            ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_25px_rgba(245,158,11,0.15)] scale-[1.02]'
-                            : 'border-zinc-800 bg-black/50 hover:border-amber-500/50 hover:bg-zinc-800/80'
+                            ? 'border-amber-500 shadow-[0_0_25px_rgba(245,158,11,0.2)] scale-[1.01]'
+                            : 'border-zinc-800 bg-zinc-900/80 hover:border-amber-500/50'
                         }`}
                       >
-                        <div className="flex gap-4 items-start">
-                          {allImgs.length > 0 && (
-                            <ServicioGalleryBanner
-                              imagenes={allImgs}
-                              categoria={s.categoria}
-                              aspectRatio="w-24 h-24 sm:w-28 sm:h-28 rounded-xl shrink-0 border border-zinc-800"
-                              showBadge={false}
+                        {/* Imagen banner compacta */}
+                        <div className="relative w-full h-36 overflow-hidden bg-zinc-950">
+                          {allImgs.length > 0 ? (
+                            <img
+                              src={allImgs[0]}
+                              alt={s.nombre}
+                              loading="lazy"
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-900 to-zinc-950">
+                              <Scissors className="w-10 h-10 text-zinc-700" />
+                            </div>
                           )}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <h4 className="font-black text-lg text-white group-hover:text-amber-400 transition-colors truncate">{s.nombre}</h4>
-                              <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-zinc-800 text-amber-400 border border-zinc-700 shrink-0">
-                                {s.categoria || 'Cortes'}
+                          <span className="absolute top-2 left-2 text-[9px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-amber-400 border border-amber-400/30">
+                            {s.categoria || 'Cortes'}
+                          </span>
+                          {formData.servicio_id === s.id && (
+                            <div className="absolute inset-0 bg-amber-500/20 flex items-center justify-center">
+                              <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center shadow-lg">
+                                <CheckCircle className="w-6 h-6 text-black" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {/* Contenido */}
+                        <div className={`p-4 ${ formData.servicio_id === s.id ? 'bg-amber-500/5' : 'bg-zinc-900/80' }`}>
+                          <h4 className="font-black text-base text-white group-hover:text-amber-400 transition-colors mb-1 leading-tight">
+                            {toSentenceCase(s.nombre)}
+                          </h4>
+                          {s.descripcion && (
+                            <p className="text-xs text-zinc-500 line-clamp-2 mb-3 leading-relaxed">
+                              {toSentenceCase(s.descripcion)}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-zinc-800/50">
+                            <span className="text-amber-400 font-black text-xl tracking-tight">{formatCurrency(s.precio)}</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setSelectedServicioForDetail(s) }}
+                                className="text-[10px] font-black uppercase text-amber-500 hover:text-amber-300 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 transition-all hover:scale-105"
+                              >
+                                🔍 Info
+                              </button>
+                              <span className="text-xs font-bold text-zinc-400 flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5 text-amber-500"/> {s.duracion_minutos} min
                               </span>
                             </div>
-                            {s.descripcion && <p className="text-xs text-zinc-400 mb-2 line-clamp-2 leading-relaxed">{s.descripcion}</p>}
                           </div>
-                        </div>
-                        <div className="flex justify-between items-center mt-4 pt-4 border-t border-zinc-800/50">
-                          <span className="text-amber-400 font-black text-xl tracking-tight">{formatCurrency(s.precio)}</span>
-                          <span className="text-xs font-bold text-zinc-400 bg-zinc-950 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-inner"><Clock className="w-3.5 h-3.5 text-amber-500"/> {s.duracion_minutos} min</span>
                         </div>
                       </div>
                       )
