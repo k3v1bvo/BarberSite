@@ -120,10 +120,7 @@ export default function AdminConfiguracionPage() {
 
     const trimmedUrl = qrUrl.trim()
     if (!trimmedUrl) {
-      return toastError('El enlace no puede estar vacío.')
-    }
-    if (trimmedUrl === initialQrUrl) {
-      return toastInfo('No se han hecho cambios, la URL es la misma.')
+      return toastError('Por favor selecciona o sube una imagen para el QR.')
     }
 
     setSaving(true)
@@ -132,13 +129,13 @@ export default function AdminConfiguracionPage() {
         .from('configuraciones')
         .upsert({
           llave: 'qr_pago',
-          valor: { url: qrUrl.trim() },
+          valor: { url: trimmedUrl },
           descripcion: 'URL de la imagen del QR para pagos'
         }, { onConflict: 'llave' })
 
       if (error) throw error
       setInitialQrUrl(trimmedUrl)
-      toastSuccess('Código QR actualizado correctamente')
+      toastSuccess('Código QR Oficial guardado correctamente')
     } catch (err: any) {
       toastError(err.message || 'Error al guardar la configuración del QR')
     } finally {
@@ -404,6 +401,17 @@ export default function AdminConfiguracionPage() {
                 defaultImage={qrUrl || undefined}
                 onUploadSuccess={(url) => setQrUrl(url)}
                 onUploadError={(err) => toastError(err)}
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-1">Enlace / URL Directa de la Imagen QR (Opcional)</label>
+              <Input
+                type="url"
+                placeholder="https://..."
+                value={qrUrl}
+                onChange={(e) => setQrUrl(e.target.value)}
+                className="mt-1 bg-zinc-950 border-white/10 text-white font-mono text-xs"
               />
             </div>
 

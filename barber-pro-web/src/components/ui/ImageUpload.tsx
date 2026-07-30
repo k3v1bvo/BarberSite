@@ -23,6 +23,10 @@ export function ImageUpload({
   const inputRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
 
+  React.useEffect(() => {
+    setPreview(defaultImage || null)
+  }, [defaultImage])
+
   const galleryInputId = React.useId()
   const cameraInputId = React.useId()
 
