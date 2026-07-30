@@ -277,6 +277,7 @@ export async function POST(request: Request) {
         // Eliminar registro antiguo de cliente PRIMERO para liberar la restricción UNIQUE de CI
         await adminClient.from('clientes').delete().eq('id', oldId)
       }
+    } // fin for (const oldId of oldClientIds)
 
     // Garantizar que new_user_id exista en la tabla clientes antes de leer agregados
     let { data: currentNewClient } = await adminClient
