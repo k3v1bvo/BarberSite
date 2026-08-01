@@ -9,6 +9,10 @@ export const metadata: Metadata = {
   title: 'Barber Pro | Estilo Clásico & Moderno en Cochabamba',
   description: 'La mejor experiencia en barbería tradicional e innovación. Reserva tu cita online para cortes clásicos, fades y cuidado de barba en Cochabamba.',
   keywords: ['barbería', 'cochabamba', 'corte de cabello', 'fade', 'barba', 'reservas online'],
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export default function RootLayout({

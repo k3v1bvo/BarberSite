@@ -217,7 +217,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-2">
-              <Scissors className="w-8 h-8 text-amber-400" />
+              <img src="/logo.png" alt="Barber Pro" className="w-8 h-8 object-contain" />
               <span className="text-2xl font-bold tracking-wider">BarberSite</span>
             </div>
 

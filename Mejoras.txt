@@ -1,0 +1,7 @@
+Modificaciaones Barber site 3.jun.26
+
+1. en l apagina de inicio debe de poder editar o ver cmomo manejar el tema de lso comentarios no peuden ser estaticos nose aunq el usuario osea elcliente deberbria de poder dejar su 
+comentari sobre el sercvicio el barbero  o algun porducto y de estos lo ms destacados deben de msotrarse e nese apatdo de Testimonios lo que dicen.
+2. el archivo .env tiene demaciadas variable sisn delcaraar ose estna en blanco nsoe si las piongo ya se usan en todo el sistema o como cambiar esas cosas pro q el cliente me pasara 
+sus redes oficioale sy tenemso q redireccionar ahi addemas de su nuemro de telefono real.
+3. 

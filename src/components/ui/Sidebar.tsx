@@ -236,7 +236,7 @@ export function Sidebar({ role, userId }: SidebarProps) {
               isCollapsed ? 'justify-center text-base' : 'gap-3 text-xl'
             )}
           >
-            <Scissors className={cn('shrink-0', isCollapsed ? 'w-6 h-6' : 'w-7 h-7')} />
+            <img src="/logo.png" alt="Barber Pro" className={cn('shrink-0 object-contain', isCollapsed ? 'w-6 h-6' : 'w-7 h-7')} />
             {!isCollapsed && <span>BARBER PRO</span>}
           </Link>
           {!isCollapsed && (

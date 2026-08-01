@@ -111,7 +111,7 @@ export function Navbar() {
     return (
       <header className="h-16 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md flex items-center px-6 sticky top-0 z-40">
          <div className="flex items-center gap-3 text-amber-500 font-black tracking-tighter animate-pulse">
-            <Scissors className="w-6 h-6" />
+            <img src="/logo.png" alt="Barber Pro" className="w-7 h-7 object-contain" />
             <span>BARBER PRO</span>
          </div>
       </header>
@@ -131,7 +131,7 @@ export function Navbar() {
                 href="/"
                 className="flex items-center gap-2 text-amber-500 font-black text-lg tracking-tighter hover:scale-105 transition-transform shrink-0"
               >
-                <Scissors className="w-5 h-5 glow-amber" />
+                <img src="/logo.png" alt="Barber Pro" className="w-7 h-7 object-contain" />
                 <span>BARBER PRO</span>
               </Link>
               {!user && (
@@ -210,7 +210,7 @@ export function Navbar() {
             </button>
           )}
           <Link href="/" className="flex items-center gap-2 text-amber-500 font-black tracking-tighter">
-            <Scissors className="w-6 h-6 glow-amber" />
+            <img src="/logo.png" alt="Barber Pro" className="w-7 h-7 object-contain" />
             <span>BARBER PRO</span>
           </Link>
         </div>
