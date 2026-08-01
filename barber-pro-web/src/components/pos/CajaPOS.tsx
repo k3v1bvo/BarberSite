@@ -175,7 +175,7 @@ export function CajaPOS() {
     async function loadData() {
       try {
         const [resServicios, resBarberos, resProductos, resPromos, resQr, resTiempo, resMetas] = await Promise.all([
-          supabase.from('servicios').select('id, nombre, precio, duracion_minutos, barberos_excluidos').eq('is_active', true),
+          supabase.from('servicios').select('id, nombre, precio, duracion_minutos, barberos_excluidos, imagen_url, imagenes, categoria').eq('is_active', true),
           supabase.from('profiles').select('id, full_name, email, avatar_url, qr_code_url').eq('role', 'barbero').eq('is_active', true),
           supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url, categoria').eq('is_active', true).gt('stock_actual', 0).order('nombre'),
           supabase.from('promociones').select('id, nombre, tipo, valor, activa, icono, servicio_id, nivel_requerido').eq('activa', true),
@@ -1915,9 +1915,18 @@ export function CajaPOS() {
                   <span className="text-zinc-400">Cliente</span>
                   <span className="font-medium truncate max-w-[150px]">{formData.nombre || 'No seleccionado'}</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-sm items-center">
                   <span className="text-zinc-400">Servicio</span>
-                  <span className="font-medium text-right">{servicioSeleccionado?.nombre || 'No seleccionado'}</span>
+                  <div className="flex items-center gap-2 text-right">
+                    {servicioSeleccionado && (servicioSeleccionado.imagenes?.[0] || servicioSeleccionado.imagen_url) && (
+                      <img
+                        src={servicioSeleccionado.imagenes?.[0] || servicioSeleccionado.imagen_url!}
+                        alt={servicioSeleccionado.nombre}
+                        className="w-7 h-7 rounded-md object-cover border border-amber-500/40 shrink-0"
+                      />
+                    )}
+                    <span className="font-bold text-white text-right">{servicioSeleccionado?.nombre || 'No seleccionado'}</span>
+                  </div>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-zinc-400">Barbero</span>
