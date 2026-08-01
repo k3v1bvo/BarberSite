@@ -19,6 +19,8 @@ export type NotificationCategory =
   | 'bienvenida_nuevo_usuario'
   | 'cambio_rol'
   | 'cumpleanos'
+  | 'cumpleanos_registro'
+  | 'cumpleanos_semana_antes'
 
 export type NotificationTipo = 'info' | 'success' | 'warning' | 'danger'
 

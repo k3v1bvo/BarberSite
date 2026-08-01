@@ -559,6 +559,34 @@ export function buildEmail(
         ),
       }
 
+    case 'cumpleanos_registro':
+      return {
+        subject: data.asuntoCustom || `🎂 ¡Fecha de Cumpleaños Registrada en {{barberia}}!`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Hola {{nombre}}!</h2>
+          <p>Hemos registrado tu fecha de cumpleaños exitosamente en <strong>{{barberia}}</strong>.</p>
+          <div style="margin:16px 0;line-height:1.6;font-size:15px;color:#e4e4e7;">${data.mensajeCustom || '¡Prepárate! Una semana antes de tu gran día te enviaremos una promoción exclusiva y tu regalo de cumpleaños para que celebres luciendo tu mejor corte y estilo.'}</div>
+          ${detailBox([
+            { label: 'Fecha Guardada', value: data.fecha || 'Registrada' },
+            { label: 'Beneficio', value: 'Regalo y Descuento Exclusivo en tu Semana' }
+          ])}
+          ${cta(data.link || `${SITE}/reservar`, 'Ver Barbería / Agendar Cita')}`,
+          'Tu fecha de cumpleaños ha sido guardada'
+        ),
+      }
+
+    case 'cumpleanos_semana_antes':
+      return {
+        subject: data.asuntoCustom || `🎂 ¡Se acerca tu Cumpleaños {{nombre}}! Tu regalo en {{barberia}} te espera`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Falta solo 1 semana para tu cumpleaños {{nombre}}! 🎉</h2>
+          <div style="margin:16px 0;line-height:1.6;font-size:15px;color:#e4e4e7;">${data.mensajeCustom || 'En {{barberia}} queremos celebrar contigo. Tienes habilitado un regalo y descuento especial de cumpleaños durante toda esta semana.'}</div>
+          <p>Ven y disfruta el mejor ambiente, bebidas de cortesía y el estilo perfecto para tu día especial.</p>
+          ${cta(data.link || `${SITE}/reservar`, 'Agendar mi Cita de Cumpleaños')}`,
+          '¡Falta solo 1 semana para tu cumpleaños!'
+        ),
+      }
+
     case 'registro_bienvenida_nuevo':
       return {
         subject: `🎉 ¡Bienvenido a ${BRAND}! — Registro Exitoso`,

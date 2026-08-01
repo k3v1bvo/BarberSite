@@ -117,6 +117,17 @@ export async function POST(request: NextRequest) {
         },
         userEmail: cliente.email || undefined,
       })
+
+      await dispatchNotification(supabase, {
+        event: 'cumpleanos_registro',
+        payload: {
+          clienteId: cliente_id,
+          clienteNombre: cliente.nombre,
+          fecha: fechaAUsar ? String(fechaAUsar).split('T')[0] : undefined,
+          clienteEmail: cliente.email || undefined,
+        },
+        userEmail: cliente.email || undefined,
+      })
     } catch (notifErr) {
       console.error('Error insertando notificaciones de cumpleaños:', notifErr)
     }

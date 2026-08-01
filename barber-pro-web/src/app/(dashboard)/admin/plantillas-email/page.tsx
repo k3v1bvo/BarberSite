@@ -141,6 +141,34 @@ const INITIAL_TEMPLATES: SystemTemplate[] = [
     }
   },
   {
+    id: 'cumpleanos_registro',
+    name: '🎂 Confirmación de Fecha de Cumpleaños Registrada',
+    category: 'marketing',
+    subject: '🎂 ¡Fecha de Cumpleaños Registrada en {{barberia}}!',
+    description: 'Enviado al guardar o confirmar la fecha de cumpleaños del cliente.',
+    variables: ['{{nombre}}', '{{fecha}}', '{{barberia}}', '{{link}}'],
+    sampleData: {
+      nombre: 'Ricardo Silva',
+      fecha: '12 de Agosto',
+      barberia: 'BarberSite',
+      link: 'https://barber-site-livid.vercel.app/reservar'
+    }
+  },
+  {
+    id: 'cumpleanos_semana_antes',
+    name: '🎂 Notificación 1 Semana Antes de Cumpleaños',
+    category: 'marketing',
+    subject: '🎂 ¡Se acerca tu Cumpleaños {{nombre}}! Tu regalo en {{barberia}} te espera',
+    description: 'Enviado automáticamente 7 días antes del cumpleaños del cliente para ofrecer su beneficio exclusivo.',
+    variables: ['{{nombre}}', '{{fecha}}', '{{barberia}}', '{{link}}'],
+    sampleData: {
+      nombre: 'Ricardo Silva',
+      fecha: '12 de Agosto',
+      barberia: 'BarberSite',
+      link: 'https://barber-site-livid.vercel.app/reservar'
+    }
+  },
+  {
     id: 'invitacion_2x1',
     name: '👥 Beneficio Martes 2x1 (Parejas)',
     category: 'marketing',

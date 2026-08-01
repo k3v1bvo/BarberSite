@@ -27,21 +27,64 @@ export async function POST(request: NextRequest) {
     let targetEmails: { email: string; nombre: string }[] = []
 
     if (customEmail) {
-      targetEmails = [{ email: customEmail.trim(), nombre: 'Cliente de Prueba' }]
+      const cleanEmail = customEmail.trim()
+      let foundName = ''
+
+      // 1. Buscar en profiles (Auth Users)
+      const { data: pData } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .ilike('email', cleanEmail)
+        .maybeSingle()
+
+      if (pData?.full_name) {
+        foundName = pData.full_name
+      } else {
+        // 2. Buscar en clientes
+        const { data: cData } = await supabase
+          .from('clientes')
+          .select('nombre')
+          .ilike('email', cleanEmail)
+          .maybeSingle()
+
+        if (cData?.nombre) foundName = cData.nombre
+      }
+
+      targetEmails = [{ email: cleanEmail, nombre: foundName || 'Estimado Cliente' }]
     } else {
-      let query = supabase.from('clientes').select('nombre, email, nivel_fidelidad, updated_at')
+      const [cRes, pRes] = await Promise.all([
+        supabase.from('clientes').select('nombre, email, nivel_fidelidad'),
+        supabase.from('profiles').select('full_name, email')
+      ])
 
-      if (audiencia === 'vip') {
-        query = query.in('nivel_fidelidad', ['ORO', 'PLATA'])
+      const emailMap = new Map<string, string>()
+
+      if (cRes.data) {
+        cRes.data.forEach(c => {
+          if (c.email && c.email.includes('@')) {
+            const key = c.email.trim().toLowerCase()
+            if (c.nombre && c.nombre !== 'Cliente') {
+              emailMap.set(key, c.nombre.trim())
+            }
+          }
+        })
       }
 
-      const { data: clientesData } = await query
-
-      if (clientesData) {
-        targetEmails = clientesData
-          .filter(c => c.email && c.email.includes('@'))
-          .map(c => ({ email: c.email.trim(), nombre: c.nombre || 'Estimado Cliente' }))
+      if (pRes.data) {
+        pRes.data.forEach(p => {
+          if (p.email && p.email.includes('@')) {
+            const key = p.email.trim().toLowerCase()
+            if (p.full_name) {
+              emailMap.set(key, p.full_name.trim())
+            }
+          }
+        })
       }
+
+      targetEmails = Array.from(emailMap.entries()).map(([email, nombre]) => ({
+        email,
+        nombre
+      }))
     }
 
     if (targetEmails.length === 0) {

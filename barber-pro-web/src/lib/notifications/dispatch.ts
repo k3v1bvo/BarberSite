@@ -789,6 +789,44 @@ export async function dispatchNotification(
         break
       }
 
+      case 'cumpleanos_registro': {
+        if (p.clienteId) {
+          await notifyUser(db, p.clienteId as string, 'sistema', {
+            titulo: `🎂 Fecha de Cumpleaños Registrada`,
+            mensaje: `¡Hola ${p.clienteNombre || 'Cliente'}! Guardamos tu fecha de cumpleaños (${p.fecha || ''}). Una semana antes de tu día especial te notificaremos con tu regalo y beneficio exclusivo.`,
+            tipo: 'info',
+            categoria: 'cumpleanos_registro',
+            link: '/perfil',
+          })
+        }
+        if (input.userEmail) {
+          await sendNotificationEmail(input.userEmail, 'cumpleanos_registro', {
+            nombre: (p.clienteNombre as string) || 'Cliente',
+            fecha: p.fecha || undefined,
+          })
+        }
+        break
+      }
+
+      case 'cumpleanos_semana_antes': {
+        if (p.clienteId) {
+          await notifyUser(db, p.clienteId as string, 'sistema', {
+            titulo: `🎂 ¡Falta 1 Semana para tu Cumpleaños! 🎉`,
+            mensaje: `¡Hola ${p.clienteNombre || 'Cliente'}! Se acerca tu cumpleaños. Ven esta semana a la barbería y disfruta tu regalo y descuento especial.`,
+            tipo: 'info',
+            categoria: 'cumpleanos_semana_antes',
+            link: '/reservar',
+          })
+        }
+        if (input.userEmail) {
+          await sendNotificationEmail(input.userEmail, 'cumpleanos_semana_antes', {
+            nombre: (p.clienteNombre as string) || 'Cliente',
+            fecha: p.fecha || undefined,
+          })
+        }
+        break
+      }
+
       default:
         errors.push(`Evento desconocido: ${event}`)
     }
