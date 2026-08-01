@@ -40,8 +40,12 @@ export async function POST(request: NextRequest) {
       acompanante_2x1,
       referido_por_id,
       monto_efectivo,
-      monto_qr
+      monto_qr,
+      anticipo_monto,
+      descuento_manual
     } = body
+    const anticipoQr = Number(anticipo_monto || 0)
+    const descuentoManual = Number(descuento_manual || 0)
     const descuentoTotal = Number(descuento) || 0
     const referralIdsToMark: string[] = referral_ids || []
 
@@ -351,6 +355,7 @@ export async function POST(request: NextRequest) {
             es_sancion: false,
             empleado_id: barbero_id,
             cliente_id: finalClienteId,
+            cita_id: citaId || null,
             metodo_pago: metodo_pago || 'efectivo',
             monto_efectivo: metodo_pago === 'mixto' ? Number(monto_efectivo || 0) : (metodo_pago === 'efectivo' ? item.precio * item.cantidad : 0),
             monto_qr: metodo_pago === 'mixto' ? Number(monto_qr || 0) : (metodo_pago === 'qr' || metodo_pago === 'tarjeta' ? item.precio * item.cantidad : 0),
@@ -426,7 +431,49 @@ export async function POST(request: NextRequest) {
       // 5.b Transacción Contable del servicio (solo si hay servicio)
       if (servicio_id && serv) {
         const { data: barberoProfile } = await supabase.from('profiles').select('full_name').eq('id', barbero_id).single()
-        
+        const barberoNombre = barberoProfile?.full_name || 'Desconocido'
+
+        // --- Calcular montos reales considerando anticipo (QR) ---
+        const restoPagar = Math.max(0, precioBase - descuentoTotal - anticipoQr)
+        const metodoResto = metodo_pago || 'efectivo'
+
+        let realEfectivo = 0
+        let realQr = anticipoQr // El anticipo siempre fue QR
+        let realMetodo = metodoResto
+
+        if (metodoResto === 'efectivo') {
+          realEfectivo = restoPagar
+        } else if (metodoResto === 'qr' || metodoResto === 'tarjeta') {
+          realQr += restoPagar
+        } else if (metodoResto === 'mixto') {
+          realEfectivo = Number(monto_efectivo || 0)
+          realQr += Number(monto_qr || 0)
+        }
+
+        // Si hubo anticipo QR + efectivo en caja => es mixto real
+        if (anticipoQr > 0 && realEfectivo > 0) {
+          realMetodo = 'mixto'
+        } else if (anticipoQr > 0 && realEfectivo === 0) {
+          realMetodo = 'qr'
+        }
+
+        // Construir glosa y notas detalladas
+        let glosaFinal = `Servicio: ${serv.nombre}\nAtendido por ${barberoNombre}`
+        if (citaId) glosaFinal += ` — Cita #${citaId.substring(0, 6)}`
+
+        const notasParts: string[] = []
+        if (anticipoQr > 0) notasParts.push(`Anticipo QR: Bs ${anticipoQr}`)
+        if (realMetodo === 'mixto') {
+          notasParts.push(`Efectivo: Bs ${realEfectivo} | QR: Bs ${realQr}`)
+        } else if (realMetodo === 'qr') {
+          if (anticipoQr > 0) notasParts.push(`Cobrado en caja (QR): Bs ${restoPagar}`)
+        } else {
+          if (anticipoQr > 0) notasParts.push(`Cobrado en caja (Efectivo): Bs ${restoPagar}`)
+        }
+        if (descuentoManual > 0) notasParts.push(`✂️ Desc. Dueño: -Bs ${descuentoManual}`)
+        if (descuentoTotal > 0 && descuentoTotal !== descuentoManual) notasParts.push(`Descuento total: -Bs ${descuentoTotal}`)
+        const notasFinales = notasParts.length > 0 ? notasParts.join(' | ') : null
+
         await adminSupabase
           .from('transactions')
           .insert({
@@ -435,18 +482,19 @@ export async function POST(request: NextRequest) {
             ci: ci || '0000000',
             nombre: nombre || 'Cliente en Caja',
             cuenta_codigo: 'ING-001',
-            cuenta_detalle: 'Ingresos por Servicios (POS)',
-            glosa: `Venta desde Caja - Servicio ${serv.nombre} - Barbero: ${barberoProfile?.full_name || 'Desconocido'}`,
+            cuenta_detalle: serv.nombre,
+            glosa: glosaFinal,
             costo: precioBase,
             tipo_movimiento: 'INGRESO',
             subcategoria: 'SERVICIO',
             es_sancion: false,
             empleado_id: barbero_id,
             cliente_id: finalClienteId,
-            metodo_pago: metodo_pago || 'efectivo',
-            monto_efectivo: metodo_pago === 'mixto' ? Number(monto_efectivo || 0) : (metodo_pago === 'efectivo' ? precioBase : 0),
-            monto_qr: metodo_pago === 'mixto' ? Number(monto_qr || 0) : (metodo_pago === 'qr' || metodo_pago === 'tarjeta' ? precioBase : 0),
-            notas: metodo_pago === 'mixto' ? `Efectivo: Bs ${Number(monto_efectivo || 0)} | QR: Bs ${Number(monto_qr || 0)}` : null,
+            cita_id: citaId || null,
+            metodo_pago: realMetodo,
+            monto_efectivo: realEfectivo,
+            monto_qr: realQr,
+            notas: notasFinales,
             comprobante_url: comprobante_url || null,
             usuario_registro: profile.full_name || 'Coordinador',
           })

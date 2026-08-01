@@ -117,6 +117,7 @@ export function CajaPOS() {
   const [posTab, setPosTab] = useState<'operar' | 'movimientos'>('operar')
   const [searchMovimiento, setSearchMovimiento] = useState<string>('')
   const [montoRecibido, setMontoRecibido] = useState<string>('')
+  const [descuentoManual, setDescuentoManual] = useState<number>(0)
 
   const [searchCliente, setSearchCliente] = useState('')
   const [searchCi, setSearchCi] = useState('')
@@ -593,6 +594,7 @@ export function CajaPOS() {
           cita_id: formData.cita_id || undefined,
           referido_por_id: referidoPorId || undefined,
           descuento: descuentoTotal,
+          descuento_manual: descuentoManual,
           promo_id: promoSeleccionada || null,
           referral_ids: aplicarReferido ? referralBonuses.map(r => r.id) : [],
           comprobante_url: formData.comprobante_url || null,
@@ -652,6 +654,7 @@ export function CajaPOS() {
       setPareja2x1PendienteData(null)
       setAplicarReferido(false)
       setPromoSeleccionada('')
+      setDescuentoManual(0)
       setAcompanante({ nombre: '', email: '' })
       setEditingCliente(false)
       setModoReserva(false)
@@ -717,7 +720,7 @@ export function CajaPOS() {
   }
 
   const descuentoReservaProducto = (formData.servicio_id && carrito.length > 0) ? 10 : 0
-  const descuentoTotal = descuentoPromo + totalBonoReferido + descuentoReservaProducto + descuentoLealtad
+  const descuentoTotal = descuentoPromo + totalBonoReferido + descuentoReservaProducto + descuentoLealtad + descuentoManual
   const anticipoPagado = Number(formData.anticipo_monto || 0)
   const totalACobrar = Math.max(0, subtotalServicio + totalProductos + Number(formData.propinas || 0) - descuentoTotal - anticipoPagado)
 
@@ -1962,11 +1965,34 @@ export function CajaPOS() {
                 </div>
                 
                 <div className="pt-4 border-t border-zinc-800">
-                  {/* Subtotal servicio */}
-                  <div className="flex justify-between items-center mb-2">
+                  {/* Subtotal servicio + descuento manual */}
+                  <div className="flex justify-between items-center mb-1">
                     <span className="text-zinc-400 text-sm">Servicio</span>
                     <span>{formatCurrency(subtotalServicio)}</span>
                   </div>
+                  {formData.servicio_id && (
+                    <div className="flex items-center gap-2 mb-2 p-2 bg-zinc-800/50 rounded-lg border border-white/5">
+                      <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider shrink-0">✂️ Desc. Dueño</span>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max={subtotalServicio}
+                        placeholder="0"
+                        value={descuentoManual || ''}
+                        onChange={(e) => setDescuentoManual(Math.min(Number(e.target.value) || 0, subtotalServicio))}
+                        className="w-20 h-7 bg-zinc-950 border border-amber-500/30 rounded-lg px-2 text-xs font-bold text-white text-right outline-none focus:border-amber-500"
+                      />
+                      <span className="text-[10px] text-zinc-500">Bs</span>
+                      {descuentoManual > 0 && (
+                        <button type="button" onClick={() => setDescuentoManual(0)} className="text-zinc-500 hover:text-red-400 transition">
+                          <span className="text-xs">✕</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+
 
                   {/* Productos en carrito */}
                   {carrito.length > 0 && (
@@ -2008,6 +2034,16 @@ export function CajaPOS() {
                   </div>
                   
 
+
+
+                  {descuentoManual > 0 && (
+                    <div className="flex justify-between items-center text-sm mb-2">
+                      <span className="text-orange-400 text-xs flex items-center gap-1">
+                        ✂️ Descuento del Dueño
+                      </span>
+                      <span className="text-orange-400 font-semibold">-{formatCurrency(descuentoManual)}</span>
+                    </div>
+                  )}
 
                   {descuentoReservaProducto > 0 && (
                     <div className="flex justify-between items-center text-sm mb-2">

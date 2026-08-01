@@ -30,6 +30,15 @@ export function ImageUpload({
   const galleryInputId = React.useId()
   const cameraInputId = React.useId()
 
+  const convertToBase64 = (fileToRead: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.onerror = () => resolve('')
+      reader.readAsDataURL(fileToRead)
+    })
+  }
+
   const handleFile = async (file: File) => {
     // Validar que sea imagen
     if (!file.type.startsWith('image/')) {
@@ -37,7 +46,7 @@ export function ImageUpload({
       return
     }
 
-    // Máximo 10MB (ImgBB permite hasta 32MB gratis, pero 10MB es un buen límite seguro)
+    // Máximo 10MB
     if (file.size > 10 * 1024 * 1024) {
       onUploadError?.('La imagen es muy pesada. Máximo 10MB.')
       return
@@ -49,12 +58,23 @@ export function ImageUpload({
       const objectUrl = URL.createObjectURL(file)
       setPreview(objectUrl)
 
-      // Subir a ImgBB
-      const url = await uploadImageToImgBB(file)
-      onUploadSuccess(url)
+      let url = ''
+      try {
+        url = await uploadImageToImgBB(file)
+      } catch (imgbbErr) {
+        console.warn('ImgBB upload falló, usando respaldo base64 Data URL:', imgbbErr)
+        url = await convertToBase64(file)
+      }
+
+      if (url) {
+        setPreview(url)
+        onUploadSuccess(url)
+      } else {
+        throw new Error('No se pudo procesar la imagen.')
+      }
     } catch (error: any) {
-      setPreview(null)
-      onUploadError?.(error.message || 'Error al subir la imagen')
+      setPreview(defaultImage || null)
+      onUploadError?.(error.message || 'Error al procesar la imagen')
     } finally {
       setIsUploading(false)
     }

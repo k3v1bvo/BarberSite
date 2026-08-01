@@ -262,95 +262,93 @@ export default function CoordinadorDashboard() {
         .eq('fecha', hoy)
       setUsoTiendaHoy(txTienda?.reduce((s: number, t: any) => s + Number(t.costo), 0) || 0)
 
-      // Resumen Contable: Caja Chica y Banco muestran el saldo acumulado hasta la fecha (lte end)
-      // Ventas/Servicios muestra lo facturado en el periodo seleccionado (start -> end)
-      const [ { data: txPeriodo }, { data: txHastaFecha } ] = await Promise.all([
+      // Resumen Contable del período seleccionado (start -> end)
+      const [ { data: txPeriodo }, { data: citasPeriodo }, { data: arqueoData } ] = await Promise.all([
         supabase
           .from('transactions')
-          .select('libro, costo, tipo_movimiento, metodo_pago, monto_qr, cuenta_codigo')
+          .select('libro, costo, tipo_movimiento, metodo_pago, monto_qr, monto_efectivo, cuenta_codigo, notas, fecha')
           .gte('fecha', start)
           .lte('fecha', end)
           .limit(10000),
         supabase
-          .from('transactions')
-          .select('libro, costo, tipo_movimiento, metodo_pago, monto_qr, monto_efectivo, cuenta_codigo, notas, fecha')
-          .gt('fecha', '2026-07-18')
-          .lte('fecha', end)
-          .limit(20000)
+          .from('citas')
+          .select('id, total, metodo_pago, anticipo_monto, estado, fecha_hora')
+          .eq('estado', 'completado')
+          .gte('fecha_hora', `${start}T00:00:00`)
+          .lte('fecha_hora', `${end}T23:59:59`)
+          .limit(10000),
+        supabase
+          .from('daily_closures')
+          .select('cerrado, monto_apertura, total_efectivo_calculado, total_qr_calculado')
+          .eq('fecha', end)
+          .maybeSingle()
       ])
 
-      // Base histórica del cierre de Excel (hasta 18/07/2026): Caja Física = Bs 210,00 | Banco = Bs 642,54
-      const sContable = { caja_chica: 210, ventas: 0, banco: 642.54, total: 0, arqueoCerrado: false }
+      let efIngresos = 0
+      let efEgresos = 0
+      let qrIngresos = 0
+      let qrEgresos = 0
+      let totalVentasFacturadas = 0
 
-      // 1. Calcular saldos acumulados sumando/restando solo movimientos posteriores al 18/07/2026 hasta la fecha 'end'
-      if (txHastaFecha && end >= '2026-07-18') {
-        txHastaFecha.forEach((tx: any) => {
-          if (tx.fecha && tx.fecha <= '2026-07-18') return
-          
-          const mpLower = String(tx.metodo_pago || '').toLowerCase()
-          const libroTx = String(tx.libro || '').toUpperCase()
-          const esIngresoTx = tx.tipo_movimiento === 'INGRESO' || tx.tipo_movimiento === 'VENTA_PRODUCTO' || String(tx.cuenta_codigo || '').startsWith('4')
-
-          // Caja Chica (Efectivo físico de cualquier libro: CAJA_CHICA, SERVICIOS, VENTAS)
-          if (libroTx !== 'BANCO') {
-            let ef = 0
-            if (mpLower === 'efectivo' || !mpLower) {
-              ef = Number(tx.costo || 0)
-            } else if (mpLower === 'mixto') {
-              ef = Number(tx.monto_efectivo || 0)
-              if (ef === 0 && Number(tx.monto_qr || 0) === 0) {
-                ef = Number(tx.costo || 0)
-              } else if (ef === 0 && String(tx.notas || '').includes('Efectivo:')) {
-                const efMatch = String(tx.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
-                ef = efMatch ? parseFloat(efMatch[1]) : 0
-              }
-            }
-            if (ef > 0) {
-              if (esIngresoTx) sContable.caja_chica += ef
-              else sContable.caja_chica -= ef
-            }
-          }
-
-          const esCobroQrDeCaja = (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
-            && ['qr', 'tarjeta'].includes(mpLower)
-            && tx.tipo_movimiento === 'EGRESO'
-
-          if (libroTx === 'BANCO') {
-            const montoBanco = Number(tx.costo || 0)
-            if (tx.tipo_movimiento === 'RETIRO' || tx.tipo_movimiento === 'EGRESO') sContable.banco -= montoBanco
-            else sContable.banco += montoBanco
-          } else if (esCobroQrDeCaja) {
-            const qr = Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0)
-            sContable.banco += qr
-          } else if ((libroTx === 'SERVICIOS' || libroTx === 'VENTAS' || libroTx === 'CAJA_CHICA') && esIngresoTx && ['qr', 'tarjeta', 'mixto'].includes(mpLower)) {
-            const qr = mpLower === 'mixto' ? Number(tx.monto_qr || 0) : (Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0))
-            if (qr > 0) sContable.banco += qr
-          } else if (tx.tipo_movimiento === 'EGRESO' && ['qr', 'tarjeta', 'mixto'].includes(mpLower) && !esCobroQrDeCaja) {
-            const qr = mpLower === 'mixto' ? Number(tx.monto_qr || 0) : (Number(tx.monto_qr || 0) > 0 ? Number(tx.monto_qr) : Number(tx.costo || 0))
-            if (qr > 0) sContable.banco -= qr
+      // 1. Sumar citas completadas en el período
+      if (citasPeriodo) {
+        citasPeriodo.forEach((c: any) => {
+          const m = Number(c.total || 0)
+          totalVentasFacturadas += m
+          const mp = String(c.metodo_pago || '').toLowerCase()
+          if (mp === 'efectivo') {
+            efIngresos += m
+          } else if (mp === 'qr' || mp === 'tarjeta') {
+            qrIngresos += m
+          } else if (mp === 'mixto') {
+            const matchEf = String(c.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
+            const matchQr = String(c.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
+            const ef = matchEf ? parseFloat(matchEf[1]) : Math.max(0, m - 20)
+            const qr = matchQr ? parseFloat(matchQr[1]) : 20
+            efIngresos += ef
+            qrIngresos += qr
+          } else {
+            efIngresos += m
           }
         })
       }
 
-      // 2. Ventas y Servicios en el período seleccionado
+      // 2. Sumar transacciones del período
       if (txPeriodo) {
-        txPeriodo.forEach((t: any) => {
-          const costo = Number(t.costo)
-          const isIngreso = t.tipo_movimiento === 'INGRESO' || t.tipo_movimiento === 'VENTA_PRODUCTO' || String(t.cuenta_codigo || '').startsWith('4')
-          if ((t.libro === 'VENTAS' || t.libro === 'SERVICIOS') && isIngreso) {
-            sContable.ventas += costo
+        txPeriodo.forEach((tx: any) => {
+          const costo = Number(tx.costo || 0)
+          const mpLower = String(tx.metodo_pago || '').toLowerCase()
+          const esIngreso = tx.tipo_movimiento === 'INGRESO' || tx.tipo_movimiento === 'VENTA_PRODUCTO' || String(tx.cuenta_codigo || '').startsWith('4')
+
+          if (esIngreso) {
+            totalVentasFacturadas += costo
+            if (mpLower === 'qr' || mpLower === 'tarjeta' || tx.libro === 'BANCO') {
+              qrIngresos += costo
+            } else {
+              efIngresos += costo
+            }
+          } else {
+            // Egreso
+            if (mpLower === 'qr' || mpLower === 'tarjeta' || tx.libro === 'BANCO') {
+              qrEgresos += costo
+            } else {
+              efEgresos += costo
+            }
           }
         })
       }
-      sContable.total = sContable.caja_chica + sContable.banco
 
-      const { data: arqueoData } = await supabase
-        .from('daily_closures')
-        .select('cerrado')
-        .eq('fecha', end)
-        .maybeSingle()
-      sContable.arqueoCerrado = arqueoData?.cerrado ?? false
-      setSummaryContable(sContable)
+      const apertura = Number(arqueoData?.monto_apertura || 0)
+      const saldoCajaFisica = Math.max(0, apertura + efIngresos - efEgresos)
+      const saldoBancoQr = Math.max(0, qrIngresos - qrEgresos)
+
+      setSummaryContable({
+        caja_chica: saldoCajaFisica,
+        ventas: totalVentasFacturadas,
+        banco: saldoBancoQr,
+        total: saldoCajaFisica + saldoBancoQr,
+        arqueoCerrado: arqueoData?.cerrado ?? false
+      })
 
       // Últimos movimientos contables
       const { data: recTx } = await supabase

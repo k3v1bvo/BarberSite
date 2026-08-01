@@ -1179,9 +1179,11 @@ export default function CajaChicaPage() {
                         </td>
                         {/* Detalle / Glosa */}
                         <td className="px-3 py-2.5">
-                          <div className="flex flex-col max-w-[200px]">
-                            {tx.glosa && <span className="text-zinc-400 text-xs truncate">{tx.es_sancion ? '⚠ ' : ''}{tx.glosa}</span>}
-                            {tx.notas && <span className="text-[10px] text-zinc-600 truncate">{tx.notas}</span>}
+                          <div className="flex flex-col max-w-[220px]">
+                            {tx.glosa && tx.glosa.split('\n').map((line: string, i: number) => (
+                              <span key={i} className={`text-xs truncate ${i === 0 ? 'text-zinc-300 font-medium' : 'text-zinc-500'}`}>{tx.es_sancion && i === 0 ? '⚠ ' : ''}{line}</span>
+                            ))}
+                            {tx.notas && <span className="text-[10px] text-amber-500/70 truncate mt-0.5" title={tx.notas}>{tx.notas}</span>}
                             {(tx.metodo_pago === 'qr' || tx.metodo_pago === 'mixto' || tx.metodo_pago === 'tarjeta' || tx.comprobante_url) && (
                               <div className="flex items-center gap-2 mt-1">
                                 {tx.comprobante_url ? (
