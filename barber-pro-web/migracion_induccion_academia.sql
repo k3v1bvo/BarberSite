@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS public.inducciones (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   titulo VARCHAR(255) NOT NULL,
   descripcion TEXT,
-  categoria VARCHAR(100) DEFAULT 'Servicio Técnico', -- 'Servicio Técnico', 'Atención al Cliente', 'Higiene & Limpieza', 'Protocolo de Bienvenida', 'Mantenimiento de Herramientas'
+  categoria VARCHAR(100) DEFAULT 'Servicio Técnico',
   servicio_id UUID REFERENCES public.servicios(id) ON DELETE SET NULL,
   youtube_url TEXT NOT NULL,
   herramientas_requeridas TEXT[] DEFAULT '{}',
@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS public.inducciones (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Asegurar agregar la columna categoria si la tabla ya existía de una ejecución anterior
+ALTER TABLE public.inducciones ADD COLUMN IF NOT EXISTS categoria VARCHAR(100) DEFAULT 'Servicio Técnico';
 
 -- 2. Pasos Detallados del Servicio / Video
 CREATE TABLE IF NOT EXISTS public.induccion_pasos (

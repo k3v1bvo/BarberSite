@@ -10,7 +10,7 @@ import { Modal } from '@/components/ui/Modal'
 import { InduccionCard } from '@/components/induccion/InduccionCard'
 import { YouTubePlayer } from '@/components/induccion/YouTubePlayer'
 import { parseTimestampToSeconds, formatSecondsToTimestamp } from '@/lib/youtube'
-import { toastSuccess, toastError } from '@/lib/toast'
+import { useToast } from '@/components/ui/Toast'
 import {
   GraduationCap, Plus, Search, CheckCircle2, Clock, Users,
   BookOpen, CheckSquare, Trash2, Edit3, Sparkles, Filter, ShieldCheck
@@ -35,6 +35,7 @@ interface PasoPayload {
 
 export default function AdminInduccionPage() {
   const supabase = createClient()
+  const { success: toastSuccess, error: toastError } = useToast()
   const [activeTab, setActiveTab] = useState<'catalogo' | 'asignacion' | 'reporte'>('catalogo')
 
   // Data state
@@ -57,6 +58,7 @@ export default function AdminInduccionPage() {
   // Form Fields
   const [formTitulo, setFormTitulo] = useState('')
   const [formDescripcion, setFormDescripcion] = useState('')
+  const [formCategoria, setFormCategoria] = useState('Servicio Técnico')
   const [formServicioId, setFormServicioId] = useState('')
   const [formYoutubeUrl, setFormYoutubeUrl] = useState('')
   const [formDuracionMinutos, setFormDuracionMinutos] = useState(15)
@@ -120,6 +122,7 @@ export default function AdminInduccionPage() {
     setEditingInduccionId(null)
     setFormTitulo('')
     setFormDescripcion('')
+    setFormCategoria('Servicio Técnico')
     setFormServicioId('')
     setFormYoutubeUrl('')
     setFormDuracionMinutos(15)
@@ -135,6 +138,7 @@ export default function AdminInduccionPage() {
     setEditingInduccionId(ind.id)
     setFormTitulo(ind.titulo || '')
     setFormDescripcion(ind.descripcion || '')
+    setFormCategoria(ind.categoria || 'Servicio Técnico')
     setFormServicioId(ind.servicio_id || '')
     setFormYoutubeUrl(ind.youtube_url || '')
     setFormDuracionMinutos(ind.duracion_minutos || 15)
@@ -178,6 +182,7 @@ export default function AdminInduccionPage() {
       const payload = {
         titulo: formTitulo,
         descripcion: formDescripcion,
+        categoria: formCategoria,
         servicio_id: formServicioId || null,
         youtube_url: formYoutubeUrl,
         duracion_minutos: formDuracionMinutos,
@@ -550,8 +555,8 @@ export default function AdminInduccionPage() {
           title={editingInduccionId ? '✏️ Editar Inducción Barbera' : '🎓 Crear Nueva Inducción Barbera'}
         >
           <form onSubmit={handleSaveInduccion} className="space-y-5 max-h-[80vh] overflow-y-auto pr-2">
-            {/* Título & Servicio */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Título, Categoría & Servicio */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Título de la Inducción *</label>
                 <Input
@@ -564,13 +569,29 @@ export default function AdminInduccionPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Servicio Asociado</label>
+                <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Categoría del Curso</label>
+                <select
+                  value={formCategoria}
+                  onChange={(e) => setFormCategoria(e.target.value)}
+                  className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs text-white outline-none focus:border-amber-500"
+                >
+                  <option value="Servicio Técnico">✂️ Servicio Técnico (Cortes/Barba)</option>
+                  <option value="Atención al Cliente">🤝 Atención al Cliente & Etiqueta</option>
+                  <option value="Higiene & Limpieza">🧹 Higiene & Limpieza del Puesto</option>
+                  <option value="Protocolo de Bienvenida">🚪 Protocolo de Entrada/Salida</option>
+                  <option value="Mantenimiento de Herramientas">🧰 Mantenimiento de Herramientas</option>
+                  <option value="Manejo de Caja & POS">💳 Manejo de Caja & POS</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Servicio Específico</label>
                 <select
                   value={formServicioId}
                   onChange={(e) => setFormServicioId(e.target.value)}
                   className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs text-white outline-none focus:border-amber-500"
                 >
-                  <option value="">Ninguno (Capacitación General)</option>
+                  <option value="">Ninguno (General)</option>
                   {servicios.map(s => (
                     <option key={s.id} value={s.id}>{s.nombre}</option>
                   ))}

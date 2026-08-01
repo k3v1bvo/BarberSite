@@ -81,14 +81,19 @@ export function InduccionCard({
           </div>
         </div>
 
-        {/* Servicio tag bottom left */}
-        {induccion.servicios?.nombre && (
-          <div className="absolute bottom-3 left-3">
-            <span className="text-[9px] font-black uppercase tracking-widest text-amber-300 bg-black/70 border border-amber-500/30 px-2 py-0.5 rounded-md backdrop-blur-md">
+        {/* Servicio / Categoria tag bottom left */}
+        <div className="absolute bottom-3 left-3 flex flex-wrap gap-1">
+          {induccion.categoria && (
+            <span className="text-[9px] font-black uppercase tracking-widest text-amber-400 bg-black/80 border border-amber-500/30 px-2 py-0.5 rounded-md backdrop-blur-md">
+              🏷️ {induccion.categoria}
+            </span>
+          )}
+          {induccion.servicios?.nombre && (
+            <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400 bg-black/80 border border-emerald-500/30 px-2 py-0.5 rounded-md backdrop-blur-md">
               ✂️ {induccion.servicios.nombre}
             </span>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Card Content */}

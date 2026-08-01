@@ -28,6 +28,7 @@ export async function PUT(
     const {
       titulo,
       descripcion,
+      categoria,
       servicio_id,
       youtube_url,
       herramientas_requeridas,
@@ -42,6 +43,7 @@ export async function PUT(
     }
     if (titulo !== undefined) updateData.titulo = titulo.trim()
     if (descripcion !== undefined) updateData.descripcion = descripcion ? descripcion.trim() : null
+    if (categoria !== undefined) updateData.categoria = categoria || 'Servicio Técnico'
     if (servicio_id !== undefined) updateData.servicio_id = servicio_id || null
     if (youtube_url !== undefined) updateData.youtube_url = youtube_url.trim()
     if (herramientas_requeridas !== undefined) updateData.herramientas_requeridas = Array.isArray(herramientas_requeridas) ? herramientas_requeridas : []

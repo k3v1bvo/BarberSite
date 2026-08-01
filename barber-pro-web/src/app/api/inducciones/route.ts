@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
     const {
       titulo,
       descripcion,
+      categoria,
       servicio_id,
       youtube_url,
       herramientas_requeridas,
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
       .insert({
         titulo: titulo.trim(),
         descripcion: descripcion ? descripcion.trim() : null,
+        categoria: categoria || 'Servicio Técnico',
         servicio_id: servicio_id || null,
         youtube_url: youtube_url.trim(),
         herramientas_requeridas: Array.isArray(herramientas_requeridas) ? herramientas_requeridas : [],

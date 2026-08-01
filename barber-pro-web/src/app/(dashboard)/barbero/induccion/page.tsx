@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { YouTubePlayer } from '@/components/induccion/YouTubePlayer'
 import { InduccionCard } from '@/components/induccion/InduccionCard'
 import { formatSecondsToTimestamp } from '@/lib/youtube'
-import { toastSuccess, toastError } from '@/lib/toast'
+import { useToast } from '@/components/ui/Toast'
 import {
   GraduationCap, Play, CheckCircle2, Clock, Wrench, Layers,
   ChevronLeft, Sparkles, Check, BookmarkCheck, ArrowRight
@@ -16,6 +16,7 @@ import {
 
 export default function BarberoInduccionPage() {
   const supabase = createClient()
+  const { success: toastSuccess, error: toastError } = useToast()
   const [inducciones, setInducciones] = useState<any[]>([])
   const [progreso, setProgreso] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
