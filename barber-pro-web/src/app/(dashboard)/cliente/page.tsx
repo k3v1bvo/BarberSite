@@ -604,28 +604,28 @@ export default function ClientePage() {
               )}
             </div>
 
-            {/* 3 Pasos de la Promoción */}
+            {/* 3 Pasos de la Promoción Interna */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
               <div className="bg-zinc-900/90 border border-white/5 p-4 rounded-2xl space-y-1">
                 <span className="text-xs font-black text-emerald-400 font-mono">PASO 1</span>
-                <p className="text-xs font-bold text-white">Comparte tu código o enlace</p>
-                <p className="text-[11px] text-zinc-400">Envíaselo a tus amigos por WhatsApp o redes sociales.</p>
+                <p className="text-xs font-bold text-white">Recomienda o ven con tu amigo</p>
+                <p className="text-[11px] text-zinc-400">Invita a tus amigos a cortarse o vengan juntos a la barbería.</p>
               </div>
 
               <div className="bg-zinc-900/90 border border-white/5 p-4 rounded-2xl space-y-1">
                 <span className="text-xs font-black text-emerald-400 font-mono">PASO 2</span>
-                <p className="text-xs font-bold text-white">Tu amigo gana Bs. 10 OFF</p>
-                <p className="text-[11px] text-zinc-400">Al ingresar tu código, tu amigo obtiene descuento de bienvenida en su 1er corte.</p>
+                <p className="text-xs font-bold text-white">Indica tu Código en Caja</p>
+                <p className="text-[11px] text-zinc-400">Al pagar su 1er servicio en caja, tu amigo o tú mencionan tu código o nombre.</p>
               </div>
 
               <div className="bg-zinc-900/90 border border-white/5 p-4 rounded-2xl space-y-1">
                 <span className="text-xs font-black text-emerald-400 font-mono">PASO 3</span>
-                <p className="text-xs font-bold text-white">¡Tú ganas Bs. 10 de Saldo!</p>
-                <p className="text-[11px] text-zinc-400">Cuando tu amigo se corte y pague en caja, tus Bs. 10 se activan automáticamente.</p>
+                <p className="text-xs font-bold text-white">¡Ganas Bs. 10 de Saldo!</p>
+                <p className="text-[11px] text-zinc-400">Tus Bs. 10 se acreditan automáticamente a tu saldo a favor para tu próximo corte.</p>
               </div>
             </div>
 
-            {/* Caja del Código & Botón WhatsApp */}
+            {/* Caja del Código */}
             <div className="bg-black/60 border border-emerald-500/30 rounded-2xl p-5 space-y-4 mb-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
@@ -633,25 +633,15 @@ export default function ClientePage() {
                   <p className="text-3xl font-black text-emerald-400 font-mono tracking-widest">{referralCode}</p>
                 </div>
 
-                <div className="flex flex-wrap gap-2.5 w-full sm:w-auto">
-                  <a
-                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`¡Hola! Te regalo un descuento de bienvenida para tu primer corte de cabello en BarberSite. Agenda tu cita usando mi código *${referralCode}* o ingresando desde este enlace: ${typeof window !== 'undefined' ? window.location.origin : ''}/reservar?ref=${referralCode}`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs uppercase tracking-wider px-5 py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
-                  >
-                    💬 Compartir por WhatsApp
-                  </a>
-
+                <div>
                   <Button
                     onClick={() => {
-                      navigator.clipboard.writeText(`${typeof window !== 'undefined' ? window.location.origin : ''}/reservar?ref=${referralCode}`);
-                      success('¡Enlace de referido copiado al portapapeles! Pégalo en WhatsApp.');
+                      navigator.clipboard.writeText(referralCode);
+                      success('¡Código copiado al portapapeles!');
                     }}
-                    variant="outline"
-                    className="flex-1 sm:flex-initial border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 text-xs font-bold py-3"
+                    className="bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs uppercase tracking-wider px-6 py-3 rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95"
                   >
-                    📋 Copiar Enlace
+                    📋 Copiar Mi Código
                   </Button>
                 </div>
               </div>
