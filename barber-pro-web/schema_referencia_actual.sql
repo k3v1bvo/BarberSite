@@ -13,6 +13,7 @@ CREATE TABLE public.profiles (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
   ci character varying,
+  qr_code_url text,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
@@ -252,14 +253,13 @@ CREATE TABLE public.lealtad_metas (
   visitas_requeridas integer NOT NULL CHECK (visitas_requeridas > 0),
   tipo_recompensa text NOT NULL CHECK (tipo_recompensa = ANY (ARRAY['porcentaje'::text, 'monto_fijo'::text, 'servicio_gratis'::text, 'producto_gratis'::text])),
   valor_recompensa numeric DEFAULT 0,
-  servicio_id uuid,
+  servicio_id text,
   producto_id uuid,
   is_active boolean DEFAULT true,
   orden integer DEFAULT 0,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT lealtad_metas_pkey PRIMARY KEY (id),
-  CONSTRAINT lealtad_metas_servicio_id_fkey FOREIGN KEY (servicio_id) REFERENCES public.servicios(id),
   CONSTRAINT lealtad_metas_producto_id_fkey FOREIGN KEY (producto_id) REFERENCES public.productos(id)
 );
 CREATE TABLE public.lealtad_canjes (
@@ -475,7 +475,7 @@ CREATE TABLE public.promociones (
   tipo text NOT NULL CHECK (tipo = ANY (ARRAY['2x1'::text, 'descuento_porcentaje'::text, 'descuento_fijo'::text, 'servicio_gratis'::text, 'cumpleanos'::text, 'nivel_lealtad'::text])),
   valor numeric DEFAULT 0,
   dias_semana ARRAY DEFAULT '{}'::integer[],
-  servicio_id uuid,
+  servicio_id text,
   nivel_requerido text,
   activa boolean DEFAULT true,
   icono text DEFAULT '🎁'::text,
@@ -483,8 +483,7 @@ CREATE TABLE public.promociones (
   fecha_inicio date,
   fecha_fin date,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-  CONSTRAINT promociones_pkey PRIMARY KEY (id),
-  CONSTRAINT promociones_servicio_id_fkey FOREIGN KEY (servicio_id) REFERENCES public.servicios(id)
+  CONSTRAINT promociones_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.cumpleanos_verificados (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -533,4 +532,54 @@ CREATE TABLE public.comisiones_pendientes (
   CONSTRAINT comisiones_pendientes_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id),
   CONSTRAINT comisiones_pendientes_cita_id_fkey FOREIGN KEY (cita_id) REFERENCES public.citas(id),
   CONSTRAINT comisiones_pendientes_servicio_id_fkey FOREIGN KEY (servicio_id) REFERENCES public.servicios(id)
+);
+CREATE TABLE public.inducciones (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  titulo character varying NOT NULL,
+  descripcion text,
+  categoria character varying DEFAULT 'Servicio Técnico'::character varying,
+  servicio_id uuid,
+  youtube_url text NOT NULL,
+  herramientas_requeridas ARRAY DEFAULT '{}'::text[],
+  duracion_minutos integer DEFAULT 15,
+  orden integer DEFAULT 0,
+  is_published boolean DEFAULT true,
+  creado_por uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT inducciones_pkey PRIMARY KEY (id),
+  CONSTRAINT inducciones_servicio_id_fkey FOREIGN KEY (servicio_id) REFERENCES public.servicios(id),
+  CONSTRAINT inducciones_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.induccion_pasos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  induccion_id uuid,
+  numero_paso integer NOT NULL,
+  titulo_paso character varying NOT NULL,
+  descripcion text,
+  timestamp_segundos integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT induccion_pasos_pkey PRIMARY KEY (id),
+  CONSTRAINT induccion_pasos_induccion_id_fkey FOREIGN KEY (induccion_id) REFERENCES public.inducciones(id)
+);
+CREATE TABLE public.induccion_asignaciones (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  induccion_id uuid,
+  barbero_id uuid,
+  asignado_por uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT induccion_asignaciones_pkey PRIMARY KEY (id),
+  CONSTRAINT induccion_asignaciones_induccion_id_fkey FOREIGN KEY (induccion_id) REFERENCES public.inducciones(id),
+  CONSTRAINT induccion_asignaciones_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id),
+  CONSTRAINT induccion_asignaciones_asignado_por_fkey FOREIGN KEY (asignado_por) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.induccion_progreso (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  induccion_id uuid,
+  barbero_id uuid,
+  estado character varying DEFAULT 'completado'::character varying,
+  fecha_completado timestamp with time zone DEFAULT now(),
+  CONSTRAINT induccion_progreso_pkey PRIMARY KEY (id),
+  CONSTRAINT induccion_progreso_induccion_id_fkey FOREIGN KEY (induccion_id) REFERENCES public.inducciones(id),
+  CONSTRAINT induccion_progreso_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id)
 );

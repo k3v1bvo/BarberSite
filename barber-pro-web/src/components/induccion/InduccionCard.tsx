@@ -10,6 +10,7 @@ interface InduccionCardProps {
     id: string
     titulo: string
     descripcion?: string
+    categoria?: string
     youtube_url: string
     duracion_minutos?: number
     herramientas_requeridas?: string[]
