@@ -121,6 +121,17 @@ export function buildEmail(
   const nombre = data.nombre || data.cliente || 'Cliente'
 
   switch (kind) {
+    case 'promocion_masiva':
+      return {
+        subject: data.asuntoCustom || `📣 ¡Novedades y Beneficios Especiales de ${BRAND}!`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Hola ${nombre}!</h2>
+          <div style="margin:16px 0;line-height:1.6;font-size:15px;color:#e4e4e7;white-space:pre-line;">${data.mensajeCustom || 'Tenemos promociones y beneficios especiales esperándote en la barbería.'}</div>
+          ${cta(data.link || `${SITE}/reservar`, 'Ver Promoción / Agendar Cita')}`,
+          data.asuntoCustom || 'Promoción especial para ti'
+        ),
+      }
+
     case 'reserva_confirmacion_cliente':
       return {
         subject: '✂️ Tu cita está confirmada',

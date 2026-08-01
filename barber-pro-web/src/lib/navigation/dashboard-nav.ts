@@ -33,7 +33,8 @@ import {
   Users2,
   UserCog,
   PackageOpen,
-  GraduationCap
+  GraduationCap,
+  Mail
 } from 'lucide-react'
 
 export interface NavItem {
@@ -104,6 +105,7 @@ export function getAdminNavSections(agendaHref: string): NavSection[] {
         { label: 'Reportes', href: '/admin/reportes', icon: BarChart3 },
         { label: 'Reseñas', href: '/admin/resenas', icon: MessageSquare, description: 'Moderación de testimonios' },
         { label: 'Configuración', href: '/admin/configuracion', icon: Settings, description: 'Ajustes globales' },
+        { label: 'Plantillas & Correos', href: '/admin/plantillas-email', icon: Mail, description: 'Gmail, plantillas y envíos masivos' },
         { label: 'Inducción Barbera', href: '/admin/induccion', icon: GraduationCap, description: 'Capacitación y metodología' },
         { label: 'Reglas Laborales', href: '/admin/reglas-laborales', icon: Sliders, description: 'Comisiones, sanciones y bonos' },
         { label: 'Galería', href: '/admin/galeria', icon: Images, description: 'Todas las imágenes del sistema' },
