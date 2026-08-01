@@ -23,6 +23,7 @@ interface Cliente {
   total_visitas?: number
   total_gastado?: number
   codigo_tarjeta?: string | null
+  referido_por?: string | null
 }
 
 interface Promocion {
@@ -1280,62 +1281,64 @@ export function CajaPOS() {
                 </div>
               )}
 
-              {/* ASIGNAR REFERIDO */}
-              <div className="mt-6 p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl" style={{ overflow: 'visible' }}>
-                <h3 className="text-amber-500 font-black text-xs uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                  <UserPlus className="w-4 h-4" /> Asignar Referido (Opcional)
-                </h3>
-                <p className="text-[10px] text-zinc-400 mb-3 leading-tight">
-                  Si este cliente vino recomendado por alguien, busca a esa persona. Se le otorgará el bono de referido al completar este pago.
-                </p>
-                
-                {referidoPorId ? (
-                  <div className="flex items-center justify-between bg-zinc-900/50 p-3 rounded-lg border border-amber-500/30">
-                    <div>
-                      <p className="text-xs text-zinc-400">Referido por:</p>
-                      <p className="font-bold text-amber-500">{referidoPorNombre}</p>
-                    </div>
-                    <button 
-                      onClick={() => { setReferidoPorId(''); setReferidoPorNombre(''); setReferidoPorSearch(''); }}
-                      className="text-zinc-500 hover:text-red-400 transition"
-                      title="Quitar referidor"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <Input
-                      placeholder="Buscar referidor por nombre, CI o Cód. Tarjeta..."
-                      value={referidoPorSearch}
-                      onChange={(e) => {
-                        setReferidoPorSearch(e.target.value)
-                        setShowReferidoDropdown(true)
-                      }}
-                      onFocus={() => setShowReferidoDropdown(true)}
-                      className="bg-black/50 border-white/10 text-sm h-9"
-                    />
-                    {showReferidoDropdown && referidoresOptions.length > 0 && (
-                      <div className="absolute z-[9999] w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl max-h-60 overflow-y-auto" style={{ bottom: 'auto' }}>
-                        {referidoresOptions.map(c => (
-                          <button
-                            key={c.id}
-                            onClick={() => {
-                              setReferidoPorId(c.id)
-                              setReferidoPorNombre(c.nombre)
-                              setShowReferidoDropdown(false)
-                            }}
-                            className="w-full text-left px-4 py-3 hover:bg-amber-500/10 border-b border-zinc-800 last:border-b-0 flex flex-col gap-0.5 transition"
-                          >
-                            <span className="font-bold text-white text-sm">{c.nombre}</span>
-                            <span className="text-xs text-zinc-400">{c.email || c.telefono || 'Sin correo'} {c.ci && `· CI: ${c.ci}`}</span>
-                          </button>
-                        ))}
+              {/* ASIGNAR REFERIDO: Únicamente para clientes nuevos en su primer servicio */}
+              {clienteDetalle && (!clienteDetalle.total_visitas || clienteDetalle.total_visitas === 0) && !clienteDetalle.referido_por && (
+                <div className="mt-6 p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl" style={{ overflow: 'visible' }}>
+                  <h3 className="text-amber-500 font-black text-xs uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                    <UserPlus className="w-4 h-4" /> Asignar Recomendante (Solo 1er Servicio)
+                  </h3>
+                  <p className="text-[10px] text-zinc-400 mb-3 leading-tight">
+                    💡 <span className="font-bold">Primera visita detectada:</span> Si este cliente vino recomendado por alguien, busca a esa persona. Se le otorgará el bono al completar este cobro.
+                  </p>
+                  
+                  {referidoPorId ? (
+                    <div className="flex items-center justify-between bg-zinc-900/50 p-3 rounded-lg border border-amber-500/30">
+                      <div>
+                        <p className="text-xs text-zinc-400">Referido por:</p>
+                        <p className="font-bold text-amber-500">{referidoPorNombre}</p>
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                      <button 
+                        onClick={() => { setReferidoPorId(''); setReferidoPorNombre(''); setReferidoPorSearch(''); }}
+                        className="text-zinc-500 hover:text-red-400 transition"
+                        title="Quitar referidor"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Input
+                        placeholder="Buscar recomendante por nombre, CI, teléfono o código..."
+                        value={referidoPorSearch}
+                        onChange={(e) => {
+                          setReferidoPorSearch(e.target.value)
+                          setShowReferidoDropdown(true)
+                        }}
+                        onFocus={() => setShowReferidoDropdown(true)}
+                        className="bg-black/50 border-white/10 text-sm h-9"
+                      />
+                      {showReferidoDropdown && referidoresOptions.length > 0 && (
+                        <div className="absolute z-[9999] w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl max-h-60 overflow-y-auto" style={{ bottom: 'auto' }}>
+                          {referidoresOptions.map(c => (
+                            <button
+                              key={c.id}
+                              onClick={() => {
+                                setReferidoPorId(c.id)
+                                setReferidoPorNombre(c.nombre)
+                                setShowReferidoDropdown(false)
+                              }}
+                              className="w-full text-left px-4 py-3 hover:bg-amber-500/10 border-b border-zinc-800 last:border-b-0 flex flex-col gap-0.5 transition"
+                            >
+                              <span className="font-bold text-white text-sm">{c.nombre}</span>
+                              <span className="text-xs text-zinc-400">{c.email || c.telefono || 'Sin correo'} {c.ci && `· CI: ${c.ci}`}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 

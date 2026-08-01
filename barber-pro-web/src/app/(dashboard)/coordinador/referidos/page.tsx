@@ -122,8 +122,11 @@ export default function ReferidosPage() {
     (c.ci && c.ci.includes(searchRecomendado))
   ).slice(0, 8)
 
-  const totalBonos = referrals.filter(r => r.bono_otorgado).reduce((s, r) => s + Number(r.monto_bono), 0)
-  const pendientes = referrals.filter(r => !r.bono_otorgado).length
+  const bonosDisponiblesCanje = referrals.filter(r => r.bono_otorgado && !r.bono_usado)
+  const totalMontoCanje = bonosDisponiblesCanje.reduce((s, r) => s + Number(r.monto_bono || 10), 0)
+  const bonosCanjeados = referrals.filter(r => r.bono_otorgado && r.bono_usado)
+  const totalMontoUsado = bonosCanjeados.reduce((s, r) => s + Number(r.monto_bono || 10), 0)
+  const pendientesAsistencia = referrals.filter(r => !r.bono_otorgado).length
 
   if (loading) {
     return (
@@ -162,23 +165,37 @@ export default function ReferidosPage() {
         </Card>
         <Card className="border-white/5 bg-zinc-900/80">
           <CardContent className="px-5 py-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-green-500/10 flex items-center justify-center text-green-500 border border-green-500/20">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
               <Gift className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Bonos Pagados</p>
-              <p className="text-2xl font-black text-white">Bs {totalBonos.toFixed(0)}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Saldo Activo por Canjear</p>
+              <p className="text-2xl font-black text-emerald-400">Bs. {totalMontoCanje.toFixed(0)}</p>
+              <p className="text-[10px] text-zinc-500 font-bold">{bonosDisponiblesCanje.length} bonos listos</p>
             </div>
           </CardContent>
         </Card>
         <Card className="border-white/5 bg-zinc-900/80">
           <CardContent className="px-5 py-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-500 border border-orange-500/20">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Amigos en Espera</p>
+              <p className="text-2xl font-black text-amber-400">{pendientesAsistencia}</p>
+              <p className="text-[10px] text-zinc-500 font-bold">Sin 1er servicio aún</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-white/5 bg-zinc-900/80">
+          <CardContent className="px-5 py-4 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 border border-blue-500/20">
               <Gift className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Pendientes</p>
-              <p className="text-2xl font-black text-white">{pendientes}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Bonos Ya Canjeados</p>
+              <p className="text-2xl font-black text-white">Bs. {totalMontoUsado.toFixed(0)}</p>
+              <p className="text-[10px] text-zinc-500 font-bold">{bonosCanjeados.length} bonos consumidos</p>
             </div>
           </CardContent>
         </Card>
