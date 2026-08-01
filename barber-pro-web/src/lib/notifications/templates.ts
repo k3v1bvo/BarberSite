@@ -113,6 +113,36 @@ export interface EmailTemplateInput {
   [key: string]: any
 }
 
+export function replaceTemplateVariables(text: string, data: EmailTemplateInput): string {
+  if (!text) return ''
+
+  const varsMap: Record<string, string> = {
+    nombre: data.nombre || data.cliente || data.clienteNombre || 'Cliente',
+    cliente: data.cliente || data.nombre || 'Cliente',
+    email: data.email || '',
+    servicio: data.servicio || 'Servicio de Barbería',
+    fecha: data.fecha || '',
+    hora: data.hora || '',
+    barbero: data.barbero || 'Tu barbero',
+    monto: data.monto ? (String(data.monto).startsWith('Bs') ? String(data.monto) : `Bs. ${data.monto}`) : '',
+    codigo: data.codigo || data.pedidoId || '',
+    motivo: data.motivo || '',
+    barberia: BRAND,
+    link: data.link || SITE,
+    acompananteNombre: data.acompananteNombre || 'Acompañante',
+    clienteNombre: data.clienteNombre || data.nombre || 'Cliente',
+  }
+
+  let result = text
+  for (const [key, val] of Object.entries(varsMap)) {
+    const regexDouble = new RegExp(`{{\\s*${key}\\s*}}`, 'gi')
+    const regexSingle = new RegExp(`{\\s*${key}\\s*}`, 'gi')
+    result = result.replace(regexDouble, val).replace(regexSingle, val)
+  }
+
+  return result
+}
+
 export function buildEmail(
   kind: string,
   data: EmailTemplateInput
@@ -120,17 +150,18 @@ export function buildEmail(
   activeTemplateData = data
   const nombre = data.nombre || data.cliente || 'Cliente'
 
-  switch (kind) {
-    case 'promocion_masiva':
-      return {
-        subject: data.asuntoCustom || `📣 ¡Novedades y Beneficios Especiales de ${BRAND}!`,
-        html: layout(
-          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Hola ${nombre}!</h2>
-          <div style="margin:16px 0;line-height:1.6;font-size:15px;color:#e4e4e7;white-space:pre-line;">${data.mensajeCustom || 'Tenemos promociones y beneficios especiales esperándote en la barbería.'}</div>
-          ${cta(data.link || `${SITE}/reservar`, 'Ver Promoción / Agendar Cita')}`,
-          data.asuntoCustom || 'Promoción especial para ti'
-        ),
-      }
+  const res = (() => {
+    switch (kind) {
+      case 'promocion_masiva':
+        return {
+          subject: data.asuntoCustom || `📣 ¡Novedades y Beneficios Especiales de ${BRAND}!`,
+          html: layout(
+            `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Hola {{nombre}}!</h2>
+            <div style="margin:16px 0;line-height:1.6;font-size:15px;color:#e4e4e7;white-space:pre-line;">${data.mensajeCustom || 'Tenemos promociones y beneficios especiales esperándote en la barbería.'}</div>
+            ${cta(data.link || `${SITE}/reservar`, 'Ver Promoción / Agendar Cita')}`,
+            data.asuntoCustom || 'Promoción especial para ti'
+          ),
+        }
 
     case 'reserva_confirmacion_cliente':
       return {
@@ -561,5 +592,11 @@ export function buildEmail(
         subject: `Notificación — ${BRAND}`,
         html: layout(`<p>${data.motivo || 'Tienes una nueva notificación en el sistema.'}</p>`, 'Nueva notificación'),
       }
+  }
+  })()
+
+  return {
+    subject: replaceTemplateVariables(res.subject, data),
+    html: replaceTemplateVariables(res.html, data),
   }
 }

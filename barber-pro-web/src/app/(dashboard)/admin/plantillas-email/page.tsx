@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -25,9 +25,15 @@ import {
   UserCheck,
   ShieldCheck,
   Zap,
-  ArrowLeft
+  ArrowLeft,
+  Copy,
+  Info,
+  Layers,
+  HelpCircle,
+  Tag
 } from 'lucide-react'
 import { useBrand } from '@/components/providers/BrandProvider'
+import { replaceTemplateVariables } from '@/lib/notifications/templates'
 
 interface SystemTemplate {
   id: string
@@ -41,32 +47,52 @@ interface SystemTemplate {
   customMessage?: string
 }
 
+interface VariableChip {
+  tag: string
+  label: string
+  description: string
+  example: string
+}
+
+const AVAILABLE_VARIABLES: VariableChip[] = [
+  { tag: '{{nombre}}', label: 'Nombre del Cliente', description: 'Nombre completo o de pila del cliente destinatario.', example: 'Carlos Gutiérrez' },
+  { tag: '{{servicio}}', label: 'Nombre del Servicio', description: 'Servicio agendado o comprado.', example: 'Corte Ejecutivo + Barba' },
+  { tag: '{{fecha}}', label: 'Fecha', description: 'Fecha programada del servicio o evento.', example: '05 de Agosto, 2026' },
+  { tag: '{{hora}}', label: 'Hora', description: 'Hora agendada de la cita.', example: '15:00' },
+  { tag: '{{barbero}}', label: 'Nombre del Barbero', description: 'Barbero asignado para la cita.', example: 'Mateo Barreto' },
+  { tag: '{{monto}}', label: 'Monto / Precio (Bs)', description: 'Precio total o costo del servicio en Bolivianos.', example: 'Bs. 50,00' },
+  { tag: '{{codigo}}', label: 'Código de Cita / Pedido', description: 'Identificador único de la reserva o pedido.', example: '#d2ede6' },
+  { tag: '{{barberia}}', label: 'Nombre de la Barbería', description: 'Nombre comercial oficial de la empresa.', example: 'BarberSite' },
+  { tag: '{{link}}', label: 'Enlace a la Web', description: 'URL directa a la reservación o inicio de sesión.', example: 'https://barber-site-livid.vercel.app/reservar' },
+]
+
 const INITIAL_TEMPLATES: SystemTemplate[] = [
   {
     id: 'reserva_confirmacion_cliente',
     name: '✂️ Confirmación de Cita / Reserva',
     category: 'operacion',
-    subject: '✂️ Tu cita está confirmada',
+    subject: '✂️ Tu cita en {{barberia}} está confirmada para el {{fecha}}',
     description: 'Enviado automáticamente cuando un cliente agenda una cita en línea o desde la caja.',
-    variables: ['{{nombre}}', '{{servicio}}', '{{fecha}}', '{{hora}}', '{{barbero}}'],
+    variables: ['{{nombre}}', '{{servicio}}', '{{fecha}}', '{{hora}}', '{{barbero}}', '{{barberia}}'],
     sampleData: {
       nombre: 'Carlos Gutiérrez',
       servicio: 'Corte Ejecutivo + Barba',
       fecha: '2026-08-05',
       hora: '15:00',
-      barbero: 'Mateo Barreto'
+      barbero: 'Mateo Barreto',
+      barberia: 'BarberSite'
     }
   },
   {
     id: 'registro_bienvenida_nuevo',
     name: '🎉 Bienvenida a Cliente Nuevo',
     category: 'auth',
-    subject: '🎉 ¡Bienvenido a nuestra barbería!',
+    subject: '🎉 ¡Bienvenido {{nombre}} a {{barberia}}!',
     description: 'Enviado cuando un cliente crea una cuenta por primera vez en el sitio web.',
-    variables: ['{{nombre}}', '{{email}}', '{{link}}'],
+    variables: ['{{nombre}}', '{{barberia}}', '{{link}}'],
     sampleData: {
       nombre: 'Jorge Mendoza',
-      email: 'jorge.mendoza@gmail.com',
+      barberia: 'BarberSite',
       link: 'https://barber-site-livid.vercel.app/reservar'
     }
   },
@@ -74,42 +100,43 @@ const INITIAL_TEMPLATES: SystemTemplate[] = [
     id: 'recordatorio_cita',
     name: '⏰ Recordatorio de Cita (2 Horas Antes)',
     category: 'operacion',
-    subject: '⏰ Recordatorio: Tu cita es hoy',
+    subject: '⏰ Recordatorio: {{nombre}}, tu cita es hoy a las {{hora}}',
     description: 'Enviado automáticamente unas horas antes de la cita para evitar inasistencias.',
-    variables: ['{{nombre}}', '{{servicio}}', '{{fecha}}', '{{hora}}', '{{barbero}}'],
+    variables: ['{{nombre}}', '{{servicio}}', '{{fecha}}', '{{hora}}', '{{barbero}}', '{{barberia}}'],
     sampleData: {
       nombre: 'Andrés Morales',
       servicio: 'Perfilado de Barba',
       fecha: 'Hoy',
       hora: '18:30',
-      barbero: 'Nicolás Quispe'
+      barbero: 'Nicolás Quispe',
+      barberia: 'BarberSite'
     }
   },
   {
     id: 'reserva_cancelada',
     name: '❌ Notificación de Cita Cancelada',
     category: 'operacion',
-    subject: '❌ Tu cita ha sido cancelada',
+    subject: '❌ {{nombre}}, tu cita en {{barberia}} ha sido cancelada',
     description: 'Enviado cuando una cita es anulada por el barbero, cliente o administración.',
-    variables: ['{{nombre}}', '{{servicio}}', '{{fecha}}', '{{hora}}', '{{motivo}}'],
+    variables: ['{{nombre}}', '{{servicio}}', '{{fecha}}', '{{hora}}', '{{barberia}}'],
     sampleData: {
       nombre: 'Gabriel Suárez',
       servicio: 'Corte Clásico',
       fecha: '2026-08-02',
       hora: '11:00',
-      motivo: 'Reorganización de horario en barbería'
+      barberia: 'BarberSite'
     }
   },
   {
     id: 'invitacion_referido',
     name: '🎁 Invitación por Programa de Referidos',
     category: 'marketing',
-    subject: '🎁 ¡Un amigo te ha regalado un beneficio especial!',
+    subject: '🎁 ¡{{nombre}}, un amigo te regaló un beneficio en {{barberia}}!',
     description: 'Enviado cuando un cliente existente invita a un amigo compartiendo su código.',
-    variables: ['{{clienteNombre}}', '{{acompananteNombre}}', '{{link}}'],
+    variables: ['{{nombre}}', '{{barberia}}', '{{link}}'],
     sampleData: {
-      clienteNombre: 'Mario Siles',
-      acompananteNombre: 'Fernando Paz',
+      nombre: 'Fernando Paz',
+      barberia: 'BarberSite',
       link: 'https://barber-site-livid.vercel.app/login'
     }
   },
@@ -117,39 +144,39 @@ const INITIAL_TEMPLATES: SystemTemplate[] = [
     id: 'invitacion_2x1',
     name: '👥 Beneficio Martes 2x1 (Parejas)',
     category: 'marketing',
-    subject: '✂️ ¡Pagan 1 y entran 2 los Martes!',
+    subject: '✂️ ¡Pagan 1 y entran 2 los Martes en {{barberia}}!',
     description: 'Enviado al acompañante registrado durante las reservas de la promoción Martes 2x1.',
-    variables: ['{{nombre}}', '{{clienteNombre}}', '{{fecha}}'],
+    variables: ['{{nombre}}', '{{fecha}}', '{{barberia}}'],
     sampleData: {
       nombre: 'Lucas Roca',
-      clienteNombre: 'Rodrigo Vargas',
-      fecha: 'Martes 04/08/2026'
+      fecha: 'Martes 04/08/2026',
+      barberia: 'BarberSite'
     }
   },
   {
     id: 'solicitar_recuperacion',
     name: '🔐 Restablecer Contraseña (OTP / Enlace)',
     category: 'auth',
-    subject: '🔐 Código para restablecer tu contraseña',
+    subject: '🔐 Código para restablecer tu contraseña en {{barberia}}',
     description: 'Enviado al solicitar recuperar contraseña o código de acceso seguro.',
-    variables: ['{{nombre}}', '{{codigo}}', '{{link}}'],
+    variables: ['{{nombre}}', '{{codigo}}', '{{barberia}}'],
     sampleData: {
       nombre: 'Daniel Flores',
       codigo: '784920',
-      link: 'https://barber-site-livid.vercel.app/login'
+      barberia: 'BarberSite'
     }
   },
   {
     id: 'promocion_masiva',
     name: '📣 Correo Promocional / Anuncio Especial',
     category: 'marketing',
-    subject: '📣 Novedades y Descuentos Especiales para ti',
+    subject: '📣 {{nombre}}, ¡Novedades y Descuentos Especiales en {{barberia}}!',
     description: 'Plantilla base para envíos de marketing masivo y promociones a clientes.',
-    variables: ['{{nombre}}', '{{asuntoCustom}}', '{{mensajeCustom}}', '{{link}}'],
+    variables: ['{{nombre}}', '{{servicio}}', '{{barberia}}', '{{link}}'],
     sampleData: {
       nombre: 'Estimado Cliente',
-      asuntoCustom: '¡Super Descuento del 20% este Fin de Semana!',
-      mensajeCustom: 'Presenta este correo en recepción y recibe un 20% de descuento en todos nuestros productos de perfilado.',
+      servicio: 'Corte + Barba',
+      barberia: 'BarberSite',
       link: 'https://barber-site-livid.vercel.app/reservar'
     }
   }
@@ -163,13 +190,20 @@ export default function PlantillasEmailPage() {
   const [customSubject, setCustomSubject] = useState('')
   const [customMessage, setCustomMessage] = useState('')
   
+  // Focused Field tracking for quick variable injection
+  const [activeField, setActiveField] = useState<'subject' | 'message' | 'bSubject' | 'bMessage'>('message')
+  const subjectInputRef = useRef<HTMLInputElement>(null)
+  const messageInputRef = useRef<HTMLTextAreaElement>(null)
+  const bSubjectRef = useRef<HTMLInputElement>(null)
+  const bMessageRef = useRef<HTMLTextAreaElement>(null)
+
   // Test Email state
   const [testEmailTo, setTestEmailTo] = useState('')
   const [testSending, setTestSending] = useState(false)
 
   // Marketing Broadcast state
-  const [bAsunto, setBAsunto] = useState('💈 ¡Promoción Especial de Temporada!')
-  const [bMensaje, setBMensaje] = useState('Hola {{nombre}},\n\nQueremos premiar tu preferencia con un 15% de descuento en tu próximo servicio si agendás esta semana.\n\n¡Te esperamos con el mejor ambiente y café de cortesía!')
+  const [bAsunto, setBAsunto] = useState('💈 ¡Hola {{nombre}}, tenemos una Promoción Especial en {{barberia}}!')
+  const [bMensaje, setBMensaje] = useState('¡Hola {{nombre}}!\n\nQueremos premiar tu preferencia en {{barberia}} con un 15% de descuento en tu próximo servicio de {{servicio}} si agendás esta semana.\n\n¡Te esperamos con el mejor ambiente y café de cortesía!')
   const [bLink, setBLink] = useState('https://barber-site-livid.vercel.app/reservar')
   const [bAudiencia, setBAudiencia] = useState<'todos' | 'vip'>('todos')
   const [bCustomEmail, setBCustomEmail] = useState('')
@@ -177,7 +211,7 @@ export default function PlantillasEmailPage() {
   const [bResult, setBResult] = useState<any>(null)
 
   const [saving, setSaving] = useState(false)
-  const { success: toastSuccess, error: toastError } = useToast()
+  const { success: toastSuccess, error: toastError, toast: toastInfo } = useToast()
   const supabase = createClient()
   const router = useRouter()
 
@@ -214,6 +248,24 @@ export default function PlantillasEmailPage() {
     setCustomSubject(selectedTemplate.customSubject || selectedTemplate.subject)
     setCustomMessage(selectedTemplate.customMessage || '')
   }, [selectedTemplate])
+
+  // Insert tag into currently active field
+  const handleInsertTag = (tag: string) => {
+    if (activeTab === 'plantillas') {
+      if (activeField === 'subject') {
+        setCustomSubject(prev => `${prev} ${tag}`)
+      } else {
+        setCustomMessage(prev => `${prev} ${tag}`)
+      }
+    } else if (activeTab === 'marketing') {
+      if (activeField === 'bSubject') {
+        setBAsunto(prev => `${prev} ${tag}`)
+      } else {
+        setBMensaje(prev => `${prev} ${tag}`)
+      }
+    }
+    toastInfo(`Etiqueta ${tag} insertada`)
+  }
 
   const handleSaveTemplate = async () => {
     setSaving(true)
@@ -267,7 +319,7 @@ export default function PlantillasEmailPage() {
       })
       const result = await res.json()
       if (result.success) {
-        toastSuccess(`¡Correo enviado con éxito a ${testEmailTo}! Revisa la bandeja de entrada.`)
+        toastSuccess(`¡Correo de prueba enviado a ${testEmailTo}!`)
         setTestEmailTo('')
       } else {
         toastError(result.error || 'Error al enviar el correo')
@@ -312,45 +364,54 @@ export default function PlantillasEmailPage() {
     }
   }
 
+  // Previsualización Parseada con Datos de Muestra
+  const getParsedSubjectPreview = (rawSubject: string, sampleData: Record<string, string>) => {
+    return replaceTemplateVariables(rawSubject, { ...sampleData, barberia: brand.nombre || 'BarberSite' })
+  }
+
+  const getParsedMessagePreview = (rawMessage: string, sampleData: Record<string, string>) => {
+    return replaceTemplateVariables(rawMessage, { ...sampleData, barberia: brand.nombre || 'BarberSite' })
+  }
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-24">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-24 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-6">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.back()} className="p-3 hover:bg-white/5 border border-white/5 bg-zinc-900 rounded-2xl transition-all">
+          <button onClick={() => router.back()} className="p-3 hover:bg-white/5 border border-white/10 bg-zinc-900 rounded-2xl transition-all active:scale-95">
             <ArrowLeft className="w-5 h-5 text-zinc-400" />
           </button>
           <div>
             <h1 className="text-3xl lg:text-4xl font-black tracking-tight text-white uppercase">
               Plantillas & <span className="text-amber-500">Correos Gmail</span>
             </h1>
-            <p className="text-zinc-500 font-medium text-sm mt-1">
-              Servidor SMTP Gmail, plantillas de notificaciones y envíos masivos
+            <p className="text-zinc-500 font-medium text-xs sm:text-sm mt-1">
+              Personaliza mensajes, notificaciones automáticas y campañas de marketing por correo
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-xl text-xs font-bold text-emerald-400">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>barbersiteadmin@gmail.com · Conectado</span>
+        <div className="flex items-center gap-2.5 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2.5 rounded-2xl text-xs font-bold text-emerald-400 shadow-lg shadow-emerald-500/5">
+          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>barbersiteadmin@gmail.com · Servidor SMTP Activo</span>
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Selector de Pestañas Principales */}
       <div className="flex gap-2 border-b border-white/10 overflow-x-auto pb-1">
         <button
           onClick={() => setActiveTab('plantillas')}
-          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-            activeTab === 'plantillas' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-zinc-500 hover:text-white'
+          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 rounded-t-xl ${
+            activeTab === 'plantillas' ? 'text-amber-500 border-b-2 border-amber-500 bg-amber-500/5' : 'text-zinc-400 hover:text-white'
           }`}
         >
           <Mail className="w-4 h-4" />
-          Editor de Plantillas ({templates.length})
+          Editor de Plantillas Notificación ({templates.length})
         </button>
         <button
           onClick={() => setActiveTab('marketing')}
-          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-            activeTab === 'marketing' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-zinc-500 hover:text-white'
+          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 rounded-t-xl ${
+            activeTab === 'marketing' ? 'text-amber-500 border-b-2 border-amber-500 bg-amber-500/5' : 'text-zinc-400 hover:text-white'
           }`}
         >
           <Megaphone className="w-4 h-4" />
@@ -358,14 +419,46 @@ export default function PlantillasEmailPage() {
         </button>
         <button
           onClick={() => setActiveTab('prueba')}
-          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-            activeTab === 'prueba' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-zinc-500 hover:text-white'
+          className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 rounded-t-xl ${
+            activeTab === 'prueba' ? 'text-amber-500 border-b-2 border-amber-500 bg-amber-500/5' : 'text-zinc-400 hover:text-white'
           }`}
         >
           <Zap className="w-4 h-4" />
           Prueba SMTP Gmail
         </button>
       </div>
+
+      {/* --- BANNER INTERACTIVO DE ETIQUETAS DINÁMICAS (VARIABLES DISPONIBLES) --- */}
+      <Card className="bg-zinc-950 border-amber-500/20 shadow-xl overflow-hidden">
+        <CardContent className="p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              <h3 className="text-xs font-black uppercase tracking-wider text-amber-400">
+                Etiquetas Dinámicas (Haz clic en una etiqueta para insertarla en el mensaje)
+              </h3>
+            </div>
+            <span className="text-[10px] text-zinc-500 font-medium hidden md:inline">
+              Se reemplazarán automáticamente por los datos reales del cliente en cada correo
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            {AVAILABLE_VARIABLES.map(v => (
+              <button
+                key={v.tag}
+                type="button"
+                onClick={() => handleInsertTag(v.tag)}
+                title={`${v.label}: ej. "${v.example}" — ${v.description}`}
+                className="group relative flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-amber-500/20 border border-white/10 hover:border-amber-500/40 rounded-xl text-xs font-mono font-bold text-amber-400 transition-all active:scale-95"
+              >
+                <span>{v.tag}</span>
+                <span className="text-[10px] text-zinc-400 font-sans font-medium group-hover:text-amber-200">({v.label})</span>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* CONTENIDO PESTAÑA 1: PLANTILLAS */}
       {activeTab === 'plantillas' && (
@@ -381,13 +474,13 @@ export default function PlantillasEmailPage() {
                   onClick={() => setSelectedTemplate(t)}
                   className={`p-4 rounded-2xl border transition-all cursor-pointer ${
                     isSel
-                      ? 'bg-amber-500/10 border-amber-500/40 ring-1 ring-amber-500/30'
+                      ? 'bg-amber-500/10 border-amber-500/50 ring-1 ring-amber-500/30 shadow-lg shadow-amber-500/5'
                       : 'bg-zinc-900 border-white/5 hover:border-white/20'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <p className={`font-bold text-sm ${isSel ? 'text-amber-400' : 'text-white'}`}>{t.name}</p>
-                    <span className="text-[9px] px-2 py-0.5 rounded font-black uppercase tracking-wider bg-zinc-800 text-zinc-400">
+                    <span className="text-[9px] px-2 py-0.5 rounded font-black uppercase tracking-wider bg-zinc-800 text-zinc-400 shrink-0">
                       {t.category}
                     </span>
                   </div>
@@ -408,41 +501,33 @@ export default function PlantillasEmailPage() {
                   </div>
                 </div>
               </CardHeader>
+
               <CardContent className="p-6 space-y-5">
                 <div>
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block mb-1.5">
                     Asunto del Correo (Subject line)
                   </label>
                   <Input
+                    ref={subjectInputRef}
+                    onFocus={() => setActiveField('subject')}
                     value={customSubject}
                     onChange={e => setCustomSubject(e.target.value)}
-                    className="bg-zinc-950 border-zinc-800 font-bold text-white text-sm"
+                    className="bg-zinc-950 border-zinc-800 font-bold text-white text-sm focus:border-amber-500"
                   />
                 </div>
 
                 <div>
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block mb-1.5">
-                    Etiquetas Dinámicas Disponibles (Variables)
-                  </label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedTemplate.variables.map(v => (
-                      <span key={v} className="text-[10px] px-2 py-1 bg-zinc-950 border border-zinc-800 rounded-lg text-amber-400 font-mono font-bold">
-                        {v}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block mb-1.5">
-                    Mensaje Personalizado o Nota Adicional (Opcional)
+                    Mensaje Personalizado / Cuerpo del Correo
                   </label>
                   <textarea
+                    ref={messageInputRef}
+                    onFocus={() => setActiveField('message')}
                     rows={4}
                     value={customMessage}
                     onChange={e => setCustomMessage(e.target.value)}
-                    placeholder="Escribe un mensaje adicional para personalizar esta plantilla..."
-                    className="w-full p-3.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200 focus:border-amber-500/50 outline-none"
+                    placeholder="Escribe el mensaje o nota que deseas enviar al cliente. Puedes usar etiquetas como {{nombre}}, {{servicio}}, {{fecha}}, etc..."
+                    className="w-full p-4 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200 focus:border-amber-500/50 outline-none leading-relaxed"
                   />
                 </div>
 
@@ -450,22 +535,31 @@ export default function PlantillasEmailPage() {
                 <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-3">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
                     <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
-                      <Eye className="w-3.5 h-3.5 text-amber-500" /> Vista Previa en Gmail
+                      <Eye className="w-3.5 h-3.5 text-amber-500" /> Vista Previa en Vivo (Recibido en Gmail)
                     </span>
-                    <span className="text-[10px] text-zinc-500 font-mono">De: {brand.nombre} &lt;barbersiteadmin@gmail.com&gt;</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">De: {brand.nombre || 'BarberSite'} &lt;barbersiteadmin@gmail.com&gt;</span>
                   </div>
 
                   <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl space-y-3">
-                    <p className="text-xs font-bold text-amber-400">Asunto: {customSubject}</p>
-                    <div className="p-4 bg-zinc-950 rounded-lg border border-zinc-800 text-xs space-y-2 text-zinc-300">
-                      <p className="font-bold text-white">¡Hola {selectedTemplate.sampleData.nombre || selectedTemplate.sampleData.clienteNombre || 'Cliente'}!</p>
-                      <p className="text-zinc-400">Este es un ejemplo en tiempo real de cómo se estructurará el mensaje enviado desde Gmail a tus clientes.</p>
-                      {customMessage && (
-                        <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-300 font-semibold my-2">
-                          📌 {customMessage}
+                    <p className="text-xs font-bold text-amber-400">
+                      Asunto: {getParsedSubjectPreview(customSubject, selectedTemplate.sampleData)}
+                    </p>
+                    <div className="p-4 bg-zinc-950 rounded-lg border border-zinc-800 text-xs space-y-3 text-zinc-300">
+                      <p className="font-bold text-white text-sm">
+                        ¡Hola {selectedTemplate.sampleData.nombre || 'Cliente'}!
+                      </p>
+                      
+                      {customMessage ? (
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-200 text-xs whitespace-pre-line leading-relaxed">
+                          {getParsedMessagePreview(customMessage, selectedTemplate.sampleData)}
                         </div>
+                      ) : (
+                        <p className="text-zinc-400 text-xs">
+                          (Este correo incluirá los detalles automáticos del servicio y enlaces de acción)
+                        </p>
                       )}
-                      <div className="p-3 bg-zinc-900 rounded-lg font-mono text-[11px] space-y-1 text-zinc-400">
+
+                      <div className="p-3 bg-zinc-900 rounded-lg font-mono text-[11px] space-y-1 text-zinc-400 border border-white/5">
                         {Object.entries(selectedTemplate.sampleData).map(([k, v]) => (
                           <div key={k} className="flex justify-between">
                             <span className="uppercase text-[9px] text-zinc-500">{k}:</span>
@@ -473,20 +567,21 @@ export default function PlantillasEmailPage() {
                           </div>
                         ))}
                       </div>
+
                       <div className="pt-2 text-center">
-                        <span className="inline-block bg-amber-500 text-black font-black text-[10px] uppercase px-4 py-2 rounded-full shadow-md">
-                          Ver Detalles en BarberSite →
+                        <span className="inline-block bg-amber-500 text-black font-black text-[10px] uppercase px-5 py-2.5 rounded-full shadow-lg shadow-amber-500/20">
+                          Ver Detalles en {brand.nombre || 'BarberSite'} →
                         </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end pt-2">
                   <Button
                     onClick={handleSaveTemplate}
                     disabled={saving}
-                    className="bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs tracking-wider"
+                    className="bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs tracking-wider px-6 py-3 rounded-xl shadow-lg shadow-amber-500/20"
                   >
                     <Save className="w-4 h-4 mr-2" />
                     {saving ? 'Guardando...' : 'Guardar Personalización'}
@@ -508,7 +603,7 @@ export default function PlantillasEmailPage() {
               </div>
               <div>
                 <CardTitle className="text-lg font-black text-white uppercase">Campaña de Envíos Masivos / Promociones</CardTitle>
-                <p className="text-xs text-zinc-400 mt-0.5">Envía un anuncio o promoción especial a todos tus clientes por correo Gmail.</p>
+                <p className="text-xs text-zinc-400 mt-0.5">Redacta y envía un anuncio promocional directo a la bandeja de entrada de tus clientes.</p>
               </div>
             </div>
           </CardHeader>
@@ -531,7 +626,7 @@ export default function PlantillasEmailPage() {
 
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block mb-1.5">
-                  Prueba Individual (Opcional - solo enviar a este email)
+                  Prueba Individual (Opcional - enviar solo a este correo)
                 </label>
                 <Input
                   placeholder="ejemplo@gmail.com (dejar en blanco para enviar a toda la audiencia)"
@@ -546,9 +641,11 @@ export default function PlantillasEmailPage() {
                   Asunto del Correo
                 </label>
                 <Input
+                  ref={bSubjectRef}
+                  onFocus={() => setActiveField('bSubject')}
                   value={bAsunto}
                   onChange={e => setBAsunto(e.target.value)}
-                  className="bg-zinc-950 border-zinc-800 font-bold text-white text-sm"
+                  className="bg-zinc-950 border-zinc-800 font-bold text-white text-sm focus:border-amber-500"
                 />
               </div>
 
@@ -557,12 +654,17 @@ export default function PlantillasEmailPage() {
                   Mensaje de la Promoción
                 </label>
                 <textarea
-                  rows={5}
+                  ref={bMessageRef}
+                  onFocus={() => setActiveField('bMessage')}
+                  rows={6}
                   value={bMensaje}
                   onChange={e => setBMensaje(e.target.value)}
                   className="w-full p-4 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200 focus:border-amber-500/50 outline-none leading-relaxed"
                 />
-                <p className="text-[10px] text-zinc-500 mt-1 font-mono">Puedes incluir {"{{nombre}}"} para dirigirte al cliente por su nombre de pila.</p>
+                <p className="text-[10px] text-amber-400/90 mt-1.5 font-mono flex items-center gap-1">
+                  <Sparkles size={12} className="text-amber-500 shrink-0" />
+                  Puedes hacer clic en cualquier etiqueta arriba (ej: {"{{nombre}}"}, {"{{barberia}}"}) e insertarla en el mensaje.
+                </p>
               </div>
 
               <div>
@@ -576,12 +678,36 @@ export default function PlantillasEmailPage() {
                 />
               </div>
 
+              {/* Previsualización en Vivo de la Campaña */}
+              <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5 text-amber-500" /> Vista Previa con Datos Reales
+                  </span>
+                  <span className="text-[10px] text-zinc-500 font-mono">De: {brand.nombre || 'BarberSite'} &lt;barbersiteadmin@gmail.com&gt;</span>
+                </div>
+
+                <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl space-y-2">
+                  <p className="text-xs font-bold text-amber-400">
+                    Asunto: {getParsedSubjectPreview(bAsunto, { nombre: 'Carlos Gutiérrez', servicio: 'Corte + Barba' })}
+                  </p>
+                  <div className="p-4 bg-zinc-950 rounded-lg border border-zinc-800 text-xs text-zinc-200 whitespace-pre-line leading-relaxed">
+                    {getParsedMessagePreview(bMensaje, { nombre: 'Carlos Gutiérrez', servicio: 'Corte + Barba' })}
+                  </div>
+                  <div className="pt-2 text-center">
+                    <span className="inline-block bg-amber-500 text-black font-black text-[10px] uppercase px-5 py-2.5 rounded-full shadow-lg shadow-amber-500/20">
+                      Ver Promoción / Agendar Cita →
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {bResult && (
                 <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 space-y-1">
                   <p className="font-bold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Campaña Ejecutada
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Campaña Ejecutada Con Éxito
                   </p>
-                  <p>Correos enviados exitosamente: <strong>{bResult.enviados}</strong> de {bResult.total}</p>
+                  <p>Correos entregados: <strong>{bResult.enviados}</strong> de {bResult.total}</p>
                 </div>
               )}
 
@@ -589,7 +715,7 @@ export default function PlantillasEmailPage() {
                 <Button
                   type="submit"
                   disabled={bSending}
-                  className="bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs tracking-wider px-6 py-3"
+                  className="bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs tracking-wider px-6 py-3 rounded-xl shadow-lg shadow-amber-500/20"
                 >
                   <Send className="w-4 h-4 mr-2" />
                   {bSending ? 'Enviando campaña...' : '🚀 Enviar Promoción por Gmail'}
@@ -610,7 +736,7 @@ export default function PlantillasEmailPage() {
               </div>
               <div>
                 <CardTitle className="text-lg font-black text-white uppercase">Prueba de Conexión SMTP Gmail</CardTitle>
-                <p className="text-xs text-zinc-400 mt-0.5">Envía un correo de prueba en tiempo real para verificar la entrega.</p>
+                <p className="text-xs text-zinc-400 mt-0.5">Envía un correo de prueba instantáneo para verificar la llegada a la bandeja de entrada.</p>
               </div>
             </div>
           </CardHeader>
@@ -630,16 +756,16 @@ export default function PlantillasEmailPage() {
                 />
               </div>
 
-              <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-400 space-y-1">
-                <p className="font-bold text-zinc-300">Servidor configurado:</p>
-                <p className="font-mono text-[11px] text-amber-400">SMTP: smtp.gmail.com (Puerto 587)</p>
-                <p className="font-mono text-[11px] text-amber-400">Cuenta: barbersiteadmin@gmail.com</p>
+              <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-400 space-y-1.5">
+                <p className="font-bold text-zinc-300">Detalles de conexión Gmail SMTP:</p>
+                <p className="font-mono text-[11px] text-amber-400">Servidor: smtp.gmail.com (Puerto 587)</p>
+                <p className="font-mono text-[11px] text-amber-400">Remitente: barbersiteadmin@gmail.com</p>
               </div>
 
               <Button
                 type="submit"
                 disabled={testSending}
-                className="w-full bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs tracking-wider py-3"
+                className="w-full bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs tracking-wider py-3 rounded-xl shadow-lg shadow-amber-500/20"
               >
                 <Send className="w-4 h-4 mr-2" />
                 {testSending ? 'Enviando...' : 'Enviar Correo de Prueba Ahora'}
