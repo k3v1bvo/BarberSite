@@ -217,10 +217,10 @@ export function CajaPOS() {
 
         const { data: ultimosTxData } = await supabase
           .from('transactions')
-          .select('id, fecha, created_at, concepto, subcategoria, costo, monto_efectivo, monto_qr, metodo_pago, libro, tipo_movimiento, glosa, usuario_registro, nombre')
+          .select('id, fecha, creado_en, cuenta_detalle, subcategoria, costo, monto_efectivo, monto_qr, metodo_pago, libro, tipo_movimiento, glosa, usuario_registro, nombre')
           .in('libro', ['SERVICIOS', 'VENTAS', 'CAJA_CHICA'])
-          .order('created_at', { ascending: false })
-          .limit(30)
+          .order('creado_en', { ascending: false })
+          .limit(50)
         setUltimosMovimientos(ultimosTxData || [])
 
         // Calculate barbero rotation (who has the least recent completed appointment today)
@@ -969,7 +969,7 @@ export function CajaPOS() {
                       const mp = (item.metodo_pago || 'efectivo').toLowerCase()
                       const libro = isTx ? item.libro : 'SERVICIOS'
                       
-                      const dateObj = isTx ? (item.created_at ? new Date(item.created_at) : new Date(item.fecha)) : (item.updated_at ? new Date(item.updated_at) : new Date(item.fecha_hora))
+                      const dateObj = isTx ? (item.creado_en ? new Date(item.creado_en) : new Date(item.fecha)) : (item.updated_at ? new Date(item.updated_at) : new Date(item.fecha_hora))
                       const dateFormatted = !isNaN(dateObj.getTime()) ? dateObj.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) + ' · ' + dateObj.toLocaleDateString('es-BO', { day: '2-digit', month: 'short' }) : (item.fecha || '')
 
                       return (
@@ -1142,7 +1142,7 @@ export function CajaPOS() {
                   const isTx = item.libro !== undefined
                   const nombreCliente = isTx ? (item.nombre || 'Cliente') : (item.clientes?.nombre || 'Cliente')
                   const barberoNombre = isTx ? (item.usuario_registro || 'Barbero') : (item.profiles?.full_name || 'Barbero')
-                  const detalle = isTx ? (item.cuenta_detalle || item.glosa || item.concepto || item.libro) : (item.servicios?.nombre || 'Servicio Barbería')
+                  const detalle = isTx ? (item.cuenta_detalle || item.glosa || item.libro) : (item.servicios?.nombre || 'Servicio Barbería')
                   const monto = isTx ? Number(item.costo || 0) : Number(item.total ?? item.servicios?.precio ?? 0)
                   const mp = (item.metodo_pago || 'efectivo').toLowerCase()
                   const libro = isTx ? item.libro : 'SERVICIOS'

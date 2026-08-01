@@ -546,7 +546,7 @@ export default function CajaChicaPage() {
   let flEfTotal = 0
   let flQrTotal = 0
   transactions.forEach((tx) => {
-    if (tx.fecha <= '2026-07-18') return
+    if (tx.fecha <= '2026-07-29') return
     const ing = esIngreso(tx)
     const { ef, qr } = getMontosTx(tx)
     if (ing) { flEfTotal += ef } else { flEfTotal -= ef }
