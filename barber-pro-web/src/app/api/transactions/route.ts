@@ -86,6 +86,9 @@ export async function GET(request: NextRequest) {
             barberos:profiles!barbero_id (full_name)
           `)
           .eq('estado', 'completado')
+          .order('fecha_hora', { ascending: false })
+          .limit(limit)
+
         if (fecha) {
           citasQuery = citasQuery.gte('fecha_hora', `${fecha}T00:00:00`).lte('fecha_hora', `${fecha}T23:59:59`)
         } else if (fechaDesde && fechaHasta) {
@@ -96,7 +99,21 @@ export async function GET(request: NextRequest) {
           for (const c of citasData) {
             const cIdStr = String(c.id || '')
             const cIdShort = cIdStr.slice(0, 6)
-            const alreadyIn = finalData.some((t: any) => t.glosa && (t.glosa.includes(cIdShort) || t.glosa.includes(cIdStr)))
+            const fechaCita = c.fecha_hora ? c.fecha_hora.split('T')[0] : (fecha || getTodayBolivia())
+            const clienteNombre = (c.clientes as any)?.nombre || 'Cliente'
+            const precioCita = Number(c.precio || 0)
+
+            const alreadyIn = finalData.some((t: any) => {
+              if (t.cita_id && String(t.cita_id) === cIdStr) return true
+              if (t.glosa && (t.glosa.includes(cIdShort) || t.glosa.includes(cIdStr))) return true
+
+              const sameFecha = t.fecha === fechaCita
+              const sameNombre = t.nombre && clienteNombre && clienteNombre !== 'Cliente' && t.nombre.toLowerCase().trim() === clienteNombre.toLowerCase().trim()
+              const sameMonto = Math.abs(Number(t.costo || 0) - precioCita) < 1.5
+
+              return sameFecha && sameNombre && sameMonto
+            })
+
             if (!alreadyIn) {
               const fechaCita = c.fecha_hora ? c.fecha_hora.split('T')[0] : (fecha || getTodayBolivia())
               const clienteNombre = (c.clientes as any)?.nombre || 'Cliente'
@@ -158,7 +175,11 @@ export async function GET(request: NextRequest) {
 
       // Safely merge egresos table
       if (!libro || libro === 'CAJA_CHICA' || libro === 'EGRESOS' || libro === 'BANCO') {
-        let egresosQuery = supabase.from('egresos').select('*')
+        let egresosQuery = supabase
+          .from('egresos')
+          .select('*')
+          .order('fecha', { ascending: false })
+          .limit(limit)
         if (fecha) {
           egresosQuery = egresosQuery.eq('fecha', fecha)
         } else if (fechaDesde && fechaHasta) {

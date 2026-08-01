@@ -1167,11 +1167,11 @@ export default function CajaChicaPage() {
                         {/* Tipo Ingreso/Egreso */}
                         <td className="px-3 py-2.5">
                           <Badge
-                            variant={ingreso ? 'success' : 'danger'}
+                            variant={ingreso || esCobroQrDeCaja(tx) ? 'success' : 'danger'}
                             className="text-[8px] uppercase font-black flex items-center gap-0.5 w-fit whitespace-nowrap"
                           >
-                            {ingreso ? <ArrowUpCircle className="w-2.5 h-2.5" /> : <ArrowDownCircle className="w-2.5 h-2.5" />}
-                            {ingreso ? 'Ing.' : 'Egr.'}
+                            {ingreso || esCobroQrDeCaja(tx) ? <ArrowUpCircle className="w-2.5 h-2.5" /> : <ArrowDownCircle className="w-2.5 h-2.5" />}
+                            {esCobroQrDeCaja(tx) ? 'Ing. QR' : ingreso ? 'Ing.' : 'Egr.'}
                           </Badge>
                         </td>
                         {/* Fecha */}
@@ -1187,7 +1187,9 @@ export default function CajaChicaPage() {
                         {/* Categoría / Concepto */}
                         <td className="px-3 py-2.5">
                           <div className="flex flex-col">
-                            <span className="text-white text-xs font-semibold truncate max-w-[180px]">{tx.cuenta_detalle || tipoLabel}</span>
+                            <span className="text-white text-xs font-semibold truncate max-w-[180px]">
+                              {esCobroQrDeCaja(tx) ? 'Cobro por QR (Ingreso Banco)' : (tx.cuenta_detalle || tipoLabel)}
+                            </span>
                             {tx.subcategoria && tx.subcategoria !== tx.cuenta_detalle && (
                               <span className="text-[10px] text-zinc-500">{tx.subcategoria}</span>
                             )}
@@ -1248,8 +1250,8 @@ export default function CajaChicaPage() {
                         {/* Monto QR / Banco */}
                         <td className="px-3 py-2.5 text-right">
                           {qrMonto > 0 ? (
-                            <span className={`font-mono font-bold text-xs ${ingreso ? 'text-blue-400' : 'text-red-400'}`}>
-                              {ingreso ? '+' : '-'}{formatCurrency(qrMonto)}
+                            <span className={`font-mono font-bold text-xs ${ingreso || esCobroQrDeCaja(tx) ? 'text-blue-400' : 'text-red-400'}`}>
+                              {ingreso || esCobroQrDeCaja(tx) ? '+' : '-'}{formatCurrency(qrMonto)}
                             </span>
                           ) : (
                             <span className="text-zinc-600 text-xs">—</span>
