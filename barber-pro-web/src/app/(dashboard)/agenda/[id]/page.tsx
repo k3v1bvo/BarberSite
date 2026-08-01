@@ -13,7 +13,8 @@ import { useAgendaCitas } from '@/hooks/useAgendaCitas'
 import type { AgendaCita } from '@/lib/agenda/types'
 import type { AgendaView } from '@/lib/agenda/date-range'
 import { startOfWeek, endOfWeek } from 'date-fns'
-import { AlertCircle, ArrowLeft, Clock } from 'lucide-react'
+import { ModalCrearCitaManual } from '@/components/agenda/ModalCrearCitaManual'
+import { AlertCircle, ArrowLeft, Clock, Scissors } from 'lucide-react'
 import Link from 'next/link'
 
 interface BarberInfo {
@@ -33,6 +34,7 @@ export default function AgendaIndividualPage() {
   const [barberos, setBarberos] = useState<BarberInfo[]>([])
   const [barberoNombre, setBarberoNombre] = useState('')
   const [selectedBarberoId, setSelectedBarberoId] = useState(barberoId)
+  const [isModalManualOpen, setIsModalManualOpen] = useState(false)
   const [view, setView] = useState<AgendaView>('dia')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentTab, setCurrentTab] = useState<'calendario' | 'disponibilidad' | 'horarios'>('calendario')
@@ -191,6 +193,15 @@ export default function AgendaIndividualPage() {
           </h1>
           <p className="text-zinc-500 font-medium mt-1">{barberoNombre}</p>
         </div>
+        <Button
+          variant="primary"
+          size="md"
+          onClick={() => setIsModalManualOpen(true)}
+          className="font-black uppercase text-xs shadow-lg shadow-amber-500/20"
+        >
+          <Scissors className="w-4 h-4 mr-2" />
+          ➕ Nueva Cita Manual (Sin Correo)
+        </Button>
       </div>
 
       {(userRole === 'admin' || userRole === 'coordinador') && barberos.length > 0 && (
@@ -341,6 +352,14 @@ export default function AgendaIndividualPage() {
         cita={selectedCita}
         onClose={() => setSelectedCita(null)}
         showBarbero={false}
+        onUpdate={reload}
+      />
+
+      <ModalCrearCitaManual
+        isOpen={isModalManualOpen}
+        onClose={() => setIsModalManualOpen(false)}
+        onSuccess={() => reload()}
+        defaultBarberoId={selectedBarberoId !== 'todos' ? selectedBarberoId : undefined}
       />
     </div>
   )

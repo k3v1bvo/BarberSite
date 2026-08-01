@@ -10,7 +10,8 @@ import { CitaDetailModal } from '@/components/ui/CitaDetailModal'
 import { useAgendaCitas } from '@/hooks/useAgendaCitas'
 import type { AgendaCita } from '@/lib/agenda/types'
 import type { AgendaView } from '@/lib/agenda/date-range'
-import { AlertCircle, CalendarDays, Users } from 'lucide-react'
+import { ModalCrearCitaManual } from '@/components/agenda/ModalCrearCitaManual'
+import { AlertCircle, CalendarDays, Users, Scissors } from 'lucide-react'
 import Link from 'next/link'
 import clsx from 'clsx'
 
@@ -31,6 +32,7 @@ export default function AgendaGeneralPage() {
   const [view, setView] = useState<AgendaView>('semana')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedCita, setSelectedCita] = useState<AgendaCita | null>(null)
+  const [isModalManualOpen, setIsModalManualOpen] = useState(false)
 
   const { citas, loading, error, reload } = useAgendaCitas(
     view,
@@ -191,12 +193,23 @@ export default function AgendaGeneralPage() {
           </p>
         </div>
 
-        <Link href="/recepcion">
-          <Button variant="secondary" size="md" className="w-full sm:w-auto font-black uppercase text-xs">
-            <CalendarDays className="w-4 h-4 mr-2" />
-            Recepción
+        <div className="flex items-center gap-3">
+          <Button
+            variant="primary"
+            size="md"
+            onClick={() => setIsModalManualOpen(true)}
+            className="w-full sm:w-auto font-black uppercase text-xs shadow-lg shadow-amber-500/20"
+          >
+            <Scissors className="w-4 h-4 mr-2" />
+            ➕ Nueva Cita Manual (Sin Correo)
           </Button>
-        </Link>
+          <Link href="/recepcion">
+            <Button variant="secondary" size="md" className="w-full sm:w-auto font-black uppercase text-xs">
+              <CalendarDays className="w-4 h-4 mr-2" />
+              Recepción
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Barbero avatar chips - horizontal scroll on mobile */}
@@ -315,6 +328,13 @@ export default function AgendaGeneralPage() {
         }}
         showBarbero
         onUpdate={reload}
+      />
+
+      <ModalCrearCitaManual
+        isOpen={isModalManualOpen}
+        onClose={() => setIsModalManualOpen(false)}
+        onSuccess={() => reload()}
+        defaultBarberoId={selectedBarbero !== 'todos' ? selectedBarbero : undefined}
       />
     </div>
   )
