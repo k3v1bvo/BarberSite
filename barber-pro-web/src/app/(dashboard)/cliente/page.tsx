@@ -11,7 +11,7 @@ import { VincularRecomendanteWidget } from '@/components/cliente/VincularRecomen
 import {
   Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
-  Trophy, Zap, Shield, Crown, Flame, Users
+  Trophy, Zap, Shield, Crown, Flame, Users, UserPlus
 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 
@@ -22,6 +22,7 @@ interface CardData {
     total_visitas: number; total_gastado: number; nivel_fidelidad: string
     ultima_visita: string | null; ci: string | null
     referral_code?: string; numero_cliente?: number
+    referido_por?: string | null
   } | null
   esCumpleanos: boolean
   cumpleVerificado: boolean
