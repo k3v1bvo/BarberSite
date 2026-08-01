@@ -20,7 +20,9 @@ import {
   Activity,
   Heart,
   Crown,
-  Download
+  Download,
+  Printer,
+  FileText
 } from 'lucide-react'
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -409,20 +411,191 @@ export default function ReportesPage() {
   }
 
   const exportarCSV = () => {
-    const cabeceras = ['Fecha', 'Ingresos', 'Egresos', 'Utilidad Neta']
-    const filas = data.finanzasDiarias.map((d: any) => [d.fecha, d.ingresos, d.egresos, d.utilidad])
-    
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + cabeceras.join(",") + "\n"
-      + filas.map((e: any[]) => e.join(",")).join("\n")
+    let csvContent = '\uFEFF' // UTF-8 BOM for Excel
+    csvContent += `REPORTE COMPLETO DE GESTIÓN Y FINANZAS - BARBER PRO\n`
+    csvContent += `Periodo:;${fechaInicio} al ${fechaFin}\n`
+    csvContent += `Generado el:;${new Date().toLocaleString('es-BO')}\n\n`
 
-    const encodedUri = encodeURI(csvContent)
-    const link = document.createElement("a")
-    link.setAttribute("href", encodedUri)
-    link.setAttribute("download", `reporte_financiero_${fechaInicio}_al_${fechaFin}.csv`)
+    csvContent += `--- RESUMEN EJECUTIVO ---\n`
+    csvContent += `Métrica;Valor\n`
+    csvContent += `Ingresos Brutos;Bs. ${data.resumen.ingresosTotal?.toFixed(2) || '0.00'}\n`
+    csvContent += `Egresos Totales;Bs. ${data.resumen.egresosTotal?.toFixed(2) || '0.00'}\n`
+    csvContent += `Utilidad Neta;Bs. ${data.resumen.utilidadNeta?.toFixed(2) || '0.00'}\n`
+    csvContent += `Total Citas Completadas;${data.resumen.totalCitas || 0}\n`
+    csvContent += `Ticket Promedio;Bs. ${data.resumen.ticketPromedio?.toFixed(2) || '0.00'}\n`
+    csvContent += `Tasa de Cancelación;${data.resumen.tasaCancelacion || 0}%\n\n`
+
+    csvContent += `--- FINANZAS DIARIAS ---\n`
+    csvContent += `Fecha;Ingresos (Bs);Egresos (Bs);Utilidad Neta (Bs)\n`
+    data.finanzasDiarias.forEach((d: any) => {
+      csvContent += `"${d.fecha}";${d.ingresos.toFixed(2)};${d.egresos.toFixed(2)};${d.utilidad.toFixed(2)}\n`
+    })
+    csvContent += `\n`
+
+    csvContent += `--- PRODUCTIVIDAD DE BARBEROS ---\n`
+    csvContent += `Barbero;Citas Atendidas;Ventas Totales (Bs)\n`
+    data.productividadBarberos.forEach((b: any) => {
+      csvContent += `"${b.barbero}";${b.citas};${b.ventas.toFixed(2)}\n`
+    })
+    csvContent += `\n`
+
+    csvContent += `--- TOP SERVICIOS MÁS DEMANDADOS ---\n`
+    csvContent += `Servicio;Cantidad Vendida;Monto Recaudado (Bs)\n`
+    data.topServicios.forEach((s: any) => {
+      csvContent += `"${s.nombre}";${s.cant};${s.monto.toFixed(2)}\n`
+    })
+    csvContent += `\n`
+
+    csvContent += `--- CLIENTES MAS FRECUENTES ---\n`
+    csvContent += `Nombre Cliente;Teléfono;Total Visitas;Total Gastado (Bs)\n`
+    data.clientesFrecuentes.forEach((c: any) => {
+      csvContent += `"${c.nombre}";"${c.telefono || ''}";${c.total_visitas};${(c.total_gastado || 0).toFixed(2)}\n`
+    })
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `reporte_general_barberpro_${fechaInicio}_al_${fechaFin}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  const exportarPDF = () => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Reporte General & Financiero - Barber Pro (${fechaInicio} al ${fechaFin})</title>
+          <style>
+            body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 30px; color: #18181b; background: #fff; line-height: 1.5; }
+            .header { border-bottom: 3px solid #f59e0b; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .title { font-size: 24px; font-weight: 900; color: #000; text-transform: uppercase; margin: 0; }
+            .subtitle { font-size: 13px; color: #71717a; margin-top: 4px; font-weight: 600; }
+            .badge { background: #fef3c7; color: #b45309; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 12px; }
+            .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
+            .kpi { border: 1px solid #e4e4e7; border-radius: 12px; padding: 15px; background: #fafafa; }
+            .kpi-title { font-size: 10px; text-transform: uppercase; font-weight: 800; color: #71717a; letter-spacing: 0.05em; }
+            .kpi-value { font-size: 22px; font-weight: 900; color: #000; margin-top: 5px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 12px; }
+            th { background: #18181b; color: #fff; text-transform: uppercase; font-size: 10px; font-weight: 800; padding: 10px 12px; text-align: left; }
+            td { padding: 10px 12px; border-bottom: 1px solid #e4e4e7; }
+            tr:nth-child(even) { background: #fafafa; }
+            .section-title { font-size: 14px; font-weight: 800; text-transform: uppercase; margin-bottom: 12px; color: #18181b; border-left: 4px solid #f59e0b; padding-left: 8px; }
+            .footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #e4e4e7; text-align: center; font-size: 10px; color: #a1a1aa; font-weight: 600; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1 class="title">💈 BARBER PRO</h1>
+              <p class="subtitle">Reporte General de Operaciones, Rendimiento & Finanzas</p>
+            </div>
+            <div>
+              <span class="badge">Período: ${fechaInicio} al ${fechaFin}</span>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="kpi">
+              <div class="kpi-title">Utilidad Neta</div>
+              <div class="kpi-value">Bs. ${(data.resumen.utilidadNeta || 0).toFixed(2)}</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Ingresos Brutos</div>
+              <div class="kpi-value">Bs. ${(data.resumen.ingresosTotal || 0).toFixed(2)}</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Servicios Realizados</div>
+              <div class="kpi-value">${data.resumen.totalCitas || 0}</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Ticket Promedio</div>
+              <div class="kpi-value">Bs. ${(data.resumen.ticketPromedio || 0).toFixed(2)}</div>
+            </div>
+          </div>
+
+          <div class="section-title">Productividad del Equipo de Barberos</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Barbero / Profesional</th>
+                <th>Citas Completadas</th>
+                <th style="text-align: right">Ventas Recaudadas (Bs)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.productividadBarberos.map((b: any) => `
+                <tr>
+                  <td><strong>${b.barbero}</strong></td>
+                  <td>${b.citas} servicios</td>
+                  <td style="text-align: right"><strong>Bs. ${b.ventas.toFixed(2)}</strong></td>
+                </tr>
+              `).join('')}
+              ${data.productividadBarberos.length === 0 ? '<tr><td colspan="3">Sin registros en este período</td></tr>' : ''}
+            </tbody>
+          </table>
+
+          <div class="section-title">Top Servicios Más Vendidos</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre del Servicio</th>
+                <th>Cantidad Vendida</th>
+                <th style="text-align: right">Monto Recaudado (Bs)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.topServicios.map((s: any) => `
+                <tr>
+                  <td><strong>${s.nombre}</strong></td>
+                  <td>${s.cant} veces</td>
+                  <td style="text-align: right"><strong>Bs. ${s.monto.toFixed(2)}</strong></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="section-title">Resumen de Finanzas Diarias</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Ingresos (Bs)</th>
+                <th>Egresos (Bs)</th>
+                <th style="text-align: right">Utilidad Neta (Bs)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.finanzasDiarias.map((d: any) => `
+                <tr>
+                  <td>${d.fecha}</td>
+                  <td style="color: #10b981;">+Bs. ${d.ingresos.toFixed(2)}</td>
+                  <td style="color: #ef4444;">-Bs. ${d.egresos.toFixed(2)}</td>
+                  <td style="text-align: right; font-weight: bold;">Bs. ${d.utilidad.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            Reporte generado automáticamente por Barber Pro Admin Suite · ${new Date().toLocaleString('es-BO')}
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
   }
 
   // Helper para renderizar badges de tendencia
@@ -940,10 +1113,16 @@ export default function ReportesPage() {
               </Button>
             </div>
             
-            <Button variant="outline" size="lg" className="h-12 uppercase tracking-widest font-black border-white/10 hover:bg-white/5" onClick={exportarCSV}>
-              <Download className="w-4 h-4 mr-2" />
-              Exportar CSV
-            </Button>
+            <div className="flex gap-3 shrink-0 flex-wrap">
+              <Button variant="outline" size="lg" className="h-12 uppercase tracking-widest font-black border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" onClick={exportarCSV} title="Exportar archivo CSV completo para Excel">
+                <Download className="w-4 h-4 mr-2" />
+                CSV Excel
+              </Button>
+              <Button variant="outline" size="lg" className="h-12 uppercase tracking-widest font-black border-amber-500/30 text-amber-400 hover:bg-amber-500/10" onClick={exportarPDF} title="Generar e imprimir Reporte Ejecutivo PDF">
+                <Printer className="w-4 h-4 mr-2" />
+                PDF Ejecutivo
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
