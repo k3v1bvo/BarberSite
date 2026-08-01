@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency, cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import { VincularRecomendanteWidget } from '@/components/cliente/VincularRecomendanteWidget'
 import {
   Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
@@ -646,6 +647,21 @@ export default function ClientePage() {
                 </div>
               </div>
             </div>
+
+            {/* SECCIÓN VINCULAR MI RECOMENDANTE (Únicamente 1 vez para clientes nuevos en su 1er servicio) */}
+            {visitas === 0 && !cliente?.referido_por && (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 mb-6 space-y-3">
+                <div className="flex items-center gap-2 text-amber-400">
+                  <UserPlus className="w-5 h-5" />
+                  <p className="font-black text-sm uppercase">¿Te recomendó un amigo a la Barbería?</p>
+                </div>
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  Búscalo por su <strong>Nombre, Código de Referido (ej. ROBERTO10), Celular o CI</strong>. Al vincularlo, cuando realices y pagues tu primer corte en la barbería, tu recomendante recibirá sus <strong>Bs. 10 de premio</strong>.
+                </p>
+
+                <VincularRecomendanteWidget onSuccess={loadData} />
+              </div>
+            )}
 
             {/* Amigos Referidos Lista */}
             {cardData?.misReferidos && cardData.misReferidos.length > 0 && (
