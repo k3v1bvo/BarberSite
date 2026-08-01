@@ -79,6 +79,8 @@ export async function GET(request: NextRequest) {
             fecha_hora,
             barbero_id,
             cliente_id,
+            metodo_pago,
+            anticipo_monto,
             clientes (nombre),
             servicios (nombre),
             barberos:profiles!barbero_id (full_name)
@@ -100,6 +102,28 @@ export async function GET(request: NextRequest) {
               const clienteNombre = (c.clientes as any)?.nombre || 'Cliente'
               const barberoNombre = (c.barberos as any)?.full_name || 'Barbero'
               const servicioNombre = (c.servicios as any)?.nombre || 'Servicio de Barbería'
+              const anticipoQr = Number(c.anticipo_monto || 0)
+              const precioCita = Number(c.precio || 0)
+              const mpRaw = String(c.metodo_pago || 'efectivo').toLowerCase()
+
+              let realEf = 0
+              let realQr = anticipoQr
+              let realMetodo = mpRaw
+
+              const resto = Math.max(0, precioCita - anticipoQr)
+              if (mpRaw === 'efectivo') {
+                realEf = resto
+              } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpRaw)) {
+                realQr += resto
+              } else if (mpRaw === 'mixto') {
+                realEf = resto // fallback
+              }
+
+              if (anticipoQr > 0 && realEf > 0) {
+                realMetodo = 'mixto'
+              } else if (anticipoQr > 0 && realEf === 0) {
+                realMetodo = 'qr'
+              }
 
               finalData.push({
                 id: `virtual-cita-${cIdStr}`,
@@ -110,13 +134,16 @@ export async function GET(request: NextRequest) {
                 cuenta_codigo: 'ING-001',
                 cuenta_detalle: `Servicio: ${servicioNombre}`,
                 glosa: `Atendido por ${barberoNombre} — Cita #${cIdShort}`,
-                costo: Number(c.precio || 0),
+                costo: precioCita,
                 tipo_movimiento: 'INGRESO',
                 subcategoria: 'SERVICIO',
                 es_sancion: false,
                 empleado_id: c.barbero_id,
                 cliente_id: c.cliente_id,
-                metodo_pago: 'efectivo',
+                metodo_pago: realMetodo,
+                monto_efectivo: realEf,
+                monto_qr: realQr,
+                notas: anticipoQr > 0 ? `Anticipo QR: Bs ${anticipoQr} | Cobrado en caja (${mpRaw}): Bs ${resto}` : null,
                 usuario_registro: barberoNombre,
                 creado_en: c.fecha_hora || new Date().toISOString()
               })
