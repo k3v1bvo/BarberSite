@@ -292,19 +292,6 @@ export default function AgendaGeneralPage() {
         <div className="flex flex-col items-center justify-center h-64">
           <div className="w-10 h-10 border-4 border-zinc-700 border-t-amber-500 rounded-full animate-spin" />
         </div>
-      ) : citas.length === 0 && !error ? (
-        <Card className="border-white/5 bg-zinc-900/30">
-          <CardContent className="p-12 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-zinc-800 flex items-center justify-center">
-              <CalendarDays className="w-8 h-8 text-zinc-600" />
-            </div>
-            <p className="text-zinc-400 font-bold text-lg">Sin citas programadas</p>
-            <p className="text-zinc-600 text-sm mt-2">
-              No hay citas {selectedBarbero !== 'todos' ? 'para este barbero ' : ''}en este período.
-              <br />Usa los controles del calendario para navegar.
-            </p>
-          </CardContent>
-        </Card>
       ) : (
         <CalendarView
           citas={citas}

@@ -1015,75 +1015,81 @@ export function CajaPOS() {
           {/* LADO IZQUIERDO: SELECCIÓN DE DATOS */}
           <div className="lg:col-span-8 space-y-6">
           
-          {citasPendientes.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold text-zinc-400 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-500" /> Citas Pendientes de Cobro (Hoy y Anteriores)
-              </h3>
+          {/* CITAS Y RESERVAS PENDIENTES */}
+          {citasPendientes.length > 0 ? (
+            <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-500 animate-pulse" /> Citas y Reservas Pendientes por Cobrar ({citasPendientes.length})
+                </h3>
+                <span className="text-[10px] text-zinc-400">Haz clic en una reserva para cargar sus datos en la caja</span>
+              </div>
               <div className="flex gap-3 overflow-x-auto pb-2 snap-x">
                 {citasPendientes.map((cita) => (
-                  <div key={cita.id} className="relative shrink-0 snap-start w-64">
+                  <div key={cita.id} className="relative shrink-0 snap-start w-72">
                     <button
-                      className={`w-full text-left bg-zinc-900 border transition-all rounded-xl p-4 hover:border-amber-500/50 ${formData.cita_id === cita.id ? 'border-amber-500 ring-1 ring-amber-500' : 'border-zinc-800'}`}
+                      className={`w-full text-left bg-zinc-900 border transition-all rounded-xl p-3.5 hover:border-amber-500/50 shadow-md ${formData.cita_id === cita.id ? 'border-amber-500 ring-2 ring-amber-500/40 bg-amber-500/10' : 'border-zinc-800'}`}
                       onClick={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        cita_id: cita.id,
-                        cliente_id: cita.cliente_id || '',
-                        nombre: cita.clientes?.nombre || 'Cliente',
-                        email: cita.clientes?.email || '',
-                        telefono: cita.clientes?.telefono || '',
-                        ci: cita.clientes?.ci || '',
-                        servicio_id: cita.servicio_id || '',
-                        barbero_id: cita.barbero_id || '',
-                        anticipo_monto: Number(cita.anticipo_monto || 0),
-                      }))
-                      setSearchCliente(cita.clientes?.nombre || 'Cliente')
-                      setSearchCi(cita.clientes?.ci || '')
-                      if (cita.cliente_id && cita.clientes) {
-                        fetchClientExtras(cita.cliente_id, {
-                           id: cita.cliente_id, 
-                           nombre: cita.clientes.nombre,
-                           email: cita.clientes.email,
-                           telefono: cita.clientes.telefono,
-                           ci: cita.clientes.ci,
-                           nivel_fidelidad: cita.clientes.nivel_fidelidad,
-                           total_visitas: cita.clientes.total_visitas,
-                           total_gastado: cita.clientes.total_gastado,
-                           codigo_tarjeta: cita.clientes.codigo_tarjeta
-                        })
-                      }
-                      
-                      // Cargar la fecha y hora guardadas para permitir reprogramar fácilmente
-                      if (cita.fecha_hora) {
-                        const d = new Date(cita.fecha_hora)
-                        const pad = (n: number) => n.toString().padStart(2, '0')
-                        setReservaFecha(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`)
-                        setReservaHora(`${pad(d.getHours())}:${pad(d.getMinutes())}`)
-                        setModoReserva(true)
-                      }
-                      
-                      toastSuccess(`Cita de ${cita.clientes?.nombre || 'cliente'} seleccionada · Puedes editar servicio o agregar productos`)
-                      setCitaSeleccionadaFechaHora(cita.fecha_hora || null)
-                    }}
-                  >
-                    <div className="flex justify-between items-start mb-2 pr-6">
-                      <p className="font-bold text-white truncate text-sm">{cita.clientes?.nombre || 'Sin nombre'}</p>
-                      <Badge variant={cita.estado === 'en_proceso' ? 'info' : 'warning'} className="text-[10px] uppercase">{cita.estado.replace('_', ' ')}</Badge>
-                    </div>
-                    <p className="text-xs text-zinc-400 truncate mb-1">{cita.servicios?.nombre}</p>
-                    <p className="text-[10px] text-zinc-500 uppercase font-black">
-                      {cita.profiles?.full_name} • {new Date(cita.fecha_hora).toLocaleDateString()}
-                    </p>
-                  </button>
-                  <button 
-                    onClick={(e) => handleMarcarNoAsistio(cita.id, e)}
-                    className="absolute top-2 right-2 p-1 text-zinc-500 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
-                    title="Marcar como No Asistió / Cancelar"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
+                        setFormData(prev => ({
+                          ...prev,
+                          cita_id: cita.id,
+                          cliente_id: cita.cliente_id || '',
+                          nombre: cita.clientes?.nombre || 'Cliente',
+                          email: cita.clientes?.email || '',
+                          telefono: cita.clientes?.telefono || '',
+                          ci: cita.clientes?.ci || '',
+                          servicio_id: cita.servicio_id || '',
+                          barbero_id: cita.barbero_id || '',
+                          anticipo_monto: Number(cita.anticipo_monto || 0),
+                        }))
+                        setSearchCliente(cita.clientes?.nombre || 'Cliente')
+                        setSearchCi(cita.clientes?.ci || '')
+                        if (cita.cliente_id && cita.clientes) {
+                          fetchClientExtras(cita.cliente_id, {
+                             id: cita.cliente_id, 
+                             nombre: cita.clientes.nombre,
+                             email: cita.clientes.email,
+                             telefono: cita.clientes.telefono,
+                             ci: cita.clientes.ci,
+                             nivel_fidelidad: cita.clientes.nivel_fidelidad,
+                             total_visitas: cita.clientes.total_visitas,
+                             total_gastado: cita.clientes.total_gastado,
+                             codigo_tarjeta: cita.clientes.codigo_tarjeta
+                          })
+                        }
+                        
+                        if (cita.fecha_hora) {
+                          const d = new Date(cita.fecha_hora)
+                          const pad = (n: number) => n.toString().padStart(2, '0')
+                          setReservaFecha(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`)
+                          setReservaHora(`${pad(d.getHours())}:${pad(d.getMinutes())}`)
+                          setModoReserva(true)
+                        }
+                        
+                        toastSuccess(`Cita de ${cita.clientes?.nombre || 'cliente'} cargada en el formulario`)
+                        setCitaSeleccionadaFechaHora(cita.fecha_hora || null)
+                      }}
+                    >
+                      <div className="flex justify-between items-start mb-1.5 pr-6">
+                        <p className="font-bold text-white truncate text-xs">{cita.clientes?.nombre || 'Sin nombre'}</p>
+                        <Badge variant={cita.estado === 'en_proceso' ? 'info' : 'warning'} className="text-[9px] uppercase px-1.5 py-0.2">{cita.estado.replace('_', ' ')}</Badge>
+                      </div>
+                      <p className="text-xs text-amber-400 font-semibold truncate mb-1">{cita.servicios?.nombre || 'Servicio Barbería'}</p>
+                      <div className="flex items-center justify-between text-[10px] text-zinc-400 mt-2 pt-1.5 border-t border-zinc-800">
+                        <span className="truncate">{cita.profiles?.full_name || 'Barbero'}</span>
+                        <span className="font-mono text-zinc-300">
+                          {cita.fecha_hora ? new Date(cita.fecha_hora).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : ''}
+                        </span>
+                      </div>
+                    </button>
+                    <button 
+                      onClick={(e) => handleMarcarNoAsistio(cita.id, e)}
+                      className="absolute top-2 right-2 p-1 text-zinc-500 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
+                      title="Marcar como No Asistió / Cancelar"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 ))}
               </div>
               
@@ -1092,14 +1098,14 @@ export function CajaPOS() {
                 <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
                   <Edit3 className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
                   <div className="flex-1">
-                    <p className="text-amber-400 font-black text-xs uppercase tracking-widest">✏️ Editando Cita Seleccionada</p>
+                    <p className="text-amber-400 font-black text-xs uppercase tracking-widest">✏️ Cita Cargada en Formulario</p>
                     {citaSeleccionadaFechaHora && (
                       <p className="text-amber-300/60 text-[10px] mt-0.5 font-mono">
-                        📅 Original: {new Date(citaSeleccionadaFechaHora).toLocaleDateString('es-BO', { weekday: 'short', day: '2-digit', month: 'short' })} · {new Date(citaSeleccionadaFechaHora).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
+                        📅 Cita Original: {new Date(citaSeleccionadaFechaHora).toLocaleDateString('es-BO', { weekday: 'short', day: '2-digit', month: 'short' })} · {new Date(citaSeleccionadaFechaHora).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     )}
                     <p className="text-amber-200/70 text-[11px] mt-1">
-                      Puedes <strong>cambiar el servicio</strong>, <strong>agregar productos</strong>, <strong>reprogramar fecha/hora</strong> (activar &quot;Programar Cita&quot; abajo) y <strong>modificar el método de pago</strong> antes de cobrar.
+                      Puedes modificar el servicio, agregar productos al carrito y cobrar directamente.
                     </p>
                   </div>
                   <button onClick={() => {
@@ -1118,61 +1124,12 @@ export function CajaPOS() {
                 </div>
               )}
             </div>
-          )}
-
-          {/* RESUMEN RÁPIDO DE ÚLTIMOS COBROS EN POS */}
-          {(ultimosMovimientos.length > 0 || ultimosServicios.length > 0) && (
-            <div className="p-4 bg-zinc-900/90 border border-zinc-800 rounded-2xl shadow-md">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-zinc-300 flex items-center gap-2">
-                  <div className="p-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                    <History className="w-3.5 h-3.5 text-emerald-500" />
-                  </div>
-                  Últimos Movimientos y Cobros Recientes
-                </h3>
-                <button
-                  onClick={() => setPosTab('movimientos')}
-                  className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 transition flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20"
-                >
-                  Ver historial completo ({ultimosMovimientos.length || ultimosServicios.length}) →
-                </button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
-                {(ultimosMovimientos.length > 0 ? ultimosMovimientos : ultimosServicios).slice(0, 3).map((item: any, idx: number) => {
-                  const isTx = item.libro !== undefined
-                  const nombreCliente = isTx ? (item.nombre || 'Cliente') : (item.clientes?.nombre || 'Cliente')
-                  const barberoNombre = isTx ? (item.usuario_registro || 'Barbero') : (item.profiles?.full_name || 'Barbero')
-                  const detalle = isTx ? (item.cuenta_detalle || item.glosa || item.libro) : (item.servicios?.nombre || 'Servicio Barbería')
-                  const monto = isTx ? Number(item.costo || 0) : Number(item.total ?? item.servicios?.precio ?? 0)
-                  const mp = (item.metodo_pago || 'efectivo').toLowerCase()
-                  const libro = isTx ? item.libro : 'SERVICIOS'
-
-                  return (
-                    <div key={item.id || idx} className="p-2.5 bg-black/40 border border-white/5 rounded-xl flex flex-col justify-between hover:border-emerald-500/30 transition">
-                      <div className="flex items-start justify-between gap-1 mb-1">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span className="text-[9px] px-1.5 py-0.2 rounded font-black uppercase tracking-wider bg-zinc-800 text-zinc-300">
-                              {libro}
-                            </span>
-                            <span className="text-xs font-bold text-white truncate">{nombreCliente}</span>
-                          </div>
-                          <p className="text-[11px] text-zinc-400 truncate">{detalle}</p>
-                        </div>
-                        <span className="text-xs font-black text-emerald-400 shrink-0">
-                          {formatCurrency(monto)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-zinc-500 mt-1 pt-1 border-t border-white/5">
-                        <span className="truncate">{barberoNombre}</span>
-                        <span className="font-bold text-zinc-400 uppercase">
-                          {mp === 'efectivo' ? '💵 Efectivo' : mp === 'qr' ? '📱 QR' : '🔄 Mixto'}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+          ) : (
+            <div className="p-3 bg-zinc-900/60 border border-zinc-800/80 rounded-xl flex items-center justify-between text-xs text-zinc-400">
+              <span className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-zinc-500" /> No hay citas ni reservas pendientes por cobrar en este momento.
+              </span>
+              <span className="text-[10px] text-zinc-500 font-mono">Caja lista para venta directa / cliente sin reserva</span>
             </div>
           )}
 
