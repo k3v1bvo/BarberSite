@@ -18,8 +18,9 @@ interface Cliente {
 
 interface Referral {
   id: string
-  fecha: string
+  fecha?: string
   bono_otorgado: boolean
+  bono_usado?: boolean
   monto_bono: number
   creado_en: string
   recomendante: Cliente | null
