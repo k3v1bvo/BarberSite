@@ -174,21 +174,23 @@ export default function CajaChicaPage() {
     if (txRes.ok) setTransactions(await txRes.json())
     if (ctasRes.ok) setCuentas(await ctasRes.json())
     
-    // Saldo anterior calibrado al cierre de Excel (18/07/2026): Efectivo = Bs 210,00 | Banco = Bs 642,54
-    let antEf = 210
-    let antQr = 642.54
-    if (desde && desde > '2026-07-18') {
+    // Saldo anterior calibrado exactamente al cierre de Excel (29/07/2026):
+    // SALDO EN FISICO (EFECTIVO) = Bs 64,50 | SALDO BANCO (DIARIO BANCO ACUMULADO) = Bs 1.088,29
+    let antEf = 64.50
+    let antQr = 1088.29
+
+    if (desde && desde > '2026-07-29') {
       const [antTxRes, antCitasRes] = await Promise.all([
         supabase
           .from('transactions')
           .select('costo, tipo_movimiento, metodo_pago, monto_efectivo, monto_qr, notas, libro, fecha')
-          .gt('fecha', '2026-07-18')
+          .gt('fecha', '2026-07-29')
           .lt('fecha', desde),
         supabase
           .from('citas')
           .select('precio, metodo_pago, anticipo_monto, fecha_hora')
           .eq('estado', 'completado')
-          .gt('fecha_hora', '2026-07-18T00:00:00')
+          .gt('fecha_hora', '2026-07-29T23:59:59')
           .lt('fecha_hora', `${desde}T00:00:00`)
       ])
 
@@ -231,7 +233,7 @@ export default function CajaChicaPage() {
         }
       })
 
-      // Sumar ingresos de citas completadas históricas que no estén en antTx
+      // Sumar ingresos de citas completadas posteriores al 29/07 que no estén en antTx
       antCitas.forEach(c => {
         const precioCita = Number(c.precio || 0)
         const anticipoQr = Number(c.anticipo_monto || 0)

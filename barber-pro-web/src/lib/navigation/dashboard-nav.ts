@@ -32,7 +32,8 @@ import {
   RefreshCw,
   Users2,
   UserCog,
-  PackageOpen
+  PackageOpen,
+  GraduationCap
 } from 'lucide-react'
 
 export interface NavItem {
@@ -103,6 +104,7 @@ export function getAdminNavSections(agendaHref: string): NavSection[] {
         { label: 'Reportes', href: '/admin/reportes', icon: BarChart3 },
         { label: 'Reseñas', href: '/admin/resenas', icon: MessageSquare, description: 'Moderación de testimonios' },
         { label: 'Configuración', href: '/admin/configuracion', icon: Settings, description: 'Ajustes globales' },
+        { label: 'Inducción Barbera', href: '/admin/induccion', icon: GraduationCap, description: 'Capacitación y metodología' },
         { label: 'Reglas Laborales', href: '/admin/reglas-laborales', icon: Sliders, description: 'Comisiones, sanciones y bonos' },
         { label: 'Galería', href: '/admin/galeria', icon: Images, description: 'Todas las imágenes del sistema' },
         { label: 'Buscar', href: '/admin/buscar', icon: Search },
@@ -150,6 +152,7 @@ export function getCoordinadorNavSections(agendaHref: string): NavSection[] {
         { label: 'Reportes', href: '/admin/reportes', icon: BarChart3, description: 'Análisis y datos' },
         { label: 'Reseñas', href: '/admin/resenas', icon: MessageSquare, description: 'Moderación de testimonios' },
         { label: 'Configuración', href: '/admin/configuracion', icon: Settings, description: 'Ajustes globales y QR' },
+        { label: 'Inducción Barbera', href: '/admin/induccion', icon: GraduationCap, description: 'Cursos y capacitaciones' },
         { label: 'Reglas Laborales', href: '/admin/reglas-laborales', icon: Sliders, description: 'Comisiones, sanciones y bonos' },
         { label: 'Galería del Sistema', href: '/admin/galeria', icon: Images, description: 'Imágenes subidas' },
         { label: 'Equipo Home', href: '/admin/equipo', icon: Users, description: 'Miembros web' },
@@ -169,6 +172,7 @@ export function flattenSections(sections: NavSection[]): NavItem[] {
 export const barberoNavItems = (agendaHref: string): NavItem[] => [
   { label: 'Mi panel', href: '/barbero', icon: LayoutDashboard },
   { label: 'Mi agenda', href: agendaHref, icon: Calendar },
+  { label: 'Capacitación', href: '/barbero/induccion', icon: GraduationCap },
   { label: 'Notificaciones', href: '/notificaciones', icon: Bell },
   { label: 'Mi Perfil', href: '/perfil', icon: UserCog },
 ]
