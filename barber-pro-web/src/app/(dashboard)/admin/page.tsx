@@ -21,6 +21,11 @@ import {
   Landmark,
   Scale,
   TrendingUp,
+  FileText,
+  Download,
+  Printer,
+  PieChart,
+  DollarSignIcon
 } from 'lucide-react'
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
 import { StatCard } from '@/components/admin/StatCard'
@@ -386,6 +391,185 @@ export default function AdminPage() {
     return variants[estado] || 'default'
   }
 
+  const handleExportCSV = () => {
+    const { start, end } = getDateRange(rangoSeleccionado, fechaInicioStr, fechaFinStr)
+    const ticketPromedio = stats.citasHoy > 0 ? (stats.ventasHoy / stats.citasHoy).toFixed(2) : '0.00'
+
+    let csvContent = '\uFEFF' // UTF-8 BOM for Excel
+    csvContent += `REPORTE EJECUTIVO DE ADMINISTRACIÓN - BARBER PRO\n`
+    csvContent += `Periodo:;${start} al ${end}\n`
+    csvContent += `Generado el:;${new Date().toLocaleString('es-BO')}\n\n`
+
+    csvContent += `--- RESUMEN DE INDICADORES (KPIs) ---\n`
+    csvContent += `Indicador;Valor\n`
+    csvContent += `Ventas del Período;Bs. ${stats.ventasHoy.toFixed(2)}\n`
+    csvContent += `Citas Completadas;${stats.citasHoy}\n`
+    csvContent += `Ticket Promedio por Cita;Bs. ${ticketPromedio}\n`
+    csvContent += `Clientes Registrados;${stats.clientesTotal}\n`
+    csvContent += `Saldo Caja Chica;Bs. ${summaryContable.caja_chica.toFixed(2)}\n`
+    csvContent += `Saldo Banco / QR;Bs. ${summaryContable.banco.toFixed(2)}\n`
+    csvContent += `Productos Stock Bajo;${stats.productosStockBajo}\n\n`
+
+    csvContent += `--- TOP BARBEROS DEL PERÍODO ---\n`
+    csvContent += `Barbero;Ventas Totales (Bs);Citas Atendidas\n`
+    topBarberos.forEach(b => {
+      csvContent += `"${b.nombre}";Bs. ${b.ventas.toFixed(2)};${b.citas}\n`
+    })
+    csvContent += `\n`
+
+    csvContent += `--- CITAS RECIENTES --- \n`
+    csvContent += `ID;Fecha/Hora;Cliente;Servicio;Barbero;Monto (Bs);Estado\n`
+    citasRecientes.forEach(c => {
+      const fecha = c.id ? (c as any).fecha_hora : ''
+      csvContent += `"${c.id}";"${fecha}";"${c.clientes?.nombre || 'Walk-in'}";"${c.servicios?.nombre || '—'}";"${c.barberos?.full_name || '—'}";${c.precio};"${c.estado}"\n`
+    })
+    csvContent += `\n`
+
+    csvContent += `--- ÚLTIMOS MOVIMIENTOS CONTABLES ---\n`
+    csvContent += `Libro;Fecha;Glosa;Nombre;Monto (Bs)\n`
+    recentTx.forEach(tx => {
+      csvContent += `"${tx.libro}";"${tx.creado_en}";"${tx.glosa}";"${tx.nombre}";${tx.costo}\n`
+    })
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `reporte_admin_barberpro_${start}_a_${end}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const handleExportPDF = () => {
+    const { start, end } = getDateRange(rangoSeleccionado, fechaInicioStr, fechaFinStr)
+    const ticketPromedio = stats.citasHoy > 0 ? (stats.ventasHoy / stats.citasHoy).toFixed(2) : '0.00'
+
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Reporte Ejecutivo - Barber Pro (${start} al ${end})</title>
+          <style>
+            body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 30px; color: #18181b; background: #fff; line-height: 1.5; }
+            .header { border-bottom: 3px solid #f59e0b; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .title { font-size: 24px; font-weight: 900; color: #000; text-transform: uppercase; margin: 0; }
+            .subtitle { font-size: 13px; color: #71717a; margin-top: 4px; font-weight: 600; }
+            .badge { background: #fef3c7; color: #b45309; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 12px; }
+            .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
+            .kpi { border: 1px solid #e4e4e7; border-radius: 12px; padding: 15px; background: #fafafa; }
+            .kpi-title { font-size: 10px; text-transform: uppercase; font-weight: 800; color: #71717a; letter-spacing: 0.05em; }
+            .kpi-value { font-size: 22px; font-weight: 900; color: #000; margin-top: 5px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 12px; }
+            th { background: #18181b; color: #fff; text-transform: uppercase; font-size: 10px; font-weight: 800; padding: 10px 12px; text-align: left; }
+            td { padding: 10px 12px; border-bottom: 1px solid #e4e4e7; }
+            tr:nth-child(even) { background: #fafafa; }
+            .section-title { font-size: 14px; font-weight: 800; text-transform: uppercase; margin-bottom: 12px; color: #18181b; border-left: 4px solid #f59e0b; padding-left: 8px; }
+            .footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #e4e4e7; text-align: center; font-size: 10px; color: #a1a1aa; font-weight: 600; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1 class="title">💈 BARBER PRO</h1>
+              <p class="subtitle">Informe Ejecutivo de Administración & Rendimiento Financiero</p>
+            </div>
+            <div>
+              <span class="badge">Período: ${start} al ${end}</span>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="kpi">
+              <div class="kpi-title">Ventas del Período</div>
+              <div class="kpi-value">Bs. ${stats.ventasHoy.toFixed(2)}</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Citas Atendidas</div>
+              <div class="kpi-value">${stats.citasHoy}</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Ticket Promedio</div>
+              <div class="kpi-value">Bs. ${ticketPromedio}</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Caja Chica Saldo</div>
+              <div class="kpi-value">Bs. ${summaryContable.caja_chica.toFixed(2)}</div>
+            </div>
+          </div>
+
+          <div class="section-title">Desglose de Libros Contables y Liquidez</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Libro / Concepto</th>
+                <th>Tipo de Saldo</th>
+                <th>Estado</th>
+                <th style="text-align: right">Monto Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Caja Chica (Efectivo Físico)</strong></td>
+                <td>Ingresos / Egresos en Efectivo</td>
+                <td>Disponible</td>
+                <td style="text-align: right"><strong>Bs. ${summaryContable.caja_chica.toFixed(2)}</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Ventas y Servicios</strong></td>
+                <td>Total Facturado en Período</td>
+                <td>Facturado</td>
+                <td style="text-align: right"><strong>Bs. ${summaryContable.ventas.toFixed(2)}</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Banco / Pagos QR</strong></td>
+                <td>Transferencias y QR Ganadero</td>
+                <td>Depositado</td>
+                <td style="text-align: right"><strong>Bs. ${summaryContable.banco.toFixed(2)}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="section-title">Top Barberos en Rendimiento</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Barbero / Profesional</th>
+                <th>Citas Completadas</th>
+                <th style="text-align: right">Total Recaudado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${topBarberos.map(b => `
+                <tr>
+                  <td><strong>${b.nombre}</strong></td>
+                  <td>${b.citas} citas</td>
+                  <td style="text-align: right"><strong>Bs. ${b.ventas.toFixed(2)}</strong></td>
+                </tr>
+              `).join('')}
+              ${topBarberos.length === 0 ? '<tr><td colspan="3">Sin datos registrados en el período</td></tr>' : ''}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            Generado automáticamente por Barber Pro Admin Suite · ${new Date().toLocaleString('es-BO')}
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
@@ -436,7 +620,27 @@ export default function AdminPage() {
               )}
             </div>
             
-            <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
+            <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end flex-wrap">
+              <Button 
+                variant="outline" 
+                size="md" 
+                onClick={handleExportCSV}
+                className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 font-bold text-xs"
+                title="Exportar archivo CSV para Excel"
+              >
+                <Download className="w-4 h-4 mr-1.5" />
+                CSV Excel
+              </Button>
+              <Button 
+                variant="outline" 
+                size="md" 
+                onClick={handleExportPDF}
+                className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 font-bold text-xs"
+                title="Generar e imprimir Reporte Ejecutivo PDF"
+              >
+                <Printer className="w-4 h-4 mr-1.5" />
+                PDF Ejecutivo
+              </Button>
               <Button variant="secondary" size="md" onClick={() => router.push('/admin/reportes')}>
                 <BarChart3 className="w-4 h-4 mr-2 hidden sm:block" />
                 Reportes
@@ -455,7 +659,7 @@ export default function AdminPage() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <StatCard
           label="Ventas del período"
           value={formatCurrency(stats.ventasHoy)}
@@ -470,6 +674,13 @@ export default function AdminPage() {
           icon={Calendar}
           delay={75}
           onClick={() => router.push('/agenda')}
+        />
+        <StatCard
+          label="Ticket Promedio"
+          value={formatCurrency(stats.citasHoy > 0 ? stats.ventasHoy / stats.citasHoy : 0)}
+          icon={TrendingUp}
+          delay={110}
+          onClick={() => router.push('/admin/reportes')}
         />
         <StatCard
           label="Clientes"
@@ -578,11 +789,17 @@ export default function AdminPage() {
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <LineChart data={ventasSemana}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
+                  <defs>
+                    <linearGradient id="amberGlow" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff08" />
                   <XAxis dataKey="fecha" stroke="#a1a1aa" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis hide domain={['auto', 'auto']} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#09090b', borderColor: '#ffffff10', borderRadius: '12px' }}
+                    contentStyle={{ backgroundColor: '#09090b', borderColor: '#ffffff15', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)' }}
                     itemStyle={{ color: '#f59e0b', fontWeight: 'bold' }}
                     formatter={(value: any) => formatCurrency(value)} 
                   />
@@ -590,9 +807,10 @@ export default function AdminPage() {
                     type="monotone" 
                     dataKey="total" 
                     stroke="#f59e0b" 
-                    strokeWidth={4}
+                    strokeWidth={3.5}
+                    fill="url(#amberGlow)"
                     dot={{ fill: '#f59e0b', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, stroke: '#000', strokeWidth: 2 }}
+                    activeDot={{ r: 7, stroke: '#000', strokeWidth: 3 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
