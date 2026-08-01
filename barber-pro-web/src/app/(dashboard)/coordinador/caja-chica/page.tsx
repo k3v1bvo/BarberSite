@@ -178,50 +178,76 @@ export default function CajaChicaPage() {
     let antEf = 210
     let antQr = 642.54
     if (desde && desde > '2026-07-18') {
-      const { data: antTx } = await supabase
-        .from('transactions')
-        .select('costo, tipo_movimiento, metodo_pago, monto_efectivo, monto_qr, notas, libro, fecha')
-        .gt('fecha', '2026-07-18')
-        .lt('fecha', desde)
-      if (antTx) {
-        antTx.forEach(tx => {
-          const ing = tx.tipo_movimiento === 'INGRESO'
-          const mpLower = String(tx.metodo_pago || 'efectivo').toLowerCase()
-          const libroTx = String(tx.libro || '').toUpperCase()
-          let ef = 0
-          let qr = 0
-          if (mpLower === 'efectivo') {
-            ef = Number(tx.costo || 0)
-          } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)) {
-            qr = Number(tx.costo || 0)
-          } else if (mpLower === 'mixto') {
-            if (tx.monto_efectivo !== undefined || tx.monto_qr !== undefined) {
-              ef = Number(tx.monto_efectivo || 0)
-              qr = Number(tx.monto_qr || 0)
-            } else {
-              const efMatch = String(tx.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
-              const qrMatch = String(tx.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
-              ef = efMatch ? parseFloat(efMatch[1]) : 0
-              qr = qrMatch ? parseFloat(qrMatch[1]) : Number(tx.costo || 0)
-            }
-          }
+      const [antTxRes, antCitasRes] = await Promise.all([
+        supabase
+          .from('transactions')
+          .select('costo, tipo_movimiento, metodo_pago, monto_efectivo, monto_qr, notas, libro, fecha')
+          .gt('fecha', '2026-07-18')
+          .lt('fecha', desde),
+        supabase
+          .from('citas')
+          .select('precio, metodo_pago, anticipo_monto, fecha_hora')
+          .eq('estado', 'completado')
+          .gt('fecha_hora', '2026-07-18T00:00:00')
+          .lt('fecha_hora', `${desde}T00:00:00`)
+      ])
 
-          if (ing) { antEf += ef } else { antEf -= ef }
+      const antTx = antTxRes.data || []
+      const antCitas = antCitasRes.data || []
 
-          const esCobroQrDeCaja = (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
-            && ['qr', 'tarjeta'].includes(mpLower)
-            && tx.tipo_movimiento === 'EGRESO'
-          if (esCobroQrDeCaja) {
-            antQr += qr
-          } else if (ing) {
-            antQr += qr
+      antTx.forEach(tx => {
+        const ing = tx.tipo_movimiento === 'INGRESO'
+        const mpLower = String(tx.metodo_pago || 'efectivo').toLowerCase()
+        const libroTx = String(tx.libro || '').toUpperCase()
+        let ef = 0
+        let qr = 0
+        if (mpLower === 'efectivo') {
+          ef = Number(tx.costo || 0)
+        } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)) {
+          qr = Number(tx.costo || 0)
+        } else if (mpLower === 'mixto') {
+          if (tx.monto_efectivo !== undefined || tx.monto_qr !== undefined) {
+            ef = Number(tx.monto_efectivo || 0)
+            qr = Number(tx.monto_qr || 0)
           } else {
-            antQr -= qr
+            const efMatch = String(tx.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
+            const qrMatch = String(tx.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
+            ef = efMatch ? parseFloat(efMatch[1]) : 0
+            qr = qrMatch ? parseFloat(qrMatch[1]) : Number(tx.costo || 0)
           }
-        })
-      }
+        }
+
+        if (ing) { antEf += ef } else { antEf -= ef }
+
+        const esCobroQrDeCaja = (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
+          && ['qr', 'tarjeta'].includes(mpLower)
+          && tx.tipo_movimiento === 'EGRESO'
+        if (esCobroQrDeCaja) {
+          antQr += qr
+        } else if (ing) {
+          antQr += qr
+        } else {
+          antQr -= qr
+        }
+      })
+
+      // Sumar ingresos de citas completadas históricas que no estén en antTx
+      antCitas.forEach(c => {
+        const precioCita = Number(c.precio || 0)
+        const anticipoQr = Number(c.anticipo_monto || 0)
+        const mp = String(c.metodo_pago || 'efectivo').toLowerCase()
+        const resto = Math.max(0, precioCita - anticipoQr)
+
+        let ef = 0
+        let qr = anticipoQr
+        if (mp === 'efectivo') ef += resto
+        else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mp)) qr += resto
+
+        antEf += ef
+        antQr += qr
+      })
     }
-    setSaldoAnterior({ ef: antEf, qr: antQr })
+    setSaldoAnterior({ ef: Math.max(0, antEf), qr: antQr })
 
     const { data: bList } = await supabase
       .from('profiles')

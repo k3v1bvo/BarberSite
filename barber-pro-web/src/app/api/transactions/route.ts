@@ -382,6 +382,67 @@ export async function PATCH(request: NextRequest) {
     const { id, comprobante_url } = body
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
+    if (id.startsWith('virtual-cita-')) {
+      const citaId = id.replace('virtual-cita-', '')
+      const { data: cita } = await supabase
+        .from('citas')
+        .select('notas, cliente_id, barbero_id, servicio_id, precio, fecha_hora, metodo_pago, anticipo_monto, clientes(nombre), servicios(nombre), profiles!barbero_id(full_name)')
+        .eq('id', citaId)
+        .single()
+
+      if (cita) {
+        let currentNotas = cita.notas || ''
+        if (!currentNotas.includes('[Comprobante]:')) {
+          currentNotas += `\n[Comprobante]: ${comprobante_url}`
+        } else {
+          currentNotas = currentNotas.replace(/\[Comprobante\]: .*/, `[Comprobante]: ${comprobante_url}`)
+        }
+        await supabase.from('citas').update({ notas: currentNotas }).eq('id', citaId)
+
+        const clienteNombre = (cita.clientes as any)?.nombre || 'Cliente'
+        const barberoNombre = (cita.profiles as any)?.full_name || 'Barbero'
+        const servicioNombre = (cita.servicios as any)?.nombre || 'Servicio'
+        const precioCita = Number(cita.precio || 0)
+        const anticipoQr = Number(cita.anticipo_monto || 0)
+        const mpRaw = String(cita.metodo_pago || 'qr').toLowerCase()
+        const resto = Math.max(0, precioCita - anticipoQr)
+
+        let realEf = 0
+        let realQr = anticipoQr
+        let realMetodo = mpRaw
+        if (mpRaw === 'efectivo') realEf = resto
+        else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpRaw)) realQr += resto
+
+        if (anticipoQr > 0 && realEf > 0) realMetodo = 'mixto'
+        else if (anticipoQr > 0 && realEf === 0) realMetodo = 'qr'
+
+        const { data: txNueva } = await supabase.from('transactions').insert({
+          libro: 'SERVICIOS',
+          fecha: cita.fecha_hora ? cita.fecha_hora.split('T')[0] : getTodayBolivia(),
+          ci: '0000000',
+          nombre: clienteNombre,
+          cuenta_codigo: 'ING-001',
+          cuenta_detalle: `Servicio: ${servicioNombre}`,
+          glosa: `Atendido por ${barberoNombre} — Cita #${citaId.slice(0, 6)}`,
+          costo: precioCita,
+          tipo_movimiento: 'INGRESO',
+          subcategoria: 'SERVICIO',
+          es_sancion: false,
+          empleado_id: cita.barbero_id,
+          cliente_id: cita.cliente_id,
+          cita_id: citaId,
+          metodo_pago: realMetodo,
+          monto_efectivo: realEf,
+          monto_qr: realQr,
+          comprobante_url: comprobante_url,
+          notas: anticipoQr > 0 ? `Anticipo QR: Bs ${anticipoQr} | Cobrado (${mpRaw}): Bs ${resto}` : null,
+          usuario_registro: profile?.role || 'Sistema',
+        }).select().single()
+
+        return NextResponse.json({ success: true, data: txNueva })
+      }
+    }
+
     const { data, error } = await supabase
       .from('transactions')
       .update({ comprobante_url })
