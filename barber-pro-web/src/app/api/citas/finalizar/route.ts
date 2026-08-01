@@ -93,23 +93,51 @@ export async function POST(request: Request) {
       .eq('id', cita.barbero_id)
       .single()
 
+    const anticipoQr = Number((cita as any).anticipo_monto || 0)
+    const precioCita = Number(cita.precio || 0)
+    const mpRaw = String(metodo_pago || 'efectivo').toLowerCase()
+
+    let realEf = 0
+    let realQr = anticipoQr
+    let realMetodo = mpRaw
+
+    const resto = Math.max(0, precioCita - anticipoQr)
+    if (mpRaw === 'efectivo') {
+      realEf = resto
+    } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpRaw)) {
+      realQr += resto
+    } else if (mpRaw === 'mixto') {
+      realEf = resto
+    }
+
+    if (anticipoQr > 0 && realEf > 0) {
+      realMetodo = 'mixto'
+    } else if (anticipoQr > 0 && realEf === 0) {
+      realMetodo = 'qr'
+    }
+
     await supabase
       .from('transactions')
       .insert({
         libro: 'SERVICIOS',
         fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
         ci: '0000000',
-        nombre: 'Cliente', // En caso ideal sacar de clienteActual, pero con "Cliente" basta si no está.
+        nombre: 'Cliente',
         cuenta_codigo: 'ING-001',
-        cuenta_detalle: 'Ingresos por Servicios',
-        glosa: `Pago por servicio ${(cita.servicios as any)?.nombre || ''} - Barbero: ${barberoProfile?.full_name || 'Desconocido'}`,
-        costo: cita.precio,
+        cuenta_detalle: `Servicio: ${(cita.servicios as any)?.nombre || ''}`,
+        glosa: `Atendido por ${barberoProfile?.full_name || 'Desconocido'} — Cita #${cita_id.substring(0, 6)}`,
+        costo: precioCita,
         tipo_movimiento: 'INGRESO',
         subcategoria: 'SERVICIO',
         es_sancion: false,
         empleado_id: cita.barbero_id,
-        metodo_pago: metodo_pago || 'efectivo',
-        usuario_registro: 'Sistema (Auto)',
+        cliente_id: cita.cliente_id,
+        cita_id: cita_id,
+        metodo_pago: realMetodo,
+        monto_efectivo: realEf,
+        monto_qr: realQr,
+        notas: anticipoQr > 0 ? `Anticipo QR: Bs ${anticipoQr} | Cobrado (${mpRaw}): Bs ${resto}` : null,
+        usuario_registro: barberoProfile?.full_name || 'Sistema (Auto)',
       })
 
     // Obtener info del cliente si no se sacó arriba
