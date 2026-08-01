@@ -249,7 +249,10 @@ export default function AdminConfiguracionPage() {
                   value={brandConfig.nombre}
                   onChange={(e) => setBrandConfig({ ...brandConfig, nombre: e.target.value })}
                 />
-                <p className="text-xs text-zinc-500 mt-1.5 ml-1">Se utilizará en el título de pestaña, panel administrativo, asuntos de correo y página pública.</p>
+                <p className="text-xs text-amber-400/90 font-medium mt-1.5 ml-1 flex items-center gap-1">
+                  <Sparkles size={12} className="text-amber-500 shrink-0" />
+                  Se utilizará automáticamente en todo el sistema: títulos de pestaña, cabecera web, facturas, tickets del POS y reportes PDF/CSV exportados.
+                </p>
               </div>
 
               <div className="md:col-span-2 space-y-2">

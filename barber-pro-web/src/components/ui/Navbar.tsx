@@ -12,6 +12,10 @@ import {
   Calendar,
   MoreHorizontal,
   Menu,
+  UserCog,
+  GraduationCap,
+  Wallet,
+  BarChart3,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -93,29 +97,45 @@ export function Navbar() {
 
   const mobileNavItems = (() => {
     if (!user) return []
-    if (user.role === 'cliente') return clienteNavItems
-    if (user.role === 'barbero') return barberoNavItems(agendaHref)
+    if (user.role === 'cliente') {
+      return [
+        { label: 'Reservar', href: '/reservar', icon: Scissors, isPrimary: true },
+        { label: 'Mis Citas', href: '/cliente', icon: Calendar },
+        { label: 'Tienda', href: '/tienda', icon: ShoppingBag },
+        { label: 'Perfil', href: '/perfil', icon: UserCog },
+        { label: 'Menú', href: '#menu', icon: Menu, isMenuTrigger: true },
+      ]
+    }
+    if (user.role === 'barbero') {
+      return [
+        { label: 'Inicio', href: '/barbero', icon: Home },
+        { label: 'Agenda', href: agendaHref, icon: Calendar },
+        { label: 'Cursos', href: '/barbero/induccion', icon: GraduationCap, isPrimary: true },
+        { label: 'Perfil', href: '/perfil', icon: UserCog },
+        { label: 'Menú', href: '#menu', icon: Menu, isMenuTrigger: true },
+      ]
+    }
     if (user.role === 'coordinador') {
       const all = flattenSections(getCoordinadorNavSections(agendaHref))
       const pick = (href: string) => all.find((i) => i.href === href)
       return [
-        pick('/coordinador'),
-        pick(agendaHref),
-        pick('/reservar'),
-        pick('/coordinador/arqueo'),
-        { label: 'Más', href: '/coordinador/caja-chica', icon: MoreHorizontal },
-      ].filter((x): x is NonNullable<typeof x> => Boolean(x))
+        pick('/coordinador') || { label: 'Panel', href: '/coordinador', icon: Home },
+        pick(agendaHref) || { label: 'Agenda', href: agendaHref, icon: Calendar },
+        { label: 'POS / Caja', href: '/coordinador/caja', icon: ShoppingBag, isPrimary: true },
+        pick('/coordinador/caja-chica') || { label: 'Caja Chica', href: '/coordinador/caja-chica', icon: Wallet },
+        { label: 'Menú', href: '#menu', icon: Menu, isMenuTrigger: true },
+      ]
     }
     if (user.role === 'admin') {
       const all = flattenSections(getAdminNavSections(agendaHref))
       const pick = (href: string) => all.find((i) => i.href === href)
       return [
-        pick('/admin'),
-        pick(agendaHref),
-        pick('/reservar'),
-        pick('/coordinador/arqueo'),
-        { label: 'Más', href: '/admin/buscar', icon: MoreHorizontal },
-      ].filter((x): x is NonNullable<typeof x> => Boolean(x))
+        pick('/admin') || { label: 'Panel', href: '/admin', icon: Home },
+        pick(agendaHref) || { label: 'Agenda', href: agendaHref, icon: Calendar },
+        { label: 'POS / Caja', href: '/admin/caja', icon: ShoppingBag, isPrimary: true },
+        pick('/admin/reportes') || { label: 'Reportes', href: '/admin/reportes', icon: BarChart3 },
+        { label: 'Menú', href: '#menu', icon: Menu, isMenuTrigger: true },
+      ]
     }
     return clienteNavItems
   })()
@@ -258,29 +278,72 @@ export function Navbar() {
       </header>
 
       {/* --- MOBILE BOTTOM NAV (UX Essential) --- */}
-      <nav className="lg:hidden fixed bottom-4 left-4 right-4 h-16 bg-zinc-900 border border-white/10 shadow-2xl rounded-2xl flex items-center justify-around z-50 backdrop-blur-lg">
+      <nav className="lg:hidden fixed bottom-3 left-3 right-3 h-16 bg-zinc-950/90 border border-white/10 shadow-2xl shadow-black/80 rounded-2xl flex items-center justify-around z-50 backdrop-blur-xl px-2">
         {user ? (
-          mobileNavItems.map((item) => (
-            <Link
-              key={item.href + item.label}
-              href={item.href}
-              className={cn(
-                'flex flex-col items-center justify-center min-w-[3rem] px-1 rounded-xl transition-all active:scale-90',
-                isNavItemActive(pathname, item.href) ? 'text-amber-500 font-black' : 'text-zinc-500'
-              )}
-            >
-              <item.icon size={20} className={cn(isNavItemActive(pathname, item.href) && 'glow-amber')} />
-              <span className="text-[9px] uppercase font-black mt-0.5 tracking-tighter truncate max-w-[4rem]">
-                {item.label}
-              </span>
-            </Link>
-          ))
+          mobileNavItems.map((item: any) => {
+            const isActive = !item.isMenuTrigger && isNavItemActive(pathname, item.href)
+            
+            if (item.isMenuTrigger) {
+              return (
+                <button
+                  key="menu-trigger"
+                  type="button"
+                  onClick={toggleMobile}
+                  className="flex flex-col items-center justify-center min-w-[3.2rem] py-1 px-1 rounded-xl transition-all active:scale-90 text-zinc-400 hover:text-amber-400"
+                >
+                  <item.icon size={20} />
+                  <span className="text-[9px] uppercase font-black mt-0.5 tracking-tighter truncate max-w-[4rem]">
+                    {item.label}
+                  </span>
+                </button>
+              )
+            }
+
+            if (item.isPrimary) {
+              return (
+                <Link
+                  key={item.href + item.label}
+                  href={item.href}
+                  className={cn(
+                    'flex flex-col items-center justify-center px-3 py-1.5 rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-500/25 border',
+                    isActive
+                      ? 'bg-amber-400 text-black border-amber-300 font-black scale-105'
+                      : 'bg-amber-500/90 text-black border-amber-400/50 font-bold hover:bg-amber-500'
+                  )}
+                >
+                  <item.icon size={18} className="stroke-[2.5]" />
+                  <span className="text-[9px] uppercase font-black tracking-tighter truncate max-w-[4.5rem]">
+                    {item.label}
+                  </span>
+                </Link>
+              )
+            }
+
+            return (
+              <Link
+                key={item.href + item.label}
+                href={item.href}
+                className={cn(
+                  'relative flex flex-col items-center justify-center min-w-[3.2rem] py-1 px-1 rounded-xl transition-all active:scale-90',
+                  isActive ? 'text-amber-500 font-black' : 'text-zinc-500 hover:text-zinc-300'
+                )}
+              >
+                {isActive && (
+                  <span className="absolute -top-2.5 w-6 h-1 bg-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+                )}
+                <item.icon size={20} className={cn(isActive && 'glow-amber')} />
+                <span className="text-[9px] uppercase font-black mt-0.5 tracking-tighter truncate max-w-[4rem]">
+                  {item.label}
+                </span>
+              </Link>
+            )
+          })
         ) : (
           <>
-            <Link href="/" className="flex flex-col items-center justify-center text-amber-500"><Home size={22} /><span className="text-[10px] uppercase font-black mt-1">Inicio</span></Link>
-            <Link href="/servicios" className="text-zinc-500 hover:text-amber-400"><Scissors size={22} /></Link>
-            <Link href="/tienda" className="text-zinc-500 hover:text-amber-400"><ShoppingBag size={22} /></Link>
-            <Link href="/login" className="text-zinc-500 hover:text-amber-400"><User size={22} /></Link>
+            <Link href="/" className="flex flex-col items-center justify-center text-amber-500"><Home size={20} /><span className="text-[9px] uppercase font-black mt-0.5">Inicio</span></Link>
+            <Link href="/servicios" className="flex flex-col items-center justify-center text-zinc-500 hover:text-amber-400"><Scissors size={20} /><span className="text-[9px] uppercase font-black mt-0.5">Servicios</span></Link>
+            <Link href="/tienda" className="flex flex-col items-center justify-center text-zinc-500 hover:text-amber-400"><ShoppingBag size={20} /><span className="text-[9px] uppercase font-black mt-0.5">Tienda</span></Link>
+            <Link href="/login" className="flex flex-col items-center justify-center text-zinc-500 hover:text-amber-400"><User size={20} /><span className="text-[9px] uppercase font-black mt-0.5">Ingresar</span></Link>
           </>
         )}
       </nav>

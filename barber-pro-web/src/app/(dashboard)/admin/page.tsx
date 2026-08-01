@@ -32,6 +32,7 @@ import { StatCard } from '@/components/admin/StatCard'
 import { AdminQuickActions } from '@/components/admin/AdminQuickActions'
 import { AdminAlertsPanel } from '@/components/admin/AdminAlertsPanel'
 import { AdminAsistenciaSummary } from '@/components/admin/AdminAsistenciaSummary'
+import { useBrand } from '@/components/providers/BrandProvider'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts'
@@ -119,6 +120,7 @@ interface Cita {
 }
 
 export default function AdminPage() {
+  const { brand } = useBrand()
   const [stats, setStats] = useState<Stats>({
     ventasHoy: 0,
     citasHoy: 0,
@@ -396,7 +398,7 @@ export default function AdminPage() {
     const ticketPromedio = stats.citasHoy > 0 ? (stats.ventasHoy / stats.citasHoy).toFixed(2) : '0.00'
 
     let csvContent = '\uFEFF' // UTF-8 BOM for Excel
-    csvContent += `REPORTE EJECUTIVO DE ADMINISTRACIÓN - BARBER PRO\n`
+    csvContent += `REPORTE EJECUTIVO DE ADMINISTRACIÓN - ${(brand.nombre || 'BarberSite').toUpperCase()}\n`
     csvContent += `Periodo:;${start} al ${end}\n`
     csvContent += `Generado el:;${new Date().toLocaleString('es-BO')}\n\n`
 
@@ -475,7 +477,7 @@ export default function AdminPage() {
         <body>
           <div class="header">
             <div>
-              <h1 class="title">💈 BARBER PRO</h1>
+              <h1 class="title">💈 ${(brand.nombre || 'BarberSite').toUpperCase()}</h1>
               <p class="subtitle">Informe Ejecutivo de Administración & Rendimiento Financiero</p>
             </div>
             <div>

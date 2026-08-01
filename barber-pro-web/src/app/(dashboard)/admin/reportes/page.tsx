@@ -28,11 +28,13 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar, Legend, AreaChart, Area, ComposedChart
 } from 'recharts'
+import { useBrand } from '@/components/providers/BrandProvider'
 
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899']
 const GOLD_GRADIENT = ['#fbbf24', '#f59e0b', '#d97706']
 
 export default function ReportesPage() {
+  const { brand } = useBrand()
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'general' | 'finanzas' | 'rendimiento' | 'clientes' | 'inventario'>('general')
   const hoyStrInicial = getTodayBolivia()
@@ -412,7 +414,7 @@ export default function ReportesPage() {
 
   const exportarCSV = () => {
     let csvContent = '\uFEFF' // UTF-8 BOM for Excel
-    csvContent += `REPORTE COMPLETO DE GESTIÓN Y FINANZAS - BARBER PRO\n`
+    csvContent += `REPORTE COMPLETO DE GESTIÓN Y FINANZAS - ${(brand.nombre || 'BarberSite').toUpperCase()}\n`
     csvContent += `Periodo:;${fechaInicio} al ${fechaFin}\n`
     csvContent += `Generado el:;${new Date().toLocaleString('es-BO')}\n\n`
 
@@ -493,7 +495,7 @@ export default function ReportesPage() {
         <body>
           <div class="header">
             <div>
-              <h1 class="title">💈 BARBER PRO</h1>
+              <h1 class="title">💈 ${(brand.nombre || 'BarberSite').toUpperCase()}</h1>
               <p class="subtitle">Reporte General de Operaciones, Rendimiento & Finanzas</p>
             </div>
             <div>
