@@ -50,7 +50,7 @@ const EMPTY_FORM = {
   profile_id: null as string | null,
 }
 
-type FilterType = 'todos' | 'activos'
+type TabFilter = 'todos' | 'visibles' | 'ocultos'
 
 export default function AdminEquipoPage() {
   const { error: toastError, success: toastSuccess } = useToast()
@@ -61,17 +61,16 @@ export default function AdminEquipoPage() {
   const [editing, setEditing] = useState<EquipoMember | null>(null)
   const [formData, setFormData] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
-  const [filter, setFilter] = useState<FilterType>('activos')
+  
+  // UI Filters
+  const [activeTab, setActiveTab] = useState<TabFilter>('todos')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
     loadData()
-  }, [filter])
-
-  useEffect(() => {
-    loadBarberos()
   }, [])
 
   const loadBarberos = async () => {
@@ -89,17 +88,13 @@ export default function AdminEquipoPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return router.push('/login')
 
-      let query = supabase
+      // Cargar TODOS los miembros guardados
+      const { data: equipoData, error } = await supabase
         .from('equipo_home')
         .select('*')
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: false })
 
-      if (filter === 'activos') {
-        query = query.eq('is_active', true)
-      }
-
-      const { data: equipoData, error } = await query
       if (error) throw error
 
       const { data: barberosData } = await supabase
@@ -120,14 +115,15 @@ export default function AdminEquipoPage() {
         })
       }
 
-      if (filter === 'todos' && barberosData) {
+      // Incluir también los barberos del sistema aún no configurados en equipo_home
+      if (barberosData) {
         barberosData.forEach((b: any) => {
           if (!foundProfileIds.has(b.id) && b.role === 'barbero') {
              processed.push({
                id: 'virtual_' + b.id,
                nombre: b.full_name || 'Barbero',
                especialidad: 'Especialista',
-               descripcion: 'Pendiente de configurar',
+               descripcion: 'Pendiente de configurar en el home',
                imagen_url: b.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(b.full_name || 'B')}&background=f59e0b&color=000&size=256`,
                redes_sociales: {},
                sort_order: 999,
@@ -267,6 +263,25 @@ export default function AdminEquipoPage() {
     return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
   }
 
+  // Filtradoy búsqueda en el cliente
+  const filteredMembers = members.filter(member => {
+    // 1. Filtro por tab
+    if (activeTab === 'visibles' && !member.is_active) return false
+    if (activeTab === 'ocultos' && member.is_active) return false
+
+    // 2. Búsqueda por texto
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      const matchNombre = member.nombre.toLowerCase().includes(q)
+      const matchEspecialidad = member.especialidad.toLowerCase().includes(q)
+      return matchNombre || matchEspecialidad
+    }
+    return true
+  })
+
+  const countVisibles = members.filter(m => m.is_active).length
+  const countOcultos = members.filter(m => !m.is_active).length
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-96">
@@ -277,141 +292,198 @@ export default function AdminEquipoPage() {
   }
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-500 pb-20 lg:pb-0">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/5 pb-8">
-        <div className="flex items-center gap-6">
-          <button onClick={() => router.push('/admin')} className="p-4 hover:bg-white/5 border border-white/5 bg-zinc-950 rounded-2xl transition-all btn-press group">
-            <ArrowLeft className="w-5 h-5 text-zinc-500 group-hover:text-amber-500" />
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20 lg:pb-0">
+      {/* Header & Title */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/5 pb-6">
+        <div className="flex items-center gap-4">
+          <button onClick={() => router.push('/admin')} className="p-3.5 hover:bg-white/5 border border-white/10 bg-zinc-950 rounded-2xl transition-all group">
+            <ArrowLeft className="w-5 h-5 text-zinc-400 group-hover:text-amber-500" />
           </button>
           <div>
-            <h1 className="text-4xl font-black tracking-tight text-white uppercase leading-none">
-              Nuestro <span className="text-amber-500">Equipo</span>
+            <h1 className="text-3xl font-black tracking-tight text-white uppercase leading-none">
+              Gestión del <span className="text-amber-500">Equipo</span>
             </h1>
-            <p className="text-zinc-500 font-medium mt-2 text-lg">Gestiona los barberos que aparecen en el Home</p>
+            <p className="text-zinc-400 text-xs font-medium mt-1">Configura los barberos visibles en la web pública de BarberSite</p>
           </div>
         </div>
-        <div className="flex flex-col md:flex-row gap-4">
-          <select 
-            value={filter} 
-            onChange={(e) => setFilter(e.target.value as FilterType)}
-            className="h-14 bg-zinc-900 border border-white/10 rounded-2xl px-4 text-white font-bold uppercase text-xs"
+
+        <Button variant="primary" size="lg" className="shadow-lg shadow-amber-500/20 font-black uppercase tracking-widest px-6 h-12" onClick={openCreate}>
+          <Plus className="w-5 h-5 mr-2 stroke-[3px]" />
+          Nuevo Miembro
+        </Button>
+      </div>
+
+      {/* Tabs & Search Bar */}
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-zinc-900/60 p-3 rounded-2xl border border-white/5">
+        {/* Horizontal Pill Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+          <button
+            onClick={() => setActiveTab('todos')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
+              activeTab === 'todos'
+                ? 'bg-amber-500 text-black shadow-lg font-black'
+                : 'bg-zinc-800/60 text-zinc-400 hover:text-white hover:bg-zinc-800'
+            }`}
           >
-            <option value="activos">Solo Visibles</option>
-            <option value="todos">Todos (Visibles + Ocultos)</option>
-          </select>
-          <Button variant="primary" size="lg" className="shadow-lg shadow-amber-500/20 font-black uppercase tracking-widest h-14 px-8" onClick={openCreate}>
-            <Plus className="w-5 h-5 mr-2 stroke-[3px]" />
-            Nuevo Miembro
-          </Button>
+            👥 Todos ({members.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('visibles')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
+              activeTab === 'visibles'
+                ? 'bg-emerald-500 text-black shadow-lg font-black'
+                : 'bg-zinc-800/60 text-zinc-400 hover:text-white hover:bg-zinc-800'
+            }`}
+          >
+            👁️ Visibles en Web ({countVisibles})
+          </button>
+          <button
+            onClick={() => setActiveTab('ocultos')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
+              activeTab === 'ocultos'
+                ? 'bg-zinc-700 text-white shadow-lg font-black'
+                : 'bg-zinc-800/60 text-zinc-400 hover:text-white hover:bg-zinc-800'
+            }`}
+          >
+            👁️‍🗨️ Ocultos / Pendientes ({countOcultos})
+          </button>
+        </div>
+
+        {/* Buscador */}
+        <div className="relative w-full sm:w-64">
+          <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Input
+            placeholder="Buscar por nombre..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="pl-9 h-10 bg-zinc-950 border-white/10 text-xs text-white"
+          />
         </div>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {members.map(member => {
-          const linkedBarbero = getLinkedBarbero(member)
-          return (
-            <Card key={member.id} className={cn(
-              'group relative overflow-hidden bg-zinc-900 border-white/5 shadow-2xl transition-all card-hover rounded-3xl',
-              (!member.is_active) && 'opacity-50'
-            )}>
-              <div className="aspect-square bg-zinc-800 relative overflow-hidden">
-                <img
-                  src={member.imagen_url}
-                  loading="lazy"
-                  onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80' }}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  alt={member.nombre}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-60"></div>
+      {/* Grid de Miembros */}
+      {filteredMembers.length === 0 ? (
+        <div className="bg-zinc-900/40 border border-dashed border-white/10 rounded-3xl p-12 text-center">
+          <Users className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+          <p className="text-zinc-400 font-bold">No se encontraron miembros</p>
+          <p className="text-xs text-zinc-500 mt-1">Intenta cambiando de pestaña o limpia el buscador.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredMembers.map(member => {
+            const linkedBarbero = getLinkedBarbero(member)
+            return (
+              <Card key={member.id} className={cn(
+                'group relative overflow-hidden bg-zinc-900 border transition-all duration-300 rounded-3xl shadow-xl hover:border-amber-500/40',
+                member.is_active ? 'border-amber-500/20' : 'border-white/5 opacity-80'
+              )}>
+                <div className="aspect-square bg-zinc-950 relative overflow-hidden">
+                  <img
+                    src={member.imagen_url}
+                    loading="lazy"
+                    onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80' }}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    alt={member.nombre}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-80" />
 
-                <Badge variant="warning" className="absolute top-4 left-4 bg-amber-500 text-black border-none uppercase font-black text-[10px] tracking-widest px-3 py-1 shadow-xl">
-                  {member.especialidad}
-                </Badge>
+                  {/* Especialidad Badge */}
+                  <Badge variant="warning" className="absolute top-4 left-4 bg-amber-500 text-black border-none uppercase font-black text-[10px] tracking-widest px-3 py-1 shadow-xl">
+                    {member.especialidad}
+                  </Badge>
 
-                {/* Linked profile badge */}
-                {linkedBarbero && (
-                  <div className="absolute bottom-4 left-4 flex items-center gap-1.5 bg-emerald-500/20 backdrop-blur-sm border border-emerald-500/30 rounded-full px-2.5 py-1">
-                    <Link size={10} className="text-emerald-400 shrink-0" />
-                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-300 truncate max-w-[100px]">
-                      {linkedBarbero.full_name || linkedBarbero.email}
+                  {/* Estado de Visibilidad Badge */}
+                  <div className="absolute top-4 right-4">
+                    {member.is_active ? (
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-black px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1">
+                        👁️ Visible
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-zinc-800 text-zinc-400 border border-white/10 px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1">
+                        {member.is_configured === false ? '⏳ Pendiente' : '👁️‍🗨️ Oculto'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Linked Profile Badge */}
+                  {linkedBarbero && (
+                    <div className="absolute bottom-4 left-4 flex items-center gap-1.5 bg-black/80 backdrop-blur-md border border-emerald-500/40 rounded-full px-3 py-1">
+                      <Link size={11} className="text-emerald-400 shrink-0" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300 truncate max-w-[120px]">
+                        {linkedBarbero.full_name || linkedBarbero.email}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <CardContent className="p-5 space-y-4">
+                  <div>
+                    <h3 className="text-lg font-black text-white uppercase tracking-tight line-clamp-1">{member.nombre}</h3>
+                    {member.descripcion && (
+                      <p className="text-xs text-zinc-400 mt-1 line-clamp-2 italic font-normal">"{member.descripcion}"</p>
+                    )}
+                  </div>
+
+                  {/* Acciones principales rápidas */}
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5">
+                    <button
+                      onClick={() => toggleActive(member)}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold transition border flex items-center justify-center gap-1 ${
+                        member.is_active
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                          : 'bg-zinc-800/80 text-zinc-300 border-white/10 hover:bg-zinc-700'
+                      }`}
+                      title={member.is_active ? 'Ocultar del Home' : 'Mostrar en Web'}
+                    >
+                      {member.is_active ? <EyeOff size={14} /> : <Eye size={14} />}
+                      <span className="text-[10px] uppercase font-black">{member.is_active ? 'Ocultar' : 'Mostrar'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => openEdit(member)}
+                      className="py-2 px-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/30 transition flex items-center justify-center gap-1"
+                    >
+                      <Edit size={14} />
+                      <span className="text-[10px] uppercase font-black">Editar</span>
+                    </button>
+
+                    {member.is_configured !== false ? (
+                      <button
+                        onClick={() => deleteMember(member.id)}
+                        className="py-2 px-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold border border-red-500/30 transition flex items-center justify-center gap-1"
+                      >
+                        <Trash2 size={14} />
+                        <span className="text-[10px] uppercase font-black">Borrar</span>
+                      </button>
+                    ) : (
+                      <button
+                        disabled
+                        className="py-2 px-2 rounded-xl bg-zinc-800/40 text-zinc-600 text-xs font-bold border border-white/5 flex items-center justify-center gap-1 cursor-not-allowed"
+                      >
+                        <span className="text-[10px] uppercase font-bold">Nuevo</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push('/admin/horarios')}
+                      className="text-[10px] font-black uppercase text-amber-400 border-amber-500/20 bg-amber-500/5 hover:bg-amber-500 hover:text-black transition-all"
+                    >
+                      🕒 Horario de Trabajo
+                    </Button>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                      Orden: #{member.sort_order}
                     </span>
                   </div>
-                )}
-
-                {!member.is_active ? (
-                  <Badge variant="outline" className="absolute top-4 right-4 bg-zinc-500/20 text-zinc-300 border-zinc-500/30 uppercase font-black text-[10px] tracking-widest px-3 py-1">
-                    {member.is_configured === false ? 'Pendiente' : 'Oculto'}
-                  </Badge>
-                ) : null}
-
-                {/* Hover actions */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-sm gap-3">
-                    <>
-                      <button
-                        onClick={() => openEdit(member)}
-                        className="w-12 h-12 rounded-full bg-amber-500 text-black flex items-center justify-center shadow-2xl hover:bg-amber-400 transition-colors"
-                        title="Editar"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => toggleActive(member)}
-                        className="w-12 h-12 rounded-full bg-zinc-800 text-white flex items-center justify-center shadow-2xl hover:bg-zinc-700 transition-colors"
-                        title={member.is_active ? 'Ocultar' : 'Mostrar'}
-                      >
-                        {member.is_active ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                      {member.is_configured !== false && (
-                        <button
-                          onClick={() => deleteMember(member.id)}
-                          className="w-12 h-12 rounded-full bg-red-500 text-white flex items-center justify-center shadow-2xl hover:bg-red-600 transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      )}
-                    </>
-                </div>
-              </div>
-
-              <CardContent className="p-6">
-                <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1">{member.nombre}</h3>
-                {member.descripcion && (
-                  <p className="text-sm text-zinc-400 mb-3 line-clamp-2 italic">"{member.descripcion}"</p>
-                )}
-                <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                  <div className="flex gap-2">
-                    {member.redes_sociales?.instagram && (
-                      <a href={member.redes_sociales.instagram} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-amber-400 transition-colors">
-                        <Instagram size={16} />
-                      </a>
-                    )}
-                    {member.redes_sociales?.web && (
-                      <a href={member.redes_sociales.web} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-amber-400 transition-colors">
-                        <Globe size={16} />
-                      </a>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 text-zinc-600">
-                    <GripVertical size={14} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Orden: {member.sort_order}</span>
-                  </div>
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-white/5">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push('/admin/horarios')}
-                    className="w-full text-xs font-bold text-amber-400 border-amber-500/20 bg-amber-500/5 hover:bg-amber-500 hover:text-black transition-all"
-                  >
-                    🕒 Horario de Trabajo
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
           )
         })}
       </div>

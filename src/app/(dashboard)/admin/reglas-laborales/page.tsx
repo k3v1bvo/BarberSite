@@ -107,7 +107,7 @@ export default function ReglasLaboralesPage() {
   const [savingAsistencia, setSavingAsistencia] = useState(false)
 
   // ─── Ubicación del negocio (geolocalización) ──────────────────────────
-  const [ubicacionConfig, setUbicacionConfig] = useState({ lat: 0, lng: 0, radio_metros: 200, activa: false })
+  const [ubicacionConfig, setUbicacionConfig] = useState({ lat: -17.3933658, lng: -66.1521047, radio_metros: 200, activa: false })
   const [savingUbicacion, setSavingUbicacion] = useState(false)
   const [geoLoading, setGeoLoading] = useState(false)
 
@@ -1174,9 +1174,15 @@ export default function ReglasLaboralesPage() {
                 <button
                   type="button"
                   onClick={() => setAsistenciaConfig(p => ({ ...p, requiere_foto: !p.requiere_foto }))}
-                  className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${asistenciaConfig.requiere_foto ? 'bg-amber-500' : 'bg-zinc-700'}`}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    asistenciaConfig.requiere_foto ? 'bg-amber-500' : 'bg-zinc-700'
+                  }`}
                 >
-                  <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${asistenciaConfig.requiere_foto ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      asistenciaConfig.requiere_foto ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
                 </button>
               </div>
 
@@ -1203,10 +1209,17 @@ export default function ReglasLaboralesPage() {
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setUbicacionConfig(p => ({ ...p, activa: !p.activa }))}
-                  className={`relative w-12 h-7 rounded-full transition-colors ${ubicacionConfig.activa ? 'bg-green-500' : 'bg-zinc-700'}`}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    ubicacionConfig.activa ? 'bg-green-500' : 'bg-zinc-700'
+                  }`}
                 >
-                  <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${ubicacionConfig.activa ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      ubicacionConfig.activa ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
                 </button>
               </div>
 
@@ -1221,18 +1234,18 @@ export default function ReglasLaboralesPage() {
                         value={ubicacionConfig.lat || ''}
                         onChange={e => setUbicacionConfig(p => ({ ...p, lat: Number(e.target.value) }))}
                         className="w-full h-10 bg-zinc-950 border border-white/10 rounded-lg px-3 text-green-400 font-mono text-sm outline-none focus:border-green-500/50"
-                        placeholder="-17.3935"
+                        placeholder="-17.3933658"
                       />
                     </div>
                     <div>
                       <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Longitud</label>
                       <input
                         type="number"
-                        step="0.000001"
+                        step="0.0000001"
                         value={ubicacionConfig.lng || ''}
                         onChange={e => setUbicacionConfig(p => ({ ...p, lng: Number(e.target.value) }))}
                         className="w-full h-10 bg-zinc-950 border border-white/10 rounded-lg px-3 text-green-400 font-mono text-sm outline-none focus:border-green-500/50"
-                        placeholder="-66.1570"
+                        placeholder="-66.1521047"
                       />
                     </div>
                   </div>
