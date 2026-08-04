@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, toSentenceCase, toTitleCase } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -18,150 +18,208 @@ import {
   LayoutDashboard,
   Loader2,
   ShoppingBag,
-  Instagram,
-  Globe,
+  Camera,
   Users,
-  Camera
+  Package,
+  Instagram,
+  Globe
 } from 'lucide-react'
 import { SocialLinks } from '@/components/ui/SocialLinks'
-import { useSocialLinks } from '@/components/ui/useSocialLinks'
 import { WhatsappFloat } from '@/components/ui/WhatsappFloat'
-import { GalleryCarousel } from '@/components/ui/GalleryCarousel'
+import { useSocialLinks } from '@/components/ui/useSocialLinks'
+import { CATEGORIAS_SERVICIOS } from '@/types'
+import { ServicioGalleryBanner } from '@/components/ui/ServicioGalleryBanner'
+import { ServicioDetailModal } from '@/components/ui/ServicioDetailModal'
+import { useBrand } from '@/components/providers/BrandProvider'
 
 interface UserProfile {
-  full_name: string
+  id?: string
   email: string
+  full_name: string | null
   role: string
-  avatar_url?: string
+  avatar_url?: string | null
 }
 
 interface Servicio {
   id: string
   nombre: string
-  descripcion: string
   precio: number
   duracion_minutos: number
+  descripcion: string | null
+  categoria?: string
+  imagen_url?: string | null
+  imagenes?: string[] | null
 }
 
 interface Producto {
   id: string
   nombre: string
   precio_venta: number
+  stock_actual?: number
   image_url: string | null
+  imagenes?: string[] | null
 }
 
 interface PortafolioItem {
   id: string
-  image_url: string
-  categoria: string
-  descripcion: string
-  titulo?: string | null
+  image_url?: string
+  imagen_url?: string
+  categoria?: string
+  descripcion?: string | null
+  titulo?: string
+  tipo?: string
 }
 
-interface EquipoMember {
+interface EquipoHome {
   id: string
-  nombre: string
-  especialidad: string
-  descripcion: string | null
-  imagen_url: string
-  redes_sociales: {
-    instagram?: string
-    facebook?: string
-    tiktok?: string
-    web?: string
-  }
+  nombre?: string
+  full_name?: string
+  especialidad?: string
+  imagen_url?: string
+  avatar_url?: string | null
+  descripcion?: string
+  redes_sociales?: any
+  role?: string
 }
 
 export default function HomePage() {
+  const { brand } = useBrand()
   const [user, setUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [servicios, setServicios] = useState<Servicio[]>([])
+  const [selectedServicioForDetail, setSelectedServicioForDetail] = useState<Servicio | null>(null)
   const [productos, setProductos] = useState<Producto[]>([])
   const [portafolio, setPortafolio] = useState<PortafolioItem[]>([])
-  const [equipo, setEquipo] = useState<EquipoMember[]>([])
+  const [equipo, setEquipo] = useState<EquipoHome[]>([])
+  const [testimonios, setTestimonios] = useState<any[]>([])
+  const defaultAboutUs = {
+    imagen_url: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800",
+    titulo: "La Mejor Barbería\nde la Ciudad",
+    texto: "En BarberSite, combinamos técnicas tradicionales con las últimas tendencias para ofrecerte una experiencia única. Nuestro compromiso es con la excelencia en cada detalle, desde el momento en que entras hasta que sales luciendo tu mejor versión.",
+    anios_experiencia: "10+",
+    metricas: [
+      { numero: '5000+', texto: 'Clientes Satisfechos' },
+      { numero: '15+', texto: 'Barberos Expertos' },
+      { numero: '4.9', texto: 'Rating Promedio' },
+      { numero: '100%', texto: 'Garantía' }
+    ]
+  }
+
+  const defaultHero = {
+    url: "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1920",
+    titulo: "ESTILO CLÁSICO\nMODERNO",
+    subtitulo: "Donde la tradición barbera se encuentra con la innovación.\nExperimenta el arte del cuidado masculino en su máxima expresión."
+  }
+
+  const [heroConfigState, setHeroConfigState] = useState(defaultHero)
+  const [aboutUsConfig, setAboutUsConfig] = useState(defaultAboutUs)
+  const [carouselIndex, setCarouselIndex] = useState(0)
+  const [categoriaActiva, setCategoriaActiva] = useState<string>('todos')
   const router = useRouter()
   const supabase = createClient()
   const socialLinks = useSocialLinks()
-  const contactPhone = process.env.NEXT_PUBLIC_CONTACT_PHONE || '59171234567'
+  const contactPhone = process.env.NEXT_PUBLIC_CONTACT_PHONE || '59178353814'
 
   useEffect(() => {
     const checkUserAndData = async () => {
-      // 1. Verificar usuario
-      const { data: { user: authUser } } = await supabase.auth.getUser()
+      try {
+        const [
+          authRes,
+          serviciosRes,
+          prodsRes,
+          portafolioRes,
+          barberosRes,
+          equipoRes,
+          configRes,
+          testimoniosRes
+        ] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase
+            .from('servicios')
+            .select('id, nombre, precio, duracion_minutos, descripcion, categoria, imagen_url, imagenes')
+            .eq('is_active', true)
+            .order('nombre')
+            .limit(6),
+          supabase
+            .from('productos')
+            .select('id, nombre, precio_venta, image_url')
+            .eq('is_active', true)
+            .gt('stock_actual', 0)
+            .limit(4),
+          supabase
+            .from('portafolio')
+            .select('id, image_url, categoria, descripcion')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(12),
+          supabase
+            .from('profiles')
+            .select('id, full_name, avatar_url')
+            .eq('role', 'barbero')
+            .eq('is_active', true),
+          supabase
+            .from('equipo_home')
+            .select('id, nombre, especialidad, imagen_url, profile_id, descripcion, redes_sociales')
+            .eq('is_active', true)
+            .order('sort_order', { ascending: true }),
+          supabase
+            .from('configuraciones')
+            .select('llave, valor')
+            .in('llave', ['hero_bg_image', 'about_us_config']),
+          supabase
+            .from('reviews')
+            .select(`
+              id, estrellas, comentario,
+              cliente:cliente_id(full_name),
+              barbero:barbero_id(full_name)
+            `)
+            .eq('is_public', true)
+            .order('created_at', { ascending: false })
+            .limit(6)
+        ])
 
-      if (authUser) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, email, role, avatar_url')
-          .eq('id', authUser.id)
-          .single()
-
-        if (profile) {
-          setUser(profile as UserProfile)
+        const authUser = authRes.data?.user
+        if (authUser) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id, full_name, email, role, avatar_url')
+            .eq('id', authUser.id)
+            .single()
+          if (profile) setUser(profile as UserProfile)
         }
+
+        if (serviciosRes.data) setServicios(serviciosRes.data as Servicio[])
+        if (prodsRes.data) setProductos(prodsRes.data as Producto[])
+        if (portafolioRes.data) setPortafolio(portafolioRes.data as PortafolioItem[])
+
+        const barberosData = barberosRes.data
+        const equipoData = equipoRes.data
+        const mergedEquipo = barberosData?.map(prof => {
+          const equipoConfig = equipoData?.find(e => e.profile_id === prof.id || e.nombre === prof.full_name)
+          return {
+            id: prof.id,
+            nombre: prof.full_name || 'Barbero',
+            especialidad: equipoConfig?.especialidad || 'Barbero Especialista',
+            imagen_url: equipoConfig?.imagen_url || prof.avatar_url || '',
+            descripcion: equipoConfig?.descripcion,
+            redes_sociales: equipoConfig?.redes_sociales
+          }
+        }) || []
+        setEquipo(mergedEquipo)
+
+        if (configRes.data) {
+          const heroConfig = configRes.data.find(c => c.llave === 'hero_bg_image')
+          const aboutConfig = configRes.data.find(c => c.llave === 'about_us_config')
+          if (heroConfig?.valor) setHeroConfigState({ ...defaultHero, ...(heroConfig.valor as any) })
+          if (aboutConfig?.valor) setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
+        }
+
+        if (testimoniosRes.data) setTestimonios(testimoniosRes.data)
+      } catch (err) {
+        console.error('Error cargando datos:', err)
+      } finally {
+        setLoading(false)
       }
-
-      // 2. Cargar servicios
-      const { data: serviciosData } = await supabase
-        .from('servicios')
-        .select('*')
-        .eq('is_active', true)
-        .order('nombre')
-
-      if (serviciosData) {
-        setServicios(serviciosData)
-      }
-
-      // 3. Cargar Productos Destacados
-      const { data: prodsData } = await supabase
-        .from('productos')
-        .select('id, nombre, precio_venta, image_url')
-        .eq('is_active', true)
-        .gt('stock_actual', 0)
-        .limit(4)
-
-      if (prodsData) {
-        setProductos(prodsData)
-      }
-
-      // 4. Cargar Portafolio / Galería
-      let portafolioData = null
-      const { data: p1, error: pErr } = await supabase
-        .from('portafolio')
-        .select('id, image_url, categoria, descripcion, titulo, sort_order, is_active')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
-        .order('created_at', { ascending: false })
-        .limit(12)
-
-      if (pErr?.code === '42703') {
-        const { data: p2 } = await supabase
-          .from('portafolio')
-          .select('id, image_url, categoria, descripcion')
-          .order('created_at', { ascending: false })
-          .limit(12)
-        portafolioData = p2
-      } else {
-        portafolioData = p1
-      }
-
-      if (portafolioData) {
-        setPortafolio(portafolioData)
-      }
-
-      // 5. Cargar Equipo
-      const { data: equipoData } = await supabase
-        .from('equipo_home')
-        .select('id, nombre, especialidad, descripcion, imagen_url, redes_sociales')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
-        .order('created_at', { ascending: false })
-
-      if (equipoData) {
-        setEquipo(equipoData as EquipoMember[])
-      }
-
-      setLoading(false)
     }
 
     checkUserAndData()
@@ -176,7 +234,7 @@ export default function HomePage() {
   const getRoleLabel = (role: string) => {
     const roles: Record<string, string> = {
       admin: 'Administrador',
-      recepcionista: 'Recepcionista',
+      coordinador: 'Coordinador/a',
       barbero: 'Barbero',
       cliente: 'Cliente'
     }
@@ -187,7 +245,7 @@ export default function HomePage() {
     switch (role) {
       case 'admin': return '/admin'
       case 'barbero': return '/barbero'
-      case 'recepcionista': return '/recepcion'
+      case 'coordinador': return '/coordinador'
       case 'cliente': return '/cliente'  // ✅ AGREGADO
       default: return '/'
     }
@@ -216,9 +274,15 @@ export default function HomePage() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-lg border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-20">
-            <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="Barber Pro" className="w-8 h-8 object-contain" />
-              <span className="text-2xl font-bold tracking-wider">BarberSite</span>
+            <div className="flex items-center gap-3">
+              {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
+                <img src={brand.logo_url} alt={brand.nombre} className="h-11 sm:h-14 max-w-[180px] sm:max-w-[220px] object-contain mix-blend-screen" />
+              ) : (
+                <Scissors className="w-8 h-8 text-amber-400" />
+              )}
+              {(brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
+                <span className="text-2xl font-bold tracking-wider">{brand.nombre}</span>
+              )}
             </div>
 
             {/* Usuario logueado o botones de auth */}
@@ -281,7 +345,10 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1920')] bg-cover bg-center">
+        <div
+          className="absolute inset-0 bg-cover bg-center transition-all duration-1000"
+          style={{ backgroundImage: `url('${heroConfigState.url}')` }}
+        >
           <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black" />
         </div>
 
@@ -294,14 +361,12 @@ export default function HomePage() {
             <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
           </div>
 
-          <h1 className="text-6xl md:text-8xl font-bold mb-6 tracking-tight">
-            ESTILO <span className="text-amber-400">CLÁSICO</span><br />
-            MODERNO
+          <h1 className="text-6xl md:text-8xl font-bold mb-6 tracking-tight whitespace-pre-line">
+            {heroConfigState.titulo}
           </h1>
 
-          <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-            Donde la tradición barbera se encuentra con la innovación.
-            Experimenta el arte del cuidado masculino en su máxima expresión.
+          <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto whitespace-pre-line">
+            {heroConfigState.subtitulo}
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -343,11 +408,11 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 flex flex-wrap justify-center gap-8 text-sm font-bold uppercase tracking-widest">
           <span className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            Lun-Sáb: 9:00 - 21:00
+            Lun-Dom: 9:00 - 21:00
           </span>
           <span className="flex items-center gap-2">
             <Phone className="w-4 h-4" />
-            +591 71234567
+            +591 78353814
           </span>
           <span className="flex items-center gap-2">
             <MapPin className="w-4 h-4" />
@@ -356,57 +421,111 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Servicios */}
+      {/* Servicios Destacados */}
       <section id="servicios" className="py-24 bg-zinc-900">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-4">Nuestros Servicios</p>
-            <h2 className="text-5xl font-bold">Cortes & Estilos</h2>
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+            <div>
+              <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-3 flex items-center gap-2">
+                <Scissors className="w-4 h-4" /> Especialidades Más Solicitadas
+              </p>
+              <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white">
+                Servicios Destacados
+              </h2>
+            </div>
+            <Link
+              href="/servicios"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-amber-400/10 border border-amber-400/30 text-amber-400 hover:bg-amber-400 hover:text-black rounded-full font-black text-xs uppercase tracking-widest transition-all self-start md:self-auto"
+            >
+              Ver Catálogo Completo <ChevronRight className="w-4 h-4" />
+            </Link>
           </div>
 
+          {/* Grid de Servicios Destacados */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {servicios?.map((servicio) => (
-              <div
-                key={servicio.id}
-                className="group bg-black border border-white/10 rounded-2xl overflow-hidden hover:border-amber-400/50 transition-all duration-300"
-              >
-                <div className="h-1 bg-amber-400 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
-                <div className="p-8">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-amber-400/10 rounded-xl flex items-center justify-center">
-                      <Scissors className="w-6 h-6 text-amber-400" />
+            {servicios?.map((servicio) => {
+              const allImgs =
+                servicio.imagenes && servicio.imagenes.length > 0
+                  ? servicio.imagenes
+                  : servicio.imagen_url
+                  ? [servicio.imagen_url]
+                  : []
+              return (
+                <div
+                  key={servicio.id}
+                  className="group bg-black border border-white/10 rounded-2xl overflow-hidden hover:border-amber-400/50 transition-all duration-300 flex flex-col justify-between"
+                >
+                  <div>
+                    <ServicioGalleryBanner imagenes={allImgs} categoria={servicio.categoria || 'Cortes'} />
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xl font-extrabold text-white group-hover:text-amber-400 transition-colors">
+                          {toSentenceCase(servicio.nombre)}
+                        </h4>
+                        {allImgs.length === 0 && (
+                          <span className="text-[9px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 border border-amber-400/20">
+                            {servicio.categoria || 'Cortes'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-gray-400 text-sm mb-4 line-clamp-2 leading-relaxed">
+                        {toSentenceCase(servicio.descripcion) || 'Servicio premium de barbería y estilismo.'}
+                      </p>
                     </div>
-                    <h3 className="text-xl font-bold">{servicio.nombre}</h3>
                   </div>
-
-                  <p className="text-gray-400 mb-4 min-h-12">
-                    {servicio.descripcion || 'Servicio premium de barbería'}
-                  </p>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                    <div>
-                      <p className="text-3xl font-bold text-amber-400">{formatCurrency(servicio.precio)}</p>
-                      <p className="text-sm text-gray-500">{servicio.duracion_minutos} min</p>
+                  <div className="p-6 pt-0 mt-auto">
+                    <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                      <div>
+                        <p className="text-2xl font-black text-amber-400 leading-none mb-1">
+                          {formatCurrency(servicio.precio)}
+                        </p>
+                        <p className="text-xs text-gray-500 font-bold flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-amber-400" /> {servicio.duracion_minutos} min
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedServicioForDetail(servicio)}
+                          className="px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full text-xs font-black transition-all uppercase tracking-wider hover:scale-105"
+                        >
+                          🔍 Detalles
+                        </button>
+                        <Link
+                          href={`/reservar?servicio=${servicio.id}`}
+                          className="px-4 py-2.5 bg-amber-400 text-black rounded-full text-xs font-black hover:bg-amber-300 hover:scale-105 transition-all uppercase tracking-widest shadow-lg shadow-amber-400/20"
+                        >
+                          Reservar
+                        </Link>
+                      </div>
                     </div>
-                    {user ? (
-                      <Link
-                        href={getPanelUrl(user.role)}
-                        className="px-4 py-2 bg-white text-black rounded-full text-sm font-bold hover:bg-amber-400 transition"
-                      >
-                        Ir al Panel
-                      </Link>
-                    ) : (
-                      <Link
-                        href="/register"
-                        className="px-4 py-2 bg-white text-black rounded-full text-sm font-bold hover:bg-amber-400 transition"
-                      >
-                        Reservar
-                      </Link>
-                    )}
                   </div>
                 </div>
+              )
+            })}
+          </div>
+
+          {/* Banner Promocional / Llamado a explorar el catálogo completo */}
+          <div className="mt-16 text-center bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 border border-amber-400/30 rounded-3xl p-8 sm:p-12 relative overflow-hidden backdrop-blur-md">
+            <div className="max-w-2xl mx-auto space-y-4">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 text-amber-400 text-xs font-black uppercase tracking-widest">
+                <Scissors className="w-3.5 h-3.5" /> Menú de Servicios Completo
+              </span>
+              <h3 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-tight">
+                ¿Buscas un corte o tratamiento específico?
+              </h3>
+              <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
+                Explora todo nuestro menú con filtrado por categorías (cortes, barbas, combos, tintes y tratamientos) y buscador en tiempo real.
+              </p>
+              <div className="pt-2">
+                <Link
+                  href="/servicios"
+                  className="inline-flex items-center gap-2 px-8 py-4 bg-amber-400 text-black font-black uppercase tracking-widest rounded-full hover:bg-amber-300 hover:scale-105 transition-all shadow-xl shadow-amber-400/20 text-xs sm:text-sm"
+                >
+                  Ver Catálogo Completo de Servicios <ChevronRight className="w-4 h-4" />
+                </Link>
               </div>
-            ))}
+            </div>
           </div>
 
           {(!servicios || servicios.length === 0) && (
@@ -434,7 +553,59 @@ export default function HomePage() {
 
           {portafolio.length > 0 ? (
             <>
-              <GalleryCarousel items={portafolio} autoPlayMs={4500} />
+              <div className="relative aspect-[16/9] max-h-[520px] rounded-2xl overflow-hidden border border-white/10 group">
+                <img
+                  src={portafolio[carouselIndex]?.image_url}
+                  alt={portafolio[carouselIndex]?.descripcion || 'Trabajo de barbería'}
+                  className="w-full h-full object-cover transition-opacity duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                <div className="absolute bottom-6 left-6 right-6 flex justify-between items-end gap-4">
+                  <div>
+                    <span className="text-xs font-black uppercase tracking-widest text-amber-400">
+                      {portafolio[carouselIndex]?.categoria}
+                    </span>
+                    <p className="text-white font-medium mt-1 max-w-lg">
+                      {portafolio[carouselIndex]?.descripcion || 'Estilo Barber Pro'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCarouselIndex((i) => (i - 1 + portafolio.length) % portafolio.length)
+                      }
+                      className="w-10 h-10 rounded-full bg-black/50 border border-white/20 hover:bg-amber-500 hover:text-black transition-colors font-bold"
+                      aria-label="Anterior"
+                    >
+                      ‹
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCarouselIndex((i) => (i + 1) % portafolio.length)}
+                      className="w-10 h-10 rounded-full bg-black/50 border border-white/20 hover:bg-amber-500 hover:text-black transition-colors font-bold"
+                      aria-label="Siguiente"
+                    >
+                      ›
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
+                {portafolio.map((item, idx) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setCarouselIndex(idx)}
+                    className={`shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${idx === carouselIndex ? 'border-amber-500 scale-105' : 'border-white/10 opacity-60 hover:opacity-100'
+                      }`}
+                  >
+                    <img src={item.image_url} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+
               <div className="text-center mt-8">
                 <Link
                   href="/galeria"
@@ -446,16 +617,17 @@ export default function HomePage() {
               </div>
             </>
           ) : (
-            <div className="py-16 text-center border-2 border-dashed border-white/5 rounded-3xl">
-              <Camera size={48} className="mx-auto text-zinc-800 mb-4 opacity-40" />
-              <h3 className="text-zinc-500 font-bold uppercase tracking-widest text-sm mb-2">Galería en preparación</h3>
-              <p className="text-zinc-600 text-xs max-w-md mx-auto">
-                {user?.role === 'admin' 
-                  ? 'Ve al panel de Portafolio para agregar las primeras imágenes a la galería del Home.' 
-                  : 'Muy pronto estaremos publicando nuestros mejores trabajos aquí.'}
+            <div className="text-center py-16 border-2 border-dashed border-white/10 rounded-3xl bg-zinc-900/50">
+              <Camera className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
+              <h3 className="text-2xl font-bold mb-2">Galería en preparación</h3>
+              <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                Ve al panel de Portafolio para agregar las primeras imágenes a la galería del Home.
               </p>
-              {user?.role === 'admin' && (
-                <Link href="/admin/portafolio" className="inline-block mt-4 px-6 py-2 bg-zinc-900 text-amber-500 border border-amber-500/30 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-amber-500 hover:text-black transition-colors">
+              {user && (
+                <Link
+                  href="/admin/portafolio"
+                  className="inline-flex items-center justify-center px-6 py-3 bg-white text-black font-bold uppercase tracking-widest text-sm rounded-full hover:bg-amber-400 transition-colors"
+                >
                   Ir al Portafolio
                 </Link>
               )}
@@ -471,14 +643,14 @@ export default function HomePage() {
             <div className="relative">
               <div className="aspect-[4/5] rounded-2xl overflow-hidden">
                 <img
-                  src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800"
+                  src={aboutUsConfig.imagen_url}
                   alt="Barbería"
                   className="w-full h-full object-cover"
                 />
               </div>
               <div className="absolute -bottom-8 -right-8 w-48 h-48 bg-amber-400 rounded-2xl flex items-center justify-center">
                 <div className="text-center">
-                  <p className="text-4xl font-bold text-black">10+</p>
+                  <p className="text-4xl font-bold text-black">{aboutUsConfig.anios_experiencia}</p>
                   <p className="text-sm text-black/70 uppercase tracking-widest">Años</p>
                 </div>
               </div>
@@ -486,21 +658,13 @@ export default function HomePage() {
 
             <div>
               <p className="text-amber-400 uppercase tracking-widest text-sm font-bold mb-4">Acerca de Nosotros</p>
-              <h2 className="text-5xl font-bold mb-6">La Mejor Barbería<br />de la Ciudad</h2>
-              <p className="text-gray-400 mb-6 text-lg">
-                En BarberSite, combinamos técnicas tradicionales con las últimas tendencias
-                para ofrecerte una experiencia única. Nuestro compromiso es con la excelencia
-                en cada detalle, desde el momento en que entras hasta que sales luciendo
-                tu mejor versión.
+              <h2 className="text-5xl font-bold mb-6 whitespace-pre-line">{aboutUsConfig.titulo}</h2>
+              <p className="text-gray-400 mb-6 text-lg whitespace-pre-line">
+                {aboutUsConfig.texto}
               </p>
 
               <div className="grid grid-cols-2 gap-6 mb-8">
-                {[
-                  { numero: '5000+', texto: 'Clientes Satisfechos' },
-                  { numero: '15+', texto: 'Barberos Expertos' },
-                  { numero: '4.9', texto: 'Rating Promedio' },
-                  { numero: '100%', texto: 'Garantía' }
-                ].map((item, i) => (
+                {aboutUsConfig.metricas.map((item, i) => (
                   <div key={i} className="text-center p-4 bg-zinc-900 rounded-xl">
                     <p className="text-3xl font-bold text-amber-400">{item.numero}</p>
                     <p className="text-sm text-gray-400">{item.texto}</p>
@@ -508,23 +672,13 @@ export default function HomePage() {
                 ))}
               </div>
 
-              {user ? (
-                <Link
-                  href={getPanelUrl(user.role)}
-                  className="inline-flex items-center gap-2 bg-amber-400 text-black px-8 py-4 rounded-full font-bold hover:bg-amber-300 transition"
-                >
-                  Ir al Panel
-                  <ChevronRight className="w-5 h-5" />
-                </Link>
-              ) : (
-                <Link
-                  href="/register"
-                  className="inline-flex items-center gap-2 bg-amber-400 text-black px-8 py-4 rounded-full font-bold hover:bg-amber-300 transition"
-                >
-                  Agenda Tu Cita
-                  <ChevronRight className="w-5 h-5" />
-                </Link>
-              )}
+              <Link
+                href="/reservar"
+                className="inline-flex items-center gap-2 bg-amber-400 text-black px-8 py-4 rounded-full font-bold hover:bg-amber-300 hover:scale-105 transition-all shadow-lg shadow-amber-400/20 uppercase tracking-widest"
+              >
+                Agenda Tu Cita
+                <ChevronRight className="w-5 h-5" />
+              </Link>
             </div>
           </div>
         </div>
@@ -543,16 +697,22 @@ export default function HomePage() {
               {productos.map((producto) => (
                 <div key={producto.id} className="bg-zinc-900/50 rounded-2xl overflow-hidden border border-white/5 group hover:border-amber-500/30 transition-all">
                   <div className="aspect-square bg-zinc-800 relative overflow-hidden">
-                    <img
-                      src={producto.image_url || 'https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=500'}
-                      alt={producto.nombre}
-                      className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
-                    />
+                    {producto.image_url ? (
+                      <img
+                        src={producto.image_url}
+                        alt={producto.nombre}
+                        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Package className="w-16 h-16 text-zinc-700" />
+                      </div>
+                    )}
                   </div>
                   <div className="p-6 text-center">
-                    <h3 className="text-lg font-bold mb-2 line-clamp-1">{producto.nombre}</h3>
+                    <h3 className="text-lg font-bold mb-2 line-clamp-1">{toTitleCase(producto.nombre)}</h3>
                     <p className="text-amber-500 font-black text-xl mb-4">{formatCurrency(producto.precio_venta)}</p>
-                    <Link href="/tienda" className="inline-block w-full py-2 bg-white/5 hover:bg-amber-500 hover:text-black rounded-lg text-sm font-bold uppercase tracking-widest transition-colors border border-white/10 hover:border-amber-500">
+                    <Link href={`/tienda?producto=${producto.id}`} className="inline-block w-full py-2 bg-white/5 hover:bg-amber-500 hover:text-black rounded-lg text-sm font-bold uppercase tracking-widest transition-colors border border-white/10 hover:border-amber-500">
                       Ver Detalles
                     </Link>
                   </div>
@@ -582,65 +742,80 @@ export default function HomePage() {
           </div>
 
           {equipo.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-              {equipo.map((member) => (
-                <div key={member.id} className="group text-center">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {equipo.map((barbero) => (
+                <div key={barbero.id} className="group text-center">
                   <div className="relative inline-block mb-6">
-                    <div className="w-64 h-64 rounded-full overflow-hidden mx-auto border-4 border-zinc-800 group-hover:border-amber-400 transition-colors duration-500">
-                      <img
-                        src={member.imagen_url}
-                        alt={member.nombre}
-                        className="w-full h-full object-cover blur-[2px] grayscale opacity-70 group-hover:blur-[0px] group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-500"
-                        onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80' }}
-                      />
+                    <div className="w-64 h-64 rounded-full overflow-hidden mx-auto">
+                      {barbero.imagen_url ? (
+                        <img
+                          src={barbero.imagen_url}
+                          alt={barbero.nombre || 'Barbero'}
+                          className="w-full h-full object-cover blur-[3px] grayscale opacity-70 group-hover:blur-[0px] group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-500"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre || 'Barbero')}&background=f59e0b&color=000&size=256`;
+                          }}
+                        />
+                      ) : (
+                        <img
+                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre || 'Barbero')}&background=f59e0b&color=000&size=256`}
+                          alt={barbero.nombre || 'Barbero'}
+                          className="w-full h-full object-cover blur-[3px] grayscale opacity-70 group-hover:blur-[0px] group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-500"
+                        />
+                      )}
                     </div>
-                    <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-amber-400 text-black px-6 py-2 rounded-full text-xs uppercase tracking-widest font-black shadow-xl">
-                      {member.especialidad}
+                    <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-amber-400 text-black px-4 py-1 rounded-full text-sm font-bold truncate max-w-[200px]">
+                      {toTitleCase(barbero.especialidad || 'Barbero Especialista')}
                     </div>
                   </div>
-                  <h3 className="text-2xl font-black uppercase tracking-tight mb-3 text-white">{member.nombre}</h3>
-                  {member.descripcion && (
-                    <p className="text-sm text-zinc-400 italic mb-4 max-w-xs mx-auto line-clamp-3">"{member.descripcion}"</p>
+                  <h3 className="text-xl font-bold mb-2">{toTitleCase(barbero.nombre)}</h3>
+                  {barbero.descripcion && (
+                    <p className="text-gray-400 text-sm mb-4 max-w-xs mx-auto line-clamp-3">
+                      {barbero.descripcion}
+                    </p>
                   )}
-                  
-                  {member.redes_sociales && (Object.keys(member.redes_sociales).length > 0) && (
-                    <div className="flex justify-center gap-4 mt-4">
-                      {member.redes_sociales.instagram && (
-                        <a href={member.redes_sociales.instagram} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-500 hover:text-amber-400 hover:border-amber-400/50 transition-all">
-                          <Instagram size={18} />
+                  <div className="flex justify-center gap-1 mb-4">
+                    {[1, 2, 3, 4, 5].map((_, j) => (
+                      <Star key={j} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
+                  {barbero.redes_sociales && (barbero.redes_sociales.instagram || barbero.redes_sociales.web) && (
+                    <div className="flex justify-center gap-3">
+                      {barbero.redes_sociales.instagram && (
+                        <a href={barbero.redes_sociales.instagram} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-amber-400 hover:bg-zinc-700 transition">
+                          <Instagram className="w-4 h-4" />
                         </a>
                       )}
-                      {member.redes_sociales.facebook && (
-                        <a href={member.redes_sociales.facebook} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-500 hover:text-amber-400 hover:border-amber-400/50 transition-all">
-                          <svg className="w-[18px] h-[18px]" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                        </a>
-                      )}
-                      {member.redes_sociales.tiktok && (
-                        <a href={member.redes_sociales.tiktok} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-500 hover:text-amber-400 hover:border-amber-400/50 transition-all">
-                          <svg className="w-[18px] h-[18px]" fill="currentColor" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93v7.2c0 1.96-.5 3.96-1.72 5.39-1.65 1.9-4.34 3.01-6.99 2.11-2.73-.92-4.64-3.67-4.71-6.49-.09-3.21 2.5-6.22 5.86-6.3 1.13-.03 2.26.23 3.25.75v4.22c-.67-.6-1.6-.96-2.5-.94-1.24.03-2.42.74-2.85 1.92-.51 1.4.15 3.03 1.43 3.65 1.11.53 2.48.42 3.42-.4 1.09-.95 1.25-2.61 1.25-4.04V.02h-3.23z"/></svg>
-                        </a>
-                      )}
-                      {member.redes_sociales.web && (
-                        <a href={member.redes_sociales.web} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-500 hover:text-amber-400 hover:border-amber-400/50 transition-all">
-                          <Globe size={18} />
+                      {barbero.redes_sociales.web && (
+                        <a href={barbero.redes_sociales.web} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-amber-400 hover:bg-zinc-700 transition">
+                          <Globe className="w-4 h-4" />
                         </a>
                       )}
                     </div>
                   )}
+                  <div className="mt-5">
+                    <Link
+                      href="/reservar"
+                      className="inline-flex items-center justify-center px-6 py-2.5 bg-zinc-900 border border-amber-400/30 text-amber-400 font-bold uppercase tracking-widest text-xs rounded-full hover:bg-amber-400 hover:text-black transition-all shadow-lg hover:shadow-amber-400/20"
+                    >
+                      Reservar Cita
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="py-16 text-center border-2 border-dashed border-white/5 rounded-3xl">
-              <Users size={48} className="mx-auto text-zinc-800 mb-4 opacity-40" />
-              <h3 className="text-zinc-500 font-bold uppercase tracking-widest text-sm mb-2">Conoce al equipo</h3>
-              <p className="text-zinc-600 text-xs max-w-md mx-auto">
-                {user?.role === 'admin' 
-                  ? 'Ve al panel de Equipo para agregar los perfiles de los barberos.' 
-                  : 'Pronto publicaremos los perfiles de nuestros expertos barberos.'}
+            <div className="text-center py-16 border-2 border-dashed border-white/10 rounded-3xl bg-black/50">
+              <Users className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
+              <h3 className="text-2xl font-bold mb-2">Conoce al equipo</h3>
+              <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                Ve al panel de Equipo para agregar los perfiles de los barberos.
               </p>
-              {user?.role === 'admin' && (
-                <Link href="/admin/equipo" className="inline-block mt-4 px-6 py-2 bg-zinc-900 text-amber-500 border border-amber-500/30 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-amber-500 hover:text-black transition-colors">
+              {user && (
+                <Link
+                  href="/admin/equipo"
+                  className="inline-flex items-center justify-center px-6 py-3 bg-white text-black font-bold uppercase tracking-widest text-sm rounded-full hover:bg-amber-400 transition-colors"
+                >
                   Ir al panel de Equipo
                 </Link>
               )}
@@ -658,31 +833,43 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
+            {(testimonios.length > 0 ? testimonios : [
               {
-                nombre: 'Carlos M.',
-                texto: 'El mejor corte que he tenido. Los barberos son verdaderos profesionales que conocen su oficio.',
-                estrellas: 5
+                id: 'static-1',
+                estrellas: 5,
+                comentario: '¡Excelente servicio! Muy profesionales y el ambiente es increíble. Definitivamente volveré.',
+                cliente: { full_name: 'Carlos Mendoza' }
               },
               {
-                nombre: 'Ana G.',
-                texto: 'Excelente atención y ambiente. Mi esposo siempre queda satisfecho con su corte.',
-                estrellas: 5
+                id: 'static-2',
+                estrellas: 5,
+                comentario: 'El mejor corte que he tenido en años. La atención al detalle es insuperable.',
+                cliente: { full_name: 'Luis Vargas' }
               },
               {
-                nombre: 'Roberto D.',
-                texto: 'Desde que descubrí BarberSite, no voy a otro lugar. Calidad garantizada y precios justos.',
-                estrellas: 5
+                id: 'static-3',
+                estrellas: 5,
+                comentario: 'Puntualidad, buen trato y un resultado impecable. 100% recomendados.',
+                cliente: { full_name: 'Andrés Castro' }
               }
-            ].map((testimonio, i) => (
-              <div key={i} className="bg-zinc-900 p-8 rounded-2xl">
+            ]).map((testimonio) => (
+              <div key={testimonio.id} className="bg-zinc-900 p-8 rounded-2xl relative">
                 <div className="flex gap-1 mb-4">
                   {Array.from({ length: testimonio.estrellas }).map((_, j) => (
                     <Star key={j} className="w-5 h-5 fill-amber-400 text-amber-400" />
                   ))}
                 </div>
-                <p className="text-gray-300 mb-6 italic">"{testimonio.texto}"</p>
-                <p className="font-bold text-amber-400">{testimonio.nombre}</p>
+                {testimonio.comentario && testimonio.comentario.trim() !== '' ? (
+                  <p className="text-gray-300 mb-6 italic">"{testimonio.comentario}"</p>
+                ) : (
+                  <div className="mb-6 h-6"></div>
+                )}
+                <p className="font-bold text-amber-400">{toTitleCase(testimonio.cliente?.full_name || 'Cliente')}</p>
+                {testimonio.barbero && (
+                  <p className="text-xs text-zinc-500 font-bold uppercase mt-1">
+                    Atendido por: {toTitleCase(testimonio.barbero.full_name)}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -731,8 +918,11 @@ export default function HomePage() {
                     <Clock className="w-6 h-6 text-black" />
                   </div>
                   <div>
-                    <h3 className="font-bold mb-1">Horario</h3>
-                    <p className="text-gray-400">Lunes a Sábado: 9:00 - 21:00<br />Domingo: Cerrado</p>
+                    <h3 className="font-bold mb-1">Horario de Atención</h3>
+                    <p className="text-gray-300">
+                      <span className="font-extrabold text-amber-400">🔥 ¡Abierto Todos los Días!</span><br />
+                      Lunes a Domingo: 09:00 - 21:00
+                    </p>
                   </div>
                 </div>
 
@@ -771,11 +961,11 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 flex flex-wrap justify-center gap-8 text-sm font-bold uppercase tracking-widest">
           <span className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            Lun-Sáb: 9:00 - 21:00
+            Lun-Dom: 9:00 - 21:00
           </span>
           <span className="flex items-center gap-2">
             <Phone className="w-4 h-4" />
-            +591 71234567
+            +591 78353814
           </span>
           <span className="flex items-center gap-2">
             <MapPin className="w-4 h-4" />
@@ -790,9 +980,15 @@ export default function HomePage() {
       <footer className="bg-black border-t border-white/10 py-12">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-            <div className="flex items-center gap-2">
-              <Scissors className="w-8 h-8 text-amber-400" />
-              <span className="text-xl font-bold tracking-wider">BarberSite</span>
+            <div className="flex items-center gap-3">
+              {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
+                <img src={brand.logo_url} alt={brand.nombre} className="h-12 max-w-[200px] object-contain filter drop-shadow-[0_2px_15px_rgba(245,158,11,0.2)]" />
+              ) : (
+                <>
+                  <Scissors className="w-8 h-8 text-amber-400" />
+                  <span className="text-xl font-bold tracking-wider">{brand.nombre}</span>
+                </>
+              )}
             </div>
 
             <div className="flex flex-col items-center gap-6">
@@ -808,11 +1004,18 @@ export default function HomePage() {
             </div>
 
             <p className="text-gray-500 text-sm text-center md:text-right">
-              © 2026 BarberSite. Todos los derechos reservados. Cochabamba, Bolivia. -k3v1bvo Studios, designed by k3v1bvo-
+              © 2026 {brand.nombre}. Todos los derechos reservados. Cochabamba, Bolivia. -k3v1bvo Studios, designed by k3v1bvo
             </p>
           </div>
         </div>
       </footer>
+
+      {/* Servicio Detail Modal */}
+      <ServicioDetailModal
+        servicio={selectedServicioForDetail}
+        isOpen={!!selectedServicioForDetail}
+        onClose={() => setSelectedServicioForDetail(null)}
+      />
     </div>
   )
 }

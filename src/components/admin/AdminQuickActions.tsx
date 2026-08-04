@@ -1,6 +1,6 @@
 'use client'
 
-import { Calendar, CalendarDays, ShoppingBag, Clock } from 'lucide-react'
+import { Calendar, CalendarDays, Banknote, Clock, Gift, Users } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 const actions = [
@@ -12,18 +12,32 @@ const actions = [
     accent: 'hover:border-amber-500/50 hover:bg-amber-500/5',
   },
   {
-    label: 'Recepción',
-    sub: 'Llegadas y check-in',
-    href: '/recepcion',
+    label: 'Coordinación',
+    sub: 'Caja y contabilidad',
+    href: '/coordinador',
     icon: CalendarDays,
     accent: 'hover:border-blue-500/40 hover:bg-blue-500/5',
   },
   {
-    label: 'Nueva venta',
-    sub: 'POS / reservar',
-    href: '/reservar',
-    icon: ShoppingBag,
+    label: 'Caja',
+    sub: 'Ventas y cobros',
+    href: '/admin/caja',
+    icon: Banknote,
     accent: 'hover:border-green-500/40 hover:bg-green-500/5',
+  },
+  {
+    label: 'Egresos',
+    sub: 'Gastos y pagos',
+    href: '/admin/egresos',
+    icon: Banknote,
+    accent: 'hover:border-red-500/40 hover:bg-red-500/5',
+  },
+  {
+    label: 'Horarios',
+    sub: 'Gestión de turnos',
+    href: '/admin/horarios',
+    icon: Clock,
+    accent: 'hover:border-purple-500/40 hover:bg-purple-500/5',
   },
   {
     label: 'Asistencia',
@@ -31,6 +45,20 @@ const actions = [
     href: '/admin/asistencia',
     icon: Clock,
     accent: 'hover:border-orange-500/40 hover:bg-orange-500/5',
+  },
+  {
+    label: 'Clientes',
+    sub: 'Directorio completo',
+    href: '/admin/clientes',
+    icon: Users,
+    accent: 'hover:border-cyan-500/40 hover:bg-cyan-500/5',
+  },
+  {
+    label: 'Lealtad',
+    sub: 'Programa y metas',
+    href: '/admin/lealtad',
+    icon: Gift,
+    accent: 'hover:border-amber-500/40 hover:bg-amber-500/5',
   },
 ]
 

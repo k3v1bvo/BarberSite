@@ -45,6 +45,9 @@ export function StatCard({
     danger: 'text-red-500/40',
   }
 
+  const valStr = String(value ?? '')
+  const isLong = valStr.length > 9
+
   return (
     <Card
       role={onClick ? 'button' : undefined}
@@ -59,21 +62,28 @@ export function StatCard({
       className={cn(
         styles[variant],
         onClick && 'cursor-pointer btn-press hover:scale-[1.02] transition-all duration-300',
-        'animate-in fade-in slide-in-from-bottom-3 fill-mode-both'
+        'animate-in fade-in slide-in-from-bottom-3 fill-mode-both overflow-hidden'
       )}
       style={{ animationDelay: `${delay}ms` }}
     >
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <p className={cn('text-[10px] uppercase font-black tracking-widest', labelStyles[variant])}>
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className={cn('text-[10px] sm:text-xs uppercase font-black tracking-wider truncate', labelStyles[variant])}>
               {label}
             </p>
-            <p className={cn('text-3xl sm:text-4xl font-black mt-2 leading-none truncate', valueStyles[variant])}>
+            <p
+              className={cn(
+                'font-black mt-1.5 leading-tight tracking-tight whitespace-nowrap overflow-x-auto no-scrollbar',
+                isLong ? 'text-lg sm:text-xl xl:text-lg 2xl:text-2xl' : 'text-2xl sm:text-3xl xl:text-2xl 2xl:text-3xl',
+                valueStyles[variant]
+              )}
+              title={valStr}
+            >
               {value}
             </p>
           </div>
-          <Icon className={cn('w-10 h-10 shrink-0', iconStyles[variant])} />
+          <Icon className={cn('w-8 h-8 sm:w-9 sm:h-9 shrink-0 ml-1', iconStyles[variant])} />
         </div>
       </CardContent>
     </Card>

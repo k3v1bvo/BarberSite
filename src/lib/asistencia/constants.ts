@@ -9,3 +9,6 @@ export const LATE_CHECKIN_HOUR = 9
 export const LATE_CHECKIN_MINUTE = 15
 
 export type AsistenciaEstado = 'presente' | 'atrasado' | 'ausente' | 'finalizado'
+
+/** Duración por defecto de la pausa de almuerzo (minutos) */
+export const DEFAULT_LUNCH_DURATION = 60

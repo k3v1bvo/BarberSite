@@ -1,13 +1,38 @@
-const BRAND = 'Barber Pro'
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+export let BRAND = 'BarberSite'
+export let LOGO_URL = ''
 
-function layout(content: string, preheader: string): string {
+let activeTemplateData: any = null
+
+export function setBrandIdentity(nombre: string, logoUrl: string = '') {
+  if (nombre) BRAND = nombre
+  LOGO_URL = logoUrl
+}
+
+const SITE = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+
+function layout(content: string, preheader: string, customBrand?: string, customLogo?: string): string {
+  const brandName = customBrand || activeTemplateData?._brandName || BRAND
+  const logoUrl = customLogo !== undefined ? customLogo : (activeTemplateData?._brandLogo !== undefined ? activeTemplateData._brandLogo : LOGO_URL)
+
+  const headerContent = logoUrl
+    ? `<table border="0" cellpadding="0" cellspacing="0">
+         <tr>
+           <td style="padding-right:12px;vertical-align:middle;">
+             <img src="${logoUrl}" alt="${brandName}" style="max-height:45px;max-width:160px;display:block;" />
+           </td>
+           <td style="vertical-align:middle;">
+             <span style="font-size:22px;font-weight:900;color:#000;letter-spacing:-0.02em;">${brandName}</span>
+           </td>
+         </tr>
+       </table>`
+    : `<p style="margin:0;font-size:22px;font-weight:900;color:#000;letter-spacing:-0.02em;">✂️ ${brandName}</p>`
+
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width" />
-  <title>${BRAND}</title>
+  <title>${brandName}</title>
 </head>
 <body style="margin:0;padding:0;background:#09090b;font-family:'Segoe UI',system-ui,sans-serif;">
   <span style="display:none;max-height:0;overflow:hidden;">${preheader}</span>
@@ -16,7 +41,7 @@ function layout(content: string, preheader: string): string {
       <table width="100%" style="max-width:560px;background:#18181b;border:1px solid #27272a;border-radius:16px;overflow:hidden;">
         <tr>
           <td style="background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);padding:24px 28px;">
-            <p style="margin:0;font-size:22px;font-weight:900;color:#000;letter-spacing:-0.02em;">✂️ ${BRAND}</p>
+            ${headerContent}
           </td>
         </tr>
         <tr>
@@ -27,7 +52,7 @@ function layout(content: string, preheader: string): string {
         <tr>
           <td style="padding:20px 28px;border-top:1px solid #27272a;background:#0a0a0a;">
             <p style="margin:0;font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:0.15em;">
-              ${BRAND} · Notificación automática
+              ${brandName} · Notificación automática
             </p>
             <p style="margin:8px 0 0;font-size:12px;">
               <a href="${SITE}" style="color:#f59e0b;text-decoration:none;">Ir al sistema</a>
@@ -59,26 +84,85 @@ function cta(href: string, label: string): string {
 }
 
 export interface EmailTemplateInput {
+  link?: string
   nombre?: string
+  email?: string
+  password?: string
   servicio?: string
   fecha?: string
   hora?: string
   barbero?: string
   cliente?: string
+  clienteNombre?: string
+  acompananteNombre?: string
   monto?: string
   motivo?: string
   fechaAnterior?: string
   horaAnterior?: string
   pedidoId?: string
+  anticipo?: string
+  verificadoPor?: string
+  comprobante_url?: string | null
+  // Resumen Diario Admin
+  totalCitas?: string
+  totalVentasProductos?: string
+  ingresosServicios?: string
+  ingresosProductos?: string
+  ingresoTotal?: string
+  nuevoRol?: string
+  [key: string]: any
+}
+
+export function replaceTemplateVariables(text: string, data: EmailTemplateInput): string {
+  if (!text) return ''
+
+  const varsMap: Record<string, string> = {
+    nombre: data.nombre || data.cliente || data.clienteNombre || 'Cliente',
+    cliente: data.cliente || data.nombre || 'Cliente',
+    email: data.email || '',
+    servicio: data.servicio || 'Servicio de Barbería',
+    fecha: data.fecha || '',
+    hora: data.hora || '',
+    barbero: data.barbero || 'Tu barbero',
+    monto: data.monto ? (String(data.monto).startsWith('Bs') ? String(data.monto) : `Bs. ${data.monto}`) : '',
+    codigo: data.codigo || data.pedidoId || '',
+    motivo: data.motivo || '',
+    barberia: BRAND,
+    link: data.link || SITE,
+    acompananteNombre: data.acompananteNombre || 'Acompañante',
+    clienteNombre: data.clienteNombre || data.nombre || 'Cliente',
+  }
+
+  let result = text
+  for (const [key, val] of Object.entries(varsMap)) {
+    const regexDouble = new RegExp(`{{\\s*${key}\\s*}}`, 'gi')
+    const regexSingle = new RegExp(`{\\s*${key}\\s*}`, 'gi')
+    result = result.replace(regexDouble, val).replace(regexSingle, val)
+  }
+
+  return result
 }
 
 export function buildEmail(
   kind: string,
   data: EmailTemplateInput
 ): { subject: string; html: string } {
+  activeTemplateData = data
   const nombre = data.nombre || data.cliente || 'Cliente'
 
-  switch (kind) {
+  const res = (() => {
+    switch (kind) {
+      case 'promocion_masiva':
+        return {
+          subject: data.asuntoCustom || `📣 ¡Novedades y Beneficios Especiales de ${BRAND}!`,
+          html: layout(
+            `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Hola {{nombre}}!</h2>
+            <div style="margin:16px 0;line-height:1.6;font-size:15px;color:#e4e4e7;white-space:pre-line;">${data.mensajeCustom || 'Tenemos promociones y beneficios especiales esperándote en la barbería.'}</div>
+            ${cta(data.link || `${SITE}/reservar`, 'Ver Promoción / Agendar Cita')}`,
+            data.asuntoCustom || 'Promoción especial para ti'
+          ),
+        }
+
     case 'reserva_confirmacion_cliente':
       return {
         subject: '✂️ Tu cita está confirmada',
@@ -93,7 +177,7 @@ export function buildEmail(
           ])}
           <p>Te esperamos puntual. Si necesitas cambiar algo, contáctanos con anticipación.</p>
           ${cta(`${SITE}/cliente`, 'Ver mis citas')}`,
-          'Tu cita en Barber Pro está confirmada'
+          `Tu cita en ${BRAND} está confirmada`
         ),
       }
 
@@ -110,6 +194,49 @@ export function buildEmail(
           ])}
           ${cta(`${SITE}/agenda`, 'Abrir mi agenda')}`,
           'Tienes una nueva cita agendada'
+        ),
+      }
+
+    case 'reserva_nueva_admin':
+      return {
+        subject: `🎉 ¡Nueva Reserva Confirmada! — ${nombre}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Gran noticia, Administrador!</h2>
+          <p>Se ha registrado una <strong>nueva reserva</strong> en el sistema exitosamente.</p>
+          ${detailBox([
+            { label: 'Cliente', value: nombre },
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Fecha', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+            { label: 'Barbero', value: data.barbero || '—' },
+          ])}
+          <p>Todo está fluyendo excelente. Puedes revisar los detalles en tu agenda administrativa.</p>
+          ${cta(`${SITE}/admin`, 'Ver Agenda Admin')}`,
+          'Una nueva reserva ingresó al sistema'
+        ),
+      }
+
+    case 'solicitud_resena':
+      return {
+        subject: `⭐ ¿Cómo te fue hoy, ${nombre}?`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Esperamos que hayas disfrutado tu servicio!</h2>
+          <p>Tu cita con <strong>${data.barbero || 'tu barbero'}</strong> acaba de finalizar. Nos encantaría saber qué tal te pareció.</p>
+          <p>Tu opinión nos ayuda a seguir mejorando para darte el mejor estilo.</p>
+          ${cta(data.link || `${SITE}/cliente`, 'Dejar una Reseña')}`,
+          'Queremos saber tu opinión'
+        ),
+      }
+
+    case 'invitacion_referido':
+      return {
+        subject: `🎁 ¡${data.acompananteNombre || 'Un amigo'} te ha recomendado nuestra barbería!`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">¡Hola ${data.clienteNombre || 'Cliente'}!</h2>
+          <p>Tu amigo <strong>${data.acompananteNombre || 'alguien especial'}</strong> nos contó sobre ti y te ha enviado una invitación exclusiva para visitarnos.</p>
+          <p>Ven y descubre el mejor estilo en nuestra barbería. Regístrate en nuestra plataforma para agendar tu primera cita y empezar a disfrutar de beneficios y puntos de fidelidad.</p>
+          ${cta(`${SITE}/login`, 'Crear mi cuenta')}`,
+          'Tienes una invitación especial'
         ),
       }
 
@@ -148,10 +275,10 @@ export function buildEmail(
 
     case 'recordatorio_cita':
       return {
-        subject: '⏰ Recordatorio: tu cita es mañana',
+        subject: '⏰ Recordatorio: tu cita es en breve',
         html: layout(
           `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">Te recordamos tu cita</h2>
-          <p>Hola ${nombre}, mañana tienes servicio programado.</p>
+          <p>Hola ${nombre}, en breve tienes un servicio programado con nosotros.</p>
           ${detailBox([
             { label: 'Servicio', value: data.servicio || '—' },
             { label: 'Fecha', value: data.fecha || '—' },
@@ -159,7 +286,7 @@ export function buildEmail(
             { label: 'Barbero', value: data.barbero || '—' },
           ])}
           <p style="color:#a1a1aa;font-size:13px;">Si no puedes asistir, avísanos para liberar el horario.</p>`,
-          'Recordatorio de cita mañana'
+          'Recordatorio de cita en breve'
         ),
       }
 
@@ -197,7 +324,7 @@ export function buildEmail(
           `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">Alerta importante</h2>
           <p style="color:#e4e4e7;">${data.motivo || 'Revisa el panel de administración.'}</p>
           ${cta(`${SITE}/admin`, 'Ir al panel')}`,
-          'Alerta Barber Pro'
+          `Alerta ${BRAND}`
         ),
       }
 
@@ -212,10 +339,292 @@ export function buildEmail(
         ),
       }
 
+    case 'pago_pendiente_cliente':
+      return {
+        subject: `⏳ Tu comprobante QR está en revisión — ${BRAND}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Recibimos tu comprobante, ${nombre}!</h2>
+          <p>Tu pago QR fue registrado exitosamente. Nuestro equipo lo está revisando para confirmar tu reserva.</p>
+          ${detailBox([
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Anticipo enviado', value: data.anticipo || '—' },
+            { label: 'Fecha', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+            { label: 'Barbero', value: data.barbero || '—' },
+          ])}
+          ${data.comprobante_url ? `<p style="margin-top:12px;"><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📷 Ver tu comprobante enviado</a></p>` : ''}
+          <p style="margin-top:16px;">Te enviaremos un correo de <strong style="color:#22c55e;">confirmación</strong> en cuanto verifiquemos el depósito. ¡No te preocupes, será rápido!</p>
+          <p style="color:#a1a1aa;font-size:13px;margin-top:8px;">Si tienes alguna duda, contáctanos por WhatsApp o redes sociales.</p>
+          ${cta(`${SITE}/cliente`, 'Ver estado de mi reserva')}`,
+          'Tu comprobante QR está siendo revisado'
+        ),
+      }
+
+    case 'pago_pendiente_equipo':
+      return {
+        subject: `💰 Anticipo QR pendiente — ${nombre}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">Pago QR por verificar</h2>
+          <p><strong>${nombre}</strong> dice que realizó un pago QR como anticipo para su cita. Verifica el comprobante en tu app bancaria.</p>
+          ${detailBox([
+            { label: 'Cliente', value: nombre },
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Anticipo', value: data.anticipo || '—' },
+            { label: 'Fecha', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+          ])}
+          ${data.comprobante_url ? `<p><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📥 Ver Comprobante Adjunto</a></p>` : ''}
+          <p style="color:#a1a1aa;font-size:13px;">Ingresa al sistema y presiona <strong>"Verificar Pago"</strong> una vez confirmes el depósito.</p>
+          ${cta(`${SITE}/barbero`, 'Ir al panel')}`,
+          'Hay un pago QR pendiente de verificar'
+        ),
+      }
+
+    case 'pago_pendiente_admin':
+      return {
+        subject: `💰 Acción Requerida: QR por Verificar — ${nombre}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Atención Administrador!</h2>
+          <p><strong>${nombre}</strong> ha subido un comprobante de pago por QR como anticipo de su reserva. ¡Es hora de verificarlo!</p>
+          ${detailBox([
+            { label: 'Cliente', value: nombre },
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Anticipo', value: data.anticipo || '—' },
+            { label: 'Fecha', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+            { label: 'Barbero', value: data.barbero || '—' },
+          ])}
+          ${data.comprobante_url ? `<p><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📥 Ver Comprobante de Pago</a></p>` : ''}
+          <p style="color:#a1a1aa;font-size:13px;">Revisa tu banco o notifica al barbero para que presione <strong>"Aprobar Pago"</strong>.</p>
+          ${cta(`${SITE}/admin`, 'Ir al Panel Admin')}`,
+          'Tienes un comprobante de reserva pendiente de revisión'
+        ),
+      }
+
+    case 'pago_verificado_cliente':
+      return {
+        subject: '✅ ¡Reserva Aceptada y Verificada! — Te esperamos',
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#22c55e;font-size:20px;">¡Tu reserva está confirmada!</h2>
+          <p>Hola <strong>${nombre}</strong>, tu comprobante de pago fue revisado y <strong style="color:#22c55e;">aceptado</strong>. Tu cita quedó 100% confirmada.</p>
+          ${detailBox([
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Anticipo pagado', value: data.anticipo || '—' },
+            { label: 'Fecha', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+            { label: 'Barbero', value: data.barbero || '—' },
+          ])}
+          ${data.comprobante_url ? `<p style="margin-top:12px;"><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📷 Ver tu comprobante de pago</a></p>` : ''}
+          <p style="margin-top:16px;">Te esperamos puntual el <strong>${data.fecha || ''}</strong> a las <strong>${data.hora || ''}</strong> con <strong>${data.barbero || 'tu barbero'}</strong>. El saldo restante se paga directamente en la barbería.</p>
+          <p style="color:#a1a1aa;font-size:13px;margin-top:8px;">Recibirás un recordatorio antes de tu cita. Si no puedes asistir, avísanos con tiempo.</p>
+          ${cta(`${SITE}/cliente`, 'Ver mis citas')}`,
+          'Tu anticipo fue verificado y la cita confirmada'
+        ),
+      }
+
+    case 'pago_verificado_admin':
+      return {
+        subject: `✅ ¡Excelente! Pago Verificado — ${nombre}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#22c55e;font-size:20px;">¡Pago Verificado con Éxito!</h2>
+          <p>El sistema registró que el pago QR de <strong>${nombre}</strong> fue verificado por <strong>${data.verificadoPor || 'el equipo'}</strong>. La cita está 100% confirmada.</p>
+          ${detailBox([
+            { label: 'Cliente', value: nombre },
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Anticipo', value: data.anticipo || '—' },
+            { label: 'Fecha', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+          ])}
+          ${data.comprobante_url ? `<p style="margin-top:12px;"><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📷 Ver comprobante de pago</a></p>` : ''}
+          ${cta(`${SITE}/admin`, 'Ir al Panel Admin')}`,
+          'Un pago QR ha sido verificado y la cita confirmada'
+        ),
+      }
+
+    case 'resumen_diario_admin':
+      return {
+        subject: `📊 Resumen Diario — ${data.fecha}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">Resumen del Día</h2>
+          <p>Este es el reporte automático de cierre del día <strong>${data.fecha}</strong>.</p>
+          ${detailBox([
+            { label: 'Citas Atendidas', value: data.totalCitas || '0' },
+            { label: 'Ventas de Productos', value: data.totalVentasProductos || '0' },
+            { label: 'Ingresos por Servicios', value: data.ingresosServicios || 'Bs 0.00' },
+            { label: 'Ingresos por Productos', value: data.ingresosProductos || 'Bs 0.00' },
+            { label: 'Ingreso Total', value: data.ingresoTotal || 'Bs 0.00' },
+          ])}
+          ${cta(`${SITE}/admin/reportes`, 'Ver reportes completos')}`,
+          'Resumen de ventas y citas del día'
+        ),
+      }
+
+    case 'invitacion_2x1':
+      return {
+        subject: `🎁 ¡Estás invitado a un 2x1! — ${BRAND}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Tienes una promoción 2x1!</h2>
+          <p>Hola <strong>${nombre}</strong>, tu amigo/a <strong>${data.clienteNombre}</strong> te ha invitado a aprovechar una promoción 2x1 en nuestra barbería.</p>
+          ${detailBox([
+            { label: 'Invitado por', value: data.clienteNombre || 'Un amigo' },
+            { label: 'Fecha de la Cita', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+          ])}
+          <p>Si aún no tienes cuenta en nuestro sistema, puedes registrarte haciendo clic abajo y así tener todo tu historial y bonos guardados.</p>
+          ${cta(`${SITE}/login`, 'Registrarme / Iniciar Sesión')}`,
+          'Un amigo te ha invitado a una promoción 2x1'
+        ),
+      }
+
+    case 'invitacion_cliente':
+      return {
+        subject: `🎉 ¡Bienvenido a ${BRAND}! — Activa tu cuenta digital`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Te damos la bienvenida a ${BRAND}!</h2>
+          <p>Hola <strong>${nombre}</strong>, hemos registrado tu visita y enlazado tu correo electrónico en nuestro sistema digital.</p>
+          <p>Con tu cuenta en línea podrás:</p>
+          <ul style="color:#a1a1aa;padding-left:20px;line-height:1.6;">
+            <li>Agendar citas en línea 24/7 con tus barberos preferidos</li>
+            <li>Acumular visitas para ganar cortes gratis y recompensas de fidelidad</li>
+            <li>Consultar tu historial y acceder a promociones exclusivas</li>
+          </ul>
+          <p>Para activar tu cuenta y ver tus visitas o puntos acumulados, haz clic abajo:</p>
+          ${cta(`${SITE}/login`, 'Acceder a Mi Cuenta')}`,
+          'Bienvenido a nuestro sistema de reservas y fidelidad'
+        ),
+      }
+
+    case 'bienvenida_nuevo_usuario':
+      return {
+        subject: `🎉 ¡Bienvenido a ${BRAND}! — Tus Datos de Acceso`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Te damos la bienvenida a ${BRAND}!</h2>
+          <p>Hola <strong>${data.nombre}</strong>, tu cuenta ha sido creada exitosamente en nuestra plataforma web.</p>
+          <p>Tus credenciales de acceso iniciales son las siguientes:</p>
+          ${detailBox([
+            { label: 'Correo de Usuario', value: String(data.email) },
+            { label: 'Contraseña Inicial', value: String(data.password) },
+          ])}
+          <p style="margin-top:16px;color:#a1a1aa;font-size:13px;">
+            🔒 <strong>Seguridad:</strong> Por tu tranquilidad, puedes cambiar esta contraseña en cualquier momento ingresando a tu perfil web en la sección de seguridad.
+          </p>
+          ${cta(`${SITE}/login`, 'Iniciar Sesión en la Web')}`,
+          'Tus credenciales de acceso a la plataforma'
+        ),
+      }
+
+    case 'cambio_rol':
+      return {
+        subject: `👑 Actualización de Rol en ${BRAND} — ${String(data.nuevoRol || 'USUARIO').toUpperCase()}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Actualización de Rol y Permisos!</h2>
+          <p>Hola <strong>${data.nombre || 'Usuario'}</strong>, te informamos que la Administración ha actualizado tu rol en la plataforma web de ${BRAND}.</p>
+          ${detailBox([
+            { label: 'Rol Asignado', value: String(data.nuevoRol || 'USUARIO').toUpperCase() },
+            { label: 'Fecha de Cambio', value: new Date().toLocaleDateString('es-BO') },
+          ])}
+          <p>Al iniciar sesión ahora podrás acceder a las herramientas, paneles y notificaciones correspondientes a tu nuevo rol.</p>
+          ${cta(`${SITE}/login`, 'Ingresar con mi Nuevo Rol')}`,
+          `Tu rol en ${BRAND} ha sido cambiado a ${data.nuevoRol}`
+        ),
+      }
+
+    case 'invitacion_referido':
+      return {
+        subject: `🎉 ¡Ganaste un Bono por Referir a un Amigo! — ${BRAND}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Gracias por recomendarnos!</h2>
+          <p>Hola <strong>${data.acompananteNombre || nombre}</strong>, tu amigo/a <strong>${data.clienteNombre}</strong> acaba de completar un servicio con nosotros y te nombró como su referidor.</p>
+          <p>¡Como agradecimiento, has ganado un bono de descuento en nuestro sistema que podrás usar en tu próximo corte o compra de productos!</p>
+          ${detailBox([
+            { label: 'Referido', value: data.clienteNombre || 'Un amigo' },
+            { label: 'Bono Ganado', value: `Bs. ${data.montoBono || '10'}` },
+          ])}
+          <p>Para ver y usar tus bonos, accede a tu cuenta desde el siguiente enlace.</p>
+          ${cta(`${SITE}/login`, 'Ver mis bonos')}`,
+          '¡Ganaste un bono de descuento por referir a un amigo!'
+        ),
+      }
+
+    case 'cumpleanos':
+      return {
+        subject: `🎂 ¡Feliz Cumpleaños de parte de ${BRAND}! 🎉`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Feliz Cumpleaños ${nombre}!</h2>
+          <p>Te deseamos un muy feliz cumpleaños de parte de todo el equipo de <strong>${BRAND}</strong>.</p>
+          <p>Hemos verificado tu documento de identidad y se ha habilitado tu regalo de cumpleaños en nuestro sistema.</p>
+          <p>Tienes una promoción exclusiva que puedes aprovechar durante la semana o el mes de tu cumpleaños.</p>
+          ${cta(`${SITE}/reservar`, 'Agendar cita ahora')}`,
+          '¡Tienes un regalo esperando por ti!'
+        ),
+      }
+
+    case 'cumpleanos_registro':
+      return {
+        subject: data.asuntoCustom || `🎂 ¡Fecha de Cumpleaños Registrada en {{barberia}}!`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Hola {{nombre}}!</h2>
+          <p>Hemos registrado tu fecha de cumpleaños exitosamente en <strong>{{barberia}}</strong>.</p>
+          <div style="margin:16px 0;line-height:1.6;font-size:15px;color:#e4e4e7;">${data.mensajeCustom || '¡Prepárate! Una semana antes de tu gran día te enviaremos una promoción exclusiva y tu regalo de cumpleaños para que celebres luciendo tu mejor corte y estilo.'}</div>
+          ${detailBox([
+            { label: 'Fecha Guardada', value: data.fecha || 'Registrada' },
+            { label: 'Beneficio', value: 'Regalo y Descuento Exclusivo en tu Semana' }
+          ])}
+          ${cta(data.link || `${SITE}/reservar`, 'Ver Barbería / Agendar Cita')}`,
+          'Tu fecha de cumpleaños ha sido guardada'
+        ),
+      }
+
+    case 'cumpleanos_semana_antes':
+      return {
+        subject: data.asuntoCustom || `🎂 ¡Se acerca tu Cumpleaños {{nombre}}! Tu regalo en {{barberia}} te espera`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Falta solo 1 semana para tu cumpleaños {{nombre}}! 🎉</h2>
+          <div style="margin:16px 0;line-height:1.6;font-size:15px;color:#e4e4e7;">${data.mensajeCustom || 'En {{barberia}} queremos celebrar contigo. Tienes habilitado un regalo y descuento especial de cumpleaños durante toda esta semana.'}</div>
+          <p>Ven y disfruta el mejor ambiente, bebidas de cortesía y el estilo perfecto para tu día especial.</p>
+          ${cta(data.link || `${SITE}/reservar`, 'Agendar mi Cita de Cumpleaños')}`,
+          '¡Falta solo 1 semana para tu cumpleaños!'
+        ),
+      }
+
+    case 'registro_bienvenida_nuevo':
+      return {
+        subject: `🎉 ¡Bienvenido a ${BRAND}! — Registro Exitoso`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Hola ${nombre}!</h2>
+          <p>Tu cuenta ha sido creada exitosamente en <strong>${BRAND}</strong>.</p>
+          <p>Ya puedes ingresar a nuestro portal web para agendar tus citas, elegir a tu barbero preferido y acumular beneficios de fidelidad.</p>
+          ${cta(`${SITE}/login`, 'Iniciar Sesión en la Web')}`,
+          `Registro exitoso en ${BRAND}`
+        ),
+      }
+
+    case 'registro_bienvenida_sync':
+      return {
+        subject: `🎉 ¡Bienvenido a ${BRAND}! — Historial Sincronizado`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Hola ${nombre}!</h2>
+          <p>Tu cuenta ha sido creada exitosamente. Hemos vinculado de manera segura todo tu historial previo de atenciones, consumos y puntos de lealtad a tu perfil web.</p>
+          ${detailBox([
+            { label: 'Visitas Sincronizadas', value: data.visitas || '0' },
+            { label: 'Historial de Consumo', value: data.gastado || 'Bs. 0' },
+          ])}
+          <p style="color:#a1a1aa;font-size:13px;">Ya puedes ingresar a la web para agendar tus citas y ver tu historial completo de visitas.</p>
+          ${cta(`${SITE}/login`, 'Iniciar Sesión en la Web')}`,
+          `Sincronización de cuenta exitosa en ${BRAND}`
+        ),
+      }
+
     default:
       return {
         subject: `Notificación — ${BRAND}`,
         html: layout(`<p>${data.motivo || 'Tienes una nueva notificación en el sistema.'}</p>`, 'Nueva notificación'),
       }
+  }
+  })()
+
+  return {
+    subject: replaceTemplateVariables(res.subject, data),
+    html: replaceTemplateVariables(res.html, data),
   }
 }

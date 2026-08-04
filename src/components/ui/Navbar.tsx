@@ -12,18 +12,24 @@ import {
   Calendar,
   MoreHorizontal,
   Menu,
+  UserCog,
+  GraduationCap,
+  Wallet,
+  BarChart3,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
+import { OrdenLlegadaBarberos } from './OrdenLlegadaBarberos'
 import { DashboardBreadcrumb } from './DashboardBreadcrumb'
 import { useSidebar } from '@/components/providers/SidebarProvider'
+import { useBrand } from '@/components/providers/BrandProvider'
 import {
   getAgendaHref,
   getAdminNavSections,
+  getCoordinadorNavSections,
   flattenSections,
   barberoNavItems,
-  recepcionNavItems,
   clienteNavItems,
   isDashboardRoute,
   isNavItemActive,
@@ -38,6 +44,7 @@ interface UserProfile {
 }
 
 export function Navbar() {
+  const { brand } = useBrand()
   const [user, setUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -74,7 +81,7 @@ export function Navbar() {
   const getRoleLabel = (role: string) => {
     const roles: Record<string, string> = {
       admin: 'Administrador',
-      recepcionista: 'Recepción',
+      coordinador: 'Coordinación',
       barbero: 'Barbero',
       cliente: 'Cliente'
     }
@@ -90,29 +97,61 @@ export function Navbar() {
 
   const mobileNavItems = (() => {
     if (!user) return []
-    if (user.role === 'cliente') return clienteNavItems.slice(0, 4)
-    if (user.role === 'barbero') return barberoNavItems(agendaHref)
-    if (user.role === 'recepcionista') return recepcionNavItems
+    if (user.role === 'cliente') {
+      return [
+        { label: 'Reservar', href: '/reservar', icon: Scissors, isPrimary: true },
+        { label: 'Mis Citas', href: '/cliente', icon: Calendar },
+        { label: 'Tienda', href: '/tienda', icon: ShoppingBag },
+        { label: 'Perfil', href: '/perfil', icon: UserCog },
+        { label: 'Menú', href: '#menu', icon: Menu, isMenuTrigger: true },
+      ]
+    }
+    if (user.role === 'barbero') {
+      return [
+        { label: 'Inicio', href: '/barbero', icon: Home },
+        { label: 'Agenda', href: agendaHref, icon: Calendar },
+        { label: 'Cursos', href: '/barbero/induccion', icon: GraduationCap, isPrimary: true },
+        { label: 'Perfil', href: '/perfil', icon: UserCog },
+        { label: 'Menú', href: '#menu', icon: Menu, isMenuTrigger: true },
+      ]
+    }
+    if (user.role === 'coordinador') {
+      const all = flattenSections(getCoordinadorNavSections(agendaHref))
+      const pick = (href: string) => all.find((i) => i.href === href)
+      return [
+        pick('/coordinador') || { label: 'Panel', href: '/coordinador', icon: Home },
+        pick(agendaHref) || { label: 'Agenda', href: agendaHref, icon: Calendar },
+        { label: 'POS / Caja', href: '/coordinador/caja', icon: ShoppingBag, isPrimary: true },
+        pick('/coordinador/caja-chica') || { label: 'Caja Chica', href: '/coordinador/caja-chica', icon: Wallet },
+        { label: 'Menú', href: '#menu', icon: Menu, isMenuTrigger: true },
+      ]
+    }
     if (user.role === 'admin') {
       const all = flattenSections(getAdminNavSections(agendaHref))
       const pick = (href: string) => all.find((i) => i.href === href)
       return [
-        pick('/admin'),
-        pick(agendaHref),
-        pick('/recepcion'),
-        pick('/reservar'),
-        { label: 'Más', href: '/admin/buscar', icon: MoreHorizontal },
-      ].filter((x): x is NonNullable<typeof x> => Boolean(x))
+        pick('/admin') || { label: 'Panel', href: '/admin', icon: Home },
+        pick(agendaHref) || { label: 'Agenda', href: agendaHref, icon: Calendar },
+        { label: 'POS / Caja', href: '/admin/caja', icon: ShoppingBag, isPrimary: true },
+        pick('/admin/reportes') || { label: 'Reportes', href: '/admin/reportes', icon: BarChart3 },
+        { label: 'Menú', href: '#menu', icon: Menu, isMenuTrigger: true },
+      ]
     }
-    return recepcionNavItems
+    return clienteNavItems
   })()
 
   if (loading) {
     return (
       <header className="h-16 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md flex items-center px-6 sticky top-0 z-40">
          <div className="flex items-center gap-3 text-amber-500 font-black tracking-tighter animate-pulse">
-            <img src="/logo.png" alt="Barber Pro" className="w-7 h-7 object-contain" />
-            <span>BARBER PRO</span>
+            {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
+              <img src={brand.logo_url} alt={brand.nombre} className="h-7 max-w-[120px] object-contain mix-blend-screen" />
+            ) : (
+              <Scissors className="w-6 h-6" />
+            )}
+            {(brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
+              <span>{brand.nombre}</span>
+            )}
          </div>
       </header>
     )
@@ -121,7 +160,7 @@ export function Navbar() {
   return (
     <>
       {/* --- DESKTOP TOP HEADER --- */}
-      <header className="hidden lg:flex h-14 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md items-center justify-between px-6 sticky top-0 z-40">
+      <header className="hidden lg:flex h-16 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md items-center justify-between px-6 sticky top-0 z-40">
         <div className="flex items-center gap-4 min-w-0 flex-1">
           {user && inDashboard ? (
             <DashboardBreadcrumb />
@@ -131,11 +170,20 @@ export function Navbar() {
                 href="/"
                 className="flex items-center gap-2 text-amber-500 font-black text-lg tracking-tighter hover:scale-105 transition-transform shrink-0"
               >
-                <img src="/logo.png" alt="Barber Pro" className="w-7 h-7 object-contain" />
-                <span>BARBER PRO</span>
+                {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
+                  <img src={brand.logo_url} alt={brand.nombre} className="h-10 lg:h-11 max-w-[180px] object-contain mix-blend-screen" />
+                ) : (
+                  <Scissors className="w-5 h-5 glow-amber" />
+                )}
+                {(brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
+                  <span>{brand.nombre}</span>
+                )}
               </Link>
               {!user && (
                 <nav className="flex items-center gap-6 text-zinc-400 font-medium ml-4">
+                  <Link href="/servicios" className="hover:text-amber-400 transition-colors">
+                    Servicios
+                  </Link>
                   <Link href="/galeria" className="hover:text-amber-400 transition-colors">
                     Galería
                   </Link>
@@ -154,6 +202,7 @@ export function Navbar() {
         <div className="flex items-center gap-4">
           {user ? (
             <>
+              {['barbero', 'admin', 'coordinador'].includes(user.role) && <OrdenLlegadaBarberos />}
               <CampanaNotificaciones userId={user.id || ''} userRole={user.role} />
               
               <div className="h-8 w-px bg-white/10 mx-2" />
@@ -210,8 +259,14 @@ export function Navbar() {
             </button>
           )}
           <Link href="/" className="flex items-center gap-2 text-amber-500 font-black tracking-tighter">
-            <img src="/logo.png" alt="Barber Pro" className="w-7 h-7 object-contain" />
-            <span>BARBER PRO</span>
+            {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
+              <img src={brand.logo_url} alt={brand.nombre} className="h-9 max-w-[150px] object-contain mix-blend-screen" />
+            ) : (
+              <Scissors className="w-6 h-6 glow-amber" />
+            )}
+            {(brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
+              <span>{brand.nombre}</span>
+            )}
           </Link>
         </div>
 
@@ -223,29 +278,72 @@ export function Navbar() {
       </header>
 
       {/* --- MOBILE BOTTOM NAV (UX Essential) --- */}
-      <nav className="lg:hidden fixed bottom-4 left-4 right-4 h-16 bg-zinc-900 border border-white/10 shadow-2xl rounded-2xl flex items-center justify-around z-50 backdrop-blur-lg">
+      <nav className="lg:hidden fixed bottom-3 left-3 right-3 h-16 bg-zinc-950/90 border border-white/10 shadow-2xl shadow-black/80 rounded-2xl flex items-center justify-around z-50 backdrop-blur-xl px-2">
         {user ? (
-          mobileNavItems.map((item) => (
-            <Link
-              key={item.href + item.label}
-              href={item.href}
-              className={cn(
-                'flex flex-col items-center justify-center min-w-[3rem] px-1 rounded-xl transition-all active:scale-90',
-                isNavItemActive(pathname, item.href) ? 'text-amber-500 font-black' : 'text-zinc-500'
-              )}
-            >
-              <item.icon size={20} className={cn(isNavItemActive(pathname, item.href) && 'glow-amber')} />
-              <span className="text-[9px] uppercase font-black mt-0.5 tracking-tighter truncate max-w-[4rem]">
-                {item.label}
-              </span>
-            </Link>
-          ))
+          mobileNavItems.map((item: any) => {
+            const isActive = !item.isMenuTrigger && isNavItemActive(pathname, item.href)
+            
+            if (item.isMenuTrigger) {
+              return (
+                <button
+                  key="menu-trigger"
+                  type="button"
+                  onClick={toggleMobile}
+                  className="flex flex-col items-center justify-center min-w-[3.2rem] py-1 px-1 rounded-xl transition-all active:scale-90 text-zinc-400 hover:text-amber-400"
+                >
+                  <item.icon size={20} />
+                  <span className="text-[9px] uppercase font-black mt-0.5 tracking-tighter truncate max-w-[4rem]">
+                    {item.label}
+                  </span>
+                </button>
+              )
+            }
+
+            if (item.isPrimary) {
+              return (
+                <Link
+                  key={item.href + item.label}
+                  href={item.href}
+                  className={cn(
+                    'flex flex-col items-center justify-center px-3 py-1.5 rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-500/25 border',
+                    isActive
+                      ? 'bg-amber-400 text-black border-amber-300 font-black scale-105'
+                      : 'bg-amber-500/90 text-black border-amber-400/50 font-bold hover:bg-amber-500'
+                  )}
+                >
+                  <item.icon size={18} className="stroke-[2.5]" />
+                  <span className="text-[9px] uppercase font-black tracking-tighter truncate max-w-[4.5rem]">
+                    {item.label}
+                  </span>
+                </Link>
+              )
+            }
+
+            return (
+              <Link
+                key={item.href + item.label}
+                href={item.href}
+                className={cn(
+                  'relative flex flex-col items-center justify-center min-w-[3.2rem] py-1 px-1 rounded-xl transition-all active:scale-90',
+                  isActive ? 'text-amber-500 font-black' : 'text-zinc-500 hover:text-zinc-300'
+                )}
+              >
+                {isActive && (
+                  <span className="absolute -top-2.5 w-6 h-1 bg-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+                )}
+                <item.icon size={20} className={cn(isActive && 'glow-amber')} />
+                <span className="text-[9px] uppercase font-black mt-0.5 tracking-tighter truncate max-w-[4rem]">
+                  {item.label}
+                </span>
+              </Link>
+            )
+          })
         ) : (
           <>
-            <Link href="/" className="flex flex-col items-center justify-center text-amber-500"><Home size={22} /><span className="text-[10px] uppercase font-black mt-1">Inicio</span></Link>
-            <Link href="/galeria" className="text-zinc-500"><Scissors size={22} /></Link>
-            <Link href="/tienda" className="text-zinc-500"><ShoppingBag size={22} /></Link>
-            <Link href="/login" className="text-zinc-500"><User size={22} /></Link>
+            <Link href="/" className="flex flex-col items-center justify-center text-amber-500"><Home size={20} /><span className="text-[9px] uppercase font-black mt-0.5">Inicio</span></Link>
+            <Link href="/servicios" className="flex flex-col items-center justify-center text-zinc-500 hover:text-amber-400"><Scissors size={20} /><span className="text-[9px] uppercase font-black mt-0.5">Servicios</span></Link>
+            <Link href="/tienda" className="flex flex-col items-center justify-center text-zinc-500 hover:text-amber-400"><ShoppingBag size={20} /><span className="text-[9px] uppercase font-black mt-0.5">Tienda</span></Link>
+            <Link href="/login" className="flex flex-col items-center justify-center text-zinc-500 hover:text-amber-400"><User size={20} /><span className="text-[9px] uppercase font-black mt-0.5">Ingresar</span></Link>
           </>
         )}
       </nav>

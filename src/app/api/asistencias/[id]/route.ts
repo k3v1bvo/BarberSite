@@ -1,7 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { isAfterAutoCloseHour, getHorarioEsperadoSalida } from '@/lib/asistencia/helpers'
-import { calcularHorasExtras } from '@/lib/horarios/helpers'
+import { isAfterAutoCloseHour } from '@/lib/asistencia/helpers'
 
 export async function PATCH(
   request: NextRequest,
@@ -129,15 +128,12 @@ export async function POST(
     const now = new Date()
     const entrada = new Date(reg.hora_entrada)
     const horas = (now.getTime() - entrada.getTime()) / (1000 * 60 * 60)
-    const horaFin = await getHorarioEsperadoSalida(supabase, user.id, reg.fecha)
-    const horasExtras = calcularHorasExtras(now.toISOString(), horaFin)
 
     const { data, error } = await supabase
       .from('asistencias')
       .update({
         hora_salida: now.toISOString(),
         horas_trabajadas: Number(horas.toFixed(2)),
-        horas_extras: horasExtras,
         estado: 'finalizado',
       })
       .eq('id', id)
@@ -146,6 +142,47 @@ export async function POST(
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    try {
+      // Check for early departure (Salida temprano)
+      const dayOfWeek = now.getDay()
+      const { data: horario } = await supabase
+        .from('barbero_horario_semanal')
+        .select('hora_fin')
+        .eq('barbero_id', user.id)
+        .eq('dia_semana', dayOfWeek)
+        .eq('activo', true)
+        .single()
+
+      if (horario && horario.hora_fin) {
+        const currentHour = now.getHours()
+        const currentMinute = now.getMinutes()
+        const [endHour, endMinute] = horario.hora_fin.split(':').map(Number)
+        
+        const currentTime = currentHour * 60 + currentMinute
+        const endTime = endHour * 60 + endMinute
+        
+        if (currentTime < endTime - 15) { // 15 minutes grace period
+          // Fetch configuraciones and plan_cuentas for sanction type
+          const { data: cuentasSancion } = await supabase.from('plan_cuentas').select('detalle').eq('es_sancion', true)
+          let tipoSancion = 'salida_temprano'
+          if (cuentasSancion && cuentasSancion.length > 0) {
+            const match = cuentasSancion.find((c: any) => c.detalle.toLowerCase().includes('salida') || c.detalle.toLowerCase().includes('temprano'))
+            tipoSancion = match ? match.detalle : cuentasSancion[0].detalle
+          }
+
+          await supabase.from('sanciones').insert({
+            barbero_id: user.id,
+            tipo: tipoSancion,
+            descripcion: `Salida temprano (Salió a las ${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}, turno hasta ${horario.hora_fin})`,
+            monto: 12, // 30% of 40Bs
+            estado: 'pendiente'
+          })
+        }
+      }
+    } catch (e) {
+      console.error('Error evaluating early departure sanction', e)
     }
 
     return NextResponse.json({ registro: data })

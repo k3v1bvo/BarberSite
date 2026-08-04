@@ -13,7 +13,8 @@ import { useAgendaCitas } from '@/hooks/useAgendaCitas'
 import type { AgendaCita } from '@/lib/agenda/types'
 import type { AgendaView } from '@/lib/agenda/date-range'
 import { startOfWeek, endOfWeek } from 'date-fns'
-import { AlertCircle, ArrowLeft, Clock } from 'lucide-react'
+import { ModalCrearCitaManual } from '@/components/agenda/ModalCrearCitaManual'
+import { AlertCircle, ArrowLeft, Clock, Scissors } from 'lucide-react'
 import Link from 'next/link'
 
 interface BarberInfo {
@@ -33,7 +34,8 @@ export default function AgendaIndividualPage() {
   const [barberos, setBarberos] = useState<BarberInfo[]>([])
   const [barberoNombre, setBarberoNombre] = useState('')
   const [selectedBarberoId, setSelectedBarberoId] = useState(barberoId)
-  const [view, setView] = useState<AgendaView>('mes')
+  const [isModalManualOpen, setIsModalManualOpen] = useState(false)
+  const [view, setView] = useState<AgendaView>('dia')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentTab, setCurrentTab] = useState<'calendario' | 'disponibilidad' | 'horarios'>('calendario')
   const [authError, setAuthError] = useState<string | null>(null)
@@ -66,10 +68,10 @@ export default function AgendaIndividualPage() {
         setUserRole(role)
 
         const isAdmin = role === 'admin'
-        const isRecepcionista = role === 'recepcionista'
+        const isCoordinador = role === 'coordinador'
         const isOwnBarber = role === 'barbero' && user.id === barberoId
 
-        if (!isAdmin && !isRecepcionista && !isOwnBarber) {
+        if (!isAdmin && !isCoordinador && !isOwnBarber) {
           setAuthError('No tienes permisos para acceder a esta agenda')
           setAuthorized(false)
           return
@@ -78,7 +80,7 @@ export default function AgendaIndividualPage() {
         setAuthorized(true)
         setSelectedBarberoId(barberoId)
 
-        if (isAdmin || isRecepcionista) {
+        if (isAdmin || isCoordinador) {
           const { data: barberosList } = await supabase
             .from('profiles')
             .select('id, full_name')
@@ -132,6 +134,10 @@ export default function AgendaIndividualPage() {
   }, [authorized, selectedBarberoId])
 
   const handleBarberoChange = (id: string) => {
+    if (id === 'todos') {
+      router.push('/agenda')
+      return
+    }
     setSelectedBarberoId(id)
     router.push(`/agenda/${id}`)
   }
@@ -167,7 +173,7 @@ export default function AgendaIndividualPage() {
 
   if (!authorized) return null
 
-  const showGeneralLink = userRole === 'admin' || userRole === 'recepcionista'
+  const showGeneralLink = userRole === 'admin' || userRole === 'coordinador'
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20 lg:pb-0">
@@ -187,9 +193,18 @@ export default function AgendaIndividualPage() {
           </h1>
           <p className="text-zinc-500 font-medium mt-1">{barberoNombre}</p>
         </div>
+        <Button
+          variant="primary"
+          size="md"
+          onClick={() => setIsModalManualOpen(true)}
+          className="font-black uppercase text-xs shadow-lg shadow-amber-500/20"
+        >
+          <Scissors className="w-4 h-4 mr-2" />
+          ➕ Nueva Cita Manual (Sin Correo)
+        </Button>
       </div>
 
-      {(userRole === 'admin' || userRole === 'recepcionista') && barberos.length > 0 && (
+      {(userRole === 'admin' || userRole === 'coordinador') && barberos.length > 0 && (
         <Card className="border-white/5 bg-zinc-900/30">
           <CardContent className="p-6">
             <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 block mb-3">
@@ -198,8 +213,9 @@ export default function AgendaIndividualPage() {
             <select
               value={selectedBarberoId}
               onChange={(e) => handleBarberoChange(e.target.value)}
-              className="w-full md:w-64 h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none"
+              className="w-full md:w-64 h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none cursor-pointer hover:border-white/20 transition-all"
             >
+              <option value="todos">💈 Todos los Barberos (General)</option>
               {barberos.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.nombre}
@@ -308,7 +324,7 @@ export default function AgendaIndividualPage() {
           barberoId={selectedBarberoId}
           canEdit={
             userRole === 'admin' ||
-            userRole === 'recepcionista' ||
+            userRole === 'coordinador' ||
             userRole === 'barbero'
           }
         />
@@ -336,6 +352,14 @@ export default function AgendaIndividualPage() {
         cita={selectedCita}
         onClose={() => setSelectedCita(null)}
         showBarbero={false}
+        onUpdate={reload}
+      />
+
+      <ModalCrearCitaManual
+        isOpen={isModalManualOpen}
+        onClose={() => setIsModalManualOpen(false)}
+        onSuccess={() => reload()}
+        defaultBarberoId={selectedBarberoId !== 'todos' ? selectedBarberoId : undefined}
       />
     </div>
   )

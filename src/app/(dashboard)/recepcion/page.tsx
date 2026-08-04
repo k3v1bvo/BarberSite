@@ -2,7 +2,6 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { formatCurrency } from '@/lib/utils'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { PrintButton } from '@/components/ui/PrintButton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Scissors, User, CalendarDays } from 'lucide-react'
 import Link from 'next/link'
@@ -13,7 +12,7 @@ export default async function RecepcionPage(props: { searchParams: Promise<{ dat
   const searchParams = await props.searchParams
   const supabase = await createServerSupabaseClient()
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const dateStr = searchParams?.date || today
   const view = searchParams?.view || 'day'
 
@@ -90,7 +89,9 @@ export default async function RecepcionPage(props: { searchParams: Promise<{ dat
                  <CalendarDays className="w-4 h-4 mr-2" /> Ver Agendas
                </Button>
              </Link>
-             <PrintButton />
+             <Button variant="secondary" size="md" onClick={() => typeof window !== 'undefined' && window.print()}>
+               Imprimir Reporte
+             </Button>
              <Link href="/agenda">
                <Button variant="primary" size="md" className="shadow-lg shadow-amber-500/20">
                  Agenda general

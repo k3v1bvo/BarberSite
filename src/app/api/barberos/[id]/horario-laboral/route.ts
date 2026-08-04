@@ -81,8 +81,6 @@ export async function PUT(
           hora_inicio: row.hora_inicio,
           hora_fin: row.hora_fin,
           activo: row.activo,
-          tipo_horario: row.tipo_horario || 'personalizado',
-          plantilla_id: row.plantilla_id || null,
         },
         { onConflict: 'barbero_id,dia_semana' }
       )

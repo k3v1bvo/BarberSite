@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { Navbar } from '@/components/ui/Navbar'
 import { Camera, Scissors, Filter } from 'lucide-react'
 
 interface PortfolioItem {
@@ -10,10 +11,9 @@ interface PortfolioItem {
   categoria: string
   descripcion: string
   barbero_id: string
-  titulo?: string | null
-  profiles: {
+  barberos: {
     full_name: string
-  } | null
+  }
 }
 
 export default function GaleriaPage() {
@@ -30,34 +30,19 @@ export default function GaleriaPage() {
 
   const loadPortafolio = async () => {
     try {
-      let data = null
-      const { data: p1, error: pErr } = await supabase
+      const { data, error } = await supabase
         .from('portafolio')
         .select(`
-          id, image_url, categoria, descripcion, barbero_id, titulo, sort_order, is_active,
-          profiles!barbero_id(full_name)
+          id, image_url, categoria, descripcion, barbero_id,
+          barberos:profiles(full_name)
         `)
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
         .order('created_at', { ascending: false })
 
-      if (pErr?.code === '42703') {
-        const { data: p2 } = await supabase
-          .from('portafolio')
-          .select(`
-            id, image_url, categoria, descripcion, barbero_id,
-            profiles!barbero_id(full_name)
-          `)
-          .order('created_at', { ascending: false })
-        data = p2
-      } else {
-        if (pErr) throw pErr
-        data = p1
-      }
+      if (error) throw error
 
       if (data) {
         setItems(data as unknown as PortfolioItem[])
-        const cats = Array.from(new Set(data.map((item) => item.categoria)))
+        const cats = Array.from(new Set(data.map(item => item.categoria)))
         setCategorias(['Todos', ...cats])
       }
     } catch (e) {
@@ -71,6 +56,8 @@ export default function GaleriaPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white pb-32">
+       <Navbar />
+
        <div className="max-w-7xl mx-auto px-4 pt-12">
           {/* Header */}
           <div className="text-center mb-16">
@@ -124,7 +111,7 @@ export default function GaleriaPage() {
                          </p>
                          <div className="flex items-center gap-2 text-zinc-400 text-sm">
                            <Scissors className="w-4 h-4" />
-                           <span>Por: <strong className="text-white">{item.profiles?.full_name || 'Barbero Pro'}</strong></span>
+                           <span>Por: <strong className="text-white">{item.barberos?.full_name || 'Barbero Pro'}</strong></span>
                          </div>
                       </div>
                    </div>

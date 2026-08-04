@@ -20,6 +20,7 @@ interface Notificacion {
   leido: boolean
   link: string | null
   created_at: string
+  datos_extra?: any
 }
 
 const CATEGORIA_LABELS: Record<string, string> = {
@@ -89,7 +90,18 @@ export default function NotificacionesPage() {
 
   const openNotif = (n: Notificacion) => {
     if (!n.leido) markRead(n.id)
-    if (n.link) router.push(n.link)
+    if (n.link) {
+      try {
+        if (n.link.startsWith('http')) {
+          const url = new URL(n.link)
+          router.push(url.pathname + url.search)
+        } else {
+          router.push(n.link)
+        }
+      } catch {
+        router.push(n.link)
+      }
+    }
   }
 
   const savePrefs = async () => {
@@ -229,39 +241,129 @@ export default function NotificacionesPage() {
                   <p className="font-bold uppercase tracking-widest text-xs">Sin notificaciones</p>
                 </div>
               ) : (
-                items.map((n, i) => (
-                  <button
-                    key={n.id}
-                    type="button"
-                    onClick={() => openNotif(n)}
-                    className={cn(
-                      'w-full text-left p-5 flex gap-4 hover:bg-white/5 transition-all animate-in fade-in slide-in-from-bottom-1 fill-mode-both',
-                      !n.leido && 'bg-amber-500/5'
-                    )}
-                    style={{ animationDelay: `${i * 30}ms` }}
-                  >
-                    <div className="shrink-0 mt-1">
-                      {!n.leido && <span className="block w-2 h-2 rounded-full bg-amber-500" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <p className="font-bold text-white text-sm">{n.titulo}</p>
-                        <Badge variant={tipoBadge(n.tipo)} className="text-[9px] uppercase">
-                          {n.tipo}
-                        </Badge>
-                        {n.categoria && (
-                          <span className="text-[9px] uppercase font-black text-zinc-600 tracking-widest">
-                            {CATEGORIA_LABELS[n.categoria] || n.categoria}
-                          </span>
-                        )}
+                items.map((n, i) => {
+                  const isRecuperacion = n.datos_extra?.tipo_solicitud === 'RECUPERACION_CUENTA'
+                  const isAprobado = n.datos_extra?.estado_solicitud === 'APROBADO'
+
+                  return (
+                    <div
+                      key={n.id}
+                      className={cn(
+                        'w-full text-left p-5 flex flex-col gap-3 hover:bg-white/5 transition-all animate-in fade-in slide-in-from-bottom-1 fill-mode-both border-b border-white/5',
+                        !n.leido && 'bg-amber-500/5'
+                      )}
+                      style={{ animationDelay: `${i * 30}ms` }}
+                    >
+                      <div className="flex gap-4 items-start cursor-pointer" onClick={() => openNotif(n)}>
+                        <div className="shrink-0 mt-1">
+                          {!n.leido && <span className="block w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <p className="font-bold text-white text-sm">{n.titulo}</p>
+                            <Badge variant={tipoBadge(n.tipo)} className="text-[9px] uppercase">
+                              {n.tipo}
+                            </Badge>
+                            {isAprobado && (
+                              <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                ✓ Aprobado
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-zinc-300 leading-relaxed">{n.mensaje}</p>
+                          <p className="text-[10px] text-zinc-600 mt-2 uppercase tracking-wider">
+                            {new Date(n.created_at).toLocaleString('es-BO')}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-sm text-zinc-400 line-clamp-2">{n.mensaje}</p>
-                      <p className="text-[10px] text-zinc-600 mt-2 uppercase tracking-wider">
-                        {new Date(n.created_at).toLocaleString('es-BO')}
-                      </p>
+
+                      {/* Panel de Aprobación para Solicitudes de Recuperación */}
+                      {isRecuperacion && (
+                        <div className="ml-6 mt-1 p-3 bg-zinc-900/90 border border-amber-500/20 rounded-xl space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">
+                              Acciones de Administración
+                            </span>
+                            {isAprobado && (
+                              <span className="text-[10px] text-emerald-400 font-bold">
+                                {n.datos_extra?.resultado || 'Procesado'}
+                              </span>
+                            )}
+                          </div>
+
+                          {!isAprobado ? (
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!confirm(`¿Confirmas enviar el enlace de recuperación a ${n.datos_extra?.email}?`)) return
+                                  try {
+                                    const res = await fetch('/api/admin/recuperacion/aprobar', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        notificacion_id: n.id,
+                                        cliente_id: n.datos_extra?.cliente_id,
+                                        email: n.datos_extra?.email,
+                                        accion: 'reset_link',
+                                      })
+                                    })
+                                    const data = await res.json()
+                                    if (!res.ok) throw new Error(data.error)
+                                    alert(data.mensaje || 'Enlace enviado con éxito.')
+                                    load()
+                                  } catch (err: any) {
+                                    alert(err.message || 'Error al autorizar.')
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-[10px] tracking-wider rounded-lg shadow-sm transition-all"
+                              >
+                                ✉️ Enviar Enlace de Restablecimiento
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const nuevoEmail = prompt('Nuevo correo del cliente (dejar vacío si mantienes el actual):', n.datos_extra?.email || '')
+                                  const nuevaPass = prompt('Nueva contraseña provisoria (mínimo 6 caracteres):')
+                                  if (!nuevaPass && !nuevoEmail) return
+
+                                  try {
+                                    const res = await fetch('/api/admin/recuperacion/aprobar', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        notificacion_id: n.id,
+                                        cliente_id: n.datos_extra?.cliente_id,
+                                        email: n.datos_extra?.email,
+                                        accion: 'cambiar_credenciales',
+                                        nuevo_email: nuevoEmail,
+                                        nueva_password: nuevaPass,
+                                      })
+                                    })
+                                    const data = await res.json()
+                                    if (!res.ok) throw new Error(data.error)
+                                    alert(data.mensaje || 'Credenciales actualizadas con éxito.')
+                                    load()
+                                  } catch (err: any) {
+                                    alert(err.message || 'Error al actualizar credenciales.')
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-500/30 font-black uppercase text-[10px] tracking-wider rounded-lg transition-all"
+                              >
+                                ✏️ Cambiar Correo / Clave Provisoria
+                              </button>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-zinc-400 italic">
+                              Esta solicitud fue revisada y autorizada por la administración.
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </button>
-                ))
+                  )
+                })
               )}
             </CardContent>
           </Card>

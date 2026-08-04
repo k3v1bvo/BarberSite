@@ -4,7 +4,7 @@ import { getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
 import type { DispatchInput, NotificationCategory } from '@/lib/notifications/types'
 
-const PUBLIC_EVENTS: NotificationCategory[] = ['reserva_nueva']
+const PUBLIC_EVENTS: NotificationCategory[] = ['reserva_nueva', 'pago_pendiente']
 
 export async function POST(request: Request) {
   try {

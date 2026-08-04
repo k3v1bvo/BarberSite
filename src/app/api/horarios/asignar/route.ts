@@ -1,43 +1,59 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth/api-guards'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export async function POST(request: Request) {
-  const auth = await requireAdmin()
-  if ('error' in auth) return auth.error
-  const { supabase } = auth
+  const supabase = await createServerSupabaseClient()
+  const body = await request.json()
 
-  const { barbero_id, plantilla_id, dias } = await request.json()
+  const { barbero_id, plantilla_id, dias } = body
 
-  const { data: plantilla, error: pError } = await supabase
+  if (!barbero_id || !plantilla_id || !dias || !Array.isArray(dias)) {
+    return NextResponse.json({ error: 'Faltan datos requeridos o formato inválido' }, { status: 400 })
+  }
+
+  // First, get the template details
+  const { data: plantilla, error: plantillaError } = await supabase
     .from('plantillas_horario')
     .select('*')
     .eq('id', plantilla_id)
     .single()
 
-  if (pError || !plantilla) {
+  if (plantillaError || !plantilla) {
     return NextResponse.json({ error: 'Plantilla no encontrada' }, { status: 404 })
   }
 
-  const diasAplicar: number[] = dias?.length ? dias : [1, 2, 3, 4, 5, 6]
-
-  // Optimización: Batch upsert en lugar de loop
-  const records = diasAplicar.map(dia => ({
-    barbero_id,
-    dia_semana: dia,
-    hora_inicio: plantilla.hora_inicio?.slice(0, 5) || '09:00',
-    hora_fin: plantilla.hora_fin?.slice(0, 5) || '20:00',
-    activo: true,
-    tipo_horario: plantilla.tipo,
-    plantilla_id: plantilla.id,
-  }))
-
-  const { error } = await supabase
+  // Then, delete existing schedule for these days for this barber
+  // If the user wants to replace the days, we delete and insert.
+  const { error: deleteError } = await supabase
     .from('barbero_horario_semanal')
-    .upsert(records, { onConflict: 'barbero_id,dia_semana' })
+    .delete()
+    .eq('barbero_id', barbero_id)
+    .in('dia_semana', dias)
 
-  if (error) {
-     return NextResponse.json({ error: error.message }, { status: 500 })
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, dias: diasAplicar.length })
+  // Prepare new schedules
+  const newSchedules = dias.map((dia: number) => ({
+    barbero_id,
+    plantilla_id,
+    dia_semana: dia,
+    hora_inicio: plantilla.hora_inicio,
+    hora_fin: plantilla.hora_fin,
+    activo: true,
+    tipo_horario: plantilla.tipo,
+  }))
+
+  if (newSchedules.length > 0) {
+    const { error: insertError } = await supabase
+      .from('barbero_horario_semanal')
+      .insert(newSchedules)
+
+    if (insertError) {
+      return NextResponse.json({ error: insertError.message }, { status: 500 })
+    }
+  }
+
+  return NextResponse.json({ success: true })
 }

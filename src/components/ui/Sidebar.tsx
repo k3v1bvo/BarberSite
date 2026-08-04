@@ -13,11 +13,12 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useSidebar } from '@/components/providers/SidebarProvider'
+import { useBrand } from '@/components/providers/BrandProvider'
 import {
   getAgendaHref,
   getAdminNavSections,
+  getCoordinadorNavSections,
   barberoNavItems,
-  recepcionNavItems,
   clienteNavItems,
   isNavItemActive,
   type NavSection,
@@ -44,10 +45,10 @@ function Tooltip({
   show: boolean
 }) {
   return (
-    <div className="group/tip relative">
+    <div className="sidebar-tooltip-wrapper group/tip relative">
       {children}
       {show && (
-        <span className="absolute left-16 top-1/2 -translate-y-1/2 px-3 py-2 bg-zinc-900 border border-white/10 rounded-lg text-white text-xs font-bold whitespace-nowrap pointer-events-none z-50">
+        <span className="sidebar-tooltip">
           {label}
         </span>
       )}
@@ -71,26 +72,29 @@ function NavLink({
   active: boolean
   collapsed: boolean
 }) {
+  const { closeMobile } = useSidebar()
+
   const link = (
     <Link
       href={href}
+      onClick={closeMobile}
       className={cn(
-        'flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold transition-all duration-200 active:scale-95',
-        collapsed && 'justify-center',
+        'sidebar-nav-link group/link',
+        collapsed && 'sidebar-nav-link--collapsed',
         active
-          ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
-          : 'text-zinc-400 hover:text-white hover:bg-white/5'
+          ? 'sidebar-nav-link--active'
+          : 'sidebar-nav-link--inactive'
       )}
     >
       <Icon
         size={collapsed ? 20 : 18}
         className={cn(
           'shrink-0 transition-all duration-200',
-          active ? 'text-black' : 'text-amber-500/70 hover:text-amber-400'
+          active ? 'text-black' : 'text-amber-500/70 group-hover/link:text-amber-400'
         )}
       />
       {!collapsed && (
-        <span className="text-sm whitespace-nowrap overflow-hidden">
+        <span className="text-sm whitespace-nowrap overflow-hidden sidebar-label">
           {label}
         </span>
       )}
@@ -109,10 +113,10 @@ function NavLink({
    —————————————————————————————————————————————— */
 function SectionTitle({ title, collapsed }: { title: string; collapsed: boolean }) {
   if (collapsed) {
-    return <div className="h-px bg-white/5 my-2 mx-2" />
+    return <div className="sidebar-section-divider" />
   }
   return (
-    <p className="px-4 text-[10px] uppercase font-black text-zinc-600 tracking-[0.2em] mb-2">
+    <p className="px-4 text-[10px] uppercase font-black text-zinc-600 tracking-[0.2em] mb-2 sidebar-label">
       {title}
     </p>
   )
@@ -190,6 +194,7 @@ function FlatNavItems({
    MAIN SIDEBAR COMPONENT
    —————————————————————————————————————————————— */
 export function Sidebar({ role, userId }: SidebarProps) {
+  const { brand } = useBrand()
   const pathname = usePathname()
   const { collapsed, mobileOpen, toggleCollapsed, closeMobile } = useSidebar()
   const sidebarRef = useRef<HTMLElement>(null)
@@ -200,8 +205,8 @@ export function Sidebar({ role, userId }: SidebarProps) {
       ? 'Tu área'
       : role === 'barbero'
         ? 'Mi trabajo'
-        : role === 'recepcionista'
-          ? 'Recepción'
+        : role === 'coordinador'
+          ? 'Coordinación'
           : 'Administración'
 
   // Close mobile sidebar on pathname change
@@ -226,37 +231,62 @@ export function Sidebar({ role, userId }: SidebarProps) {
       <>
         {/* ── Header ── */}
         <div className={cn(
-          'flex flex-col gap-2 mb-6',
-          isCollapsed && 'items-center justify-center'
+          'sidebar-header',
+          isCollapsed && 'sidebar-header--collapsed'
         )}>
           <Link
             href={role === 'admin' ? '/admin' : '/'}
+            onClick={isMobile ? closeMobile : undefined}
             className={cn(
-              'flex items-center text-amber-500 font-black tracking-tighter transition-all duration-300 hover:scale-105',
-              isCollapsed ? 'justify-center text-base' : 'gap-3 text-xl'
+              'flex text-amber-500 font-black tracking-tighter transition-all duration-300',
+              isCollapsed
+                ? 'justify-center items-center text-base'
+                : brand.mostrar_modo === 'ambos'
+                  ? 'flex-col items-start gap-1'
+                  : 'flex-row items-center gap-3 text-xl'
             )}
           >
-            <img src="/logo.png" alt="Barber Pro" className={cn('shrink-0 object-contain', isCollapsed ? 'w-6 h-6' : 'w-7 h-7')} />
-            {!isCollapsed && <span>BARBER PRO</span>}
+            {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
+              <img
+                src={brand.logo_url}
+                alt={brand.nombre}
+                className={cn(
+                  'object-contain shrink-0 transition-all mix-blend-screen',
+                  isCollapsed ? 'w-9 h-9' : brand.mostrar_modo === 'ambos' ? 'h-11 max-w-[170px]' : 'h-12 max-w-[200px]'
+                )}
+              />
+            ) : (
+              <Scissors className={cn('shrink-0 text-amber-500', isCollapsed ? 'w-6 h-6' : 'w-7 h-7')} />
+            )}
+            {!isCollapsed && (brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
+              <span className={cn('sidebar-label font-bold text-amber-400 truncate', brand.mostrar_modo === 'ambos' ? 'text-xs tracking-wider uppercase opacity-90' : 'text-lg')}>
+                {brand.nombre}
+              </span>
+            )}
           </Link>
           {!isCollapsed && (
-            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest ml-1">
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1 ml-0.5 sidebar-label">
               {areaLabel}
             </p>
           )}
 
           {/* Mobile close button */}
           {isMobile && (
-            <div
-              className="absolute top-5 right-4 w-8 h-8"
+            <button
+              onClick={closeMobile}
+              className="absolute top-5 right-4 w-8 h-8 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
               aria-label="Cerrar menú"
             >
-            </div>
+              <X size={20} />
+            </button>
           )}
         </div>
 
         {/* ── Navigation ── */}
-        <nav className="flex-1 overflow-y-auto">
+        <nav className={cn(
+          'sidebar-nav',
+          isCollapsed && 'sidebar-nav--collapsed'
+        )}>
           {role === 'admin' && (
             <NavSections
               sections={getAdminNavSections(agendaHref)}
@@ -265,12 +295,11 @@ export function Sidebar({ role, userId }: SidebarProps) {
             />
           )}
 
-          {role === 'recepcionista' && (
-            <FlatNavItems
-              items={recepcionNavItems}
+          {role === 'coordinador' && (
+            <NavSections
+              sections={getCoordinadorNavSections(agendaHref)}
               pathname={pathname}
               collapsed={isCollapsed}
-              agendaHref={agendaHref}
             />
           )}
 
@@ -290,9 +319,9 @@ export function Sidebar({ role, userId }: SidebarProps) {
             />
           )}
 
-          {(!role || !['admin', 'recepcionista', 'barbero', 'cliente'].includes(role)) && (
+          {(!role || !['admin', 'coordinador', 'barbero', 'cliente'].includes(role)) && (
             <FlatNavItems
-              items={recepcionNavItems}
+              items={clienteNavItems}
               pathname={pathname}
               collapsed={isCollapsed}
             />
@@ -312,7 +341,7 @@ export function Sidebar({ role, userId }: SidebarProps) {
 
         {/* ── Footer card (hidden when collapsed) ── */}
         {!isCollapsed && (
-          <div className="border-t border-white/5 pt-4">
+          <div className="sidebar-footer">
             <div className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-2xl p-4">
               <p className="text-xs font-bold text-amber-400 mb-1">
                 {role === 'cliente' ? 'Club de lealtad' : 'Atajos'}
@@ -322,7 +351,9 @@ export function Sidebar({ role, userId }: SidebarProps) {
                   ? 'Acumula puntos por cada visita.'
                   : role === 'admin'
                     ? 'Usa el panel para el resumen; el menú lateral para cada módulo.'
-                    : 'Agenda y recepción son tu flujo diario.'}
+                    : role === 'coordinador'
+                      ? 'Caja, arqueo y contabilidad son tu flujo diario.'
+                      : 'Agenda y ventas son tu flujo diario.'}
               </p>
             </div>
           </div>
@@ -331,8 +362,9 @@ export function Sidebar({ role, userId }: SidebarProps) {
         {/* ── Desktop collapse toggle ── */}
         {!isMobile && (
           <Tooltip label={collapsed ? 'Expandir menú' : 'Contraer menú'} show={collapsed}>
-            <div
-              className="w-full flex items-center justify-center gap-2 mt-4 px-4 py-2 rounded-xl hover:bg-white/5 transition-colors text-zinc-400 hover:text-white active:scale-95 cursor-pointer"
+            <button
+              onClick={toggleCollapsed}
+              className="sidebar-toggle-btn"
               aria-label={collapsed ? 'Expandir menú' : 'Contraer menú'}
             >
               {collapsed ? (
@@ -340,10 +372,10 @@ export function Sidebar({ role, userId }: SidebarProps) {
               ) : (
                 <>
                   <ChevronLeft size={16} className="text-amber-500" />
-                  <span className="text-xs text-zinc-500 font-bold">Contraer</span>
+                  <span className="text-xs text-zinc-500 font-bold sidebar-label">Contraer</span>
                 </>
               )}
-            </div>
+            </button>
           </Tooltip>
         )}
       </>
@@ -358,13 +390,11 @@ export function Sidebar({ role, userId }: SidebarProps) {
       <aside
         ref={sidebarRef}
         className={cn(
-          'hidden lg:flex flex-col fixed left-0 top-0 h-screen bg-zinc-950 border-r border-white/5 z-30 transition-all duration-300',
-          collapsed ? 'w-20' : 'w-64'
+          'sidebar-desktop',
+          collapsed ? 'sidebar-desktop--collapsed' : 'sidebar-desktop--expanded'
         )}
       >
-        <div className="flex flex-col h-full p-4">
-          {sidebarContent(false)}
-        </div>
+        {sidebarContent(false)}
       </aside>
 
       {/* ══════════════════════════════════════════════
@@ -373,17 +403,18 @@ export function Sidebar({ role, userId }: SidebarProps) {
       {/* Backdrop */}
       <div
         className={cn(
-          'lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-20 transition-opacity duration-300',
-          mobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          'sidebar-overlay',
+          mobileOpen ? 'sidebar-overlay--visible' : 'sidebar-overlay--hidden'
         )}
+        onClick={closeMobile}
         aria-hidden="true"
       />
 
       {/* Mobile drawer */}
       <aside
         className={cn(
-          'lg:hidden fixed left-0 top-0 h-screen w-64 bg-zinc-950 border-r border-white/5 z-40 transition-transform duration-300 flex flex-col p-4',
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+          'sidebar-mobile',
+          mobileOpen ? 'sidebar-mobile--open' : 'sidebar-mobile--closed'
         )}
       >
         {sidebarContent(true)}

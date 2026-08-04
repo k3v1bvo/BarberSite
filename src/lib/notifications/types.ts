@@ -8,6 +8,19 @@ export type NotificationCategory =
   | 'asistencia'
   | 'recordatorio'
   | 'sistema'
+  | 'pago_pendiente'
+  | 'pago_verificado'
+  | 'invitacion_2x1'
+  | 'invitacion_referido'
+  | 'invitacion_cliente'
+  | 'reprogramacion_solicitada'
+  | 'reprogramacion_aceptada'
+  | 'reprogramacion_rechazada'
+  | 'bienvenida_nuevo_usuario'
+  | 'cambio_rol'
+  | 'cumpleanos'
+  | 'cumpleanos_registro'
+  | 'cumpleanos_semana_antes'
 
 export type NotificationTipo = 'info' | 'success' | 'warning' | 'danger'
 
@@ -15,10 +28,14 @@ export interface NotificationPayload {
   citaId?: string
   pedidoId?: string
   barberoId?: string
+  clienteId?: string
   clienteNombre?: string
   clienteEmail?: string
+  acompananteNombre?: string
+  montoBono?: string
   barberoNombre?: string
   barberoEmail?: string
+  acompananteEmail?: string
   servicioNombre?: string
   fecha?: string
   hora?: string
@@ -27,6 +44,9 @@ export interface NotificationPayload {
   monto?: number
   motivo?: string
   link?: string
+  comprobante_url?: string
+  nuevaFecha?: string
+  nuevaHora?: string
   [key: string]: string | number | undefined
 }
 
@@ -35,6 +55,7 @@ export interface DispatchInput {
   payload: NotificationPayload
   /** Permite disparo desde reserva pública sin sesión */
   allowPublic?: boolean
+  userEmail?: string
 }
 
 export interface InAppNotificationInsert {

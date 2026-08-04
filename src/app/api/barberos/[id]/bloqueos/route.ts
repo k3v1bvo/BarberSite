@@ -55,7 +55,7 @@ export async function POST(
 
     const canEdit =
       profile?.role === 'admin' ||
-      profile?.role === 'recepcionista' ||
+      profile?.role === 'coordinador' ||
       user.id === barberoId
 
     if (!canEdit) {

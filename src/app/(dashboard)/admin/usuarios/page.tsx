@@ -4,41 +4,75 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 import { Badge } from '@/components/ui/Badge'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit, Trash2, Users, ArrowLeft, X, Save } from 'lucide-react'
+import { Plus, Edit, Trash2, Users, ArrowLeft, X, Save, KeyRound, QrCode } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
+import { ImageUpload } from '@/components/ui/ImageUpload'
+import { Modal } from '@/components/ui/Modal'
 
 interface Usuario {
   id: string
   email: string
   full_name: string | null
   phone: string | null
+  ci: string | null
   role: string
   is_active: boolean
   comision_porcentaje: number
   avatar_url: string | null
+  qr_code_url: string | null
   created_at: string
 }
 
 export default function UsuariosPage() {
-  const { error: toastError } = useToast()
+  const { error: toastError, success: toastSuccess } = useToast()
+  const [resettingPwd, setResettingPwd] = useState(false)
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingUser, setEditingUser] = useState<Usuario | null>(null)
+  const [pwdUser, setPwdUser] = useState<Usuario | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [savingPwd, setSavingPwd] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     full_name: '',
     phone: '',
-    role: 'barbero' as 'barbero' | 'recepcionista' | 'admin',
-    comision_porcentaje: 30,
+    ci: '',
+    role: 'cliente' as 'cliente' | 'barbero' | 'coordinador' | 'admin',
     avatar_url: '',
+    qr_code_url: '',
     password: '',
   })
   const router = useRouter()
   const supabase = createClient()
+
+  const handleUpdateUserPassword = async (direct: boolean) => {
+    if (!pwdUser) return
+    setSavingPwd(true)
+    try {
+      const res = await fetch('/api/admin/usuarios/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(direct ? { userId: pwdUser.id, newPassword } : { email: pwdUser.email })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toastSuccess(direct ? 'Contraseña actualizada directamente' : `Correo de recuperación enviado a ${pwdUser.email}`)
+        setPwdUser(null)
+        setNewPassword('')
+      } else {
+        toastError(data.error || 'Error al procesar contraseña')
+      }
+    } catch {
+      toastError('Error al procesar contraseña')
+    } finally {
+      setSavingPwd(false)
+    }
+  }
 
   useEffect(() => {
     loadUsuarios()
@@ -67,42 +101,67 @@ export default function UsuariosPage() {
     e.preventDefault()
     try {
       if (editingUser) {
+        if (formData.email !== editingUser.email) {
+          const patchRes = await fetch('/api/admin/usuarios', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: editingUser.id, email: formData.email })
+          })
+          if (!patchRes.ok) throw new Error((await patchRes.json()).error)
+        }
+
         const { error } = await supabase
           .from('profiles')
           .update({
             full_name: formData.full_name,
+            email: formData.email,
             phone: formData.phone,
+            ci: formData.ci || null,
             role: formData.role,
-            comision_porcentaje: formData.comision_porcentaje,
             avatar_url: formData.avatar_url,
+            qr_code_url: formData.qr_code_url,
             is_active: true,
           })
           .eq('id', editingUser.id)
 
         if (error) throw error
+
+        if (formData.role !== editingUser.role) {
+          fetch('/api/admin/usuarios', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: editingUser.id,
+              role: formData.role,
+              nombre: formData.full_name,
+              email: formData.email,
+            })
+          }).catch(console.error)
+        }
+
+        toastSuccess('Usuario y rol actualizados')
       } else {
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-          email: formData.email,
-          password: formData.password,
-          email_confirm: true,
-          user_metadata: {
-            full_name: formData.full_name,
+        const response = await fetch('/api/admin/usuarios', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
           },
+          body: JSON.stringify({
+            email: formData.email,
+            full_name: formData.full_name,
+            phone: formData.phone,
+            ci: formData.ci,
+            role: formData.role,
+            avatar_url: formData.avatar_url,
+            qr_code_url: formData.qr_code_url,
+          })
         })
 
-        if (authError) throw authError
+        const result = await response.json()
 
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            role: formData.role,
-            phone: formData.phone,
-            comision_porcentaje: formData.comision_porcentaje,
-            avatar_url: formData.avatar_url,
-          })
-          .eq('id', authData.user.id)
-
-        if (profileError) throw profileError
+        if (!response.ok) {
+          throw new Error(result.error || 'Error al crear usuario')
+        }
       }
 
       setShowModal(false)
@@ -111,9 +170,10 @@ export default function UsuariosPage() {
         email: '',
         full_name: '',
         phone: '',
+        ci: '',
         role: 'barbero',
-        comision_porcentaje: 30,
         avatar_url: '',
+        qr_code_url: '',
         password: '',
       })
       loadUsuarios()
@@ -130,6 +190,7 @@ export default function UsuariosPage() {
         .eq('id', usuario.id)
 
       if (error) throw error
+      toastSuccess(`Usuario ${usuario.is_active ? 'desactivado' : 'activado'}`)
       loadUsuarios()
     } catch (error: any) {
       toastError('Error: ' + error.message)
@@ -137,10 +198,11 @@ export default function UsuariosPage() {
   }
 
   const getRoleBadge = (role: string) => {
-    const variants: Record<string, 'default' | 'success' | 'warning' | 'info'> = {
-      admin: 'info',
-      recepcionista: 'warning',
-      barbero: 'success',
+    const variants: Record<string, any> = {
+      admin: 'danger',
+      coordinador: 'warning',
+      barbero: 'info',
+      cliente: 'default'
     }
     return variants[role] || 'default'
   }
@@ -178,8 +240,8 @@ export default function UsuariosPage() {
       {/* Users Table */}
       <Card className="border-white/5 bg-zinc-900 shadow-2xl overflow-hidden">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left min-w-[800px]">
               <thead>
                 <tr className="bg-zinc-950/50">
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest">Profesional</th>
@@ -206,7 +268,7 @@ export default function UsuariosPage() {
                         </div>
                         <div>
                           <p className="font-black text-white group-hover:text-amber-500 transition-colors uppercase tracking-tight">{usuario.full_name || 'Sin nombre'}</p>
-                          <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">ID: {usuario.id.substring(0,8)}</p>
+                          <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">{usuario.ci ? `C.I. ${usuario.ci}` : `ID: ${usuario.id.substring(0,8)}`}</p>
                         </div>
                       </div>
                     </td>
@@ -241,15 +303,28 @@ export default function UsuariosPage() {
                               email: usuario.email,
                               full_name: usuario.full_name || '',
                               phone: usuario.phone || '',
+                              ci: usuario.ci || '',
                               role: usuario.role as any,
-                              comision_porcentaje: usuario.comision_porcentaje,
                               avatar_url: usuario.avatar_url || '',
+                              qr_code_url: usuario.qr_code_url || '',
                               password: '',
                             })
                             setShowModal(true)
                           }}
                         >
                           <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          title="Cambiar o restablecer contraseña"
+                          className="w-10 h-10 p-0 border-white/5 bg-zinc-950 hover:bg-amber-500 hover:text-black transition-all"
+                          onClick={() => {
+                            setPwdUser(usuario)
+                            setNewPassword('')
+                          }}
+                        >
+                          <KeyRound className="w-4 h-4 text-amber-400" />
                         </Button>
                         <Button
                           variant={usuario.is_active ? 'danger' : 'success'}
@@ -278,121 +353,211 @@ export default function UsuariosPage() {
       </Card>
 
       {/* Modal Usuario */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-4 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
-          <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-8 bg-zinc-900/50">
-              <div>
-                <CardTitle className="text-2xl font-black uppercase text-white leading-none">
-                   {editingUser ? 'Editar' : 'Nuevo'} <span className="text-amber-500">Usuario</span>
-                </CardTitle>
-                <p className="text-zinc-500 text-xs mt-2 font-medium">Completa el perfil del profesional</p>
-              </div>
-              <button 
-                onClick={() => { setShowModal(false); setEditingUser(null); }} 
-                className="p-3 hover:bg-white/5 rounded-2xl transition-colors border border-white/5"
+      <Modal
+        isOpen={showModal}
+        onClose={() => { setShowModal(false); setEditingUser(null); }}
+        title={<>{editingUser ? 'Editar' : 'Nuevo'} <span className="text-amber-500">Usuario</span></>}
+        subtitle="Completa el perfil del profesional"
+      >
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Input
+              label="Nombre Completo"
+              placeholder="Ej. Carlos Barbero"
+              value={formData.full_name}
+              onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+              required
+              className="bg-zinc-900"
+            />
+            <Input
+              label="Correo Electrónico"
+              type="email"
+              placeholder="barbero@estilo.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              required
+              disabled={!!editingUser}
+              className="bg-zinc-900"
+            />
+            <Input
+              label="Teléfono / Celular"
+              placeholder="71234567"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              className="bg-zinc-900"
+            />
+            <Input
+              label="CI / Carnet Identidad"
+              placeholder="Ej. 1234567"
+              value={formData.ci}
+              onChange={(e) => setFormData({ ...formData, ci: e.target.value })}
+              className="bg-zinc-900"
+            />
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Rol Operativo</label>
+              <select
+                className="w-full h-12 px-4 border border-white/10 bg-zinc-900 rounded-xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
               >
-                <X className="w-6 h-6 text-zinc-500" />
-              </button>
-            </CardHeader>
-            <form onSubmit={handleSubmit}>
-              <CardContent className="p-8 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="md:col-span-2">
-                     <Input
-                        label="Nombre Completo"
-                        placeholder="Ej. Juan Pérez"
-                        value={formData.full_name}
-                        onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                        required
-                        className="bg-zinc-900"
-                      />
-                   </div>
-                   <Input
-                    label="Email Corporativo"
-                    type="email"
-                    placeholder="email@barberpro.com"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                    disabled={!!editingUser}
-                    className="bg-zinc-900"
-                  />
-                  {!editingUser && (
-                    <Input
-                      label="Contraseña"
-                      type="password"
-                      placeholder="••••••••"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      required={!editingUser}
-                      className="bg-zinc-900"
-                    />
-                  )}
-                  <Input
-                    label="Teléfono"
-                    type="tel"
-                    placeholder="+54 11 ..."
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="bg-zinc-900"
-                  />
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Comisión (%)</label>
-                    <input
-                      type="number"
-                      className="h-12 w-full border border-white/10 bg-zinc-900 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
-                      value={formData.comision_porcentaje}
-                      onChange={(e) => setFormData({ ...formData, comision_porcentaje: parseInt(e.target.value) })}
-                      min="0"
-                      max="100"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Rol Operativo</label>
-                    <select
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
-                      className="h-12 w-full border border-white/10 bg-zinc-900 rounded-xl px-4 text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all appearance-none uppercase"
-                    >
-                      <option value="barbero">Barbero</option>
-                      <option value="recepcionista">Recepcionista</option>
-                      <option value="admin">Administrador</option>
-                    </select>
-                  </div>
-                  <div className="md:col-span-1">
-                     <Input
-                        label="URL Avatar"
-                        placeholder="https://..."
-                        value={formData.avatar_url}
-                        onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
-                        className="bg-zinc-900"
-                      />
-                  </div>
-                </div>
-              </CardContent>
-              <div className="p-8 bg-zinc-900/30 border-t border-white/5 flex gap-4">
+                <option value="barbero">Barbero / Estilista</option>
+                <option value="coordinador">Coordinador / Cajero</option>
+                <option value="admin">Administrador General</option>
+                <option value="cliente">Cliente Registrado</option>
+              </select>
+            </div>
+            {!editingUser && (
+              <PasswordInput
+                label="Contraseña Inicial"
+                placeholder="Mínimo 6 caracteres"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                required
+                minLength={6}
+                className="bg-zinc-900"
+              />
+            )}
+            <div className="md:col-span-2 space-y-4">
+               <ImageUpload
+                 label="Foto de Perfil del Profesional"
+                 defaultImage={formData.avatar_url || undefined}
+                 onUploadSuccess={(url) => setFormData({ ...formData, avatar_url: url })}
+                 onUploadError={(err) => toastError(err)}
+               />
+
+               {['barbero', 'admin', 'coordinador'].includes(formData.role) && (
+                 <div className="p-4 bg-zinc-950 rounded-2xl border border-white/5 space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-amber-500 flex items-center gap-1.5">
+                     <QrCode className="w-3.5 h-3.5" /> QR de Pago del Barbero (Yape/Plin/Banco)
+                   </label>
+                   <ImageUpload
+                     label="Cargar QR de Pago para Reservas"
+                     defaultImage={formData.qr_code_url || undefined}
+                     onUploadSuccess={(url) => setFormData({ ...formData, qr_code_url: url })}
+                     onUploadError={(err) => toastError(err)}
+                   />
+                 </div>
+               )}
+            </div>
+            {editingUser && (
+              <div className="md:col-span-2 pt-4 border-t border-white/5 space-y-3">
                 <Button 
                   type="button" 
                   variant="outline" 
-                  className="flex-1 h-14 border-white/5 text-zinc-500 hover:text-white uppercase font-black tracking-widest text-[10px]"
-                  onClick={() => { setShowModal(false); setEditingUser(null); }}
+                  className="w-full justify-center text-zinc-300 border-white/10 hover:border-amber-500/50 hover:bg-amber-500/10 hover:text-amber-500 transition-colors"
+                  disabled={resettingPwd}
+                  onClick={async () => {
+                    setResettingPwd(true)
+                    try {
+                      const res = await fetch('/api/admin/usuarios/reset-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: formData.email })
+                      })
+                      if (!res.ok) throw new Error((await res.json()).error)
+                      toastSuccess('Se ha enviado el enlace de recuperación a ' + formData.email)
+                    } catch (err: any) {
+                      toastError(err.message || 'Error al enviar enlace')
+                    } finally {
+                      setResettingPwd(false)
+                    }
+                  }}
                 >
-                  Descartar
+                  {resettingPwd ? 'Enviando...' : '📧 Enviar Enlace de Cambio de Contraseña'}
                 </Button>
-                <Button 
-                  type="submit" 
-                  variant="primary" 
-                  className="flex-1 h-14 shadow-lg shadow-amber-500/20 uppercase font-black tracking-widest"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {editingUser ? 'Actualizar' : 'Crear'} Profesional
-                </Button>
+                <p className="text-[10px] text-zinc-500 text-center leading-relaxed uppercase font-bold">
+                  Enviará un correo con un enlace temporal para que el usuario restablezca su contraseña.
+                </p>
               </div>
-            </form>
-          </Card>
+            )}
+          </div>
+          <div className="pt-4 border-t border-white/5 flex gap-3">
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="flex-1 h-12 border-white/5 text-zinc-500 hover:text-white uppercase font-black tracking-widest text-[10px]"
+              onClick={() => { setShowModal(false); setEditingUser(null); }}
+            >
+              Descartar
+            </Button>
+            <Button 
+              type="submit" 
+              variant="primary" 
+              className="flex-1 h-12 shadow-lg shadow-amber-500/20 uppercase font-black tracking-widest text-xs"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {editingUser ? 'Actualizar' : 'Crear'} Profesional
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Cambiar Contraseña */}
+      <Modal
+        isOpen={!!pwdUser}
+        onClose={() => setPwdUser(null)}
+        title="Seguridad & Contraseña"
+        subtitle={pwdUser ? (pwdUser.full_name || pwdUser.email) : ''}
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-2">
+              Asignar Nueva Contraseña Directa
+            </label>
+            <div className="flex gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => setNewPassword('123456')}
+                className="text-[11px] px-2.5 py-1 rounded bg-white/5 hover:bg-amber-500/20 hover:text-amber-300 border border-white/10 text-zinc-300 transition-colors"
+              >
+                ⚡ Poner &quot;123456&quot;
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewPassword('barber123')}
+                className="text-[11px] px-2.5 py-1 rounded bg-white/5 hover:bg-amber-500/20 hover:text-amber-300 border border-white/10 text-zinc-300 transition-colors"
+              >
+                ⚡ Poner &quot;barber123&quot;
+              </button>
+            </div>
+            <Input
+              type="text"
+              placeholder="Escribe la nueva contraseña (ej: 123456)"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="bg-zinc-900 border-white/10 text-white font-mono"
+            />
+            <p className="text-[11px] text-zinc-500 mt-1.5">
+              💡 Por seguridad las contraseñas se guardan encriptadas. Asigna una fácil acá y dísela directamente.
+            </p>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <Button
+              onClick={() => handleUpdateUserPassword(true)}
+              disabled={savingPwd || newPassword.length < 6}
+              className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-extrabold"
+            >
+              {savingPwd ? 'Guardando...' : 'Cambiar Contraseña'}
+            </Button>
+          </div>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
+            <div className="relative flex justify-center text-xs uppercase"><span className="bg-zinc-950 px-2 text-zinc-500">o enviar correo</span></div>
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={() => handleUpdateUserPassword(false)}
+            disabled={savingPwd}
+            className="w-full border-white/10 text-zinc-300 hover:text-white hover:bg-white/5"
+          >
+            Enviar Correo de Recuperación
+          </Button>
         </div>
-      )}
+      </Modal>
     </div>
   )
 }

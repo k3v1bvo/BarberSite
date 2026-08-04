@@ -1,89 +1,70 @@
+import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { NextRequest, NextResponse } from 'next/server'
+import { calcularNivelFidelidad } from '@/lib/lealtad/calcular-nivel'
 
-async function requireAdmin(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) }
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') {
-    return { error: NextResponse.json({ error: 'Solo administradores' }, { status: 403 }) }
-  }
-  return { user }
-}
-
-export async function GET(request: NextRequest) {
+export async function GET(req: Request) {
   const supabase = await createServerSupabaseClient()
-  const auth = await requireAdmin(supabase)
-  if ('error' in auth && auth.error) return auth.error
-
-  const filtro = request.nextUrl.searchParams.get('filtro') || ''
-  const metaId = request.nextUrl.searchParams.get('meta_id')
-
-  let query = supabase
+  const { data: clientes, error: clientesError } = await supabase
     .from('clientes')
-    .select('id, nombre, telefono, email, total_visitas, total_gastado, ultima_visita')
+    .select('*')
     .order('total_visitas', { ascending: false })
-    .limit(100)
-
-  if (filtro) {
-    query = query.or(`nombre.ilike.%${filtro}%,telefono.ilike.%${filtro}%,email.ilike.%${filtro}%`)
-  }
-
-  const { data: clientes, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  const { data: metas } = await supabase.from('lealtad_metas').select('*').order('visitas_requeridas')
-
-  let filtered = clientes ?? []
-  if (metaId && metas) {
-    const meta = metas.find((m) => m.id === metaId)
-    if (meta) {
-      filtered = filtered.filter((c) => (c.total_visitas ?? 0) >= meta.visitas_requeridas)
-    }
-  }
-
-  const { data: canjesRecientes } = await supabase
+    .limit(50000)
+  
+  const { data: canjes, error: canjesError } = await supabase
     .from('lealtad_canjes')
-    .select('*, clientes(nombre), lealtad_metas(nombre)')
+    .select('*, clientes(nombre)')
     .order('canjeado_at', { ascending: false })
-    .limit(30)
+    .limit(500)
 
-  return NextResponse.json({
-    clientes: filtered,
-    metas: metas ?? [],
-    canjes: canjesRecientes ?? [],
-  })
+  if (clientesError || canjesError) {
+    return NextResponse.json({ error: clientesError?.message || canjesError?.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ clientes, canjes })
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(req: Request) {
   const supabase = await createServerSupabaseClient()
-  const auth = await requireAdmin(supabase)
-  if ('error' in auth && auth.error) return auth.error
+  const body = await req.json()
+  const { accion, cliente_id } = body
 
-  const body = await request.json()
-  const { accion, cliente_id, visitas_delta, visitas_total, descripcion, meta_id } = body
+  if (!cliente_id) return NextResponse.json({ error: 'Cliente ID requerido' }, { status: 400 })
 
   if (accion === 'ajustar_visitas') {
-    const { data: actual } = await supabase.from('clientes').select('total_visitas').eq('id', cliente_id).single()
-    const nuevoTotal =
-      visitas_total != null
-        ? visitas_total
-        : Math.max(0, (actual?.total_visitas ?? 0) + (visitas_delta ?? 0))
+    const { visitas_delta, visitas_total } = body
+    
+    // Si se manda visitas_total, se fija a ese valor
+    if (typeof visitas_total === 'number') {
+      const nuevoNivel = await calcularNivelFidelidad(supabase, visitas_total)
+      const { error } = await supabase.from('clientes').update({ total_visitas: visitas_total, nivel_fidelidad: nuevoNivel }).eq('id', cliente_id)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ success: true })
+    }
 
-    const { error } = await supabase.from('clientes').update({ total_visitas: nuevoTotal }).eq('id', cliente_id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ total_visitas: nuevoTotal })
+    // Si se manda delta, se suma o resta
+    if (typeof visitas_delta === 'number') {
+      const { data: cData } = await supabase.from('clientes').select('total_visitas').eq('id', cliente_id).single()
+      const nuevoTotal = Math.max(0, (cData?.total_visitas || 0) + visitas_delta)
+      const nuevoNivel = await calcularNivelFidelidad(supabase, nuevoTotal)
+      const { error } = await supabase.from('clientes').update({ total_visitas: nuevoTotal, nivel_fidelidad: nuevoNivel }).eq('id', cliente_id)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ success: true })
+    }
+    
+    return NextResponse.json({ error: 'Falta visitas_delta o visitas_total' }, { status: 400 })
   }
 
   if (accion === 'otorgar_recompensa') {
-    const { error } = await supabase.from('lealtad_canjes').insert({
+    const { descripcion } = body
+    if (!descripcion) return NextResponse.json({ error: 'Descripción requerida' }, { status: 400 })
+    
+    const { error } = await supabase.from('lealtad_canjes').insert([{
       cliente_id,
-      meta_id: meta_id || null,
-      descripcion: descripcion || 'Recompensa otorgada manualmente',
-      otorgado_por: auth.user!.id,
-    })
+      descripcion,
+      estado: 'completado'
+    }])
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ success: true })
   }
 
   return NextResponse.json({ error: 'Acción no válida' }, { status: 400 })

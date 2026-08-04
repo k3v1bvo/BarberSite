@@ -6,10 +6,13 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, toTitleCase } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { Plus, Edit, Trash2, Package, AlertTriangle, ArrowLeft, X, Save, Search, Filter } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
+import { ImageUpload } from '@/components/ui/ImageUpload'
+import { MultiImageUpload } from '@/components/ui/MultiImageUpload'
+import { Modal } from '@/components/ui/Modal'
 
 interface Producto {
   id: string
@@ -21,11 +24,13 @@ interface Producto {
   precio_costo: number | null
   precio_venta: number
   categoria: string | null
+  image_url: string | null
+  imagenes?: string[] | null
   is_active: boolean
 }
 
 export default function ProductosPage() {
-  const { error: toastError } = useToast()
+  const { error: toastError, success: toastSuccess } = useToast()
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -39,6 +44,8 @@ export default function ProductosPage() {
     precio_costo: 0,
     precio_venta: 0,
     categoria: '',
+    image_url: '',
+    imagenes: [] as string[],
   })
   const router = useRouter()
   const supabase = createClient()
@@ -65,39 +72,55 @@ export default function ProductosPage() {
     }
   }
 
+  const isValidImageUrl = (url: string) => {
+    return url.match(/^https?:\/\/.+\.(jpg|jpeg|png|webp|gif|svg)(\?.*)?$/i) !== null || url.includes('images.unsplash.com') || url.includes('supabase.co/storage')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      const cleanSku = formData.sku?.trim() ? formData.sku.trim() : null
+
       if (editingProducto) {
-        const { error } = await supabase
+        const payload: any = {
+          nombre: toTitleCase(formData.nombre),
+          sku: cleanSku,
+          descripcion: formData.descripcion || null,
+          stock_actual: formData.stock_actual,
+          stock_minimo: formData.stock_minimo,
+          precio_costo: formData.precio_costo,
+          precio_venta: formData.precio_venta,
+          categoria: formData.categoria || null,
+          image_url: formData.imagenes?.[0] || formData.image_url || null,
+        }
+
+        if (editingProducto && 'imagenes' in editingProducto && formData.imagenes && formData.imagenes.length > 0) {
+          payload.imagenes = formData.imagenes
+        }
+
+        let { error } = await supabase
           .from('productos')
-          .update({
-            nombre: formData.nombre,
-            sku: formData.sku,
-            descripcion: formData.descripcion,
-            stock_actual: formData.stock_actual,
-            stock_minimo: formData.stock_minimo,
-            precio_costo: formData.precio_costo,
-            precio_venta: formData.precio_venta,
-            categoria: formData.categoria,
-          })
+          .update(payload)
           .eq('id', editingProducto.id)
 
         if (error) throw error
       } else {
-        const { error } = await supabase
+        const payload: any = {
+          nombre: toTitleCase(formData.nombre),
+          sku: cleanSku,
+          descripcion: formData.descripcion || null,
+          stock_actual: formData.stock_actual,
+          stock_minimo: formData.stock_minimo,
+          precio_costo: formData.precio_costo,
+          precio_venta: formData.precio_venta,
+          categoria: formData.categoria || null,
+          image_url: formData.imagenes?.[0] || formData.image_url || null,
+          is_active: true,
+        }
+
+        let { error } = await supabase
           .from('productos')
-          .insert({
-            nombre: formData.nombre,
-            sku: formData.sku,
-            descripcion: formData.descripcion,
-            stock_actual: formData.stock_actual,
-            stock_minimo: formData.stock_minimo,
-            precio_costo: formData.precio_costo,
-            precio_venta: formData.precio_venta,
-            categoria: formData.categoria,
-            is_active: true,
-          })
+          .insert(payload)
 
         if (error) throw error
       }
@@ -113,7 +136,10 @@ export default function ProductosPage() {
         precio_costo: 0,
         precio_venta: 0,
         categoria: '',
+        image_url: '',
+        imagenes: [],
       })
+      toastSuccess(editingProducto ? 'Producto actualizado con éxito' : 'Producto creado con éxito')
       loadProductos()
     } catch (error: any) {
       toastError('Error: ' + error.message)
@@ -128,6 +154,7 @@ export default function ProductosPage() {
         .eq('id', producto.id)
 
       if (error) throw error
+      toastSuccess(producto.is_active ? 'Producto desactivado' : 'Producto activado')
       loadProductos()
     } catch (error: any) {
       toastError('Error: ' + error.message)
@@ -244,15 +271,16 @@ export default function ProductosPage() {
       {/* Inventario Table */}
       <Card className="border-white/5 bg-zinc-900 shadow-2xl overflow-hidden">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left min-w-[800px]">
               <thead>
                 <tr className="bg-zinc-950/50">
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest">Articulo / Categoría</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest">Identificador SKU</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Stock Disponible</th>
-                  <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Inversión Unit.</th>
+                  <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Precio Costo</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Venta Unit.</th>
+
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-center">Disponibilidad</th>
                   <th className="py-5 px-6 text-[10px] font-black uppercase text-zinc-500 tracking-widest text-right">Manejo</th>
                 </tr>
@@ -263,8 +291,19 @@ export default function ProductosPage() {
                   return (
                     <tr key={producto.id} className="group hover:bg-white/[0.02] transition-colors">
                       <td className="py-6 px-6">
-                         <p className="font-black text-white group-hover:text-amber-500 transition-colors uppercase tracking-tight">{producto.nombre}</p>
-                         <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mt-0.5">{producto.categoria || 'SIN CATEGORIA'}</p>
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0">
+                            {producto.image_url ? (
+                              <img src={producto.image_url} alt={producto.nombre} className="w-full h-full object-cover" />
+                            ) : (
+                              <Package className="w-full h-full p-3 text-zinc-600" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-black text-white group-hover:text-amber-500 transition-colors uppercase tracking-tight">{producto.nombre}</p>
+                            <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mt-0.5">{producto.categoria || 'SIN CATEGORIA'}</p>
+                          </div>
+                        </div>
                       </td>
                       <td className="py-6 px-6">
                          <code className="text-[10px] font-black text-zinc-400 bg-white/5 px-2 py-1 rounded-md tracking-widest uppercase">
@@ -299,6 +338,7 @@ export default function ProductosPage() {
                       <td className="py-6 px-6 text-center">
                          <p className="text-lg font-black text-amber-500 tracking-tighter">{formatCurrency(producto.precio_venta)}</p>
                       </td>
+
                       <td className="py-6 px-6 text-center">
                         <Badge variant={status.variant} className="uppercase font-black text-[10px] tracking-widest px-3">
                            {status.text}
@@ -321,6 +361,8 @@ export default function ProductosPage() {
                                 precio_costo: producto.precio_costo || 0,
                                 precio_venta: producto.precio_venta,
                                 categoria: producto.categoria || '',
+                                image_url: producto.image_url || '',
+                                imagenes: producto.imagenes || (producto.image_url ? [producto.image_url] : []),
                               })
                               setShowModal(true)
                             }}
@@ -342,7 +384,7 @@ export default function ProductosPage() {
                 })}
                 {productos.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-24 text-center">
+                    <td colSpan={8} className="py-24 text-center">
                        <Package size={64} className="mx-auto text-zinc-800 mb-4 opacity-30" />
                        <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Aún no hay productos registrados en el inventario</p>
                     </td>
@@ -355,118 +397,155 @@ export default function ProductosPage() {
       </Card>
 
       {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] p-4 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
-          <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-8 bg-zinc-900/50">
-              <div>
-                <CardTitle className="text-2xl font-black uppercase text-white leading-none">
-                   {editingProducto ? 'Editar' : 'Registrar'} <span className="text-amber-500">Producto</span>
-                </CardTitle>
-                <p className="text-zinc-500 text-xs mt-2 font-medium">Define las características técnicas y comerciales</p>
+      <Modal
+        isOpen={showModal}
+        onClose={() => { setShowModal(false); setEditingProducto(null); }}
+        title={<>{editingProducto ? 'Editar' : 'Registrar'} <span className="text-amber-500">Producto</span></>}
+        subtitle="Define las características técnicas y comerciales"
+      >
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2">
+              <Input
+                label="Nombre del Producto"
+                placeholder="Ej. Pomada Mate Premium"
+                value={formData.nombre}
+                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                required
+                className="bg-zinc-900"
+              />
+            </div>
+            <Input
+              label="SKU / Cod. Barras"
+              placeholder="EAN-13 ..."
+              value={formData.sku}
+              onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+              className="bg-zinc-900"
+            />
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
+                Categoría del Producto
+              </label>
+              <Input
+                placeholder="Escribe una categoría nueva..."
+                value={formData.categoria}
+                onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+                className="bg-zinc-900"
+              />
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {Array.from(
+                  new Set(
+                    ['Ceras', 'Pomadas', 'Shampoo', 'Aceite de Barba', 'Aftershave', 'Cuidado Capilar', 'Accesorios', ...productos.map(p => p.categoria).filter(Boolean) as string[]]
+                  )
+                ).map((cat) => {
+                  const isSelected = formData.categoria?.toLowerCase().trim() === cat.toLowerCase().trim()
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, categoria: cat })}
+                      className={`px-3 py-1 text-xs font-bold rounded-full transition-all border ${
+                        isSelected
+                          ? 'bg-amber-400 text-black border-amber-400 shadow-md shadow-amber-400/20'
+                          : 'bg-zinc-800/80 text-zinc-300 border-white/10 hover:border-amber-400/50 hover:text-white'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  )
+                })}
               </div>
-              <button 
-                onClick={() => { setShowModal(false); setEditingProducto(null); }} 
-                className="p-3 hover:bg-white/5 rounded-2xl transition-colors border border-white/5"
-              >
-                <X className="w-6 h-6 text-zinc-500" />
-              </button>
-            </CardHeader>
-            <form onSubmit={handleSubmit}>
-              <CardContent className="p-8 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="md:col-span-2">
-                     <Input
-                        label="Nombre del Producto"
-                        placeholder="Ej. Pomada Mate Premium"
-                        value={formData.nombre}
-                        onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                        required
-                        className="bg-zinc-900"
-                      />
-                   </div>
-                   <Input
-                    label="SKU / Cod. Barras"
-                    placeholder="EAN-13 ..."
-                    value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                    className="bg-zinc-900"
-                  />
-                  <Input
-                    label="Categoría"
-                    placeholder="Cera, Aftershave, etc."
-                    value={formData.categoria}
-                    onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
-                    className="bg-zinc-900"
-                  />
-                  <div className="md:col-span-2 space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción Breve</label>
-                    <textarea
-                      className="w-full p-4 border border-white/10 bg-zinc-900 rounded-xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
-                      rows={2}
-                      placeholder="..."
-                      value={formData.descripcion}
-                      onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                    />
-                  </div>
-                  <Input
-                    label="Stock Inicial"
-                    type="number"
-                    value={formData.stock_actual}
-                    onChange={(e) => setFormData({ ...formData, stock_actual: parseInt(e.target.value) })}
-                    required
-                    className="bg-zinc-900"
-                  />
-                  <Input
-                    label="Stock de Seguridad (Mín)"
-                    type="number"
-                    value={formData.stock_minimo}
-                    onChange={(e) => setFormData({ ...formData, stock_minimo: parseInt(e.target.value) })}
-                    required
-                    className="bg-zinc-900"
-                  />
-                  <Input
-                    label="Inversión Unit."
-                    type="number"
-                    placeholder="0.00"
-                    value={formData.precio_costo}
-                    onChange={(e) => setFormData({ ...formData, precio_costo: parseFloat(e.target.value) })}
-                    required
-                    className="bg-zinc-900"
-                  />
-                  <Input
-                    label="Precio de Venta"
-                    type="number"
-                    placeholder="0.00"
-                    value={formData.precio_venta}
-                    onChange={(e) => setFormData({ ...formData, precio_venta: parseFloat(e.target.value) })}
-                    required
-                    className="bg-zinc-900"
-                  />
-                </div>
-              </CardContent>
-              <div className="p-8 bg-zinc-900/30 border-t border-white/5 flex gap-4">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="flex-1 h-14 border-white/5 text-zinc-500 hover:text-white uppercase font-black tracking-widest text-[10px]"
-                  onClick={() => { setShowModal(false); setEditingProducto(null); }}
-                >
-                  Descartar
-                </Button>
-                <Button 
-                  type="submit" 
-                  variant="primary" 
-                  className="flex-1 h-14 shadow-lg shadow-amber-500/20 uppercase font-black tracking-widest"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {editingProducto ? 'Actualizar' : 'Registrar'} Inventario
-                </Button>
-              </div>
-            </form>
-          </Card>
-        </div>
-      )}
+            </div>
+            <div className="md:col-span-2 space-y-4">
+              <ImageUpload
+                label="Foto Principal del Producto"
+                defaultImage={formData.image_url || undefined}
+                onUploadSuccess={(url) => {
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    image_url: url,
+                    imagenes: prev.imagenes.length === 0 ? [url] : prev.imagenes 
+                  }))
+                }}
+                onUploadError={(err) => toastError(err)}
+              />
+              <MultiImageUpload
+                images={formData.imagenes}
+                onImagesChange={(imgs) => {
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    imagenes: imgs,
+                    image_url: imgs[0] || prev.image_url 
+                  }))
+                }}
+                label="Galería de Fotos Adicionales (1 o más)"
+              />
+            </div>
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción Breve</label>
+              <textarea
+                className="w-full p-4 border border-white/10 bg-zinc-900 rounded-xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                rows={2}
+                placeholder="..."
+                value={formData.descripcion}
+                onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+              />
+            </div>
+            <Input
+              label="Stock Inicial"
+              type="number"
+              value={formData.stock_actual}
+              onChange={(e) => setFormData({ ...formData, stock_actual: parseInt(e.target.value) })}
+              required
+              className="bg-zinc-900"
+            />
+            <Input
+              label="Stock de Seguridad (Mín)"
+              type="number"
+              value={formData.stock_minimo}
+              onChange={(e) => setFormData({ ...formData, stock_minimo: parseInt(e.target.value) })}
+              required
+              className="bg-zinc-900"
+            />
+            <Input
+              label="Precio Costo (Inversión)"
+              type="number"
+              placeholder="0.00"
+              value={formData.precio_costo}
+              onChange={(e) => setFormData({ ...formData, precio_costo: parseFloat(e.target.value) })}
+              required
+              className="bg-zinc-900"
+            />
+            <Input
+              label="Precio de Venta (Público)"
+              type="number"
+              placeholder="0.00"
+              value={formData.precio_venta}
+              onChange={(e) => setFormData({ ...formData, precio_venta: parseFloat(e.target.value) })}
+              required
+              className="bg-zinc-900"
+            />
+          </div>
+          <div className="pt-4 border-t border-white/5 flex gap-3">
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="flex-1 h-12 border-white/5 text-zinc-500 hover:text-white uppercase font-black tracking-widest text-[10px]"
+              onClick={() => { setShowModal(false); setEditingProducto(null); }}
+            >
+              Descartar
+            </Button>
+            <Button 
+              type="submit" 
+              variant="primary" 
+              className="flex-1 h-12 shadow-lg shadow-amber-500/20 uppercase font-black tracking-widest text-xs"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {editingProducto ? 'Actualizar' : 'Registrar'} Inventario
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

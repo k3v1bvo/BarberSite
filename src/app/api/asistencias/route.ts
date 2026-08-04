@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    if (profile?.role !== 'admin' && profile?.role !== 'recepcionista') {
+    if (profile?.role !== 'admin' && profile?.role !== 'coordinador') {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       .select(`
         id, fecha, hora_entrada, hora_salida, horas_trabajadas,
         estado, cierre_automatico, editado_admin, notas,
+        selfie_url, lat, lng, en_almuerzo,
         profiles (id, full_name, role)
       `)
       .eq('fecha', fecha)

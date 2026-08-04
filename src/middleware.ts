@@ -50,7 +50,7 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   const isAdminRoute = pathname.startsWith('/admin')
-  const isRecepcionRoute = pathname.startsWith('/recepcion')
+  const isCoordinadorRoute = pathname.startsWith('/coordinador')
   const isBarberoRoute = pathname.startsWith('/barbero')
   const isAgendaRoute = pathname.startsWith('/agenda')
   const isClienteRoute = pathname.startsWith('/cliente')
@@ -59,9 +59,14 @@ export async function middleware(request: NextRequest) {
   const isLoginPage = pathname === '/login'
   const isRegisterPage = pathname === '/register'
 
+  // Redirect legacy /recepcion to /coordinador
+  if (pathname.startsWith('/recepcion')) {
+    return NextResponse.redirect(new URL(pathname.replace('/recepcion', '/coordinador'), request.url))
+  }
+
   const protectedRoutes =
     isAdminRoute ||
-    isRecepcionRoute ||
+    isCoordinadorRoute ||
     isBarberoRoute ||
     isReservarRoute ||
     isAgendaRoute ||
@@ -82,8 +87,8 @@ export async function middleware(request: NextRequest) {
     if (profile?.role === 'admin') {
       return NextResponse.redirect(new URL('/admin', request.url))
     }
-    if (profile?.role === 'recepcionista') {
-      return NextResponse.redirect(new URL('/recepcion', request.url))
+    if (profile?.role === 'coordinador') {
+      return NextResponse.redirect(new URL('/coordinador', request.url))
     }
     if (profile?.role === 'barbero') {
       return NextResponse.redirect(new URL('/barbero', request.url))
@@ -112,6 +117,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/admin/:path*',
+    '/coordinador/:path*',
     '/recepcion/:path*',
     '/barbero/:path*',
     '/agenda/:path*',

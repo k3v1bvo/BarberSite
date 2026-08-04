@@ -13,10 +13,10 @@ export function DashboardContent({ children }: { children: React.ReactNode }) {
   return (
     <div
       className={cn(
-        'flex-1 flex flex-col min-w-0 transition-all duration-300',
+        'dashboard-content-area',
         collapsed
-          ? 'lg:ml-20'
-          : 'lg:ml-64'
+          ? 'dashboard-content-area--collapsed'
+          : 'dashboard-content-area--expanded'
       )}
     >
       {children}

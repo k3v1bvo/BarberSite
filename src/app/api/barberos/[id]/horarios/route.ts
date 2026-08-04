@@ -19,7 +19,7 @@ export async function GET(
     const fechaInicio = searchParams.get('fecha_inicio') || new Date().toISOString().split('T')[0]
     const fechaFin = searchParams.get('fecha_fin') || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-    // Validar permisos: solo admin, barbero mismo, o recepcionista pueden ver
+    // Validar permisos: solo admin, barbero mismo, o coordinador pueden ver
     const { data: userProfile } = await supabase
       .from('profiles')
       .select('role')
@@ -28,9 +28,9 @@ export async function GET(
 
     const isAdmin = userProfile?.role === 'admin'
     const isBarberoPropios = user.id === barberoId
-    const isRecepcionista = userProfile?.role === 'recepcionista'
+    const isCoordinador = userProfile?.role === 'coordinador'
 
-    if (!isAdmin && !isBarberoPropios && !isRecepcionista) {
+    if (!isAdmin && !isBarberoPropios && !isCoordinador) {
       return NextResponse.json({ error: 'No tienes permisos' }, { status: 403 })
     }
 
@@ -59,8 +59,8 @@ export async function GET(
         servicios (nombre, duracion_minutos)
       `)
       .eq('barbero_id', barberoId)
-      .gte('fecha_hora', `${fechaInicio}T00:00:00`)
-      .lte('fecha_hora', `${fechaFin}T23:59:59`)
+      .gte('fecha_hora', `${fechaInicio}T00:00:00-04:00`)
+      .lte('fecha_hora', `${fechaFin}T23:59:59-04:00`)
       .neq('estado', 'cancelado')
       .order('fecha_hora', { ascending: true })
 
@@ -82,8 +82,8 @@ export async function GET(
 
     // Calcular slots disponibles (30 minutos cada uno, 09:00-20:00)
     const slotsDisponibles: string[] = []
-    const currentDate = new Date(`${fechaInicio}T09:00:00`)
-    const endDate = new Date(`${fechaFin}T20:00:00`)
+    const currentDate = new Date(`${fechaInicio}T09:00:00-04:00`)
+    const endDate = new Date(`${fechaFin}T20:00:00-04:00`)
 
     while (currentDate <= endDate) {
       let hayConflicto = false
@@ -104,7 +104,8 @@ export async function GET(
       }
 
       if (!hayConflicto) {
-        slotsDisponibles.push(format(currentDate, 'yyyy-MM-dd HH:mm'))
+        const slotHora = currentDate.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false })
+        slotsDisponibles.push(`${fechaInicio} ${slotHora}`)
       }
 
       currentDate.setMinutes(currentDate.getMinutes() + 30)
