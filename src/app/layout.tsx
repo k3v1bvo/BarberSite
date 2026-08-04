@@ -9,6 +9,17 @@ export const metadata: Metadata = {
   title: 'BarberSite | Estilo Clásico & Moderno en Cochabamba',
   description: 'La mejor experiencia en barbería tradicional e innovación. Reserva tu cita online para cortes clásicos, fades y cuidado de barba en Cochabamba.',
   keywords: ['barbería', 'cochabamba', 'corte de cabello', 'fade', 'barba', 'reservas online'],
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'BarberSite',
+  },
 }
 
 export default function RootLayout({

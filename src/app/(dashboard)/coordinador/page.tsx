@@ -30,6 +30,7 @@ import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
 import { StatCard } from '@/components/admin/StatCard'
 import { AdminAlertsPanel } from '@/components/admin/AdminAlertsPanel'
 import { AdminAsistenciaSummary } from '@/components/admin/AdminAsistenciaSummary'
+import { AsistenciaWidget } from '@/components/ui/AsistenciaWidget'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts'
@@ -451,6 +452,11 @@ export default function CoordinadorDashboard() {
           </div>
         }
       />
+
+      {/* Widget de Marcación de Asistencia para el Coordinador */}
+      <div className="mb-6">
+        <AsistenciaWidget />
+      </div>
 
       {/* Operación Rápida */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
