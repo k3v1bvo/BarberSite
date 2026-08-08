@@ -5,7 +5,15 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Clock, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
-import { estadoBadgeVariant, estadoLabel, computeEstadoFromRecord, type AsistenciaEstado } from '@/lib/asistencia/helpers'
+import {
+  estadoBadgeVariant,
+  estadoLabel,
+  computeEstadoFromRecord,
+  getBusinessDateString,
+  getMondayOfWeek,
+  addDays,
+  type AsistenciaEstado,
+} from '@/lib/asistencia/helpers'
 
 interface AsistenciaHistorial {
   id: string
@@ -18,22 +26,8 @@ interface AsistenciaHistorial {
   en_almuerzo?: boolean
 }
 
-function getMondayOfWeek(d: Date): Date {
-  const date = new Date(d)
-  const day = date.getDay()
-  date.setDate(date.getDate() - day + (day === 0 ? -6 : 1))
-  date.setHours(0, 0, 0, 0)
-  return date
-}
-
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d)
-  r.setDate(r.getDate() + n)
-  return r
-}
-
 function fmt(d: Date): string {
-  return d.toISOString().split('T')[0]
+  return getBusinessDateString(d)
 }
 
 const DIAS_NOMBRE = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']

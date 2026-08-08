@@ -11,7 +11,7 @@ export interface BrandConfig {
 
 export const defaultBrandConfig: BrandConfig = {
   nombre: 'BarberSite',
-  logo_url: '',
+  logo_url: '/logobarber.png',
   mostrar_modo: 'ambos',
 }
 
@@ -44,7 +44,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
         if (data && data.valor) {
           setBrand({
             nombre: data.valor.nombre || defaultBrandConfig.nombre,
-            logo_url: data.valor.logo_url || '',
+            logo_url: data.valor.logo_url || defaultBrandConfig.logo_url,
             mostrar_modo: data.valor.mostrar_modo || 'ambos',
           })
         }

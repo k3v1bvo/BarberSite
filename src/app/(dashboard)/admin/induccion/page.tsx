@@ -220,7 +220,11 @@ export default function AdminInduccionPage() {
       loadAllData()
     } catch (err: any) {
       toastError(err.message)
-  // Upload PDF to Catbox.moe
+    } finally {
+      setSubmitting(false)
+    }
+  }
+  // Upload PDF via Server API Proxy (Eliminates CORS error)
   const handleUploadCatboxPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -230,16 +234,23 @@ export default function AdminInduccionPage() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const res = await fetch('/api/upload/catbox', {
+      let res = await fetch('/api/upload/catbox', {
         method: 'POST',
         body: formData,
       })
+
+      if (!res.ok) {
+        res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        })
+      }
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al subir PDF')
 
       setFormPdfUrl(data.url)
-      toastSuccess('📄 PDF subido exitosamente a Catbox.moe')
+      toastSuccess('📄 Documento PDF cargado exitosamente')
     } catch (err: any) {
       toastError(err.message || 'Error al subir PDF')
     } finally {
@@ -729,16 +740,31 @@ export default function AdminInduccionPage() {
               </div>
 
               {formPdfUrl && (
-                <div className="flex items-center justify-between text-[11px] bg-black/40 p-2.5 rounded-lg border border-white/5">
-                  <span className="text-zinc-400 truncate max-w-[280px]">📄 {formPdfUrl}</span>
-                  <a
-                    href={formPdfUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-amber-400 hover:text-amber-300 font-bold underline text-xs shrink-0"
-                  >
-                    Ver / Abrir PDF ↗
-                  </a>
+                <div className="space-y-2 pt-2 border-t border-white/10">
+                  <div className="flex items-center justify-between text-[11px] bg-black/40 p-2.5 rounded-lg border border-white/5">
+                    <span className="text-zinc-400 truncate max-w-[220px] font-mono">📄 {formPdfUrl}</span>
+                    <a
+                      href={formPdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-400 hover:text-amber-300 font-bold underline text-xs shrink-0 flex items-center gap-1"
+                    >
+                      Ver / Abrir PDF ↗
+                    </a>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-400 flex items-center gap-1">
+                      👁️ Vista Previa del PDF en Vivo
+                    </span>
+                    <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-zinc-900 h-72 shadow-inner">
+                      <iframe
+                        src={`https://docs.google.com/gview?url=${encodeURIComponent(formPdfUrl)}&embedded=true`}
+                        className="w-full h-full border-0"
+                        title="Vista Previa de Documento PDF"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

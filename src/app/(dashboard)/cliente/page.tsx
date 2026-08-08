@@ -491,91 +491,100 @@ export default function ClientePage() {
           </Card>
 
           {/* ——— INCENTIVOS Y PROMOCIONES ACTIVAS ——— */}
-          <div className="mt-8">
-            <div className="flex items-center gap-3 mb-4">
-              <Flame size={18} className="text-amber-500" />
-              <h3 className="text-sm font-black uppercase tracking-widest text-white">Promociones e Incentivos Activos</h3>
-            </div>
+          {(() => {
+            const promosHoyDeduplicadas = Array.from(
+              new Map((cardData?.promosHoy ?? []).map((p: any) => [(p.nombre || '').toLowerCase().trim(), p])).values()
+            )
+            const promocionesActivasDeduplicadas = Array.from(
+              new Map(
+                (cardData?.promocionesActivas ?? [])
+                  .filter((p: any) => !promosHoyDeduplicadas.some((ph: any) => (ph.nombre || '').toLowerCase().trim() === (p.nombre || '').toLowerCase().trim()))
+                  .map((p: any) => [(p.nombre || '').toLowerCase().trim(), p])
+              ).values()
+            )
 
-            {/* Promociones aplicables HOY */}
-            {cardData?.promosHoy && cardData.promosHoy.length > 0 && (
-              <div className="mb-6">
-                <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" /> ¡Disponibles para ti HOY ({DIAS[new Date().getDay()]})!
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {cardData.promosHoy.map((promo: any) => (
-                    <div key={`hoy-${promo.id}`} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/20 to-zinc-900 border-2 border-amber-500/50 p-4 shadow-lg shadow-amber-500/10">
-                      <div className="absolute top-0 right-0 p-3 text-4xl opacity-20">{promo.icono ?? PROMO_ICONS[promo.tipo] ?? '🎁'}</div>
-                      <Badge variant="warning" className="mb-2 font-black text-[10px]">APLICA HOY</Badge>
-                      <p className="text-white font-black text-base">{promo.nombre}</p>
-                      {promo.descripcion && <p className="text-zinc-300 text-xs mt-1 leading-relaxed">{promo.descripcion}</p>}
-                      {promo.valor > 0 && (
-                        <div className="mt-3 inline-flex items-center gap-1.5 bg-amber-500 rounded-xl px-3 py-1">
-                          <Zap size={12} className="text-black" />
-                          <span className="text-black font-black text-sm">
-                            {promo.tipo === 'descuento_porcentaje' && `${promo.valor}% OFF`}
-                            {promo.tipo === 'descuento_fijo' && `Bs ${promo.valor} OFF`}
-                            {promo.tipo === 'cumpleanos' && (promo.valor <= 100 ? `${promo.valor}% OFF` : `Bs ${promo.valor} OFF`)}
-                          </span>
-                        </div>
-                      )}
-                      {promo.valor === 0 && (promo.tipo === '2x1' || promo.tipo === 'servicio_gratis' || promo.tipo === 'cumpleanos') && (
-                        <div className="mt-3 inline-flex items-center gap-1.5 bg-amber-500 rounded-xl px-3 py-1">
-                          <Scissors size={12} className="text-black" />
-                          <span className="text-black font-black text-sm">
-                            {promo.tipo === '2x1' ? '2 × 1 (Ambos entran por 1)' : 'Corte Gratis / Especial'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+            return (
+              <div className="mt-8">
+                <div className="flex items-center gap-3 mb-4">
+                  <Flame size={18} className="text-amber-500" />
+                  <h3 className="text-sm font-black uppercase tracking-widest text-white">Promociones e Incentivos Activos</h3>
                 </div>
-              </div>
-            )}
 
-            {/* General Base Promotions and Incentives */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {(cardData?.promocionesActivas ?? []).map((promo: any) => {
-                // Si ya se mostró en promosHoy, darle un formato más sutil aquí o complementario
-                const esDeHoy = cardData?.promosHoy?.some((ph: any) => ph.id === promo.id)
-                if (esDeHoy) return null // Ya se muestra arriba en grande
-
-                return (
-                  <div key={promo.id} className="relative overflow-hidden rounded-2xl bg-zinc-900 border border-zinc-800 p-4 hover:border-zinc-700 transition-all flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-2xl">{promo.icono ?? PROMO_ICONS[promo.tipo] ?? '🎁'}</span>
-                        <span className="text-[10px] uppercase font-black tracking-widest text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-md">
-                          {promo.tipo === '2x1' ? 'Martes' : promo.tipo === 'cumpleanos' ? 'Anual' : promo.tipo === 'referido' ? 'Referidos' : 'Especial'}
-                        </span>
-                      </div>
-                      <p className="text-white font-black text-sm">{promo.nombre}</p>
-                      {promo.descripcion && <p className="text-zinc-400 text-xs mt-1 leading-relaxed">{promo.descripcion}</p>}
-                    </div>
-                    <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
-                      <span className="text-xs text-zinc-400 font-medium">Beneficio:</span>
-                      <span className="text-amber-400 font-black text-xs">
-                        {promo.tipo === 'descuento_porcentaje' && `${promo.valor}% OFF`}
-                        {promo.tipo === 'descuento_fijo' && `Bs ${promo.valor} de Descuento`}
-                        {promo.tipo === '2x1' && '2 por el precio de 1'}
-                        {promo.tipo === 'cumpleanos' && (promo.valor <= 100 ? `${promo.valor}% de Descuento` : `Bs ${promo.valor} OFF`)}
-                        {promo.tipo === 'referido' && `Bs ${promo.valor || 10} por Amigo`}
-                      </span>
+                {/* Promociones aplicables HOY */}
+                {promosHoyDeduplicadas.length > 0 && (
+                  <div className="mb-6">
+                    <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" /> ¡Disponibles para ti HOY ({DIAS[new Date().getDay()]})!
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {promosHoyDeduplicadas.map((promo: any) => (
+                        <div key={`hoy-${promo.id}`} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/20 to-zinc-900 border-2 border-amber-500/50 p-4 shadow-lg shadow-amber-500/10">
+                          <div className="absolute top-0 right-0 p-3 text-4xl opacity-20">{promo.icono ?? PROMO_ICONS[promo.tipo] ?? '🎁'}</div>
+                          <Badge variant="warning" className="mb-2 font-black text-[10px]">APLICA HOY</Badge>
+                          <p className="text-white font-black text-base">{promo.nombre}</p>
+                          {promo.descripcion && <p className="text-zinc-300 text-xs mt-1 leading-relaxed">{promo.descripcion}</p>}
+                          {promo.valor > 0 && (
+                            <div className="mt-3 inline-flex items-center gap-1.5 bg-amber-500 rounded-xl px-3 py-1">
+                              <Zap size={12} className="text-black" />
+                              <span className="text-black font-black text-sm">
+                                {promo.tipo === 'descuento_porcentaje' && `${promo.valor}% OFF`}
+                                {promo.tipo === 'descuento_fijo' && `Bs ${promo.valor} OFF`}
+                                {promo.tipo === 'cumpleanos' && (promo.valor <= 100 ? `${promo.valor}% OFF` : `Bs ${promo.valor} OFF`)}
+                              </span>
+                            </div>
+                          )}
+                          {promo.valor === 0 && (promo.tipo === '2x1' || promo.tipo === 'servicio_gratis' || promo.tipo === 'cumpleanos') && (
+                            <div className="mt-3 inline-flex items-center gap-1.5 bg-amber-500 rounded-xl px-3 py-1">
+                              <Scissors size={12} className="text-black" />
+                              <span className="text-black font-black text-sm">
+                                {promo.tipo === '2x1' ? '2 × 1 (Ambos entran por 1)' : 'Corte Gratis / Especial'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
-                )
-              })}
+                )}
 
-              {(!cardData?.promocionesActivas || cardData.promocionesActivas.length === 0) && (!cardData?.promosHoy || cardData.promosHoy.length === 0) && (
-                <div className="col-span-full text-center py-6 rounded-2xl border border-dashed border-white/10 bg-zinc-900/30">
-                  <Gift size={32} className="mx-auto text-zinc-700 mb-2" />
-                  <p className="text-zinc-500 text-sm font-bold">Sin promociones especiales en este momento</p>
-                  <p className="text-zinc-600 text-xs mt-1">Suma visitas para subir de nivel de lealtad 👑</p>
+                {/* General Base Promotions and Incentives */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {promocionesActivasDeduplicadas.map((promo: any) => (
+                    <div key={promo.id} className="relative overflow-hidden rounded-2xl bg-zinc-900 border border-zinc-800 p-4 hover:border-zinc-700 transition-all flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-2xl">{promo.icono ?? PROMO_ICONS[promo.tipo] ?? '🎁'}</span>
+                          <span className="text-[10px] uppercase font-black tracking-widest text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-md">
+                            {promo.tipo === '2x1' ? 'Martes' : promo.tipo === 'cumpleanos' ? 'Anual' : promo.tipo === 'referido' ? 'Referidos' : 'Especial'}
+                          </span>
+                        </div>
+                        <p className="text-white font-black text-sm">{promo.nombre}</p>
+                        {promo.descripcion && <p className="text-zinc-400 text-xs mt-1 leading-relaxed">{promo.descripcion}</p>}
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                        <span className="text-xs text-zinc-400 font-medium">Beneficio:</span>
+                        <span className="text-amber-400 font-black text-xs">
+                          {promo.tipo === 'descuento_porcentaje' && `${promo.valor}% OFF`}
+                          {promo.tipo === 'descuento_fijo' && `Bs ${promo.valor} de Descuento`}
+                          {promo.tipo === '2x1' && '2 por el precio de 1'}
+                          {promo.tipo === 'cumpleanos' && (promo.valor <= 100 ? `${promo.valor}% de Descuento` : `Bs ${promo.valor} OFF`)}
+                          {promo.tipo === 'referido' && `Bs ${promo.valor || 10} por Amigo`}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {promosHoyDeduplicadas.length === 0 && promocionesActivasDeduplicadas.length === 0 && (
+                    <div className="col-span-full text-center py-6 rounded-2xl border border-dashed border-white/10 bg-zinc-900/30">
+                      <Gift size={32} className="mx-auto text-zinc-700 mb-2" />
+                      <p className="text-zinc-500 text-sm font-bold">Sin promociones especiales en este momento</p>
+                      <p className="text-zinc-600 text-xs mt-1">Suma visitas para subir de nivel de lealtad 👑</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            )
+          })()}
 
           {/* ——— BANNER DESTACADO: PROMO PROGRAMA DE REFERIDOS (TRAE A UN AMIGO) ——— */}
           <div className="bg-gradient-to-br from-emerald-950/80 via-zinc-900 to-zinc-950 border-2 border-emerald-500/30 rounded-3xl p-6 sm:p-8 mt-8 shadow-2xl relative overflow-hidden print:hidden">

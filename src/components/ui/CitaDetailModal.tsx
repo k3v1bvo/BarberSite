@@ -194,7 +194,9 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
               {cita.notas && (
                 <div className="p-3 bg-zinc-900/60 rounded-xl border border-zinc-800/50">
                   <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1.5">Notas</p>
-                  <p className="text-zinc-300 text-xs leading-relaxed whitespace-pre-wrap">{cita.notas}</p>
+                  <p className="text-zinc-300 text-xs leading-relaxed whitespace-pre-wrap">
+                    {cita.notas.replace(/\[Comprobante\]:\s*([^\s\n\r]+)/i, '').replace(/data:image\/[a-zA-Z]+;base64,[^\s\n\r]+/i, '').trim() || 'Sin notas.'}
+                  </p>
                 </div>
               )}
 

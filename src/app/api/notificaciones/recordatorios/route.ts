@@ -62,8 +62,8 @@ export async function GET(request: NextRequest) {
         clienteEmail: cliente?.email ?? undefined,
         barberoNombre: barbero?.full_name,
         servicioNombre: servicio?.nombre,
-        fecha: fh.toLocaleDateString('es-BO'),
-        hora: fh.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }),
+        fecha: fh.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' }),
+        hora: fh.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit' }),
       },
     })
     enviados++

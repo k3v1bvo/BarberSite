@@ -94,8 +94,10 @@ export async function GET(request: NextRequest) {
       const barberoData = Array.isArray(cita.barberos) ? cita.barberos[0] : cita.barberos
       const clienteData = Array.isArray(cita.clientes) ? cita.clientes[0] : cita.clientes
       
-      const comprobanteMatch = (cita.notas as string | null)?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/)
-      const comprobante_url = comprobanteMatch ? comprobanteMatch[1] : undefined
+      const notasStr = cita.notas as string | null
+      const matchStandard = notasStr?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s\n\r]+)/i)
+      const matchAnyUrl = notasStr?.match(/(https?:\/\/[^\s\n\r]+\.(?:jpg|jpeg|png|webp|gif|svg)|https?:\/\/(?:i\.)?ibb\.co\/[^\s\n\r]+|https?:\/\/res\.cloudinary\.com\/[^\s\n\r]+)/i)
+      const comprobante_url = matchStandard ? matchStandard[1].trim() : (matchAnyUrl ? matchAnyUrl[1].trim() : undefined)
 
       return {
         id: cita.id,

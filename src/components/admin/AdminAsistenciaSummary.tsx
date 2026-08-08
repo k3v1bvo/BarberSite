@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Clock, Users, ArrowRight, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { computeEstadoFromRecord } from '@/lib/asistencia/helpers'
+import { computeEstadoFromRecord, getBusinessDateString } from '@/lib/asistencia/helpers'
 
 interface AdminAsistenciaSummaryProps {
   onTurnosAbiertos?: (count: number) => void
@@ -23,7 +23,7 @@ export function AdminAsistenciaSummary({ onTurnosAbiertos }: AdminAsistenciaSumm
     const load = async () => {
       try {
         await fetch('/api/asistencias/auto-cerrar', { method: 'POST' })
-        const hoy = new Date().toISOString().split('T')[0]
+        const hoy = getBusinessDateString()
         const { data } = await supabase
           .from('asistencias')
           .select('id, hora_entrada, hora_salida, estado, profiles(full_name, role)')

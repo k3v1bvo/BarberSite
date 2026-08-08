@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { computeEstadoFromRecord } from '@/lib/asistencia/helpers'
+import { computeEstadoFromRecord, getBusinessDateString } from '@/lib/asistencia/helpers'
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     }
 
     const params = request.nextUrl.searchParams
-    const fecha = params.get('fecha') || new Date().toISOString().split('T')[0]
+    const fecha = params.get('fecha') || getBusinessDateString()
     const barberoId = params.get('barbero_id')
     const estadoFiltro = params.get('estado')
     const soloAbiertos = params.get('solo_abiertos') === 'true'

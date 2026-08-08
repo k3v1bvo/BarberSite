@@ -114,11 +114,35 @@ export default function HomePage() {
   const [heroConfigState, setHeroConfigState] = useState(defaultHero)
   const [aboutUsConfig, setAboutUsConfig] = useState(defaultAboutUs)
   const [carouselIndex, setCarouselIndex] = useState(0)
+  const [activeSection, setActiveSection] = useState<string>('')
+  const [focusedBarberoId, setFocusedBarberoId] = useState<string | null>(null)
   const [categoriaActiva, setCategoriaActiva] = useState<string>('todos')
   const router = useRouter()
   const supabase = createClient()
   const socialLinks = useSocialLinks()
   const contactPhone = process.env.NEXT_PUBLIC_CONTACT_PHONE || '59178353814'
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const sections = ['servicios', 'galeria', 'acerca', 'tienda', 'equipo', 'contacto']
+      const scrollPosition = window.scrollY + 250
+
+      for (const section of sections) {
+        const el = document.getElementById(section)
+        if (el) {
+          const top = el.offsetTop
+          const height = el.offsetHeight
+          if (scrollPosition >= top && scrollPosition < top + height) {
+            setActiveSection(section)
+            break
+          }
+        }
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   useEffect(() => {
     const checkUserAndData = async () => {
@@ -194,8 +218,8 @@ export default function HomePage() {
 
         const barberosData = barberosRes.data
         const equipoData = equipoRes.data
-        const mergedEquipo = barberosData?.map(prof => {
-          const equipoConfig = equipoData?.find(e => e.profile_id === prof.id || e.nombre === prof.full_name)
+        const mergedEquipo = barberosData?.map((prof: any) => {
+          const equipoConfig = equipoData?.find((e: any) => e.profile_id === prof.id || e.nombre === prof.full_name)
           return {
             id: prof.id,
             nombre: prof.full_name || 'Barbero',
@@ -208,8 +232,8 @@ export default function HomePage() {
         setEquipo(mergedEquipo)
 
         if (configRes.data) {
-          const heroConfig = configRes.data.find(c => c.llave === 'hero_bg_image')
-          const aboutConfig = configRes.data.find(c => c.llave === 'about_us_config')
+          const heroConfig = configRes.data.find((c: any) => c.llave === 'hero_bg_image')
+          const aboutConfig = configRes.data.find((c: any) => c.llave === 'about_us_config')
           if (heroConfig?.valor) setHeroConfigState({ ...defaultHero, ...(heroConfig.valor as any) })
           if (aboutConfig?.valor) setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
         }
@@ -271,75 +295,129 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-lg border-b border-white/10">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-black/85 backdrop-blur-xl border-b border-white/10 shadow-2xl">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex justify-between items-center h-20">
-            <div className="flex items-center gap-3">
+          <div className="flex justify-between items-center h-20 sm:h-24">
+            {/* Logo de BarberSite Más Grande */}
+            <div className="flex items-center gap-3 shrink-0">
               {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
-                <img src={brand.logo_url} alt={brand.nombre} className="h-11 sm:h-14 max-w-[180px] sm:max-w-[220px] object-contain mix-blend-screen" />
+                <img
+                  src={brand.logo_url}
+                  alt={brand.nombre}
+                  className="h-14 sm:h-16 max-w-[220px] sm:max-w-[280px] object-contain filter drop-shadow-[0_2px_15px_rgba(245,158,11,0.3)] transition-transform duration-300 hover:scale-105"
+                />
               ) : (
-                <Scissors className="w-8 h-8 text-amber-400" />
+                <Scissors className="w-9 h-9 text-amber-400" />
               )}
               {(brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
-                <span className="text-2xl font-bold tracking-wider">{brand.nombre}</span>
+                <span className="text-2xl sm:text-3xl font-black tracking-wider text-white uppercase">{brand.nombre}</span>
               )}
             </div>
 
+            {/* Navegación Central Desktop con Indicador de Sección Activa */}
+            <div className="hidden md:flex items-center gap-6 lg:gap-8 text-xs font-black uppercase tracking-widest">
+              {[
+                { id: 'servicios', label: 'Servicios' },
+                { id: 'galeria', label: 'Galería' },
+                { id: 'acerca', label: 'Nosotros' },
+                { id: 'tienda', label: 'Tienda' },
+                { id: 'equipo', label: 'Equipo' },
+                { id: 'contacto', label: 'Contacto' },
+              ].map((item) => {
+                const isActive = activeSection === item.id
+                return (
+                  <a
+                    key={item.id}
+                    href={`#${item.id}`}
+                    className={`transition-all duration-300 py-1.5 border-b-2 ${
+                      isActive
+                        ? 'text-amber-400 border-amber-400 font-black scale-105 drop-shadow-[0_0_10px_rgba(245,158,11,0.6)]'
+                        : 'text-zinc-400 border-transparent hover:text-white hover:border-amber-400/40'
+                    }`}
+                  >
+                    {item.label}
+                  </a>
+                )
+              })}
+            </div>
+
             {/* Usuario logueado o botones de auth */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {user ? (
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   {/* Panel según rol */}
                   <Link
                     href={getPanelUrl(user.role)}
-                    className="hidden sm:flex items-center gap-2 px-4 py-2 bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 rounded-lg transition"
+                    className="hidden sm:flex items-center gap-2 px-4 py-2 bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 rounded-lg transition text-xs font-bold uppercase tracking-wider"
                   >
-                    <LayoutDashboard size={18} />
-                    <span>Panel {getRoleLabel(user.role)}</span>
+                    <LayoutDashboard size={16} />
+                    <span>Panel</span>
                   </Link>
 
                   {/* Info usuario */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center text-amber-400 font-bold">
+                  <div className="flex items-center gap-2">
+                    <div className="w-9 h-9 bg-zinc-800 rounded-full flex items-center justify-center text-amber-400 font-bold border border-amber-400/30">
                       {user.avatar_url ? (
-                        <img src={user.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        <img src={user.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
                       ) : (
                         getInitials(user.full_name || 'U')
                       )}
-                    </div>
-                    <div className="hidden lg:block">
-                      <p className="text-white font-medium text-sm">{user.full_name}</p>
-                      <p className="text-zinc-400 text-xs">{getRoleLabel(user.role)}</p>
                     </div>
                   </div>
 
                   {/* Botón cerrar sesión */}
                   <button
                     onClick={handleLogout}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition text-xs font-bold"
                   >
-                    <LogOut size={18} />
-                    <span className="hidden sm:inline">Salir</span>
+                    <LogOut size={16} />
                   </button>
                 </div>
               ) : (
-                <>
+                <div className="flex items-center gap-2 sm:gap-3">
                   <Link
                     href="/login"
-                    className="px-6 py-2 border border-amber-400 text-amber-400 rounded-full hover:bg-amber-400 hover:text-black transition uppercase text-sm tracking-widest"
+                    className="px-4 sm:px-6 py-2 border border-amber-400 text-amber-400 rounded-full hover:bg-amber-400 hover:text-black transition uppercase text-xs font-bold tracking-widest"
                   >
                     Login
                   </Link>
                   <Link
                     href="/reservar"
-                    className="px-6 py-2 bg-amber-400 text-black rounded-full hover:bg-amber-300 transition uppercase text-sm font-bold tracking-widest"
+                    className="px-4 sm:px-6 py-2 bg-amber-400 text-black rounded-full hover:bg-amber-300 transition uppercase text-xs font-black tracking-widest shadow-lg shadow-amber-400/20"
                   >
                     Reservar
                   </Link>
-                </>
+                </div>
               )}
             </div>
           </div>
+        </div>
+
+        {/* Barra de Navegación Rápida Móvil (Visible exclusivamente en Celulares) */}
+        <div className="md:hidden flex items-center gap-2 overflow-x-auto no-scrollbar py-2.5 px-4 border-t border-white/10 bg-zinc-950/95 text-[11px] font-black uppercase whitespace-nowrap shadow-inner">
+          {[
+            { id: 'servicios', label: '✂️ Servicios' },
+            { id: 'galeria', label: '📸 Galería' },
+            { id: 'acerca', label: '💈 Nosotros' },
+            { id: 'tienda', label: '🛍️ Tienda' },
+            { id: 'equipo', label: '💈 Equipo' },
+            { id: 'contacto', label: '📞 Contacto' },
+          ].map((item) => {
+            const isActive = activeSection === item.id
+            return (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                className={`transition-all duration-300 px-3 py-1 rounded-full border shrink-0 ${
+                  isActive
+                    ? 'bg-amber-400 text-black border-amber-400 font-black shadow-md shadow-amber-400/30 scale-105'
+                    : 'bg-zinc-900/80 text-zinc-400 border-white/10 hover:text-white'
+                }`}
+              >
+                {item.label}
+              </a>
+            )
+          })}
         </div>
       </nav>
 
@@ -403,19 +481,21 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Info Bar */}
-      <div className="bg-amber-400 text-black py-4">
-        <div className="max-w-7xl mx-auto px-4 flex flex-wrap justify-center gap-8 text-sm font-bold uppercase tracking-widest">
+      {/* Info Bar Amarilla Brillante */}
+      <div className="bg-amber-400 text-black py-4 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 flex flex-wrap justify-around items-center gap-6 text-xs sm:text-sm font-black uppercase tracking-widest">
           <span className="flex items-center gap-2">
-            <Clock className="w-4 h-4" />
+            <Clock className="w-4.5 h-4.5 text-black" />
             Lun-Dom: 9:00 - 21:00
           </span>
           <span className="flex items-center gap-2">
-            <Phone className="w-4 h-4" />
-            +591 78353814
+            <Phone className="w-4.5 h-4.5 text-black" />
+            <a href={`tel:+${contactPhone.replace(/\D/g, '')}`} className="hover:underline">
+              +{contactPhone.replace(/(\d{3})(\d+)/, '$1 $2')}
+            </a>
           </span>
           <span className="flex items-center gap-2">
-            <MapPin className="w-4 h-4" />
+            <MapPin className="w-4.5 h-4.5 text-black" />
             Edif. Antezana, C. Sucre, Cbba
           </span>
         </div>
@@ -743,66 +823,102 @@ export default function HomePage() {
 
           {equipo.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {equipo.map((barbero) => (
-                <div key={barbero.id} className="group text-center">
-                  <div className="relative inline-block mb-6">
-                    <div className="w-64 h-64 rounded-full overflow-hidden mx-auto">
-                      {barbero.imagen_url ? (
-                        <img
-                          src={barbero.imagen_url}
-                          alt={barbero.nombre || 'Barbero'}
-                          className="w-full h-full object-cover blur-[3px] grayscale opacity-70 group-hover:blur-[0px] group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-500"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre || 'Barbero')}&background=f59e0b&color=000&size=256`;
-                          }}
-                        />
-                      ) : (
-                        <img
-                          src={`https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre || 'Barbero')}&background=f59e0b&color=000&size=256`}
-                          alt={barbero.nombre || 'Barbero'}
-                          className="w-full h-full object-cover blur-[3px] grayscale opacity-70 group-hover:blur-[0px] group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-500"
-                        />
-                      )}
+              {equipo.map((barbero) => {
+                const isFocused = focusedBarberoId === barbero.id
+                return (
+                  <div
+                    key={barbero.id}
+                    onClick={() => setFocusedBarberoId(isFocused ? null : barbero.id)}
+                    className={`group text-center flex flex-col justify-between h-full bg-zinc-950/40 p-6 rounded-3xl border transition-all duration-300 cursor-pointer ${
+                      isFocused ? 'border-amber-400 bg-zinc-900/90 shadow-2xl shadow-amber-500/20 scale-[1.02]' : 'border-white/5 hover:border-amber-400/30'
+                    }`}
+                  >
+                    <div>
+                      {/* Indicador táctil móvil */}
+                      <p className="text-[11px] font-black uppercase tracking-wider text-amber-400 mb-2 md:hidden">
+                        {isFocused ? '✨ Barbero Enfocado' : '👆 Toca para enfocar'}
+                      </p>
+
+                      {/* Foto Circular Original Limpia */}
+                      <div className="group/avatar relative inline-block mb-6">
+                        <div className={`w-64 h-64 rounded-full overflow-hidden mx-auto border-2 transition-all duration-300 shadow-2xl ${
+                          isFocused ? 'border-amber-400 ring-4 ring-amber-400/30 scale-105' : 'border-white/10 group-hover:border-amber-400'
+                        }`}>
+                          {barbero.imagen_url ? (
+                            <img
+                              src={barbero.imagen_url}
+                              alt={barbero.nombre || 'Barbero'}
+                              className={`w-full h-full object-cover transition-all duration-300 ${
+                                isFocused
+                                  ? 'blur-none grayscale-0 opacity-100 scale-105'
+                                  : 'blur-sm grayscale opacity-75 group-hover:blur-none group-hover:grayscale-0 group-hover:opacity-100 hover:blur-none hover:grayscale-0 hover:opacity-100 group-hover:scale-105'
+                              }`}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre || 'Barbero')}&background=f59e0b&color=000&size=256`;
+                              }}
+                            />
+                          ) : (
+                            <img
+                              src={`https://ui-avatars.com/api/?name=${encodeURIComponent(barbero.nombre || 'Barbero')}&background=f59e0b&color=000&size=256`}
+                              alt={barbero.nombre || 'Barbero'}
+                              className={`w-full h-full object-cover transition-all duration-300 ${
+                                isFocused
+                                  ? 'blur-none grayscale-0 opacity-100 scale-105'
+                                  : 'blur-sm grayscale opacity-75 group-hover:blur-none group-hover:grayscale-0 group-hover:opacity-100 hover:blur-none hover:grayscale-0 hover:opacity-100 group-hover:scale-105'
+                              }`}
+                            />
+                          )}
+                        </div>
+                        <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-amber-400 text-black px-4 py-1 rounded-full text-sm font-black uppercase tracking-wider truncate max-w-[220px] shadow-lg">
+                          {toTitleCase(barbero.especialidad || 'Barbero Especialista')}
+                        </div>
+                      </div>
+
+                    <h3 className="text-2xl font-black text-white mb-2">{toTitleCase(barbero.nombre)}</h3>
+                    {barbero.descripcion && (
+                      <p className="text-gray-400 text-sm mb-4 max-w-xs mx-auto line-clamp-3 leading-relaxed">
+                        {barbero.descripcion}
+                      </p>
+                    )}
+
+                    {/* Horario de Atención Amigable */}
+                    <div className="inline-flex items-center gap-1.5 bg-amber-400/10 border border-amber-400/20 text-amber-400 text-xs font-bold px-3 py-1.5 rounded-full mb-4">
+                      <Clock className="w-3.5 h-3.5" /> <span>09:00 - 20:00 (Lun a Sáb)</span>
                     </div>
-                    <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-amber-400 text-black px-4 py-1 rounded-full text-sm font-bold truncate max-w-[200px]">
-                      {toTitleCase(barbero.especialidad || 'Barbero Especialista')}
+
+                    <div className="flex justify-center gap-1 mb-4">
+                      {[1, 2, 3, 4, 5].map((_, j) => (
+                        <Star key={j} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      ))}
                     </div>
+
+                    {barbero.redes_sociales && (barbero.redes_sociales.instagram || barbero.redes_sociales.web) && (
+                      <div className="flex justify-center gap-3 mb-4">
+                        {barbero.redes_sociales.instagram && (
+                          <a href={barbero.redes_sociales.instagram} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-amber-400 hover:bg-zinc-700 transition">
+                            <Instagram className="w-4 h-4" />
+                          </a>
+                        )}
+                        {barbero.redes_sociales.web && (
+                          <a href={barbero.redes_sociales.web} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-amber-400 hover:bg-zinc-700 transition">
+                            <Globe className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <h3 className="text-xl font-bold mb-2">{toTitleCase(barbero.nombre)}</h3>
-                  {barbero.descripcion && (
-                    <p className="text-gray-400 text-sm mb-4 max-w-xs mx-auto line-clamp-3">
-                      {barbero.descripcion}
-                    </p>
-                  )}
-                  <div className="flex justify-center gap-1 mb-4">
-                    {[1, 2, 3, 4, 5].map((_, j) => (
-                      <Star key={j} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                    ))}
-                  </div>
-                  {barbero.redes_sociales && (barbero.redes_sociales.instagram || barbero.redes_sociales.web) && (
-                    <div className="flex justify-center gap-3">
-                      {barbero.redes_sociales.instagram && (
-                        <a href={barbero.redes_sociales.instagram} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-amber-400 hover:bg-zinc-700 transition">
-                          <Instagram className="w-4 h-4" />
-                        </a>
-                      )}
-                      {barbero.redes_sociales.web && (
-                        <a href={barbero.redes_sociales.web} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-amber-400 hover:bg-zinc-700 transition">
-                          <Globe className="w-4 h-4" />
-                        </a>
-                      )}
-                    </div>
-                  )}
-                  <div className="mt-5">
+
+                  <div className="mt-4 pt-4 border-t border-white/5">
                     <Link
-                      href="/reservar"
-                      className="inline-flex items-center justify-center px-6 py-2.5 bg-zinc-900 border border-amber-400/30 text-amber-400 font-bold uppercase tracking-widest text-xs rounded-full hover:bg-amber-400 hover:text-black transition-all shadow-lg hover:shadow-amber-400/20"
+                      href={`/reservar?barbero=${barbero.id}`}
+                      className="inline-flex items-center justify-center w-full px-6 py-3 bg-amber-400 hover:bg-amber-300 text-black font-black uppercase tracking-widest text-xs rounded-full transition-all shadow-lg shadow-amber-400/20 hover:scale-105"
                     >
                       Reservar Cita
                     </Link>
                   </div>
                 </div>
-              ))}
+              )
+            })}
             </div>
           ) : (
             <div className="text-center py-16 border-2 border-dashed border-white/10 rounded-3xl bg-black/50">
@@ -940,8 +1056,8 @@ export default function HomePage() {
               <SocialLinks links={socialLinks} size="lg" className="mt-8" />
             </div>
 
-            {/* Mapa */}
-            <div className="bg-zinc-800 rounded-2xl overflow-hidden h-[500px]">
+            {/* Mapa Interactivo Google Maps */}
+            <div className="bg-zinc-950 border border-amber-500/30 rounded-3xl overflow-hidden h-[480px] shadow-2xl relative">
               <iframe
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3807.3821644859213!2d-66.1548148237828!3d-17.393438064360744!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x93e3730afb6974d5%3A0xf6413d9e8b60ca50!2sBarber%20Site!5e0!3m2!1ses-419!2sbo!4v1771741041111!5m2!1ses-419!2sbo"
                 width="100%"
@@ -950,63 +1066,91 @@ export default function HomePage() {
                 allowFullScreen
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
+                title="Ubicación BarberSite Cochabamba"
               />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Info Bar Bottom */}
-      <div className="bg-amber-400 text-black py-4">
-        <div className="max-w-7xl mx-auto px-4 flex flex-wrap justify-center gap-8 text-sm font-bold uppercase tracking-widest">
-          <span className="flex items-center gap-2">
-            <Clock className="w-4 h-4" />
-            Lun-Dom: 9:00 - 21:00
-          </span>
-          <span className="flex items-center gap-2">
-            <Phone className="w-4 h-4" />
-            +591 78353814
-          </span>
-          <span className="flex items-center gap-2">
-            <MapPin className="w-4 h-4" />
-            Edif. Antezana, C. Sucre, Cbba
-          </span>
-        </div>
-      </div>
-
       <WhatsappFloat href={socialLinks.whatsapp} />
 
-      {/* Footer */}
-      <footer className="bg-black border-t border-white/10 py-12">
+      {/* Footer Ejecutivo Ultra-Profesional */}
+      <footer className="bg-zinc-950 border-t border-amber-500/20 pt-16 pb-12 text-zinc-400">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-            <div className="flex items-center gap-3">
-              {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
-                <img src={brand.logo_url} alt={brand.nombre} className="h-12 max-w-[200px] object-contain filter drop-shadow-[0_2px_15px_rgba(245,158,11,0.2)]" />
-              ) : (
-                <>
-                  <Scissors className="w-8 h-8 text-amber-400" />
-                  <span className="text-xl font-bold tracking-wider">{brand.nombre}</span>
-                </>
-              )}
-            </div>
-
-            <div className="flex flex-col items-center gap-6">
-              <div className="flex flex-wrap justify-center gap-8 text-sm text-gray-400">
-                <a href="#servicios" className="hover:text-amber-400 transition">Servicios</a>
-                <a href="#galeria" className="hover:text-amber-400 transition">Galería</a>
-                <a href="#acerca" className="hover:text-amber-400 transition">Nosotros</a>
-                <a href="#tienda" className="hover:text-amber-400 transition">Tienda</a>
-                <a href="#equipo" className="hover:text-amber-400 transition">Equipo</a>
-                <a href="#contacto" className="hover:text-amber-400 transition">Contacto</a>
+          
+          {/* Grilla Principal Responsiva */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 pb-12 border-b border-white/10 text-center sm:text-left">
+            
+            {/* Columna 1: Marca & Eslogan */}
+            <div className="space-y-4 flex flex-col items-center sm:items-start">
+              <div className="flex items-center gap-3">
+                {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
+                  <img src={brand.logo_url} alt={brand.nombre} className="h-12 max-w-[220px] object-contain filter drop-shadow-[0_2px_15px_rgba(245,158,11,0.3)]" />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Scissors className="w-8 h-8 text-amber-400" />
+                    <span className="text-2xl font-black text-white tracking-wider uppercase">{brand.nombre}</span>
+                  </div>
+                )}
               </div>
-              <SocialLinks links={socialLinks} className="flex flex-col items-center" />
+              <p className="text-xs text-zinc-400 leading-relaxed max-w-xs">
+                La experiencia definitiva en barbería y cuidado masculino profesional. Estilo moderno y tradición en Cochabamba, Bolivia.
+              </p>
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 text-[11px] font-black uppercase tracking-wider">
+                <MapPin className="w-3.5 h-3.5" /> Cochabamba, Bolivia
+              </div>
             </div>
 
-            <p className="text-gray-500 text-sm text-center md:text-right">
-              © 2026 {brand.nombre}. Todos los derechos reservados. Cochabamba, Bolivia. -k3v1bvo Studios, designed by k3v1bvo
+            {/* Columna 2: Navegación Rápida */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-black uppercase tracking-widest text-amber-400">Navegación</h4>
+              <ul className="space-y-2 text-xs font-bold uppercase tracking-wider">
+                <li><a href="#servicios" className="hover:text-amber-400 transition-colors">✂️ Servicios</a></li>
+                <li><a href="#galeria" className="hover:text-amber-400 transition-colors">📸 Galería</a></li>
+                <li><a href="#acerca" className="hover:text-amber-400 transition-colors">💈 Nosotros</a></li>
+                <li><a href="#tienda" className="hover:text-amber-400 transition-colors">🛍️ Tienda</a></li>
+                <li><a href="#equipo" className="hover:text-amber-400 transition-colors">💈 Equipo de Barberos</a></li>
+                <li><a href="#contacto" className="hover:text-amber-400 transition-colors">📞 Contacto Directo</a></li>
+              </ul>
+            </div>
+
+            {/* Columna 3: Horarios & Atención */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-black uppercase tracking-widest text-amber-400">Atención en Local</h4>
+              <div className="space-y-2 text-xs">
+                <p className="font-extrabold text-white flex items-center justify-center sm:justify-start gap-1.5">
+                  <Clock className="w-4 h-4 text-amber-400" /> Todos los días: 09:00 - 21:00
+                </p>
+                <p className="text-zinc-400">Edif. Antezana, Calle Sucre entre 25 de Mayo y San Martín.</p>
+                <p className="pt-2 font-mono text-white flex items-center justify-center sm:justify-start gap-1.5">
+                  <Phone className="w-4 h-4 text-amber-400" />
+                  <a href={`tel:+${contactPhone.replace(/\D/g, '')}`} className="hover:text-amber-400 transition-colors font-bold">
+                    +{contactPhone.replace(/(\d{3})(\d+)/, '$1 $2')}
+                  </a>
+                </p>
+              </div>
+            </div>
+
+            {/* Columna 4: Comunidad & Redes */}
+            <div className="space-y-4 flex flex-col items-center sm:items-start">
+              <h4 className="text-sm font-black uppercase tracking-widest text-amber-400">Síguenos</h4>
+              <p className="text-xs text-zinc-400">
+                Únete a nuestras redes para ver cortes en tendencia, sorteos y novedades.
+              </p>
+              <SocialLinks links={socialLinks} size="md" className="justify-center sm:justify-start" />
+            </div>
+
+          </div>
+
+          {/* Sub-Footer Inferior Ordenado */}
+          <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left text-xs text-zinc-500 font-medium">
+            <p>© 2026 <span className="text-zinc-300 font-bold">{brand.nombre}</span>. Todos los derechos reservados. Cochabamba, Bolivia.</p>
+            <p className="text-zinc-500 font-mono text-[11px]">
+              Diseñado con excelencia por <span className="text-amber-400 font-bold">k3v1bvo Studios</span>
             </p>
           </div>
+
         </div>
       </footer>
 

@@ -16,26 +16,32 @@ export async function POST() {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
-    if (!isAfterAutoCloseHour()) {
-      return NextResponse.json({ cerrados: 0, mensaje: 'Aún no es hora de cierre automático' })
+    const hoy = getBusinessDateString()
+    const esDespuesDeCierreHoy = isAfterAutoCloseHour()
+
+    // 1. Obtener asistencias pendientes de días anteriores O del día de hoy si ya pasaron las 22:00
+    let query = supabase
+      .from('asistencias')
+      .select('id, fecha, hora_entrada, hora_salida, estado')
+      .is('hora_salida', null)
+
+    if (esDespuesDeCierreHoy) {
+      query = query.lte('fecha', hoy)
+    } else {
+      query = query.lt('fecha', hoy)
     }
 
-    const hoy = getBusinessDateString()
-
-    const { data: abiertos, error } = await supabase
-      .from('asistencias')
-      .select('id, hora_entrada, hora_salida, estado')
-      .eq('fecha', hoy)
-      .is('hora_salida', null)
+    const { data: abiertos, error } = await query
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     let cerrados = 0
-    const cierreTs = getAutoCloseTimestamp(hoy)
 
     for (const reg of abiertos || []) {
+      const fechaReg = reg.fecha || hoy
+      const cierreTs = getAutoCloseTimestamp(fechaReg)
       const entrada = new Date(reg.hora_entrada)
       const salida = new Date(cierreTs)
       const horas = Math.max(0, (salida.getTime() - entrada.getTime()) / (1000 * 60 * 60))
@@ -70,8 +76,8 @@ export async function POST() {
       cerrados,
       mensaje:
         cerrados > 0
-          ? `${cerrados} turno(s) cerrado(s) automáticamente a las 22:00`
-          : 'No había turnos abiertos para cerrar',
+          ? `${cerrados} turno(s) cerrado(s) automáticamente`
+          : 'No había turnos pendientes para cerrar',
     })
   } catch (err) {
     console.error('auto-cerrar:', err)

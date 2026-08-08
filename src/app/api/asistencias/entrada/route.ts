@@ -23,7 +23,33 @@ export async function POST(request: NextRequest) {
 
     const hoy = getBusinessDateString()
 
-    // Prevenir doble marcación
+    // Auto-cerrar turnos viejos sin salida de este barbero de días anteriores
+    const { data: turnosViejos } = await supabase
+      .from('asistencias')
+      .select('id, fecha, hora_entrada')
+      .eq('profile_id', user.id)
+      .lt('fecha', hoy)
+      .is('hora_salida', null)
+
+    for (const viejo of turnosViejos || []) {
+      const fechaVieja = viejo.fecha || hoy
+      const cierreTs = `${fechaVieja}T22:00:00-04:00`
+      const entradaT = new Date(viejo.hora_entrada)
+      const salidaT = new Date(cierreTs)
+      const horas = Math.max(0, (salidaT.getTime() - entradaT.getTime()) / (1000 * 60 * 60))
+
+      await supabase
+        .from('asistencias')
+        .update({
+          hora_salida: cierreTs,
+          horas_trabajadas: Number(horas.toFixed(2)),
+          estado: 'finalizado',
+          cierre_automatico: true,
+        })
+        .eq('id', viejo.id)
+    }
+
+    // Prevenir doble marcación del día actual
     const { data: existente } = await supabase
       .from('asistencias')
       .select('id')
@@ -32,7 +58,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     if (existente) {
-      return NextResponse.json({ error: 'Ya marcaste tu entrada hoy' }, { status: 409 })
+      return NextResponse.json({ error: 'Ya marcaste tu entrada el día de hoy' }, { status: 409 })
     }
 
     // Leer body con coordenadas y selfie

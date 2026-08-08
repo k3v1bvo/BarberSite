@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { AsistenciaWidget } from '@/components/ui/AsistenciaWidget'
 import { AsistenciaHistorialWidget } from '@/components/ui/AsistenciaHistorialWidget'
+import { HorarioTrabajoBarberoWidget } from '@/components/ui/HorarioTrabajoBarberoWidget'
 import { useToast } from '@/components/ui/Toast'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -108,14 +109,18 @@ export default function BarberoPage() {
             if (!raw) return undefined
             return { nombre: raw.nombre }
           }
-          const comprobanteMatch = cita.notas?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/)
+          const notasStr = cita.notas as string | null
+          const matchStandard = notasStr?.match(/\[Comprobante\]:\s*([^\s\n\r]+)/i)
+          const matchDataUri = notasStr?.match(/(data:image\/[a-zA-Z]+;base64,[^\s\n\r]+)/i)
+          const matchAnyUrl = notasStr?.match(/(https?:\/\/[^\s\n\r]+\.(?:jpg|jpeg|png|webp|gif|svg)|https?:\/\/(?:i\.)?ibb\.co\/[^\s\n\r]+|https?:\/\/res\.cloudinary\.com\/[^\s\n\r]+)/i)
+          const extractedUrl = (cita as any).comprobante_url || (matchStandard ? matchStandard[1].trim() : (matchDataUri ? matchDataUri[1].trim() : (matchAnyUrl ? matchAnyUrl[1].trim() : null)))
           setSelectedCita({
             id: cita.id,
             estado: cita.estado,
             precio: cita.precio,
             comision_barbero: cita.comision_barbero,
             fecha_hora: cita.fecha_hora,
-            comprobante_url: comprobanteMatch ? comprobanteMatch[1] : null,
+            comprobante_url: extractedUrl,
             notas: cita.notas,
             clientes: getCliente(),
             servicios: getServicio(),
@@ -272,9 +277,12 @@ export default function BarberoPage() {
           return { nombre: raw.nombre }
         }
 
-        // Extraer comprobante_url de las notas si existe
-        const comprobanteMatch = cita.notas?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/)
-        const extractedUrl = comprobanteMatch ? comprobanteMatch[1] : null
+        // Extraer comprobante_url de las notas (soporta URLs y base64 DATA-URI)
+        const notasStr = cita.notas as string | null
+        const matchStandard = notasStr?.match(/\[Comprobante\]:\s*([^\s\n\r]+)/i)
+        const matchDataUri = notasStr?.match(/(data:image\/[a-zA-Z]+;base64,[^\s\n\r]+)/i)
+        const matchAnyUrl = notasStr?.match(/(https?:\/\/[^\s\n\r]+\.(?:jpg|jpeg|png|webp|gif|svg)|https?:\/\/(?:i\.)?ibb\.co\/[^\s\n\r]+|https?:\/\/res\.cloudinary\.com\/[^\s\n\r]+)/i)
+        const extractedUrl = (cita as any).comprobante_url || (matchStandard ? matchStandard[1].trim() : (matchDataUri ? matchDataUri[1].trim() : (matchAnyUrl ? matchAnyUrl[1].trim() : null)))
 
         return {
           id: cita.id,
@@ -462,6 +470,13 @@ export default function BarberoPage() {
       <div className="w-full">
         <AsistenciaWidget />
       </div>
+
+      {/* Mi Horario de Trabajo Configurado */}
+      {userId && (
+        <div className="w-full">
+          <HorarioTrabajoBarberoWidget userId={userId} />
+        </div>
+      )}
 
       {/* Historial semanal de asistencia */}
       <div className="w-full">
@@ -697,6 +712,18 @@ export default function BarberoPage() {
                         {cita.clientes?.telefono && (
                           <p className="text-xs text-zinc-400 font-medium">📞 {cita.clientes.telefono}</p>
                         )}
+                        {cita.comprobante_url && (
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <span className="bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-black uppercase px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm">
+                              📱 Pago QR Adjunto
+                            </span>
+                            {cita.estado === 'pendiente_pago' && (
+                              <span className="bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] font-black uppercase px-2.5 py-1 rounded-lg animate-pulse">
+                                ⚠️ Verificar Pago
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="sm:text-right flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start border-t border-white/5 sm:border-none pt-3 sm:pt-0">
@@ -737,7 +764,7 @@ export default function BarberoPage() {
             <CardContent className="pt-6">
               {stats.semana.citas > 0 ? (
                 <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <ResponsiveContainer width="100%" height={240} minWidth={0} minHeight={200}>
                     <LineChart data={citas.slice(0, 7).reverse()}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
                       <XAxis dataKey="fecha_hora" hide />
@@ -995,66 +1022,75 @@ export default function BarberoPage() {
 
             <div className="p-4 bg-zinc-950 rounded-xl border border-white/5 space-y-2">
               <span className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Notas del cliente / Reserva</span>
-              <p className="text-zinc-300 text-sm whitespace-pre-wrap">{selectedCita.notas ? selectedCita.notas.replace(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/, '') : 'Sin notas registradas.'}</p>
+              <p className="text-zinc-300 text-sm whitespace-pre-wrap">{selectedCita.notas ? selectedCita.notas.replace(/\[Comprobante\]:\s*([^\s\n\r]+)/i, '').replace(/data:image\/[a-zA-Z]+;base64,[^\s\n\r]+/i, '').trim() || 'Sin notas registradas.' : 'Sin notas registradas.'}</p>
             </div>
+
+            {/* Comprobante de Pago QR (Siempre visible si existe) */}
+            {selectedCita.comprobante_url && (
+              <div className="w-full rounded-2xl overflow-hidden border border-amber-500/30 bg-zinc-950 p-2 space-y-2 shadow-xl">
+                <div className="flex items-center justify-between px-2 py-1 bg-zinc-900 rounded-xl border border-white/5">
+                  <span className="text-xs font-black uppercase text-amber-400 tracking-widest flex items-center gap-1.5">
+                    📷 Comprobante de Pago QR
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        try {
+                          const res = await fetch(selectedCita.comprobante_url!)
+                          const blob = await res.blob()
+                          const blobUrl = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = blobUrl
+                          a.download = `Comprobante_${selectedCita.id}.jpg`
+                          document.body.appendChild(a); a.click()
+                          document.body.removeChild(a)
+                          URL.revokeObjectURL(blobUrl)
+                        } catch { window.open(selectedCita.comprobante_url!, '_blank') }
+                      }}
+                      className="text-[10px] font-black uppercase px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition"
+                    >⬇ Guardar</button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        window.open(selectedCita.comprobante_url!, '_blank')
+                      }}
+                      className="text-[10px] font-black uppercase px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700 transition"
+                    >🔍 Pantalla completa</button>
+                  </div>
+                </div>
+                <div className="relative rounded-xl overflow-hidden bg-black flex items-center justify-center border border-white/5">
+                  <img
+                    src={selectedCita.comprobante_url}
+                    alt="Comprobante de pago"
+                    loading="eager"
+                    className="w-full max-h-80 object-contain bg-zinc-950 cursor-pointer hover:opacity-90 transition"
+                    onClick={() => window.open(selectedCita.comprobante_url!, '_blank')}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex flex-col gap-3 pt-4 border-t border-white/10">
               {selectedCita.estado === 'pendiente_pago' && (
                 <div className="flex flex-col w-full gap-3">
-                  <div className="flex w-full gap-3">
-                    {selectedCita.comprobante_url && (
-                      <div className="w-full rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950 mb-1">
-                        <div className="flex items-center justify-between px-3 py-2 bg-zinc-900 border-b border-zinc-800">
-                          <span className="text-[10px] font-black uppercase text-amber-400 tracking-widest">📷 Comprobante</span>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  const res = await fetch(selectedCita.comprobante_url!)
-                                  const blob = await res.blob()
-                                  const blobUrl = URL.createObjectURL(blob)
-                                  const a = document.createElement('a')
-                                  a.href = blobUrl
-                                  a.download = `Comprobante_${selectedCita.id}.jpg`
-                                  document.body.appendChild(a); a.click()
-                                  document.body.removeChild(a)
-                                  URL.revokeObjectURL(blobUrl)
-                                } catch { window.open(selectedCita.comprobante_url!, '_blank') }
-                              }}
-                              className="text-[10px] font-black uppercase px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition"
-                            >⬇ Guardar</button>
-                            <button
-                              type="button"
-                              onClick={() => window.open(selectedCita.comprobante_url!, '_blank')}
-                              className="text-[10px] font-black uppercase px-2 py-1 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-700 transition"
-                            >🔍 Pantalla completa</button>
-                          </div>
-                        </div>
-                        <img
-                          src={selectedCita.comprobante_url}
-                          alt="Comprobante de pago"
-                          loading="eager"
-                          className="w-full max-h-72 object-contain bg-zinc-950"
-                        />
-                      </div>
-                    )}
-                    <Button 
-                      onClick={async () => {
-                        try {
-                          const res = await fetch('/api/citas/verificar-pago', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ citaId: selectedCita.id }) })
-                          if (!res.ok) throw new Error('Error al verificar')
-                          success('✅ Pago verificado')
-                          setSelectedCita(null)
-                          loadData()
-                        } catch (e) { toastError('No se pudo verificar el pago') }
-                      }}
-                      className="flex-1 h-12 uppercase tracking-widest font-black bg-amber-500 hover:bg-amber-600 text-black"
-                    >
-                      ✅ Aprobar Pago
-                    </Button>
-                  </div>
+                  <Button 
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/citas/verificar-pago', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ citaId: selectedCita.id }) })
+                        if (!res.ok) throw new Error('Error al verificar')
+                        success('✅ Pago verificado')
+                        setSelectedCita(null)
+                        loadData()
+                      } catch (e) { toastError('No se pudo verificar el pago') }
+                    }}
+                    className="w-full h-12 uppercase tracking-widest font-black bg-amber-500 hover:bg-amber-600 text-black shadow-lg shadow-amber-500/20"
+                  >
+                    ✅ Aprobar Pago QR
+                  </Button>
                   <Button 
                     onClick={async () => {
                       if (!confirm('¿Cancelar esta cita o marcar que no asistió?')) return

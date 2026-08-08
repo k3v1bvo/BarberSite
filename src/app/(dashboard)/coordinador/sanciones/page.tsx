@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
-import { AlertTriangle, Plus, X, User, Phone, Mail, CheckCircle } from 'lucide-react'
+import { AlertTriangle, Plus, X, User, Phone, Mail, CheckCircle, Trash2 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 
 interface PlanCuenta { codigo: string; detalle: string; es_sancion: boolean }
@@ -48,6 +48,19 @@ export default function SancionesPage() {
   const [cobrandoId, setCobrandoId] = useState<string | null>(null)
   const [metodoPago, setMetodoPago] = useState('efectivo')
   const [isCobrando, setIsCobrando] = useState(false)
+
+  const handleEliminarSancion = async (id: string) => {
+    if (!confirm('¿Estás seguro de anular/eliminar esta sanción?')) return
+    try {
+      const res = await fetch(`/api/sanciones?id=${id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      success('Sanción eliminada con éxito')
+      loadData()
+    } catch (err: any) {
+      error(err?.message || 'Error al eliminar la sanción')
+    }
+  }
 
   const handleCreateMotivo = async () => {
     if (!newMotivoName.trim()) return
@@ -286,38 +299,50 @@ export default function SancionesPage() {
                       <td className="px-4 py-3"><Badge variant="danger" className="text-[10px] uppercase">{tx.tipo}</Badge></td>
                       <td className="px-4 py-3 text-zinc-300">{tx.descripcion}</td>
                       <td className="px-4 py-3 text-right font-black text-red-400">{formatCurrency(tx.monto)}</td>
-                      <td className="px-4 py-3 flex justify-center">
-                        {tx.estado === 'pendiente' ? (
-                          cobrandoId === tx.id ? (
-                            <div className="flex flex-col items-center gap-2">
-                              <select 
-                                value={metodoPago} 
-                                onChange={(e) => setMetodoPago(e.target.value)}
-                                className="h-8 bg-zinc-950 border border-white/10 rounded text-xs px-2 text-white"
-                              >
-                                <option value="efectivo">Efectivo</option>
-                                <option value="qr">QR / Banco</option>
-                              </select>
-                              <div className="flex gap-1">
-                                <Button size="sm" variant="primary" className="bg-emerald-600 hover:bg-emerald-500 text-[10px] h-7 px-2" onClick={() => handleCobrar(tx.id)} disabled={isCobrando}>
-                                  {isCobrando ? '...' : 'Confirmar'}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {tx.estado === 'pendiente' ? (
+                            cobrandoId === tx.id ? (
+                              <div className="flex flex-col items-center gap-2">
+                                <select 
+                                  value={metodoPago} 
+                                  onChange={(e) => setMetodoPago(e.target.value)}
+                                  className="h-8 bg-zinc-950 border border-white/10 rounded text-xs px-2 text-white"
+                                >
+                                  <option value="efectivo">Efectivo</option>
+                                  <option value="qr">QR / Banco</option>
+                                </select>
+                                <div className="flex gap-1">
+                                  <Button size="sm" variant="primary" className="bg-emerald-600 hover:bg-emerald-500 text-[10px] h-7 px-2" onClick={() => handleCobrar(tx.id)} disabled={isCobrando}>
+                                    {isCobrando ? '...' : 'Confirmar'}
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="text-[10px] h-7 px-2" onClick={() => setCobrandoId(null)}>
+                                    X
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <Button size="sm" variant="outline" className="text-amber-500 border-amber-500/20 hover:bg-amber-500/10 text-[10px] h-8 font-bold" onClick={() => setCobrandoId(tx.id)}>
+                                  COBRAR
                                 </Button>
-                                <Button size="sm" variant="outline" className="text-[10px] h-7 px-2" onClick={() => setCobrandoId(null)}>
-                                  X
+                                <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-8 px-2" onClick={() => handleEliminarSancion(tx.id)} title="Eliminar / Anular Sanción">
+                                  <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
-                            </div>
+                            )
                           ) : (
-                            <Button size="sm" variant="outline" className="text-amber-500 border-amber-500/20 hover:bg-amber-500/10 text-[10px] h-8" onClick={() => setCobrandoId(tx.id)}>
-                              COBRAR
-                            </Button>
-                          )
-                        ) : (
-                          <Badge variant="outline" className="text-emerald-500 border-emerald-500/20 bg-emerald-500/10 text-[10px] flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3" />
-                            {tx.estado === 'aplicada' ? 'Descontada' : 'Pagada'}
-                          </Badge>
-                        )}
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-emerald-500 border-emerald-500/20 bg-emerald-500/10 text-[10px] flex items-center gap-1 font-bold">
+                                <CheckCircle className="w-3 h-3" />
+                                {tx.estado === 'aplicada' ? 'Descontada' : 'Pagada'}
+                              </Badge>
+                              <Button size="sm" variant="ghost" className="text-red-400/60 hover:text-red-300 hover:bg-red-500/10 h-8 px-2" onClick={() => handleEliminarSancion(tx.id)} title="Eliminar Sanción">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))

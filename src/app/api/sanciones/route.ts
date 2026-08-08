@@ -141,3 +141,27 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
 }
+
+// ── DELETE: eliminar / anular sanción ──────────────────────────────
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (!['admin', 'coordinador'].includes(profile?.role || '')) {
+      return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+    }
+
+    const id = request.nextUrl.searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'Falta ID de sanción' }, { status: 400 })
+
+    const { error } = await supabase.from('sanciones').delete().eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    return NextResponse.json({ success: true, mensaje: 'Sanción eliminada con éxito' })
+  } catch {
+    return NextResponse.json({ error: 'Error interno al eliminar sanción' }, { status: 500 })
+  }
+}

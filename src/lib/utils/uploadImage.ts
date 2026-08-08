@@ -60,12 +60,6 @@ async function compressImage(file: File, maxWidth = 1920, maxHeight = 1920, qual
  * @returns La URL de la imagen subida o lanza un error si falla.
  */
 export async function uploadImageToImgBB(file: File, retries = 3): Promise<string> {
-  const apiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY
-
-  if (!apiKey) {
-    throw new Error('La API Key de ImgBB no está configurada.')
-  }
-
   // 1. Comprimir la imagen para evitar fallos de subida por archivos muy pesados (fotos de cámara)
   let fileToUpload = file
   try {
@@ -74,36 +68,60 @@ export async function uploadImageToImgBB(file: File, retries = 3): Promise<strin
     console.warn('No se pudo comprimir la imagen, subiendo archivo original:', e)
   }
 
-  let lastError: Error = new Error('Error al subir la imagen a ImgBB.')
-
-  // 2. Intentar subir con reintentos automáticos
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const formData = new FormData()
-      formData.append('image', fileToUpload)
-
-      const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
-        method: 'POST',
-        body: formData,
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        return data.data.url
-      } else {
-        lastError = new Error(data.error?.message || 'Error al subir la imagen a ImgBB.')
-      }
-    } catch (error: any) {
-      console.error(`Intento ${attempt} falló en uploadImageToImgBB:`, error)
-      lastError = new Error(error.message || 'Hubo un problema de conexión al subir la imagen.')
+  // 2. Intentar subir mediante la API interna de Supabase Storage / Upload del sistema
+  try {
+    const formData = new FormData()
+    formData.append('file', fileToUpload)
+    const internalRes = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    })
+    if (internalRes.ok) {
+      const data = await internalRes.json()
+      if (data.url) return data.url
     }
+  } catch (e) {
+    console.warn('Fallback a Catbox/ImgBB por fallo en API interna:', e)
+  }
 
-    // Esperar antes del siguiente reintento (1s, 2s)
-    if (attempt < retries) {
-      await new Promise((res) => setTimeout(res, 1000 * attempt))
+  // 3. Intentar subir a Catbox.moe del sistema
+  try {
+    const catboxData = new FormData()
+    catboxData.append('file', fileToUpload)
+    const catRes = await fetch('/api/upload/catbox', {
+      method: 'POST',
+      body: catboxData,
+    })
+    if (catRes.ok) {
+      const cData = await catRes.json()
+      if (cData.url) return cData.url
+    }
+  } catch (e) {
+    console.warn('Fallback a ImgBB por fallo en Catbox:', e)
+  }
+
+  // 4. Intentar ImgBB si existe API Key configurada
+  const apiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY
+  if (apiKey) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const formData = new FormData()
+        formData.append('image', fileToUpload)
+
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+          method: 'POST',
+          body: formData,
+        })
+
+        const data = await response.json()
+        if (data.success) {
+          return data.data.url
+        }
+      } catch (error: any) {
+        console.error(`Intento ${attempt} falló en ImgBB:`, error)
+      }
     }
   }
 
-  throw lastError
+  throw new Error('No se pudo procesar la subida de la foto. Por favor reintenta.')
 }

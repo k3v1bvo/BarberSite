@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Clock, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getBusinessDateString } from '@/lib/asistencia/helpers'
 
 interface BarberoTurnoItem {
   id: string
@@ -29,7 +30,7 @@ export function OrdenLlegadaBarberos() {
 
   const fetchOrdenLlegadaYTurnos = async () => {
     try {
-      const hoy = new Date().toISOString().split('T')[0]
+      const hoy = getBusinessDateString()
 
       // 1. Obtener barberos que marcaron asistencia hoy
       const { data: asistencias, error } = await supabase

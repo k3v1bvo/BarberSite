@@ -16,15 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (profile?.role !== 'admin' && profile?.role !== 'coordinador') {
-      return NextResponse.json({ error: 'Sin permisos para subir archivos' }, { status: 403 })
-    }
+    // Cualquier usuario autenticado puede subir archivos de avatar/perfil
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null

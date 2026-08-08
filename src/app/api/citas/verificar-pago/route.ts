@@ -87,8 +87,10 @@ export async function POST(request: Request) {
     }
 
     // Extraer comprobante_url de notas
-    const comprobanteMatch = (cita.notas as string | null)?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/)
-    const comprobante_url = comprobanteMatch ? comprobanteMatch[1] : undefined
+    const notasStr = cita.notas as string | null
+    const matchStandard = notasStr?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s\n\r]+)/i)
+    const matchAnyUrl = notasStr?.match(/(https?:\/\/[^\s\n\r]+\.(?:jpg|jpeg|png|webp|gif|svg)|https?:\/\/(?:i\.)?ibb\.co\/[^\s\n\r]+|https?:\/\/res\.cloudinary\.com\/[^\s\n\r]+)/i)
+    const comprobante_url = matchStandard ? matchStandard[1].trim() : (matchAnyUrl ? matchAnyUrl[1].trim() : undefined)
 
     // Disparar notificaciones
     const cliente = cita.clientes as { nombre?: string; email?: string } | null
@@ -107,8 +109,8 @@ export async function POST(request: Request) {
         clienteEmail: cliente?.email ?? undefined,
         servicioNombre: servicio?.nombre,
         monto: cita.anticipo_monto,
-        fecha: fh.toLocaleDateString('es-BO'),
-        hora: fh.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }),
+        fecha: fh.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' }),
+        hora: fh.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit' }),
         motivo: profile.full_name,
         comprobante_url,
       },

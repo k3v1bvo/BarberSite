@@ -352,7 +352,11 @@ export function buildEmail(
             { label: 'Hora', value: data.hora || '—' },
             { label: 'Barbero', value: data.barbero || '—' },
           ])}
-          ${data.comprobante_url ? `<p style="margin-top:12px;"><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📷 Ver tu comprobante enviado</a></p>` : ''}
+          ${data.comprobante_url ? `<div style="margin-top:16px;margin-bottom:16px;text-align:center;background-color:#09090b;padding:12px;border-radius:12px;border:1px solid #27272a;">
+            <p style="margin:0 0 8px;font-size:11px;font-weight:bold;color:#f59e0b;text-transform:uppercase;letter-spacing:1px;">📷 Comprobante de Pago QR Enviado</p>
+            <img src="${data.comprobante_url}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid #3f3f46;" alt="Comprobante QR" />
+            ${!data.comprobante_url.startsWith('data:') ? `<p style="margin:8px 0 0;"><a href="${data.comprobante_url}" target="_blank" style="color:#f59e0b;font-size:12px;font-weight:bold;text-decoration:underline;">🔍 Ver foto completa</a></p>` : ''}
+          </div>` : ''}
           <p style="margin-top:16px;">Te enviaremos un correo de <strong style="color:#22c55e;">confirmación</strong> en cuanto verifiquemos el depósito. ¡No te preocupes, será rápido!</p>
           <p style="color:#a1a1aa;font-size:13px;margin-top:8px;">Si tienes alguna duda, contáctanos por WhatsApp o redes sociales.</p>
           ${cta(`${SITE}/cliente`, 'Ver estado de mi reserva')}`,
@@ -373,7 +377,11 @@ export function buildEmail(
             { label: 'Fecha', value: data.fecha || '—' },
             { label: 'Hora', value: data.hora || '—' },
           ])}
-          ${data.comprobante_url ? `<p><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📥 Ver Comprobante Adjunto</a></p>` : ''}
+          ${data.comprobante_url ? `<div style="margin-top:16px;margin-bottom:16px;text-align:center;background-color:#09090b;padding:12px;border-radius:12px;border:1px solid #27272a;">
+            <p style="margin:0 0 8px;font-size:11px;font-weight:bold;color:#f59e0b;text-transform:uppercase;letter-spacing:1px;">📷 Comprobante de Pago QR Adjunto</p>
+            <img src="${data.comprobante_url}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid #3f3f46;" alt="Comprobante QR" />
+            ${!data.comprobante_url.startsWith('data:') ? `<p style="margin:8px 0 0;"><a href="${data.comprobante_url}" target="_blank" style="color:#f59e0b;font-size:12px;font-weight:bold;text-decoration:underline;">🔍 Ver foto completa</a></p>` : ''}
+          </div>` : ''}
           <p style="color:#a1a1aa;font-size:13px;">Ingresa al sistema y presiona <strong>"Verificar Pago"</strong> una vez confirmes el depósito.</p>
           ${cta(`${SITE}/barbero`, 'Ir al panel')}`,
           'Hay un pago QR pendiente de verificar'
@@ -394,7 +402,11 @@ export function buildEmail(
             { label: 'Hora', value: data.hora || '—' },
             { label: 'Barbero', value: data.barbero || '—' },
           ])}
-          ${data.comprobante_url ? `<p><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📥 Ver Comprobante de Pago</a></p>` : ''}
+          ${data.comprobante_url ? `<div style="margin-top:16px;margin-bottom:16px;text-align:center;background-color:#09090b;padding:12px;border-radius:12px;border:1px solid #27272a;">
+            <p style="margin:0 0 8px;font-size:11px;font-weight:bold;color:#f59e0b;text-transform:uppercase;letter-spacing:1px;">📷 Comprobante de Pago QR Adjunto</p>
+            <img src="${data.comprobante_url}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid #3f3f46;" alt="Comprobante QR" />
+            ${!data.comprobante_url.startsWith('data:') ? `<p style="margin:8px 0 0;"><a href="${data.comprobante_url}" target="_blank" style="color:#f59e0b;font-size:12px;font-weight:bold;text-decoration:underline;">🔍 Ver foto completa</a></p>` : ''}
+          </div>` : ''}
           <p style="color:#a1a1aa;font-size:13px;">Revisa tu banco o notifica al barbero para que presione <strong>"Aprobar Pago"</strong>.</p>
           ${cta(`${SITE}/admin`, 'Ir al Panel Admin')}`,
           'Tienes un comprobante de reserva pendiente de revisión'
@@ -414,7 +426,11 @@ export function buildEmail(
             { label: 'Hora', value: data.hora || '—' },
             { label: 'Barbero', value: data.barbero || '—' },
           ])}
-          ${data.comprobante_url ? `<p style="margin-top:12px;"><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📷 Ver tu comprobante de pago</a></p>` : ''}
+          ${data.comprobante_url ? `<div style="margin-top:16px;margin-bottom:16px;text-align:center;background-color:#09090b;padding:12px;border-radius:12px;border:1px solid #27272a;">
+            <p style="margin:0 0 8px;font-size:11px;font-weight:bold;color:#22c55e;text-transform:uppercase;letter-spacing:1px;">📷 Comprobante Aprobado</p>
+            <img src="${data.comprobante_url}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid #3f3f46;" alt="Comprobante QR" />
+            ${!data.comprobante_url.startsWith('data:') ? `<p style="margin:8px 0 0;"><a href="${data.comprobante_url}" target="_blank" style="color:#f59e0b;font-size:12px;font-weight:bold;text-decoration:underline;">🔍 Ver foto completa</a></p>` : ''}
+          </div>` : ''}
           <p style="margin-top:16px;">Te esperamos puntual el <strong>${data.fecha || ''}</strong> a las <strong>${data.hora || ''}</strong> con <strong>${data.barbero || 'tu barbero'}</strong>. El saldo restante se paga directamente en la barbería.</p>
           <p style="color:#a1a1aa;font-size:13px;margin-top:8px;">Recibirás un recordatorio antes de tu cita. Si no puedes asistir, avísanos con tiempo.</p>
           ${cta(`${SITE}/cliente`, 'Ver mis citas')}`,
@@ -435,7 +451,11 @@ export function buildEmail(
             { label: 'Fecha', value: data.fecha || '—' },
             { label: 'Hora', value: data.hora || '—' },
           ])}
-          ${data.comprobante_url ? `<p style="margin-top:12px;"><a href="${data.comprobante_url}" style="color:#f59e0b;font-weight:bold;text-decoration:none;">📷 Ver comprobante de pago</a></p>` : ''}
+          ${data.comprobante_url ? `<div style="margin-top:16px;margin-bottom:16px;text-align:center;background-color:#09090b;padding:12px;border-radius:12px;border:1px solid #27272a;">
+            <p style="margin:0 0 8px;font-size:11px;font-weight:bold;color:#22c55e;text-transform:uppercase;letter-spacing:1px;">📷 Comprobante Aprobado</p>
+            <img src="${data.comprobante_url}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid #3f3f46;" alt="Comprobante QR" />
+            ${!data.comprobante_url.startsWith('data:') ? `<p style="margin:8px 0 0;"><a href="${data.comprobante_url}" target="_blank" style="color:#f59e0b;font-size:12px;font-weight:bold;text-decoration:underline;">🔍 Ver foto completa</a></p>` : ''}
+          </div>` : ''}
           ${cta(`${SITE}/admin`, 'Ir al Panel Admin')}`,
           'Un pago QR ha sido verificado y la cita confirmada'
         ),

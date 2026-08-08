@@ -99,14 +99,28 @@ export async function GET() {
       .order('canjeado_at', { ascending: false })
       .limit(5)
 
-    // 7. Promociones activas HOY
+    // 7. Promociones activas HOY (Deduplicadas por nombre y tipo para evitar repeticiones)
     const diaSemana = new Date().getDay()
-    const { data: todasPromos } = await supabase
+    const { data: rawPromos } = await supabase
       .from('promociones')
       .select('*')
       .eq('activa', true)
 
-    const promosHoy = (todasPromos ?? []).filter((p: any) => {
+    // Deduplicación estricta por nombre + tipo
+    const todasPromos = Array.from(
+      new Map((rawPromos ?? []).map((p: any) => [`${(p.nombre || '').toLowerCase().trim()}_${p.tipo}`, p])).values()
+    )
+
+    // Purga física automática en la base de datos Supabase si existen duplicados
+    if ((rawPromos ?? []).length > todasPromos.length) {
+      const idsGuardados = new Set(todasPromos.map((p: any) => p.id))
+      const idsDuplicadosABorrar = (rawPromos ?? []).filter((p: any) => !idsGuardados.has(p.id)).map((p: any) => p.id)
+      if (idsDuplicadosABorrar.length > 0) {
+        await supabase.from('promociones').delete().in('id', idsDuplicadosABorrar)
+      }
+    }
+
+    const promosHoy = todasPromos.filter((p: any) => {
       // Promo de cumpleaños: solo si es su cumpleaños y está verificado
       if (p.tipo === 'cumpleanos') return esCumpleanos && cumpleVerificado
       // Promo por nivel de lealtad
@@ -120,6 +134,9 @@ export async function GET() {
       return p.dias_semana.includes(diaSemana)
     })
 
+    // Promociones generales que no son de hoy
+    const promocionesActivas = todasPromos.filter((p: any) => !promosHoy.some((ph: any) => ph.id === p.id))
+
     // 8. Últimas citas
     const { data: ultimasCitas } = await supabase
       .from('citas')
@@ -128,6 +145,7 @@ export async function GET() {
       .eq('estado', 'completado')
       .order('fecha_hora', { ascending: false })
       .limit(3)
+
     // 9. Referidos
     let misReferidos: any[] = []
     if (cliente?.id) {
@@ -153,7 +171,7 @@ export async function GET() {
       metasAlcanzadas,
       canjes: canjes ?? [],
       promosHoy,
-      promocionesActivas: (todasPromos ?? []).filter((p: any) => !promosHoy.some((ph: any) => ph.id === p.id)),
+      promocionesActivas,
       ultimasCitas: ultimasCitas ?? [],
       misReferidos,
     })

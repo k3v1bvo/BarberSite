@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ArrowLeft, X, Save, Edit, Eye, EyeOff, Users, Instagram, Globe, GripVertical, RotateCcw, Link, Link2Off } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, X, Save, Edit, Eye, EyeOff, Users, Instagram, Globe, GripVertical, RotateCcw, Link, Link2Off, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { cn, toTitleCase } from '@/lib/utils'
 import { useToast } from '@/components/ui/Toast'
@@ -115,14 +115,14 @@ export default function AdminEquipoPage() {
         })
       }
 
-      // Incluir también los barberos del sistema aún no configurados en equipo_home
+      // Incluir también los barberos y coordinadores del sistema aún no configurados en equipo_home
       if (barberosData) {
         barberosData.forEach((b: any) => {
-          if (!foundProfileIds.has(b.id) && b.role === 'barbero') {
+          if (!foundProfileIds.has(b.id) && (b.role === 'barbero' || b.role === 'coordinador')) {
              processed.push({
                id: 'virtual_' + b.id,
-               nombre: b.full_name || 'Barbero',
-               especialidad: 'Especialista',
+               nombre: b.full_name || (b.role === 'coordinador' ? 'Coordinador' : 'Barbero'),
+               especialidad: b.role === 'coordinador' ? 'Coordinador del Local' : 'Especialista en Corte',
                descripcion: 'Pendiente de configurar en el home',
                imagen_url: b.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(b.full_name || 'B')}&background=f59e0b&color=000&size=256`,
                redes_sociales: {},
@@ -469,10 +469,16 @@ export default function AdminEquipoPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push('/admin/horarios')}
+                      onClick={() => {
+                        if (member.profile_id) {
+                          router.push(`/admin/horarios?barbero_id=${member.profile_id}`)
+                        } else {
+                          router.push('/admin/horarios')
+                        }
+                      }}
                       className="text-[10px] font-black uppercase text-amber-400 border-amber-500/20 bg-amber-500/5 hover:bg-amber-500 hover:text-black transition-all"
                     >
-                      🕒 Horario de Trabajo
+                      🕒 Ver / Ajustar Horario
                     </Button>
                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
                       Orden: #{member.sort_order}
@@ -484,9 +490,6 @@ export default function AdminEquipoPage() {
           })}
         </div>
       )}
-          )
-        })}
-      </div>
 
       {/* Empty state */}
       {members.length === 0 && (
@@ -500,170 +503,185 @@ export default function AdminEquipoPage() {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal responsiva de Edición / Creación */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-2 sm:p-4 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
-          <Card className="w-full max-w-xl border-white/10 shadow-2xl bg-zinc-950 my-auto max-h-[92vh] flex flex-col overflow-hidden rounded-2xl">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-8 bg-zinc-900/50">
-              <div>
-                <CardTitle className="text-2xl font-black uppercase text-white leading-none">
-                  {editing ? 'Editar' : 'Nuevo'} <span className="text-amber-500">Miembro</span>
-                </CardTitle>
-                <p className="text-zinc-500 text-xs mt-2 font-medium">
-                  {editing ? 'Actualiza la información del miembro' : 'Agrega un nuevo barbero al equipo del Home'}
-                </p>
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-2 sm:p-4 backdrop-blur-md animate-in fade-in duration-300">
+          <Card className="w-full max-w-2xl border-white/10 shadow-2xl bg-zinc-950 my-auto max-h-[92vh] flex flex-col overflow-hidden rounded-2xl sm:rounded-3xl">
+            {/* Header Sticky */}
+            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 p-4 sm:p-6 bg-zinc-900/60 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold">
+                  💈
+                </div>
+                <div>
+                  <CardTitle className="text-lg sm:text-xl font-black uppercase text-white leading-none">
+                    {editing ? 'Editar' : 'Nuevo'} <span className="text-amber-500">Miembro</span>
+                  </CardTitle>
+                  <p className="text-zinc-400 text-[11px] mt-1 font-medium">
+                    {editing ? 'Actualiza la información del barbero para el sitio web' : 'Agrega un nuevo integrante al equipo visible en la portada'}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setShowModal(false)}
-                className="p-3 hover:bg-white/5 rounded-2xl transition-colors border border-white/5"
+                className="p-2.5 hover:bg-white/10 rounded-xl transition-colors border border-white/10 text-zinc-400 hover:text-white"
               >
-                <X className="w-6 h-6 text-zinc-500" />
+                <X className="w-5 h-5" />
               </button>
             </CardHeader>
-            <form onSubmit={handleSubmit}>
-              <CardContent className="p-8 space-y-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <Input
-                    label="Nombre"
-                    required
-                    placeholder="Carlos Rodríguez"
-                    value={formData.nombre}
-                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                    className="bg-zinc-900"
-                  />
-                  <Input
-                    label="Especialidad / Cargo"
-                    required
-                    placeholder="Cortes Clásicos"
-                    value={formData.especialidad}
-                    onChange={(e) => setFormData({ ...formData, especialidad: e.target.value })}
-                    className="bg-zinc-900"
-                  />
+
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              {/* Scrollable Form Content */}
+              <CardContent className="p-4 sm:p-6 space-y-6 overflow-y-auto flex-1">
+                {/* 1. Información Básica */}
+                <div className="space-y-4">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 block border-b border-white/5 pb-1">
+                    📝 Información General
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Nombre Completo *"
+                      required
+                      placeholder="Ej. Carlos Rodríguez"
+                      value={formData.nombre}
+                      onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                      className="bg-zinc-900 border-white/10 text-xs"
+                    />
+                    <Input
+                      label="Especialidad / Cargo *"
+                      required
+                      placeholder="Ej. Especialista en Fades & Barba"
+                      value={formData.especialidad}
+                      onChange={(e) => setFormData({ ...formData, especialidad: e.target.value })}
+                      className="bg-zinc-900 border-white/10 text-xs"
+                    />
+                  </div>
                 </div>
 
-                <div>
+                {/* 2. Imagen de Perfil */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 block border-b border-white/5 pb-1">
+                    📸 Fotografía del Barbero
+                  </span>
                   <ImageUpload
-                    label="Foto del Barbero (Recomendado 500x500px)"
+                    label="Subir Foto de Perfil (Recomendado 500x500px)"
                     defaultImage={formData.imagen_url || undefined}
                     onUploadSuccess={(url) => setFormData({ ...formData, imagen_url: url })}
                     onUploadError={(err) => toastError(err)}
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción (opcional)</label>
+                {/* 3. Descripción */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                    Descripción / Biografía Corta
+                  </label>
                   <textarea
-                    className="w-full p-4 border border-white/10 bg-zinc-900 rounded-2xl text-sm font-bold text-white focus:border-amber-500/50 outline-none transition-all"
+                    className="w-full p-3.5 border border-white/10 bg-zinc-900 rounded-xl text-xs font-normal text-white focus:border-amber-500 outline-none transition-all resize-none"
                     rows={2}
                     maxLength={500}
-                    placeholder="Más de 5 años de experiencia en cortes premium..."
+                    placeholder="Escribe una breve reseña de la trayectoria del barbero..."
                     value={formData.descripcion}
                     onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                   />
                 </div>
 
-                {/* Vincular con cuenta del sistema */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1 flex items-center gap-2">
-                    <Link size={10} className="text-emerald-400" />
-                    Vincular con cuenta del sistema (opcional)
+                {/* 4. Vincular con cuenta del sistema */}
+                <div className="space-y-2 bg-zinc-900/60 p-4 rounded-2xl border border-white/5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-300 flex items-center gap-1.5">
+                    <Link size={12} className="text-emerald-400" />
+                    Vincular con Usuario del Sistema (Opcional)
                   </label>
                   <div className="relative">
                     <select
                       value={formData.profile_id || ''}
                       onChange={(e) => setFormData({ ...formData, profile_id: e.target.value || null })}
-                      className="w-full h-12 bg-zinc-900 border border-white/10 rounded-2xl px-4 pr-10 text-sm font-bold text-white focus:border-emerald-500/50 outline-none transition-all appearance-none cursor-pointer"
+                      className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-3.5 pr-10 text-xs font-bold text-white focus:border-emerald-500 outline-none transition-all appearance-none cursor-pointer"
                     >
-                      <option value="">— Sin vinculación —</option>
+                      <option value="">— Sin vinculación (Perfil solo visual) —</option>
                       {barberos.map(b => (
                         <option key={b.id} value={b.id}>
                           {b.full_name || b.email} ({b.role})
                         </option>
                       ))}
                     </select>
-                    <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
+                    <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2">
                       {formData.profile_id
                         ? <Link size={14} className="text-emerald-400" />
                         : <Link2Off size={14} className="text-zinc-600" />
                       }
                     </div>
                   </div>
-                  {formData.profile_id && (
-                    <p className="text-[10px] text-emerald-400 font-bold ml-1 flex items-center gap-1">
-                      <Link size={9} />
-                      Vinculado — El miembro aparecerá conectado a su cuenta barbero
-                    </p>
-                  )}
-                  {!formData.profile_id && (
-                    <p className="text-[10px] text-zinc-600 font-medium ml-1">
-                      Sin vinculación — El miembro es solo visual, sin cuenta en el sistema
-                    </p>
-                  )}
                 </div>
 
-                {/* Redes sociales */}
+                {/* 5. Redes sociales */}
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Redes Sociales (opcional)</label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 block border-b border-white/5 pb-1">
+                    🌐 Redes Sociales (Opcional)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Input
-                      label=""
-                      placeholder="Instagram URL"
+                      placeholder="https://instagram.com/..."
                       value={formData.redes_sociales.instagram || ''}
                       onChange={(e) => setFormData({ ...formData, redes_sociales: { ...formData.redes_sociales, instagram: e.target.value } })}
-                      className="bg-zinc-900"
+                      className="bg-zinc-900 border-white/10 text-xs"
                     />
                     <Input
-                      label=""
-                      placeholder="Facebook URL"
+                      placeholder="https://facebook.com/..."
                       value={formData.redes_sociales.facebook || ''}
                       onChange={(e) => setFormData({ ...formData, redes_sociales: { ...formData.redes_sociales, facebook: e.target.value } })}
-                      className="bg-zinc-900"
+                      className="bg-zinc-900 border-white/10 text-xs"
                     />
                     <Input
-                      label=""
-                      placeholder="TikTok URL"
+                      placeholder="https://tiktok.com/@..."
                       value={formData.redes_sociales.tiktok || ''}
                       onChange={(e) => setFormData({ ...formData, redes_sociales: { ...formData.redes_sociales, tiktok: e.target.value } })}
-                      className="bg-zinc-900"
+                      className="bg-zinc-900 border-white/10 text-xs"
                     />
                     <Input
-                      label=""
-                      placeholder="Sitio Web URL"
+                      placeholder="https://miweb.com"
                       value={formData.redes_sociales.web || ''}
                       onChange={(e) => setFormData({ ...formData, redes_sociales: { ...formData.redes_sociales, web: e.target.value } })}
-                      className="bg-zinc-900"
+                      className="bg-zinc-900 border-white/10 text-xs"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-5">
+                {/* 6. Orden & Visibilidad */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-white/5">
                   <Input
-                    label="Orden de aparición"
+                    label="Orden de Aparición"
                     type="number"
                     value={formData.sort_order}
                     onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
-                    className="bg-zinc-900"
+                    className="bg-zinc-900 border-white/10 text-xs"
                   />
-                  <div className="flex items-end pb-1">
-                    <label className="flex items-center gap-3 text-sm text-zinc-400 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.is_active}
-                        onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                        className="w-5 h-5 rounded border-white/10 bg-zinc-900 text-amber-500 focus:ring-amber-500"
+                  
+                  <div className="flex items-center justify-between bg-zinc-900/80 p-3 rounded-xl border border-white/5 mt-auto h-11">
+                    <span className="text-xs font-bold text-white">Visible en el Home</span>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, is_active: !formData.is_active })}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        formData.is_active ? 'bg-amber-500' : 'bg-zinc-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          formData.is_active ? 'translate-x-5' : 'translate-x-0'
+                        }`}
                       />
-                      Visible en el Home
-                    </label>
+                    </button>
                   </div>
                 </div>
+              </CardContent>
 
-                {/* Image Preview handled by ImageUpload */}              </CardContent>
-
-              <div className="p-8 bg-zinc-900/30 border-t border-white/5 flex gap-4">
+              {/* Footer Sticky */}
+              <div className="p-4 sm:p-6 bg-zinc-900/80 border-t border-white/5 flex gap-3 shrink-0">
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex-1 h-14 border-white/5 text-zinc-500 hover:text-white uppercase font-black tracking-widest text-[10px]"
+                  className="flex-1 h-11 border-white/10 text-zinc-400 hover:text-white uppercase font-black tracking-wider text-xs"
                   onClick={() => setShowModal(false)}
                 >
                   Cancelar
@@ -671,11 +689,11 @@ export default function AdminEquipoPage() {
                 <Button
                   type="submit"
                   variant="primary"
-                  className="flex-1 h-14 shadow-lg shadow-amber-500/20 uppercase font-black tracking-widest"
+                  className="flex-1 h-11 shadow-lg shadow-amber-500/20 uppercase font-black tracking-wider text-xs"
                   disabled={saving}
                 >
-                  <Save className="w-4 h-4 mr-2" />
-                  {saving ? 'Guardando...' : editing ? 'Actualizar' : 'Agregar al Equipo'}
+                  <Save className="w-4 h-4 mr-1.5" />
+                  {saving ? 'Guardando...' : editing ? 'Guardar Cambios' : 'Agregar al Equipo'}
                 </Button>
               </div>
             </form>

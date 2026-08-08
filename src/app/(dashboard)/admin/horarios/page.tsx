@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import { ArrowLeft, Clock, Plus, Save, Trash2, User, Edit, Zap, Calendar, X, Copy, Check, CalendarDays, SlidersHorizontal, AlertTriangle, Moon } from 'lucide-react'
 import type { PlantillaHorario, TipoHorario } from '@/types'
+import { getBusinessDateString } from '@/lib/asistencia/helpers'
 
 const TIPOS: { value: TipoHorario; label: string }[] = [
   { value: 'manana', label: 'Mañana' },
@@ -76,7 +77,7 @@ export default function AdminHorariosPage() {
   const [batchFin, setBatchFin] = useState('20:30')
 
   // Modificación por Fecha Específica (Un solo día)
-  const [fechaEspecifica, setFechaEspecifica] = useState(new Date().toISOString().split('T')[0])
+  const [fechaEspecifica, setFechaEspecifica] = useState(() => getBusinessDateString())
   const [tipoExcepcion, setTipoExcepcion] = useState<'horario_especial' | 'dia_libre' | 'vacacion'>('horario_especial')
   const [excepcionInicio, setExcepcionInicio] = useState('10:00')
   const [excepcionFin, setExcepcionFin] = useState('16:00')
@@ -101,23 +102,31 @@ export default function AdminHorariosPage() {
     }
   }, [])
 
+  const searchParams = useSearchParams()
+  const targetBarberoId = searchParams.get('barbero_id')
+
   useEffect(() => {
     loadPlantillas()
     import('@/lib/supabase/client').then(({ createClient }) => {
       createClient()
         .from('profiles')
-        .select('id, full_name')
-        .eq('role', 'barbero')
+        .select('id, full_name, role')
+        .in('role', ['barbero', 'coordinador'])
         .eq('is_active', true)
         .order('full_name')
         .then(({ data }) => {
           if (data && data.length > 0) {
-            setBarberos(data)
-            setBarberoId(data[0].id)
+            const formatted = data.map(b => ({
+              id: b.id,
+              full_name: b.role === 'coordinador' ? `${b.full_name || 'Sin Nombre'} (Coordinador)` : (b.full_name || 'Sin Nombre')
+            }))
+            setBarberos(formatted)
+            const initialId = (targetBarberoId && data.some(b => b.id === targetBarberoId)) ? targetBarberoId : formatted[0].id
+            setBarberoId(initialId)
           }
         })
     })
-  }, [loadPlantillas])
+  }, [loadPlantillas, targetBarberoId])
 
   // Cargar horario específico del barbero
   const loadHorarioBarbero = useCallback(async (bId: string) => {

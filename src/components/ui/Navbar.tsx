@@ -10,6 +10,7 @@ import {
   Home,
   ShoppingBag,
   Calendar,
+  CalendarDays,
   MoreHorizontal,
   Menu,
   UserCog,
@@ -109,8 +110,8 @@ export function Navbar() {
     if (user.role === 'barbero') {
       return [
         { label: 'Inicio', href: '/barbero', icon: Home },
-        { label: 'Agenda', href: agendaHref, icon: Calendar },
-        { label: 'Cursos', href: '/barbero/induccion', icon: GraduationCap, isPrimary: true },
+        { label: 'Cursos', href: '/barbero/induccion', icon: GraduationCap },
+        { label: 'Calendario', href: agendaHref, icon: CalendarDays, isPrimary: true },
         { label: 'Perfil', href: '/perfil', icon: UserCog },
         { label: 'Menú', href: '#menu', icon: Menu, isMenuTrigger: true },
       ]

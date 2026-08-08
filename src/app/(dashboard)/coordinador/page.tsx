@@ -275,8 +275,8 @@ export default function CoordinadorDashboard() {
           .from('citas')
           .select('id, total, metodo_pago, anticipo_monto, estado, fecha_hora')
           .eq('estado', 'completado')
-          .gte('fecha_hora', `${start}T00:00:00`)
-          .lte('fecha_hora', `${end}T23:59:59`)
+          .gte('fecha_hora', `${start}T00:00:00-04:00`)
+          .lte('fecha_hora', `${end}T23:59:59-04:00`)
           .limit(10000),
         supabase
           .from('daily_closures')

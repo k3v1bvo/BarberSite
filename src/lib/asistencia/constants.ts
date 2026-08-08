@@ -12,3 +12,6 @@ export type AsistenciaEstado = 'presente' | 'atrasado' | 'ausente' | 'finalizado
 
 /** Duración por defecto de la pausa de almuerzo (minutos) */
 export const DEFAULT_LUNCH_DURATION = 60
+
+/** Minutos antes de que termine el almuerzo para enviar recordatorio al barbero */
+export const LUNCH_REMINDER_MINUTES = 5

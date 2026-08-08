@@ -9,20 +9,42 @@ import {
 export type { AsistenciaEstado }
 
 export function getBusinessNow(): Date {
-  return new Date(
-    new Date().toLocaleString('en-US', { timeZone: BUSINESS_TIMEZONE })
-  )
+  // Safe way to get a Date object that reflects the local time in Bolivia (UTC-4).
+  // This creates a Date object where getHours(), getMinutes(), etc. match La Paz time,
+  // assuming the server is running in UTC (which Vercel Edge/Node does).
+  const utcNow = new Date()
+  return new Date(utcNow.getTime() - 4 * 60 * 60 * 1000)
 }
 
-export function getBusinessDateString(d = getBusinessNow()): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+export function getBusinessDateString(d = new Date()): string {
+  // Bolivia is always UTC-4 (no DST).
+  // We subtract 4 hours from the UTC time to get the local time in La Paz.
+  const localTime = new Date(d.getTime() - 4 * 60 * 60 * 1000)
+  const year = localTime.getUTCFullYear()
+  const month = String(localTime.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(localTime.getUTCDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+export function getMondayOfWeek(d = new Date()): Date {
+  const localTime = new Date(d.getTime() - 4 * 60 * 60 * 1000)
+  const day = localTime.getUTCDay()
+  const diff = localTime.getUTCDate() - day + (day === 0 ? -6 : 1)
+  const year = localTime.getUTCFullYear()
+  const month = localTime.getUTCMonth()
+  return new Date(Date.UTC(year, month, diff, 12, 0, 0))
+}
+
+export function addDays(d: Date, n: number): Date {
+  const r = new Date(d.getTime())
+  r.setUTCDate(r.getUTCDate() + n)
+  return r
 }
 
 export function isAfterAutoCloseHour(d = getBusinessNow()): boolean {
-  return d.getHours() >= AUTO_CLOSE_HOUR
+  // getBusinessNow() already shifted the UTC time by -4 hours.
+  // So we MUST use getUTCHours() to get the La Paz hour reliably, regardless of the server's OS timezone.
+  return d.getUTCHours() >= AUTO_CLOSE_HOUR
 }
 
 export function getAutoCloseTimestamp(fecha: string): string {
@@ -43,14 +65,13 @@ export function computeEstadoFromRecord(record: {
   }
 
   const entrada = new Date(record.hora_entrada)
-  const entradaLocal = new Date(
-    entrada.toLocaleString('en-US', { timeZone: BUSINESS_TIMEZONE })
-  )
+  // Shift to UTC-4 (La Paz)
+  const entradaLocal = new Date(entrada.getTime() - 4 * 60 * 60 * 1000)
 
-  const lateThreshold = new Date(entradaLocal)
-  lateThreshold.setHours(LATE_CHECKIN_HOUR, LATE_CHECKIN_MINUTE, 0, 0)
+  const lateThreshold = new Date(entradaLocal.getTime())
+  lateThreshold.setUTCHours(LATE_CHECKIN_HOUR, LATE_CHECKIN_MINUTE, 0, 0)
 
-  if (entradaLocal > lateThreshold) {
+  if (entradaLocal.getTime() > lateThreshold.getTime()) {
     return 'atrasado'
   }
 

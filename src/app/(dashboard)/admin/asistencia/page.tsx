@@ -5,12 +5,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import Link from 'next/link'
+import { Modal } from '@/components/ui/Modal'
 import {
   ArrowLeft, Clock, Download, Filter, AlertTriangle,
   Pencil, Users, RefreshCw, ChevronLeft, ChevronRight,
-  CalendarDays, Calendar,
+  CalendarDays, Calendar, Camera, MapPin, Eye,
 } from 'lucide-react'
-import { estadoBadgeVariant, estadoLabel, type AsistenciaEstado } from '@/lib/asistencia/helpers'
+import {
+  estadoBadgeVariant,
+  estadoLabel,
+  getBusinessDateString,
+  getMondayOfWeek,
+  addDays,
+  type AsistenciaEstado,
+} from '@/lib/asistencia/helpers'
 import { AUTO_CLOSE_HOUR } from '@/lib/asistencia/constants'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
@@ -36,22 +44,8 @@ interface Registro {
 interface BarberoOpt { id: string; full_name: string }
 
 // ── Helpers de fecha ──────────────────────────────────────────────────
-function getMondayOfWeek(d: Date): Date {
-  const date = new Date(d)
-  const day = date.getDay()
-  date.setDate(date.getDate() - day + (day === 0 ? -6 : 1))
-  date.setHours(0, 0, 0, 0)
-  return date
-}
-
 function fmt(d: Date): string {
-  return d.toISOString().split('T')[0]
-}
-
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d)
-  r.setDate(r.getDate() + n)
-  return r
+  return getBusinessDateString(d)
 }
 
 function fmtShort(dateStr: string): string {
@@ -59,7 +53,7 @@ function fmtShort(dateStr: string): string {
 }
 
 function getWeekDays(monday: Date): string[] {
-  return Array.from({ length: 7 }, (_, i) => fmt(addDays(monday, i)))
+  return Array.from({ length: 7 }, (_, i) => getBusinessDateString(addDays(monday, i)))
 }
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
@@ -73,9 +67,11 @@ export default function AsistenciaAdminPage() {
   const [loading, setLoading] = useState(true)
   const [registros, setRegistros] = useState<Registro[]>([])
   const [resumen, setResumen] = useState({ total: 0, turnos_abiertos: 0, finalizados: 0 })
+  const [selectedAsistenciaForModal, setSelectedAsistenciaForModal] = useState<Registro | null>(null)
+  const [tick, setTick] = useState(0)
 
   // Vista día
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
+  const [fecha, setFecha] = useState(() => getBusinessDateString())
   const [barberoId, setBarberoId] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState('')
   const [barberos, setBarberos] = useState<BarberoOpt[]>([])
@@ -92,7 +88,7 @@ export default function AsistenciaAdminPage() {
 
   // Permisos
   const [showPermiso, setShowPermiso] = useState(false)
-  const [formPermiso, setFormPermiso] = useState({ barbero_id: '', fecha: new Date().toISOString().split('T')[0], notas: '', comprobante_url: '' })
+  const [formPermiso, setFormPermiso] = useState(() => ({ barbero_id: '', fecha: getBusinessDateString(), notas: '', comprobante_url: '' }))
   const [savingPermiso, setSavingPermiso] = useState(false)
 
   // ─── Load barberos ──────────────────────────────────────────────────
@@ -151,6 +147,12 @@ export default function AsistenciaAdminPage() {
     else loadSemana()
   }, [vista, loadDia, loadSemana])
 
+  // Tick cada 30s para actualizar horas en tiempo real de turnos abiertos
+  useEffect(() => {
+    const t = setInterval(() => setTick(k => k + 1), 30_000)
+    return () => clearInterval(t)
+  }, [])
+
   // ─── Calcular grid semanal ──────────────────────────────────────────
   const empleadosPorId = new Map<string, string>()
   registros.forEach(r => {
@@ -175,8 +177,8 @@ export default function AsistenciaAdminPage() {
       a.profiles?.role || '',
       a.fecha,
       estadoLabel(a.estado_calculado),
-      new Date(a.hora_entrada).toLocaleTimeString('es-MX'),
-      a.hora_salida ? new Date(a.hora_salida).toLocaleTimeString('es-MX') : 'Abierto',
+      new Date(a.hora_entrada).toLocaleTimeString('es-MX', { timeZone: 'America/La_Paz', hour12: true }),
+      a.hora_salida ? new Date(a.hora_salida).toLocaleTimeString('es-MX', { timeZone: 'America/La_Paz', hour12: true }) : 'Abierto',
       a.horas_trabajadas ?? '',
       a.cierre_automatico ? 'Sí' : 'No',
     ])
@@ -210,7 +212,26 @@ export default function AsistenciaAdminPage() {
     }
   }
 
-  const horaFmt = (iso: string) => new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+  const horaFmt = (iso: string) =>
+    new Date(iso).toLocaleTimeString('es-MX', {
+      timeZone: 'America/La_Paz',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+
+  // Calcula horas transcurridas en vivo para turnos abiertos
+  const horasEnVivo = (r: Registro): string => {
+    void tick // fuerza re-render
+    if (r.horas_trabajadas != null) return `${r.horas_trabajadas}h`
+    if (!r.hora_entrada || r.hora_salida) return '—'
+    const ms = Date.now() - new Date(r.hora_entrada).getTime()
+    if (ms < 0) return '0.0h'
+    const hrs = ms / 3_600_000
+    return `${hrs.toFixed(1)}h`
+  }
+
+  const esEnVivo = (r: Registro): boolean => r.horas_trabajadas == null && !r.hora_salida && !!r.hora_entrada
 
   const celdaColor = (r: Registro | undefined) => {
     if (!r) return 'text-zinc-800'
@@ -382,18 +403,43 @@ export default function AsistenciaAdminPage() {
                     <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="py-5 px-6">
                         <div className="flex items-center gap-3">
-                          {r.selfie_url && (
-                            <button onClick={() => window.open(r.selfie_url!, '_blank')} className="shrink-0">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={r.selfie_url} alt="Selfie" className="w-10 h-10 rounded-full object-cover border-2 border-amber-500/30 hover:border-amber-500 transition-colors cursor-pointer" />
-                            </button>
-                          )}
+                          {/* Miniatura Selfie con indicador GPS */}
+                          <div
+                            onClick={() => setSelectedAsistenciaForModal(r)}
+                            className="relative group/avatar cursor-pointer shrink-0"
+                            title="Haz clic para ver la Selfie y el Mapa GPS de marcación"
+                          >
+                            {r.selfie_url ? (
+                              <img
+                                src={r.selfie_url}
+                                alt="Selfie"
+                                className="w-11 h-11 rounded-2xl object-cover border-2 border-amber-500/40 hover:border-amber-400 shadow-md transition-all group-hover/avatar:scale-105"
+                              />
+                            ) : (
+                              <div className="w-11 h-11 rounded-2xl bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-600 hover:border-amber-500/40">
+                                <Camera className="w-5 h-5 text-zinc-500" />
+                              </div>
+                            )}
+                            {r.lat != null && r.lng != null && (
+                              <span className="absolute -top-1 -right-1 bg-emerald-500 text-black text-[9px] font-black p-0.5 rounded-full border border-black" title="GPS Verificado">
+                                📍
+                              </span>
+                            )}
+                          </div>
+
                           <div>
-                            <p className="font-bold text-white">{r.profiles?.full_name}</p>
-                            <div className="flex items-center gap-2">
-                              <p className="text-[10px] text-zinc-500 uppercase">{r.profiles?.role}</p>
-                              {r.lat != null && r.lng != null && <span className="text-[9px] text-green-500" title={`GPS: ${r.lat}, ${r.lng}`}>📍</span>}
-                              {r.en_almuerzo && <span className="text-[9px] text-orange-400">🍽️</span>}
+                            <p className="font-bold text-white text-sm">{r.profiles?.full_name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-zinc-400 font-bold uppercase">{r.profiles?.role}</span>
+                              {r.en_almuerzo && <span className="text-[9px] text-orange-400 font-bold">🍽️ Almuerzo</span>}
+                              {(r.selfie_url || (r.lat != null && r.lng != null)) && (
+                                <button
+                                  onClick={() => setSelectedAsistenciaForModal(r)}
+                                  className="text-[10px] text-amber-400 hover:text-amber-300 font-extrabold flex items-center gap-1 underline ml-1"
+                                >
+                                  <Eye className="w-3 h-3" /> Ver Prueba
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -402,7 +448,12 @@ export default function AsistenciaAdminPage() {
                       <td className="py-5 px-6 text-center">
                         {r.hora_salida ? <span className="font-black text-white">{horaFmt(r.hora_salida)}</span> : <span className="text-amber-500 font-bold text-xs uppercase">Abierto</span>}
                       </td>
-                      <td className="py-5 px-6 text-center text-amber-500 font-black">{r.horas_trabajadas ?? '—'}</td>
+                      <td className="py-5 px-6 text-center font-black">
+                        <span className={esEnVivo(r) ? 'text-green-400 animate-pulse' : 'text-amber-500'}>
+                          {horasEnVivo(r)}
+                        </span>
+                        {esEnVivo(r) && <p className="text-[9px] text-green-500/60 font-bold mt-0.5">EN VIVO</p>}
+                      </td>
                       <td className="py-5 px-6 text-center">
                         <Badge variant={estadoBadgeVariant(r.estado_calculado)} className="uppercase text-[10px]">{estadoLabel(r.estado_calculado)}</Badge>
                         {r.cierre_automatico && <p className="text-[9px] text-amber-500 mt-1 font-bold">Auto</p>}
@@ -502,7 +553,15 @@ export default function AsistenciaAdminPage() {
                         const diasMap = gridMap.get(empId)
                         const totalHrs = diasDeSemana.reduce((sum, dia) => {
                           const r = diasMap?.get(dia)
-                          return sum + (r?.horas_trabajadas ?? 0)
+                          if (!r) return sum
+                          if (r.horas_trabajadas != null) return sum + r.horas_trabajadas
+                          // Calcular en vivo
+                          if (r.hora_entrada && !r.hora_salida) {
+                            void tick
+                            const ms = Date.now() - new Date(r.hora_entrada).getTime()
+                            return sum + Math.max(0, ms / 3_600_000)
+                          }
+                          return sum
                         }, 0)
                         return (
                           <tr key={empId} className="hover:bg-white/[0.02] transition-colors">
@@ -515,10 +574,10 @@ export default function AsistenciaAdminPage() {
                                 <td key={dia} className="py-3 px-2 text-center">
                                   {r ? (
                                     <div className="space-y-1">
-                                      <div className={`font-black text-xs ${celdaColor(r)}`}>
+                                      <div className={`font-black text-xs ${celdaColor(r)} ${esEnVivo(r) ? 'animate-pulse' : ''}`}>
                                         {r.estado_calculado === 'permiso' as any || r.notas?.includes('PERMISO') 
                                           ? 'PERMISO' 
-                                          : (r.horas_trabajadas != null ? `${r.horas_trabajadas}h` : '?')}
+                                          : horasEnVivo(r)}
                                       </div>
                                       <div className="text-zinc-700 text-[9px]">
                                         {r.estado_calculado === 'permiso' as any || r.notas?.includes('PERMISO')
@@ -667,6 +726,129 @@ export default function AsistenciaAdminPage() {
           </Card>
         </div>
       )}
+
+      {/* Modal de Detalle / Prueba de Asistencia (Selfie & GPS) */}
+      <Modal
+        isOpen={!!selectedAsistenciaForModal}
+        onClose={() => setSelectedAsistenciaForModal(null)}
+        title="Prueba de Asistencia y Geolocalización GPS"
+      >
+        {selectedAsistenciaForModal && (
+          <div className="space-y-6">
+            {/* Cabecera del Empleado */}
+            <div className="flex items-center justify-between p-4 bg-zinc-950 rounded-2xl border border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-bold text-lg">
+                  {selectedAsistenciaForModal.profiles?.full_name?.charAt(0) || 'U'}
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-base">{selectedAsistenciaForModal.profiles?.full_name}</h3>
+                  <p className="text-xs text-zinc-400 uppercase tracking-wider">{selectedAsistenciaForModal.profiles?.role}</p>
+                </div>
+              </div>
+              <Badge variant={estadoBadgeVariant(selectedAsistenciaForModal.estado_calculado)} className="uppercase text-xs">
+                {estadoLabel(selectedAsistenciaForModal.estado_calculado)}
+              </Badge>
+            </div>
+
+            {/* Grid 2 Columnas: Selfie + Mapa GPS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Columna Selfie */}
+              <div className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+                  <Camera className="w-4 h-4 text-amber-500" /> Foto Selfie en Vivo
+                </p>
+                {selectedAsistenciaForModal.selfie_url ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-amber-500/30 bg-black aspect-square shadow-xl group">
+                    <img
+                      src={selectedAsistenciaForModal.selfie_url}
+                      alt="Selfie de asistencia"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-3 left-3 right-3 bg-black/80 backdrop-blur-md px-3 py-2 rounded-xl text-xs text-amber-400 font-mono font-bold flex items-center justify-between">
+                      <span>⏰ Hora Entrada</span>
+                      <span>{horaFmt(selectedAsistenciaForModal.hora_entrada)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full aspect-square rounded-2xl bg-zinc-950 border border-dashed border-zinc-800 flex flex-col items-center justify-center text-zinc-600 space-y-2">
+                    <Camera className="w-10 h-10" />
+                    <p className="text-xs font-bold">Sin foto registrada</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Columna Mapa GPS */}
+              <div className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-emerald-400" /> Ubicación GPS Marcada
+                </p>
+                {selectedAsistenciaForModal.lat != null && selectedAsistenciaForModal.lng != null ? (
+                  <div className="space-y-3">
+                    <div className="relative rounded-2xl overflow-hidden border border-emerald-500/30 bg-black aspect-square shadow-xl">
+                      <iframe
+                        src={`https://maps.google.com/maps?q=${selectedAsistenciaForModal.lat},${selectedAsistenciaForModal.lng}&z=17&output=embed`}
+                        width="100%"
+                        height="100%"
+                        style={{ border: 0 }}
+                        allowFullScreen
+                        loading="lazy"
+                        title="Ubicación GPS Marcada"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-2.5 text-xs text-emerald-400 font-mono font-bold">
+                      <span>📍 {selectedAsistenciaForModal.lat.toFixed(5)}, {selectedAsistenciaForModal.lng.toFixed(5)}</span>
+                      <a
+                        href={`https://www.google.com/maps?q=${selectedAsistenciaForModal.lat},${selectedAsistenciaForModal.lng}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-emerald-500 text-black px-2.5 py-1 rounded-lg font-black uppercase text-[10px] hover:bg-emerald-400 transition"
+                      >
+                        Abrir Pin ↗
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full aspect-square rounded-2xl bg-zinc-950 border border-dashed border-zinc-800 flex flex-col items-center justify-center text-zinc-600 space-y-2">
+                    <MapPin className="w-10 h-10" />
+                    <p className="text-xs font-bold">Sin coordenadas GPS</p>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Detalles de Marcación */}
+            <div className="bg-zinc-950 p-4 rounded-2xl border border-white/5 space-y-2 text-xs">
+              <div className="flex justify-between text-zinc-400">
+                <span>Fecha de marcación:</span>
+                <span className="font-bold text-white">{selectedAsistenciaForModal.fecha}</span>
+              </div>
+              <div className="flex justify-between text-zinc-400">
+                <span>Hora de Entrada:</span>
+                <span className="font-bold text-white">{horaFmt(selectedAsistenciaForModal.hora_entrada)}</span>
+              </div>
+              <div className="flex justify-between text-zinc-400">
+                <span>Hora de Salida:</span>
+                <span className="font-bold text-white">
+                  {selectedAsistenciaForModal.hora_salida ? horaFmt(selectedAsistenciaForModal.hora_salida) : 'Pendiente / En turno'}
+                </span>
+              </div>
+              <div className="flex justify-between text-zinc-400">
+                <span>Cierre Automático:</span>
+                <span className="font-bold text-amber-400">{selectedAsistenciaForModal.cierre_automatico ? 'Sí (Auto a las 22:00)' : 'No (Marcación manual)'}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button variant="secondary" onClick={() => setSelectedAsistenciaForModal(null)} className="font-bold uppercase text-xs">
+                Cerrar Detalle
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

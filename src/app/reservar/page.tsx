@@ -107,8 +107,14 @@ function ReservarContent() {
   useEffect(() => {
     loadData()
     const servicioId = searchParams.get('servicio')
-    if (servicioId) {
-      setFormData(prev => ({ ...prev, servicio_id: servicioId }))
+    const barberoId = searchParams.get('barbero')
+
+    if (servicioId || barberoId) {
+      setFormData(prev => ({
+        ...prev,
+        ...(servicioId ? { servicio_id: servicioId } : {}),
+        ...(barberoId ? { barbero_id: barberoId } : {}),
+      }))
     }
   }, [searchParams])
 
@@ -189,7 +195,11 @@ function ReservarContent() {
       setServicios(resServicios.data || [])
       setBarberos(resBarberos.data || [])
       setProductos(resProductos.data || [])
-      setPromociones(resPromos.data || [])
+      const rawPromosData = resPromos.data || []
+      const promosUnicas = Array.from(
+        new Map(rawPromosData.map((p: any) => [(p.nombre || '').toLowerCase().trim(), p])).values()
+      )
+      setPromociones(promosUnicas)
       if (configTiempo.data?.valor?.minutos) {
         setTiempoMinimoReserva(Number(configTiempo.data.valor.minutos))
       }

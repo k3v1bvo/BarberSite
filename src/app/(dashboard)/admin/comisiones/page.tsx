@@ -70,9 +70,15 @@ export default function AdminComisionesPage() {
 
   useEffect(() => {
     import('@/lib/supabase/client').then(({ createClient }) => {
-      createClient().from('profiles').select('id, full_name').eq('role', 'barbero').eq('is_active', true).then(({ data }) => {
-        if (data) setBarberos(data)
-      })
+      createClient()
+        .from('profiles')
+        .select('id, full_name, role')
+        .in('role', ['barbero', 'coordinador'])
+        .eq('is_active', true)
+        .order('full_name')
+        .then(({ data }) => {
+          if (data) setBarberos(data)
+        })
     })
     load()
   }, [barberoId, estado])
@@ -250,9 +256,13 @@ export default function AdminComisionesPage() {
         <CardHeader><CardTitle className="text-white uppercase text-sm flex items-center gap-2"><Filter size={16} /> Filtros y pago</CardTitle></CardHeader>
         <CardContent className="space-y-6">
           <div className="flex flex-wrap gap-4">
-            <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white" value={barberoId} onChange={(e) => setBarberoId(e.target.value)}>
-              <option value="">Todos los barberos</option>
-              {barberos.map((b) => <option key={b.id} value={b.id}>{b.full_name}</option>)}
+            <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white font-bold text-xs" value={barberoId} onChange={(e) => setBarberoId(e.target.value)}>
+              <option value="">Todos los barberos y personal</option>
+              {barberos.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.full_name} ({b.role === 'coordinador' ? 'Coordinador' : 'Barbero'})
+                </option>
+              ))}
             </select>
             <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white" value={estado} onChange={(e) => setEstado(e.target.value)}>
               <option value="pendiente">Pendientes</option>

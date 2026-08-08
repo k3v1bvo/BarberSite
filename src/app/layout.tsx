@@ -11,9 +11,13 @@ export const metadata: Metadata = {
   keywords: ['barbería', 'cochabamba', 'corte de cabello', 'fade', 'barba', 'reservas online'],
   manifest: '/manifest.json',
   icons: {
-    icon: '/favicon.ico',
-    shortcut: '/favicon.ico',
-    apple: '/favicon.ico',
+    icon: [
+      { url: '/logobarber.png', type: 'image/png' }
+    ],
+    shortcut: '/logobarber.png',
+    apple: [
+      { url: '/logobarber.png', type: 'image/png' }
+    ]
   },
   appleWebApp: {
     capable: true,
