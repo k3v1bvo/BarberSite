@@ -18,7 +18,7 @@ export async function GET() {
     
     const hoy = getBusinessDateString()
     const now = getBusinessNow()
-    const dayOfWeek = now.getDay() // 0 = Domingo, 1 = Lunes...
+    const dayOfWeek = now.getUTCDay() // 0 = Domingo, 1 = Lunes... (getUTCDay porque getBusinessNow ya desplazó -4h)
 
     // 1. Obtener todos los horarios de HOY
     const { data: horarios, error: horError } = await supabase

@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getBoliviaDateString } from '@/lib/asistencia/helpers'
 
 // GET /api/arqueo?fecha=YYYY-MM-DD — resumen del día
 export async function GET(request: NextRequest) {
@@ -215,7 +216,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const fecha = body.fecha || new Date().toISOString().split('T')[0]
+    const fecha = body.fecha || getBoliviaDateString()
 
     // Verificar si ya existe
     const { data: existing } = await supabase

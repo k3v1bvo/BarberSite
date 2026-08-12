@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getBoliviaYear, getBoliviaMonth, getBoliviaDateString } from '@/lib/asistencia/helpers'
 
 // ── GET: listar bonos con filtros ──────────────────────────────────────
 export async function GET(request: NextRequest) {
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     const sp = request.nextUrl.searchParams
     const barbero_id = sp.get('barbero_id')
-    const anio = parseInt(sp.get('anio') || String(new Date().getFullYear()))
+    const anio = parseInt(sp.get('anio') || String(getBoliviaYear()))
     const pagado = sp.get('pagado')
     const periodo_tipo = sp.get('periodo_tipo')
 
@@ -67,8 +68,8 @@ export async function POST(request: NextRequest) {
 
     // Calcular mes y anio a partir de fecha_inicio o fecha actual
     const refDate = fecha_inicio ? new Date(fecha_inicio) : new Date()
-    const mes = refDate.getMonth() + 1
-    const anio = refDate.getFullYear()
+    const mes = fecha_inicio ? (refDate.getMonth() + 1) : getBoliviaMonth()
+    const anio = fecha_inicio ? refDate.getFullYear() : getBoliviaYear()
 
     const { data: bono, error } = await supabase
       .from('bonos')
@@ -160,8 +161,8 @@ export async function PUT(request: NextRequest) {
     if (bono.pagado && pagado === undefined) return NextResponse.json({ error: 'No se puede editar un bono ya pagado' }, { status: 400 })
 
     const refDate = fecha_inicio ? new Date(fecha_inicio) : new Date()
-    const mes = refDate.getMonth() + 1
-    const anio = refDate.getFullYear()
+    const mes = fecha_inicio ? (refDate.getMonth() + 1) : getBoliviaMonth()
+    const anio = fecha_inicio ? refDate.getFullYear() : getBoliviaYear()
 
     const { data: updated, error } = await supabase
       .from('bonos')
@@ -228,7 +229,7 @@ async function _registrarEgresoBono(supabase: any, bono: any, usuarioRegistro: s
 
   await supabase.from('transactions').insert({
     libro,
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: getBoliviaDateString(),
     ci,
     nombre,
     cuenta_codigo: '4.1.3',

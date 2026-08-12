@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { computeEstadoFromRecord, getBusinessDateString } from '@/lib/asistencia/helpers'
+import { computeEstadoFromRecord, getBusinessDateString, getBusinessNow } from '@/lib/asistencia/helpers'
 
 // Fórmula Haversine para calcular distancia en metros entre dos coordenadas
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -96,8 +96,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const entrada = new Date()
-    const dayOfWeek = entrada.getDay()
+    const entradaUtc = new Date() // Real UTC timestamp for DB storage
+    const entrada = getBusinessNow() // Bolivia local time for calculations
+    const dayOfWeek = entrada.getUTCDay() // Day of week in Bolivia time
     
     // 1. Fetch configuraciones and plan_cuentas and horario
     const [configRes, cuentasRes, horarioRes] = await Promise.all([
@@ -131,8 +132,9 @@ export async function POST(request: NextRequest) {
     if (horarioRes.data && horarioRes.data.hora_inicio) {
       turnoInicioStr = horarioRes.data.hora_inicio
       const [startHour, startMinute] = turnoInicioStr.split(':').map(Number)
-      const currentHour = entrada.getHours()
-      const currentMinute = entrada.getMinutes()
+      // Use UTC accessors on the Bolivia-shifted date for correct local time
+      const currentHour = entrada.getUTCHours()
+      const currentMinute = entrada.getUTCMinutes()
       
       const currentTimeInMins = currentHour * 60 + currentMinute
       const startTimeInMins = startHour * 60 + startMinute
@@ -144,7 +146,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Fallback a lógica global si no tiene horario asignado hoy
       const estadoInicial = computeEstadoFromRecord({
-        hora_entrada: entrada.toISOString(),
+        hora_entrada: entradaUtc.toISOString(),
         hora_salida: null,
       })
       if (estadoInicial === 'atrasado') estadoFinal = 'atrasado'
@@ -155,7 +157,7 @@ export async function POST(request: NextRequest) {
       .insert({
         profile_id: user.id,
         fecha: hoy,
-        hora_entrada: entrada.toISOString(),
+        hora_entrada: entradaUtc.toISOString(),
         estado: estadoFinal,
         lat,
         lng,

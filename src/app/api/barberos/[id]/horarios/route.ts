@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { format, parseISO, isAfter, isBefore, addMinutes } from 'date-fns'
+import { getBoliviaDateString } from '@/lib/asistencia/helpers'
 
 export async function GET(
   request: NextRequest,
@@ -16,8 +17,8 @@ export async function GET(
 
     const { id: barberoId } = await context.params
     const searchParams = request.nextUrl.searchParams
-    const fechaInicio = searchParams.get('fecha_inicio') || new Date().toISOString().split('T')[0]
-    const fechaFin = searchParams.get('fecha_fin') || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const fechaInicio = searchParams.get('fecha_inicio') || getBoliviaDateString()
+    const fechaFin = searchParams.get('fecha_fin') || getBoliviaDateString(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
 
     // Validar permisos: solo admin, barbero mismo, o coordinador pueden ver
     const { data: userProfile } = await supabase

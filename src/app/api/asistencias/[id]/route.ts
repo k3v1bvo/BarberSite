@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { isAfterAutoCloseHour } from '@/lib/asistencia/helpers'
+import { isAfterAutoCloseHour, getBoliviaDayOfWeek, getBoliviaTime } from '@/lib/asistencia/helpers'
 
 export async function PATCH(
   request: NextRequest,
@@ -145,8 +145,8 @@ export async function POST(
     }
 
     try {
-      // Check for early departure (Salida temprano)
-      const dayOfWeek = now.getDay()
+      // Check for early departure (Salida temprano) — usar hora Bolivia
+      const dayOfWeek = getBoliviaDayOfWeek()
       const { data: horario } = await supabase
         .from('barbero_horario_semanal')
         .select('hora_fin')
@@ -156,8 +156,7 @@ export async function POST(
         .single()
 
       if (horario && horario.hora_fin) {
-        const currentHour = now.getHours()
-        const currentMinute = now.getMinutes()
+        const { hour: currentHour, minute: currentMinute } = getBoliviaTime()
         const [endHour, endMinute] = horario.hora_fin.split(':').map(Number)
         
         const currentTime = currentHour * 60 + currentMinute

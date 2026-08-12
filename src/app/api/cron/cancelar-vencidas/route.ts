@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getBoliviaDateString } from '@/lib/asistencia/helpers'
 
 export async function GET(request: Request) {
   // Asegurarnos de que el cron job está autorizado (puedes configurar un CRON_SECRET en Vercel)
@@ -13,15 +14,15 @@ export async function GET(request: Request) {
   try {
     const supabase = await createServerSupabaseClient()
     
-    // Obtenemos la fecha actual al inicio del día (medianoche)
-    const hoy = new Date()
-    hoy.setHours(0, 0, 0, 0)
-    
-    // Buscar citas que estén antes de "hoy" y en estado pendiente/confirmado
+    // Obtener fecha actual de Bolivia y buscar citas antes de hoy
+    const hoyBolivia = getBoliviaDateString()
+    const hoyMidnight = `${hoyBolivia}T00:00:00-04:00`
+
+    // Buscar citas que estén antes de "hoy Bolivia" y en estado pendiente/confirmado
     const { data: citasVencidas, error: searchError } = await supabase
       .from('citas')
       .select('id, fecha_hora, estado')
-      .lt('fecha_hora', hoy.toISOString())
+      .lt('fecha_hora', hoyMidnight)
       .in('estado', ['pendiente', 'confirmado'])
 
     if (searchError) throw searchError

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getBoliviaDateString, getBusinessNow } from '@/lib/asistencia/helpers'
 
 export async function GET(req: Request) {
   const supabase = await createServerSupabaseClient()
@@ -81,12 +82,13 @@ export async function GET(req: Request) {
   let hoy = 0
   let semana = 0
 
-  const now = new Date()
-  const todayStr = now.toISOString().slice(0, 10)
+  const now = getBusinessNow()
+  const todayStr = getBoliviaDateString()
   
-  const d = new Date(now)
-  d.setDate(d.getDate() - d.getDay())
-  const startOfWeekStr = d.toISOString().slice(0, 10)
+  const dow = now.getUTCDay()
+  const startOfWeek = new Date(now.getTime())
+  startOfWeek.setUTCDate(startOfWeek.getUTCDate() - dow)
+  const startOfWeekStr = `${startOfWeek.getUTCFullYear()}-${String(startOfWeek.getUTCMonth() + 1).padStart(2, '0')}-${String(startOfWeek.getUTCDate()).padStart(2, '0')}`
 
   citas?.forEach(c => {
     const comision = Number(c.comision_barbero) || 0

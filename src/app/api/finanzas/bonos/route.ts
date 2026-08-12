@@ -1,5 +1,8 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getBoliviaMonth, getBoliviaYear } from '@/lib/asistencia/helpers'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,8 +62,8 @@ export async function POST(request: NextRequest) {
     const { barbero_id, tipo, descripcion, monto, mes, anio } = body
 
     const now = new Date()
-    const mesFinal = mes ?? (now.getMonth() + 1)
-    const anioFinal = anio ?? now.getFullYear()
+    const mesFinal = mes ?? getBoliviaMonth(now)
+    const anioFinal = anio ?? getBoliviaYear(now)
 
     if (!barbero_id || !tipo || !monto || monto <= 0) {
       return NextResponse.json({ error: 'Datos requeridos incompletos' }, { status: 400 })

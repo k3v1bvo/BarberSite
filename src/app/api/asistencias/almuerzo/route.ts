@@ -253,10 +253,23 @@ export async function DELETE(request: Request) {
       await db.from('barbero_bloqueos').delete().in('id', ids)
     }
 
-    // Actualizar asistencia
+    // Actualizar asistencia y guardar nota de retorno de almuerzo con GPS
+    const horaActualStr = new Date().toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit' })
+    const notaAlmuerzo = `[ALMUERZO] Retorno marcado a las ${horaActualStr}${lat != null && lng != null ? ` (GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)})` : ''}`
+
+    const { data: asistenciaActual } = await db
+      .from('asistencias')
+      .select('notas')
+      .eq('profile_id', user.id)
+      .eq('fecha', hoy)
+      .maybeSingle()
+
+    const notasExistentes = asistenciaActual?.notas || ''
+    const notasNuevas = notasExistentes ? `${notasExistentes}\n${notaAlmuerzo}` : notaAlmuerzo
+
     await db
       .from('asistencias')
-      .update({ en_almuerzo: false })
+      .update({ en_almuerzo: false, notas: notasNuevas })
       .eq('profile_id', user.id)
       .eq('fecha', hoy)
 

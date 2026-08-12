@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getBoliviaDateString } from '@/lib/asistencia/helpers'
 import type { AgendaCita, AgendaResponse } from '@/lib/agenda/types'
 
 function pickName(
@@ -31,10 +32,10 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const barberoId = searchParams.get('barbero_id')
     const fechaInicio =
-      searchParams.get('fecha_inicio') || new Date().toISOString().split('T')[0]
+      searchParams.get('fecha_inicio') || getBoliviaDateString()
     const fechaFin =
       searchParams.get('fecha_fin') ||
-      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      getBoliviaDateString(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
 
     const isAdmin = role === 'admin'
     const isCoordinador = role === 'coordinador'

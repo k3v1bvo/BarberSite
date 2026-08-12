@@ -106,7 +106,7 @@ export default function ClientePage() {
       if (!authUser) return router.push('/login')
 
       const [cardRes, citasRes] = await Promise.all([
-        fetch('/api/lealtad/cliente-card'),
+        fetch('/api/lealtad/cliente-card', { cache: 'no-store' }),
         supabase.from('citas')
           .select('*, servicios(nombre, descripcion), profiles!barbero_id(full_name)')
           .eq('cliente_id', authUser.id)

@@ -1,6 +1,7 @@
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 import { sendAdminEmail } from '@/lib/notifications/email'
 import { NextResponse } from 'next/server'
+import { getBoliviaDateString } from '@/lib/asistencia/helpers'
 
 export async function GET(request: Request) {
   // Autenticación básica para el cron (usar un token en el header o query param)
@@ -18,11 +19,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Obtener fecha actual en zona horaria local (Bolivia)
-    // Para simplificar, usamos la fecha UTC actual menos 4 horas (aproximación rápida para query)
-    const hoy = new Date()
-    hoy.setHours(hoy.getHours() - 4) 
-    const fechaStr = hoy.toISOString().split('T')[0]
+    // Obtener fecha actual en zona horaria de Bolivia (UTC-4)
+    const fechaStr = getBoliviaDateString()
 
     // 1. Citas completadas hoy
     const { data: citas } = await supabase

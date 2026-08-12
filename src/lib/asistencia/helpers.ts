@@ -104,3 +104,41 @@ export function estadoBadgeVariant(
       return 'info'
   }
 }
+
+// ─── Utilidades centralizadas de fecha/hora Bolivia (UTC-4) ───────────────
+// Usar estas funciones en TODO el backend para evitar bugs de zona horaria.
+// NUNCA usar new Date().getHours(), .getDay(), .getMonth(), etc. directamente.
+
+/** Alias corto de getBusinessDateString — fecha Bolivia como YYYY-MM-DD */
+export const getBoliviaDateString = getBusinessDateString
+
+/** Día de semana en Bolivia (0=Dom...6=Sáb) */
+export function getBoliviaDayOfWeek(d = new Date()): number {
+  const local = new Date(d.getTime() - 4 * 60 * 60 * 1000)
+  return local.getUTCDay()
+}
+
+/** Mes actual en Bolivia (1-12) */
+export function getBoliviaMonth(d = new Date()): number {
+  const local = new Date(d.getTime() - 4 * 60 * 60 * 1000)
+  return local.getUTCMonth() + 1
+}
+
+/** Año actual en Bolivia */
+export function getBoliviaYear(d = new Date()): number {
+  const local = new Date(d.getTime() - 4 * 60 * 60 * 1000)
+  return local.getUTCFullYear()
+}
+
+/** Hora y minuto actuales en Bolivia */
+export function getBoliviaTime(d = new Date()): { hour: number; minute: number } {
+  const local = new Date(d.getTime() - 4 * 60 * 60 * 1000)
+  return { hour: local.getUTCHours(), minute: local.getUTCMinutes() }
+}
+
+/** Día del mes en Bolivia (1-31) */
+export function getBoliviaDay(d = new Date()): number {
+  const local = new Date(d.getTime() - 4 * 60 * 60 * 1000)
+  return local.getUTCDate()
+}
+

@@ -1,6 +1,7 @@
 import { createAdminSupabaseClient, getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
 import { NextRequest, NextResponse } from 'next/server'
+import { getBusinessNow } from '@/lib/asistencia/helpers'
 
 // Este endpoint debería ser llamado por un cron job (ej. Vercel Cron) cada Sábado en la noche
 // GET /api/cron/consignacion-sabado
@@ -16,15 +17,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Database client could not be initialized' }, { status: 500 })
     }
 
-    // 1. Llamar a la lógica de resumen-semanal
-    const hoy = new Date()
-    const diaSemana = hoy.getDay() // 0 = Domingo, 1 = Lunes
-    const diffLunes = hoy.getDate() - diaSemana + (diaSemana === 0 ? -6 : 1)
-    const inicioSemana = new Date(hoy.setDate(diffLunes))
-    inicioSemana.setHours(0,0,0,0)
-    const finSemana = new Date(inicioSemana)
-    finSemana.setDate(finSemana.getDate() + 6)
-    finSemana.setHours(23,59,59,999)
+    // 1. Llamar a la lógica de resumen-semanal (hora Bolivia)
+    const hoy = getBusinessNow()
+    const diaSemana = hoy.getUTCDay() // 0 = Domingo, 1 = Lunes
+    const diffLunes = hoy.getUTCDate() - diaSemana + (diaSemana === 0 ? -6 : 1)
+    const inicioSemana = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), diffLunes, 0, 0, 0))
+    const finSemana = new Date(inicioSemana.getTime())
+    finSemana.setUTCDate(finSemana.getUTCDate() + 6)
+    finSemana.setUTCHours(23, 59, 59, 999)
 
     const strInicio = inicioSemana.toISOString()
     const strFin = finSemana.toISOString()

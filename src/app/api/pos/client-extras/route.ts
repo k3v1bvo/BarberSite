@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getBoliviaDateString, getBusinessNow } from '@/lib/asistencia/helpers'
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Falta cliente_id o nombre' }, { status: 400 })
     }
 
-    const hoyStr = new Date().toISOString().split('T')[0]
+    const hoyStr = getBoliviaDateString()
 
     // 1. Bonos de Referidos ganados por este cliente y aún no usados
     let referralBonuses: any[] = []
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
     // 2. ¿Tiene verificación de cumpleaños reciente (ej. los últimos 30 días)?
     let cumpleanosVerificado: any = null
     if (clienteId) {
-      const hoy = new Date()
+      const hoy = getBusinessNow()
       const { data: verif } = await supabase
         .from('cumpleanos_verificados')
         .select('*, promo:promociones(id, nombre, tipo, valor)')

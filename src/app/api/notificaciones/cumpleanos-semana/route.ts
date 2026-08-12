@@ -2,16 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
+import { getBusinessNow } from '@/lib/asistencia/helpers'
 
 export async function GET(request: NextRequest) {
   try {
     const serverDb = await createServerSupabaseClient()
     const db = getNotificationDbClient(serverDb)
 
-    const today = new Date()
+    const today = getBusinessNow()
     const targetDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
-    const targetMonth = targetDate.getMonth() + 1
-    const targetDay = targetDate.getDate()
+    const targetMonth = targetDate.getUTCMonth() + 1
+    const targetDay = targetDate.getUTCDate()
 
     const { data: clientes, error } = await db
       .from('clientes')

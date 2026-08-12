@@ -1,5 +1,8 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getBusinessNow, getBoliviaDayOfWeek } from '@/lib/asistencia/helpers'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
@@ -53,13 +56,13 @@ export async function GET() {
     let esCumpleanos = false
     let diasParaCumple: number | null = null
     if (cliente?.cumpleanos) {
-      const hoy = new Date()
+      const hoy = getBusinessNow()
       const cumple = new Date(cliente.cumpleanos)
-      const cumpleEsteAnio = new Date(hoy.getFullYear(), cumple.getMonth(), cumple.getDate())
-      esCumpleanos = cumpleEsteAnio.getMonth() === hoy.getMonth() && cumpleEsteAnio.getDate() === hoy.getDate()
+      const cumpleEsteAnio = new Date(Date.UTC(hoy.getUTCFullYear(), cumple.getUTCMonth(), cumple.getUTCDate()))
+      esCumpleanos = cumpleEsteAnio.getUTCMonth() === hoy.getUTCMonth() && cumpleEsteAnio.getUTCDate() === hoy.getUTCDate()
       if (!esCumpleanos) {
         // Próximo cumpleaños
-        if (cumpleEsteAnio < hoy) cumpleEsteAnio.setFullYear(hoy.getFullYear() + 1)
+        if (cumpleEsteAnio < hoy) cumpleEsteAnio.setUTCFullYear(hoy.getUTCFullYear() + 1)
         diasParaCumple = Math.ceil((cumpleEsteAnio.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
       }
     }
@@ -75,7 +78,7 @@ export async function GET() {
         .limit(1)
         .maybeSingle()
       if (verif?.fecha_verificacion) {
-        const diffDays = Math.abs((new Date().getTime() - new Date(verif.fecha_verificacion).getTime()) / (1000 * 3600 * 24))
+        const diffDays = Math.abs((getBusinessNow().getTime() - new Date(verif.fecha_verificacion).getTime()) / (1000 * 3600 * 24))
         if (diffDays <= 30) cumpleVerificado = true
       }
     }
@@ -100,7 +103,7 @@ export async function GET() {
       .limit(5)
 
     // 7. Promociones activas HOY (Deduplicadas por nombre y tipo para evitar repeticiones)
-    const diaSemana = new Date().getDay()
+    const diaSemana = getBoliviaDayOfWeek()
     const { data: rawPromos } = await supabase
       .from('promociones')
       .select('*')

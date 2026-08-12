@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getBusinessNow } from '@/lib/asistencia/helpers'
 
 // GET /api/consignaciones/resumen-semanal - Resumen de ventas de productos consignados en la semana
 export async function GET(request: NextRequest) {
@@ -8,15 +9,14 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
-    // Determinar inicio de semana (lunes) y fin (domingo)
-    const hoy = new Date()
-    const diaSemana = hoy.getDay() // 0 = Domingo, 1 = Lunes
-    const diffLunes = hoy.getDate() - diaSemana + (diaSemana === 0 ? -6 : 1)
-    const inicioSemana = new Date(hoy.setDate(diffLunes))
-    inicioSemana.setHours(0,0,0,0)
-    const finSemana = new Date(inicioSemana)
-    finSemana.setDate(finSemana.getDate() + 6)
-    finSemana.setHours(23,59,59,999)
+    // Determinar inicio de semana (lunes) y fin (domingo) en hora Bolivia
+    const hoy = getBusinessNow()
+    const diaSemana = hoy.getUTCDay() // 0 = Domingo, 1 = Lunes
+    const diffLunes = hoy.getUTCDate() - diaSemana + (diaSemana === 0 ? -6 : 1)
+    const inicioSemana = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), diffLunes, 0, 0, 0))
+    const finSemana = new Date(inicioSemana.getTime())
+    finSemana.setUTCDate(finSemana.getUTCDate() + 6)
+    finSemana.setUTCHours(23, 59, 59, 999)
 
     const strInicio = inicioSemana.toISOString()
     const strFin = finSemana.toISOString()
