@@ -190,17 +190,36 @@ export default function AsistenciaAdminPage() {
   }
 
   // ─── Edición ────────────────────────────────────────────────────────
+  const isoToBoliviaInput = (iso: string | null): string => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    const boliviaTime = new Date(d.getTime() - 4 * 60 * 60 * 1000)
+    const yyyy = boliviaTime.getUTCFullYear()
+    const mm = String(boliviaTime.getUTCMonth() + 1).padStart(2, '0')
+    const dd = String(boliviaTime.getUTCDate()).padStart(2, '0')
+    const hh = String(boliviaTime.getUTCHours()).padStart(2, '0')
+    const m = String(boliviaTime.getUTCMinutes()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}T${hh}:${m}`
+  }
+
   const abrirEdicion = (r: Registro) => {
     setEditando(r)
-    setFormEdit({ hora_entrada: r.hora_entrada.slice(0, 16), hora_salida: r.hora_salida ? r.hora_salida.slice(0, 16) : '', notas: r.notas || '' })
+    setFormEdit({ 
+      hora_entrada: isoToBoliviaInput(r.hora_entrada), 
+      hora_salida: isoToBoliviaInput(r.hora_salida), 
+      notas: r.notas || '' 
+    })
   }
 
   const guardarEdicion = async () => {
     if (!editando) return
     try {
+      const entIso = formEdit.hora_entrada ? new Date(formEdit.hora_entrada + '-04:00').toISOString() : ''
+      const salIso = formEdit.hora_salida ? new Date(formEdit.hora_salida + '-04:00').toISOString() : null
+
       const res = await fetch(`/api/asistencias/${editando.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hora_entrada: new Date(formEdit.hora_entrada).toISOString(), hora_salida: formEdit.hora_salida ? new Date(formEdit.hora_salida).toISOString() : null, notas: formEdit.notas }),
+        body: JSON.stringify({ hora_entrada: entIso, hora_salida: salIso, notas: formEdit.notas }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
