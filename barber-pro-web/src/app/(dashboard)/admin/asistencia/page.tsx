@@ -34,7 +34,7 @@ interface Registro {
   editado_admin?: boolean
   notas?: string | null
   estado_calculado: AsistenciaEstado
-  profiles?: { id: string; full_name: string | null; role: string }
+  profiles?: { id: string; full_name: string | null; role: string; avatar_url?: string | null }
   selfie_url?: string | null
   lat?: number | null
   lng?: number | null
@@ -154,9 +154,9 @@ export default function AsistenciaAdminPage() {
   }, [])
 
   // ─── Calcular grid semanal ──────────────────────────────────────────
-  const empleadosPorId = new Map<string, string>()
+  const empleadosPorId = new Map<string, { nombre: string; avatar?: string | null }>()
   registros.forEach(r => {
-    if (r.profiles?.id) empleadosPorId.set(r.profiles.id, r.profiles.full_name || 'Sin nombre')
+    if (r.profiles?.id) empleadosPorId.set(r.profiles.id, { nombre: r.profiles.full_name || 'Sin nombre', avatar: r.profiles.avatar_url })
   })
   // Orden para grid: barberos únicos
   const empleadosOrdenados = Array.from(empleadosPorId.entries())
@@ -542,8 +542,8 @@ export default function AsistenciaAdminPage() {
             </CardContent>
           </Card>
 
-          {/* Grid semanal */}
-          <Card className="border-white/5 overflow-hidden">
+          {/* Grid semanal (Desktop) */}
+          <Card className="border-white/5 overflow-hidden hidden md:block">
             <CardContent className="p-0 overflow-x-auto w-full">
               {loading ? (
                 <div className="flex justify-center py-16"><Clock className="w-10 h-10 text-amber-500 animate-spin" /></div>
@@ -568,7 +568,7 @@ export default function AsistenciaAdminPage() {
                         Sin registros esta semana
                       </td></tr>
                     ) : (
-                      empleadosOrdenados.map(([empId, nombre]) => {
+                      empleadosOrdenados.map(([empId, empData]) => {
                         const diasMap = gridMap.get(empId)
                         const totalHrs = diasDeSemana.reduce((sum, dia) => {
                           const r = diasMap?.get(dia)
@@ -585,7 +585,16 @@ export default function AsistenciaAdminPage() {
                         return (
                           <tr key={empId} className="hover:bg-white/[0.02] transition-colors">
                             <td className="py-4 px-4">
-                              <p className="font-bold text-white text-sm">{nombre}</p>
+                              <div className="flex items-center gap-3">
+                                {empData.avatar ? (
+                                  <img src={empData.avatar} alt="" className="w-8 h-8 rounded-full object-cover border border-amber-500/30 shrink-0" />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 font-bold text-xs border border-amber-500/30 shrink-0">
+                                    {empData.nombre.charAt(0)}
+                                  </div>
+                                )}
+                                <p className="font-bold text-white text-sm">{empData.nombre}</p>
+                              </div>
                             </td>
                             {diasDeSemana.map(dia => {
                               const r = diasMap?.get(dia)
@@ -612,8 +621,8 @@ export default function AsistenciaAdminPage() {
                                       {r.estado_calculado === 'atrasado' && (
                                         <Badge variant="danger" className="text-[8px] py-0">tarde</Badge>
                                       )}
-                                      <button onClick={() => abrirEdicion(r)} className="block mx-auto text-zinc-700 hover:text-amber-500 transition-colors">
-                                        <Pencil size={9} />
+                                      <button onClick={() => abrirEdicion(r)} className="block mx-auto text-zinc-700 hover:text-amber-500 transition-colors mt-1">
+                                        <Pencil size={11} />
                                       </button>
                                     </div>
                                   ) : (
@@ -657,6 +666,107 @@ export default function AsistenciaAdminPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Grid semanal (Mobile Cards) */}
+          <div className="md:hidden space-y-4">
+            {loading ? (
+              <div className="flex justify-center py-16"><Clock className="w-10 h-10 text-amber-500 animate-spin" /></div>
+            ) : empleadosOrdenados.length === 0 ? (
+              <div className="py-16 text-center text-zinc-600 bg-zinc-900 rounded-2xl border border-white/5">
+                <Users className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                Sin registros esta semana
+              </div>
+            ) : (
+              empleadosOrdenados.map(([empId, empData]) => {
+                const diasMap = gridMap.get(empId)
+                const totalHrs = diasDeSemana.reduce((sum, dia) => {
+                  const r = diasMap?.get(dia)
+                  if (!r) return sum
+                  if (r.horas_trabajadas != null) return sum + r.horas_trabajadas
+                  if (r.hora_entrada && !r.hora_salida) {
+                    void tick
+                    const ms = Date.now() - new Date(r.hora_entrada).getTime()
+                    return sum + Math.max(0, ms / 3_600_000)
+                  }
+                  return sum
+                }, 0)
+
+                return (
+                  <Card key={empId} className="border-white/5 bg-zinc-900 overflow-hidden shadow-lg">
+                    {/* Cabecera Card Empleado */}
+                    <div className="p-4 bg-black/40 border-b border-white/5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {empData.avatar ? (
+                          <img src={empData.avatar} alt="" className="w-11 h-11 rounded-full object-cover border-2 border-amber-500/40 shrink-0 shadow-md" />
+                        ) : (
+                          <div className="w-11 h-11 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 font-bold text-sm border border-amber-500/30 shrink-0">
+                            {empData.nombre.charAt(0)}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-black text-white text-sm">{empData.nombre}</p>
+                          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">Historial Semanal</p>
+                        </div>
+                      </div>
+                      <div className="text-right bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/20">
+                        <p className="text-[9px] text-amber-500/80 font-black uppercase tracking-widest mb-0.5">Total</p>
+                        <p className="text-amber-400 font-black text-base leading-none">{totalHrs > 0 ? `${totalHrs.toFixed(1)}h` : '0h'}</p>
+                      </div>
+                    </div>
+                    
+                    {/* Días */}
+                    <div className="divide-y divide-white/5">
+                      {diasDeSemana.map((dia, i) => {
+                        const r = diasMap?.get(dia)
+                        const isHoy = dia === fmt(new Date())
+                        return (
+                          <div key={dia} className={`p-3 flex items-center justify-between ${isHoy ? 'bg-amber-500/[0.03]' : ''}`}>
+                            <div className="flex items-center gap-3">
+                              <span className={`text-[10px] font-black uppercase w-8 text-center ${isHoy ? 'text-amber-400' : 'text-zinc-500'}`}>{DIAS[i]}</span>
+                              <span className="text-zinc-600 font-mono text-[10px] font-bold">{dia.slice(5)}</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-4">
+                              {r ? (
+                                <div className="text-right flex flex-col justify-center">
+                                  <div className="flex items-center justify-end gap-2 mb-1">
+                                    {r.estado_calculado === 'atrasado' && <Badge variant="danger" className="text-[8px] py-0 px-1 font-black leading-none">TARDE</Badge>}
+                                    <div className={`font-black text-sm leading-none ${celdaColor(r)} ${esEnVivo(r) ? 'animate-pulse' : ''}`}>
+                                      {r.estado_calculado === 'permiso' as any || r.notas?.includes('PERMISO') ? 'PERMISO' : horasEnVivo(r)}
+                                    </div>
+                                  </div>
+                                  <div className="text-zinc-500 text-[10px] flex items-center gap-1.5 justify-end font-bold">
+                                    {r.estado_calculado === 'permiso' as any || r.notas?.includes('PERMISO')
+                                      ? 'Justificado'
+                                      : (
+                                        <>
+                                          <span>{horaFmt(r.hora_entrada)}</span>
+                                          <span className="text-zinc-700">→</span>
+                                          <span>{r.hora_salida ? horaFmt(r.hora_salida) : '?'}</span>
+                                        </>
+                                      )
+                                    }
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-zinc-800 font-black text-sm mr-2">—</span>
+                              )}
+                              
+                              {r && (
+                                <button onClick={() => abrirEdicion(r)} className="text-zinc-500 hover:text-amber-400 p-2 bg-black/40 hover:bg-black/80 rounded-xl transition-all border border-white/5 hover:border-amber-500/30">
+                                  <Pencil size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </Card>
+                )
+              })
+            )}
+          </div>
 
           {/* Leyenda */}
           <div className="flex gap-4 flex-wrap text-[10px] font-black uppercase tracking-widest">

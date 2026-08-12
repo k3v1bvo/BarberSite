@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Clock, User } from 'lucide-react'
+import { Clock, User, RotateCw, CheckCircle2, Flame, Award, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getBusinessDateString } from '@/lib/asistencia/helpers'
 
@@ -13,6 +13,7 @@ interface BarberoTurnoItem {
   avatar_url?: string
   hora_entrada: string
   lastServedTime: string | null
+  totalCitasHoy: number
   turnoPosicion: number
 }
 
@@ -20,11 +21,12 @@ export function OrdenLlegadaBarberos() {
   const [listaTurnos, setListaTurnos] = useState<BarberoTurnoItem[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [rotationOffset, setRotationOffset] = useState(0)
   const supabase = createClient()
 
   useEffect(() => {
     fetchOrdenLlegadaYTurnos()
-    const interval = setInterval(fetchOrdenLlegadaYTurnos, 60000)
+    const interval = setInterval(fetchOrdenLlegadaYTurnos, 30000)
     return () => clearInterval(interval)
   }, [])
 
@@ -50,7 +52,7 @@ export function OrdenLlegadaBarberos() {
 
       if (error || !asistencias) return
 
-      // 2. Obtener citas completadas hoy para saber la última atención de cada barbero
+      // 2. Obtener citas completadas hoy para saber la última atención y conteo de cada barbero
       const { data: citasHoy } = await supabase
         .from('citas')
         .select('barbero_id, updated_at')
@@ -60,11 +62,13 @@ export function OrdenLlegadaBarberos() {
         .order('updated_at', { ascending: false })
 
       const lastServedMap = new Map<string, string>()
+      const totalCitasMap = new Map<string, number>()
       if (citasHoy) {
         for (const c of citasHoy) {
           if (!lastServedMap.has(c.barbero_id)) {
             lastServedMap.set(c.barbero_id, c.updated_at)
           }
+          totalCitasMap.set(c.barbero_id, (totalCitasMap.get(c.barbero_id) || 0) + 1)
         }
       }
 
@@ -78,13 +82,12 @@ export function OrdenLlegadaBarberos() {
           avatar_url: p?.avatar_url,
           hora_entrada: item.hora_entrada,
           lastServedTime: lastServedMap.get(item.profile_id) || null,
+          totalCitasHoy: totalCitasMap.get(item.profile_id) || 0,
           turnoPosicion: 0,
         }
       })
 
-      // 4. Ordenar para determinar quién atiende primero (Próximo Turno)
-      // - Primero: los que NO han atendido hoy (lastServedTime === null), ordenados por hora de entrada ASC
-      // - Segundo: los que SÍ han atendido hoy, ordenados por lastServedTime ASC (el que atendió hace más tiempo va antes)
+      // 4. Orden base según llegada y última atención
       mapeados.sort((a, b) => {
         if (!a.lastServedTime && !b.lastServedTime) {
           return a.hora_entrada.localeCompare(b.hora_entrada)
@@ -92,10 +95,6 @@ export function OrdenLlegadaBarberos() {
         if (!a.lastServedTime) return -1
         if (!b.lastServedTime) return 1
         return a.lastServedTime.localeCompare(b.lastServedTime)
-      })
-
-      mapeados.forEach((m, idx) => {
-        m.turnoPosicion = idx + 1
       })
 
       setListaTurnos(mapeados)
@@ -106,16 +105,40 @@ export function OrdenLlegadaBarberos() {
     }
   }
 
+  // Rotación cíclica de turnos (offset manual)
+  const turnosOrdenados = [...listaTurnos]
+  if (turnosOrdenados.length > 0 && rotationOffset > 0) {
+    const shift = rotationOffset % turnosOrdenados.length
+    const movidos = turnosOrdenados.splice(0, shift)
+    turnosOrdenados.push(...movidos)
+  }
+
+  turnosOrdenados.forEach((m, idx) => {
+    m.turnoPosicion = idx + 1
+  })
+
+  const pasarTurno = () => {
+    if (listaTurnos.length === 0) return
+    setRotationOffset(prev => (prev + 1) % listaTurnos.length)
+  }
+
+  const proximoBarbero = turnosOrdenados[0]
+
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 h-9 px-3 rounded-xl bg-zinc-900 border border-white/10 hover:border-emerald-500/50 text-zinc-300 hover:text-white transition-all text-xs font-bold"
+        className="flex items-center gap-2 h-9 px-3 rounded-xl bg-zinc-900 border border-amber-500/30 hover:border-amber-500/60 text-zinc-200 hover:text-white transition-all text-xs font-bold shadow-md shadow-amber-500/5 group"
         title="Ver orden de llegada y próximo turno de atención"
       >
-        <span className="text-emerald-400">🏁</span>
-        <span className="hidden sm:inline">Turnos / Llegada</span>
-        <span className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-md font-mono text-[10px]">
+        <span className="text-amber-400 group-hover:scale-110 transition-transform">🏁</span>
+        <span className="hidden sm:inline font-extrabold uppercase tracking-wider text-[11px]">Turnos</span>
+        {proximoBarbero && (
+          <span className="hidden md:inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-400 px-2 py-0.5 rounded-lg text-[10px] font-black">
+            👉 {proximoBarbero.full_name.split(' ')[0]}
+          </span>
+        )}
+        <span className="bg-amber-500 text-black font-black px-1.5 py-0.5 rounded-md text-[10px]">
           {listaTurnos.length}
         </span>
       </button>
@@ -126,86 +149,126 @@ export function OrdenLlegadaBarberos() {
             className="fixed inset-0 z-40"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 mt-2 w-80 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🏁</span>
+          <div className="absolute right-0 mt-2 w-88 sm:w-96 bg-zinc-950 border border-amber-500/30 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 backdrop-blur-xl">
+            {/* Header del modal */}
+            <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  🏁
+                </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-white">
-                    Orden de Turnos y Llegada
+                  <p className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-1.5">
+                    Orden de Turnos <span className="text-[10px] text-amber-400 font-mono">({listaTurnos.length} activos)</span>
                   </p>
                   <p className="text-[10px] text-zinc-400 font-medium">
-                    Seguimiento visual de atención hoy
+                    Asignación inteligente de clientes de a pie
                   </p>
                 </div>
               </div>
             </div>
 
             {loading ? (
-              <p className="text-center py-4 text-xs text-zinc-500 font-medium">Cargando...</p>
-            ) : listaTurnos.length === 0 ? (
-              <div className="text-center py-4 text-zinc-500">
-                <Clock className="w-6 h-6 mx-auto mb-1 opacity-40" />
-                <p className="text-xs">Ningún barbero ha marcado entrada aún hoy.</p>
+              <div className="flex items-center justify-center py-8 text-amber-500">
+                <Clock className="w-5 h-5 animate-spin" />
+              </div>
+            ) : turnosOrdenados.length === 0 ? (
+              <div className="text-center py-6 text-zinc-500 space-y-2">
+                <Clock className="w-8 h-8 mx-auto opacity-30 text-amber-500" />
+                <p className="text-xs font-bold">Ningún barbero ha marcado entrada aún hoy.</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {listaTurnos.map((item, idx) => {
-                  const hora = item.hora_entrada
-                    ? item.hora_entrada.slice(0, 5)
-                    : '--:--'
-                  const esProximo = idx === 0
+              <div className="space-y-3">
+                {/* Botón Acción Principal: Pasar Turno */}
+                <button
+                  onClick={pasarTurno}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+                >
+                  <RotateCw className="w-4 h-4 text-black animate-spin-slow" />
+                  <span>Pasar Turno al Siguiente</span>
+                  <ChevronRight className="w-4 h-4 ml-auto" />
+                </button>
 
-                  return (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        'flex flex-col p-2.5 rounded-xl border transition-colors',
-                        esProximo
-                          ? 'bg-emerald-500/15 border-emerald-500/40 ring-1 ring-emerald-500/30'
-                          : idx === 1
-                          ? 'bg-zinc-800/80 border-zinc-700'
-                          : 'bg-white/5 border-transparent'
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0 border border-white/10">
-                            {item.avatar_url ? (
-                              <img
-                                src={item.avatar_url}
-                                alt={item.full_name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <User className="w-4 h-4 text-zinc-400" />
-                            )}
+                {/* Lista de Barberos */}
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                  {turnosOrdenados.map((item, idx) => {
+                    const horaEntradaFmt = item.hora_entrada
+                      ? new Date(item.hora_entrada).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit', hour12: true })
+                      : '--:--'
+                    const esProximo = idx === 0
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={cn(
+                          'flex items-center justify-between p-3 rounded-xl border transition-all',
+                          esProximo
+                            ? 'bg-gradient-to-r from-amber-500/20 to-amber-500/5 border-amber-500/50 ring-1 ring-amber-500/40 shadow-md shadow-amber-500/10'
+                            : idx === 1
+                            ? 'bg-zinc-900/90 border-zinc-800'
+                            : 'bg-zinc-900/40 border-white/5 opacity-80 hover:opacity-100'
+                        )}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {/* Avatar con badge de posición */}
+                          <div className="relative shrink-0">
+                            <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-900 border-2 border-white/10 flex items-center justify-center">
+                              {item.avatar_url ? (
+                                <img
+                                  src={item.avatar_url}
+                                  alt={item.full_name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <User className="w-5 h-5 text-zinc-500" />
+                              )}
+                            </div>
+                            <span className={cn(
+                              'absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black border border-black shadow',
+                              esProximo ? 'bg-amber-400 text-black font-extrabold' : 'bg-zinc-800 text-zinc-300'
+                            )}>
+                              #{item.turnoPosicion}
+                            </span>
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-white truncate">
-                              {item.full_name}
-                            </p>
-                            <p className="text-[10px] text-zinc-400">
-                              Llegó a las <span className="font-mono text-zinc-300">{hora}</span>
-                            </p>
+
+                          {/* Nombre y detalles */}
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-black text-white truncate">
+                                {item.full_name}
+                              </p>
+                              {item.totalCitasHoy > 0 && (
+                                <span className="inline-flex items-center gap-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[9px] font-bold px-1.5 py-0.2 rounded-md">
+                                  <CheckCircle2 className="w-2.5 h-2.5" />
+                                  {item.totalCitasHoy}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+                              <span>Entrada: <strong className="text-zinc-300 font-mono">{horaEntradaFmt}</strong></span>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="shrink-0">
+                        {/* Badge de Estado / Turno */}
+                        <div className="shrink-0 ml-2">
                           {esProximo ? (
-                            <span className="bg-emerald-500 text-black text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.4)]">
-                              PRÓXIMO TURNO
-                            </span>
+                            <div className="flex flex-col items-end">
+                              <span className="bg-amber-500 text-black text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg shadow-md shadow-amber-500/30 animate-pulse flex items-center gap-1">
+                                <Flame className="w-3 h-3 text-black" />
+                                TOCA ATENDER
+                              </span>
+                              <span className="text-[8px] text-amber-400 font-bold uppercase tracking-wider mt-1">Próximo Cliente</span>
+                            </div>
                           ) : (
-                            <span className="bg-zinc-800 text-zinc-300 text-[10px] font-black font-mono px-2 py-0.5 rounded-md border border-white/5">
-                              Turno #{item.turnoPosicion}
+                            <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider bg-zinc-900 border border-white/5 px-2 py-1 rounded-lg">
+                              En espera
                             </span>
                           )}
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -214,3 +277,4 @@ export function OrdenLlegadaBarberos() {
     </div>
   )
 }
+
