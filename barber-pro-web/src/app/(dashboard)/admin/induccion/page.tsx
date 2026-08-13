@@ -13,8 +13,61 @@ import { parseTimestampToSeconds, formatSecondsToTimestamp } from '@/lib/youtube
 import { useToast } from '@/components/ui/Toast'
 import {
   GraduationCap, Plus, Search, CheckCircle2, Clock, Users,
-  BookOpen, CheckSquare, Trash2, Edit3, Sparkles, Filter, ShieldCheck
+  BookOpen, CheckSquare, Trash2, Edit3, Sparkles, Filter, ShieldCheck,
+  ChevronDown, ChevronRight, Film, FileText, Wrench, ListChecks, Eye, EyeOff
 } from 'lucide-react'
+
+// ── Collapsible Section Component ──
+function FormSection({ title, icon: Icon, defaultOpen = true, children, badge }: {
+  title: string
+  icon: any
+  defaultOpen?: boolean
+  children: React.ReactNode
+  badge?: string
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="border border-white/10 rounded-2xl overflow-hidden bg-zinc-900/40">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <Icon className="w-3.5 h-3.5" />
+          </div>
+          <span className="text-xs font-black uppercase tracking-wider text-white">{title}</span>
+          {badge && (
+            <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-md">{badge}</span>
+          )}
+        </div>
+        {open ? <ChevronDown className="w-4 h-4 text-zinc-500" /> : <ChevronRight className="w-4 h-4 text-zinc-500" />}
+      </button>
+      {open && (
+        <div className="px-4 pb-4 pt-1 space-y-4 border-t border-white/5">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Audience options ──
+const AUDIENCIA_OPTIONS = [
+  { value: 'todos', label: 'Todos', emoji: '👥' },
+  { value: 'barbero', label: 'Barberos', emoji: '💈' },
+  { value: 'coordinador', label: 'Coordinadores', emoji: '🎯' },
+  { value: 'admin', label: 'Administradores', emoji: '🔑' },
+  { value: 'cliente', label: 'Clientes', emoji: '👤' },
+]
+
+// ── Nivel options ──
+const NIVEL_OPTIONS = [
+  { value: 'basico', label: 'Básico', emoji: '🟢', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' },
+  { value: 'intermedio', label: 'Intermedio', emoji: '🟡', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
+  { value: 'avanzado', label: 'Avanzado', emoji: '🔴', color: 'text-red-400 bg-red-500/10 border-red-500/30' },
+]
 
 interface Servicio {
   id: string
@@ -58,17 +111,18 @@ export default function AdminInduccionPage() {
   // Form Fields
   const [formTitulo, setFormTitulo] = useState('')
   const [formDescripcion, setFormDescripcion] = useState('')
-  const [formCategoria, setFormCategoria] = useState('Servicio Técnico')
+  const [formCategoria, setFormCategoria] = useState('')
   const [formServicioId, setFormServicioId] = useState('')
   const [formYoutubeUrl, setFormYoutubeUrl] = useState('')
-  const [formPdfUrl, setFormPdfUrl] = useState('')
+  const [formPdfUrls, setFormPdfUrls] = useState<string[]>([])
   const [uploadingPdf, setUploadingPdf] = useState(false)
   const [formDuracionMinutos, setFormDuracionMinutos] = useState(15)
   const [formHerramientasStr, setFormHerramientasStr] = useState('')
   const [formIsPublished, setFormIsPublished] = useState(true)
+  const [formNivel, setFormNivel] = useState('basico')
+  const [formDirigidoA, setFormDirigidoA] = useState<string[]>(['todos'])
   const [formPasos, setFormPasos] = useState<{ titulo_paso: string; descripcion: string; timestampStr: string }[]>([
-    { titulo_paso: 'Paso 1: Diagnóstico e Higiene', descripcion: 'Evaluación del cuero cabelludo y cliente.', timestampStr: '00:00' },
-    { titulo_paso: 'Paso 2: Marcado y Cierre', descripcion: 'Técnica de terminación y perfilado.', timestampStr: '05:00' }
+    { titulo_paso: 'Paso 1: Preparación', descripcion: '', timestampStr: '00:00' }
   ])
 
   // Asignación tab state
@@ -124,15 +178,17 @@ export default function AdminInduccionPage() {
     setEditingInduccionId(null)
     setFormTitulo('')
     setFormDescripcion('')
-    setFormCategoria('Servicio Técnico')
+    setFormCategoria('')
     setFormServicioId('')
     setFormYoutubeUrl('')
-    setFormPdfUrl('')
+    setFormPdfUrls([])
     setFormDuracionMinutos(15)
     setFormHerramientasStr('')
     setFormIsPublished(true)
+    setFormNivel('basico')
+    setFormDirigidoA(['todos'])
     setFormPasos([
-      { titulo_paso: 'Paso 1: Preparación', descripcion: 'Diagnóstico e higiene', timestampStr: '00:00' }
+      { titulo_paso: 'Paso 1: Preparación', descripcion: '', timestampStr: '00:00' }
     ])
   }
 
@@ -141,13 +197,19 @@ export default function AdminInduccionPage() {
     setEditingInduccionId(ind.id)
     setFormTitulo(ind.titulo || '')
     setFormDescripcion(ind.descripcion || '')
-    setFormCategoria(ind.categoria || 'Servicio Técnico')
+    setFormCategoria(ind.categoria || '')
     setFormServicioId(ind.servicio_id || '')
     setFormYoutubeUrl(ind.youtube_url || '')
-    setFormPdfUrl(ind.pdf_url || '')
+    // Support both legacy pdf_url and new pdf_urls
+    const urls = Array.isArray(ind.pdf_urls) && ind.pdf_urls.length > 0
+      ? ind.pdf_urls
+      : (ind.pdf_url ? [ind.pdf_url] : [])
+    setFormPdfUrls(urls)
     setFormDuracionMinutos(ind.duracion_minutos || 15)
     setFormHerramientasStr(Array.isArray(ind.herramientas_requeridas) ? ind.herramientas_requeridas.join(', ') : '')
     setFormIsPublished(ind.is_published !== false)
+    setFormNivel(ind.nivel || 'basico')
+    setFormDirigidoA(Array.isArray(ind.dirigido_a) ? ind.dirigido_a : ['todos'])
 
     if (Array.isArray(ind.induccion_pasos) && ind.induccion_pasos.length > 0) {
       const formattedPasos = ind.induccion_pasos.map((p: any) => ({
@@ -166,8 +228,8 @@ export default function AdminInduccionPage() {
   // Save Induccion
   const handleSaveInduccion = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formTitulo.trim() || !formYoutubeUrl.trim()) {
-      return toastError('El Título y la URL de YouTube son obligatorios')
+    if (!formTitulo.trim()) {
+      return toastError('El Título es obligatorio')
     }
 
     setSubmitting(true)
@@ -186,13 +248,16 @@ export default function AdminInduccionPage() {
       const payload = {
         titulo: formTitulo,
         descripcion: formDescripcion,
-        categoria: formCategoria,
+        categoria: formCategoria || 'General',
         servicio_id: formServicioId || null,
-        youtube_url: formYoutubeUrl,
-        pdf_url: formPdfUrl,
+        youtube_url: formYoutubeUrl || null,
+        pdf_url: formPdfUrls[0] || null,
+        pdf_urls: formPdfUrls,
         duracion_minutos: formDuracionMinutos,
         herramientas_requeridas: herramientas,
         is_published: formIsPublished,
+        nivel: formNivel,
+        dirigido_a: formDirigidoA,
         pasos: pasosFormatted
       }
 
@@ -249,35 +314,38 @@ export default function AdminInduccionPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al subir PDF')
 
-      setFormPdfUrl(data.url)
-      toastSuccess('📄 Documento PDF cargado exitosamente')
+      setFormPdfUrls(prev => [...prev, data.url])
+      toastSuccess('📄 Documento cargado exitosamente')
     } catch (err: any) {
       toastError(err.message || 'Error al subir PDF')
     } finally {
       setUploadingPdf(false)
+      // Reset file input
+      e.target.value = ''
     }
   }
 
-  // Delete PDF from Catbox.moe
-  const handleDeleteCatboxPdf = async () => {
-    if (!formPdfUrl) return
-    if (!confirm('¿Deseas eliminar este archivo PDF de Catbox.moe?')) return
+  // Delete a specific PDF from array
+  const handleDeleteCatboxPdf = async (urlToDelete: string, index: number) => {
+    if (!confirm('¿Deseas eliminar este documento?')) return
 
     try {
-      const res = await fetch('/api/upload/catbox', {
+      // Try to delete from Catbox
+      await fetch('/api/upload/catbox', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileUrl: formPdfUrl }),
+        body: JSON.stringify({ fileUrl: urlToDelete }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Error al eliminar')
-
-      setFormPdfUrl('')
-      toastSuccess('Archivo PDF eliminado de Catbox')
-    } catch (err: any) {
-      toastError(err.message || 'Error al eliminar PDF')
+    } catch {
+      // Ignore catbox delete errors, still remove from list
     }
+
+    setFormPdfUrls(prev => prev.filter((_, i) => i !== index))
+    toastSuccess('Documento eliminado')
   }
+
+  // Computed: unique categories from existing inducciones for datalist
+  const existingCategories = [...new Set(inducciones.map((i: any) => i.categoria).filter(Boolean))]
 
   // Delete Induccion
   const handleDeleteInduccion = async (id: string) => {
@@ -611,112 +679,164 @@ export default function AdminInduccionPage() {
         <Modal
           isOpen={showFormModal}
           onClose={() => setShowFormModal(false)}
-          title={editingInduccionId ? '✏️ Editar Inducción Barbera' : '🎓 Crear Nueva Inducción Barbera'}
+          title={editingInduccionId ? '✏️ Editar Inducción' : '🎓 Crear Nueva Inducción'}
+          maxWidth="max-w-2xl"
         >
-          <form onSubmit={handleSaveInduccion} className="space-y-5 max-h-[80vh] overflow-y-auto pr-2">
-            {/* Título, Categoría & Servicio */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <form onSubmit={handleSaveInduccion} className="space-y-4">
+
+            {/* ═══ SECCIÓN 1: INFORMACIÓN BÁSICA ═══ */}
+            <FormSection title="Información Básica" icon={FileText} defaultOpen={true}>
+              {/* Título */}
               <div>
                 <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Título de la Inducción *</label>
                 <Input
                   required
-                  placeholder="Ej. Técnica Fade Medio & Toalla Caliente"
+                  placeholder="Ej. Protocolo de atención al cliente VIP"
                   value={formTitulo}
                   onChange={(e) => setFormTitulo(e.target.value)}
-                  className="bg-zinc-950 border-white/10 text-xs"
+                  className="bg-zinc-950 border-white/10 text-sm"
                 />
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Categoría del Curso</label>
-                <select
-                  value={formCategoria}
-                  onChange={(e) => setFormCategoria(e.target.value)}
-                  className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs text-white outline-none focus:border-amber-500"
-                >
-                  <option value="Servicio Técnico">✂️ Servicio Técnico (Cortes/Barba)</option>
-                  <option value="Atención al Cliente">🤝 Atención al Cliente & Etiqueta</option>
-                  <option value="Higiene & Limpieza">🧹 Higiene & Limpieza del Puesto</option>
-                  <option value="Protocolo de Bienvenida">🚪 Protocolo de Entrada/Salida</option>
-                  <option value="Mantenimiento de Herramientas">🧰 Mantenimiento de Herramientas</option>
-                  <option value="Manejo de Caja & POS">💳 Manejo de Caja & POS</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Servicio Específico</label>
-                <select
-                  value={formServicioId}
-                  onChange={(e) => setFormServicioId(e.target.value)}
-                  className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs text-white outline-none focus:border-amber-500"
-                >
-                  <option value="">Ninguno (General)</option>
-                  {servicios.map(s => (
-                    <option key={s.id} value={s.id}>{s.nombre}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* URL YouTube & Duración */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="sm:col-span-2">
-                <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">URL de Video en YouTube *</label>
-                <Input
-                  required
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  value={formYoutubeUrl}
-                  onChange={(e) => setFormYoutubeUrl(e.target.value)}
-                  className="bg-zinc-950 border-white/10 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Duración (Minutos)</label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={formDuracionMinutos}
-                  onChange={(e) => setFormDuracionMinutos(Number(e.target.value) || 15)}
-                  className="bg-zinc-950 border-white/10 text-xs"
-                />
-              </div>
-            </div>
-
-            {/* Live YouTube Preview */}
-            {formYoutubeUrl.trim() && (
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Vista Previa del Video</span>
-                <YouTubePlayer url={formYoutubeUrl} />
-              </div>
-            )}
-
-            {/* Material PDF (Catbox.moe integration) */}
-            <div className="border border-white/10 rounded-xl p-4 bg-zinc-950/60 space-y-3">
-              <div className="flex items-center justify-between">
+              {/* Categoría libre con datalist */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-bold text-white uppercase flex items-center gap-2">
-                    📄 Material o Documento PDF (Catbox.moe)
-                  </label>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">Sube manuales, guías o material complementario en PDF.</p>
+                  <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Categoría</label>
+                  <div className="relative">
+                    <input
+                      list="categorias-sugeridas"
+                      placeholder="Escribe o selecciona..."
+                      value={formCategoria}
+                      onChange={(e) => setFormCategoria(e.target.value)}
+                      className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs text-white outline-none focus:border-amber-500/50 transition-all"
+                    />
+                    <datalist id="categorias-sugeridas">
+                      {existingCategories.map((cat, i) => (
+                        <option key={i} value={cat} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <p className="text-[10px] text-zinc-600 mt-1">Escribe tu propia categoría o usa una existente</p>
                 </div>
-                {formPdfUrl && (
-                  <Badge variant="success" className="text-[9px] uppercase font-black">PDF Adjunto</Badge>
-                )}
+
+                {/* Nivel de Dificultad */}
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Nivel de Dificultad</label>
+                  <div className="flex gap-2">
+                    {NIVEL_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setFormNivel(opt.value)}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-xs font-bold transition-all ${
+                          formNivel === opt.value
+                            ? `${opt.color} border-current shadow-md`
+                            : 'bg-zinc-950 text-zinc-500 border-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        <span>{opt.emoji}</span>
+                        <span>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-                <div className="flex-1">
+              {/* Dirigido a (audiencia) */}
+              <div>
+                <label className="text-xs font-bold text-zinc-400 uppercase block mb-1.5">Dirigido a</label>
+                <div className="flex flex-wrap gap-2">
+                  {AUDIENCIA_OPTIONS.map(opt => {
+                    const isSelected = formDirigidoA.includes(opt.value)
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          if (opt.value === 'todos') {
+                            setFormDirigidoA(['todos'])
+                          } else {
+                            const without = formDirigidoA.filter(v => v !== 'todos' && v !== opt.value)
+                            if (isSelected) {
+                              setFormDirigidoA(without.length > 0 ? without : ['todos'])
+                            } else {
+                              setFormDirigidoA([...without, opt.value])
+                            }
+                          }
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
+                          isSelected
+                            ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
+                            : 'bg-zinc-950 border-white/10 text-zinc-500 hover:border-white/20'
+                        }`}
+                      >
+                        <span>{opt.emoji}</span>
+                        <span>{opt.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Descripción */}
+              <div>
+                <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Descripción</label>
+                <textarea
+                  rows={2}
+                  placeholder="Explica de qué trata esta capacitación y qué aprenderá el personal..."
+                  value={formDescripcion}
+                  onChange={(e) => setFormDescripcion(e.target.value)}
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-amber-500 resize-none"
+                />
+              </div>
+            </FormSection>
+
+            {/* ═══ SECCIÓN 2: CONTENIDO MULTIMEDIA ═══ */}
+            <FormSection title="Contenido Multimedia" icon={Film} defaultOpen={true} badge="Opcional">
+              {/* YouTube URL (Opcional) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">
+                    URL de Video en YouTube
+                    <span className="text-zinc-600 normal-case font-normal ml-1">(opcional)</span>
+                  </label>
                   <Input
-                    placeholder="https://files.catbox.moe/xxxxxx.pdf"
-                    value={formPdfUrl}
-                    onChange={(e) => setFormPdfUrl(e.target.value)}
-                    className="bg-zinc-900 border-white/10 text-xs text-blue-400 font-mono"
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    value={formYoutubeUrl}
+                    onChange={(e) => setFormYoutubeUrl(e.target.value)}
+                    className="bg-zinc-950 border-white/10 text-xs"
                   />
                 </div>
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Duración (Min)</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={formDuracionMinutos}
+                    onChange={(e) => setFormDuracionMinutos(Number(e.target.value) || 15)}
+                    className="bg-zinc-950 border-white/10 text-xs"
+                  />
+                </div>
+              </div>
 
-                <div className="flex gap-2 shrink-0">
-                  <label className={`px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black cursor-pointer transition flex items-center gap-1.5 ${uploadingPdf ? 'opacity-50 pointer-events-none' : ''}`}>
+              {/* YouTube Preview */}
+              {formYoutubeUrl.trim() && (
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Vista Previa del Video</span>
+                  <YouTubePlayer url={formYoutubeUrl} />
+                </div>
+              )}
+
+              {/* Documentos PDF (Múltiples) */}
+              <div className="border border-white/10 rounded-xl p-4 bg-zinc-950/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-white uppercase flex items-center gap-2">
+                      📄 Documentos y Material de Apoyo
+                    </label>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">Sube manuales, guías, protocolos o material complementario en PDF.</p>
+                  </div>
+                  <label className={`px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black cursor-pointer transition flex items-center gap-1.5 shrink-0 ${uploadingPdf ? 'opacity-50 pointer-events-none' : ''}`}>
                     {uploadingPdf ? '⏳ Subiendo...' : '📁 Subir PDF'}
                     <input
                       type="file"
@@ -725,142 +845,164 @@ export default function AdminInduccionPage() {
                       onChange={handleUploadCatboxPdf}
                     />
                   </label>
+                </div>
 
-                  {formPdfUrl && (
-                    <button
-                      type="button"
-                      onClick={handleDeleteCatboxPdf}
-                      className="px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold border border-red-500/20 transition flex items-center gap-1"
-                      title="Eliminar archivo de Catbox"
-                    >
-                      🗑️ Borrar de Catbox
-                    </button>
-                  )}
+                {/* List of uploaded PDFs */}
+                {formPdfUrls.length > 0 ? (
+                  <div className="space-y-2">
+                    {formPdfUrls.map((url, idx) => {
+                      const filename = url.split('/').pop() || `documento_${idx + 1}.pdf`
+                      return (
+                        <div key={idx} className="flex items-center justify-between bg-black/40 p-2.5 rounded-lg border border-white/5 gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-blue-400 text-sm">📄</span>
+                            <span className="text-[11px] text-zinc-300 truncate font-mono">{filename}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-amber-400 hover:text-amber-300 font-bold text-[10px] underline"
+                            >
+                              Ver ↗
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCatboxPdf(url, idx)}
+                              className="text-red-400 hover:text-red-300 font-bold text-[10px]"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-zinc-600 italic text-center py-3 border border-dashed border-white/10 rounded-lg">
+                    No hay documentos adjuntos. Sube tu primer PDF.
+                  </p>
+                )}
+              </div>
+            </FormSection>
+
+            {/* ═══ SECCIÓN 3: DETALLES TÉCNICOS ═══ */}
+            <FormSection title="Detalles Técnicos" icon={Wrench} defaultOpen={false}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Herramientas */}
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Herramientas e Insumos</label>
+                  <Input
+                    placeholder="Ej. Tijera, Clipper, Shaver (separados por coma)"
+                    value={formHerramientasStr}
+                    onChange={(e) => setFormHerramientasStr(e.target.value)}
+                    className="bg-zinc-950 border-white/10 text-xs"
+                  />
+                </div>
+
+                {/* Servicio Vinculado */}
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Servicio Vinculado</label>
+                  <select
+                    value={formServicioId}
+                    onChange={(e) => setFormServicioId(e.target.value)}
+                    className="w-full h-10 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs text-white outline-none focus:border-amber-500"
+                  >
+                    <option value="">Ninguno (General)</option>
+                    {servicios.map(s => (
+                      <option key={s.id} value={s.id}>{s.nombre}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              {formPdfUrl && (
-                <div className="space-y-2 pt-2 border-t border-white/10">
-                  <div className="flex items-center justify-between text-[11px] bg-black/40 p-2.5 rounded-lg border border-white/5">
-                    <span className="text-zinc-400 truncate max-w-[220px] font-mono">📄 {formPdfUrl}</span>
-                    <a
-                      href={formPdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-amber-400 hover:text-amber-300 font-bold underline text-xs shrink-0 flex items-center gap-1"
-                    >
-                      Ver / Abrir PDF ↗
-                    </a>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-400 flex items-center gap-1">
-                      👁️ Vista Previa del PDF en Vivo
-                    </span>
-                    <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-zinc-900 h-72 shadow-inner">
-                      <iframe
-                        src={`https://docs.google.com/gview?url=${encodeURIComponent(formPdfUrl)}&embedded=true`}
-                        className="w-full h-full border-0"
-                        title="Vista Previa de Documento PDF"
-                      />
-                    </div>
-                  </div>
+              {/* Publicado toggle */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-950 border border-white/10">
+                <div className="flex items-center gap-2">
+                  {formIsPublished ? <Eye className="w-4 h-4 text-emerald-400" /> : <EyeOff className="w-4 h-4 text-zinc-500" />}
+                  <span className="text-xs font-bold text-white">
+                    {formIsPublished ? 'Publicado — Visible para el equipo' : 'Borrador — Solo visible para admins'}
+                  </span>
                 </div>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setFormIsPublished(!formIsPublished)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${formIsPublished ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow ${formIsPublished ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+            </FormSection>
 
-            {/* Descripción */}
-            <div>
-              <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Descripción corta</label>
-              <textarea
-                rows={2}
-                placeholder="Explica de qué trata esta capacitación y qué aprenderá el barbero..."
-                value={formDescripcion}
-                onChange={(e) => setFormDescripcion(e.target.value)}
-                className="w-full bg-zinc-950 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-amber-500 resize-none"
-              />
-            </div>
+            {/* ═══ SECCIÓN 4: PASOS DEL SERVICIO ═══ */}
+            <FormSection title="Pasos y Marcas de Tiempo" icon={ListChecks} defaultOpen={false} badge={`${formPasos.length} pasos`}>
+              <div className="space-y-3">
+                {formPasos.map((paso, idx) => (
+                  <div key={idx} className="p-3 bg-zinc-950 border border-white/10 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-amber-400">Paso #{idx + 1}</span>
+                      {formPasos.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setFormPasos(formPasos.filter((_, i) => i !== idx))}
+                          className="text-xs text-red-400 hover:underline"
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
 
-            {/* Herramientas requeridas */}
-            <div>
-              <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Herramientas e Insumos (Separados por coma)</label>
-              <Input
-                placeholder="Ej. Tijera 6.5, Clipper Magic Clip, Shaver, Gel de afeitar"
-                value={formHerramientasStr}
-                onChange={(e) => setFormHerramientasStr(e.target.value)}
-                className="bg-zinc-950 border-white/10 text-xs"
-              />
-            </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="sm:col-span-2">
+                        <Input
+                          placeholder="Título del paso"
+                          value={paso.titulo_paso}
+                          onChange={(e) => {
+                            const copy = [...formPasos]
+                            copy[idx].titulo_paso = e.target.value
+                            setFormPasos(copy)
+                          }}
+                          className="bg-zinc-900 border-white/10 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          placeholder="MM:SS"
+                          value={paso.timestampStr}
+                          onChange={(e) => {
+                            const copy = [...formPasos]
+                            copy[idx].timestampStr = e.target.value
+                            setFormPasos(copy)
+                          }}
+                          className="bg-zinc-900 border-white/10 text-xs font-mono text-center"
+                        />
+                      </div>
+                    </div>
 
-            {/* Pasos Detallados Builder */}
-            <div className="border-t border-white/10 pt-4 space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-black uppercase tracking-wider text-amber-500">📌 Pasos del Servicio & Marcas de Tiempo</span>
+                    <textarea
+                      rows={1}
+                      placeholder="Detalles / Tips..."
+                      value={paso.descripcion}
+                      onChange={(e) => {
+                        const copy = [...formPasos]
+                        copy[idx].descripcion = e.target.value
+                        setFormPasos(copy)
+                      }}
+                      className="w-full bg-zinc-900 border border-white/10 rounded-lg p-2 text-xs text-white outline-none focus:border-amber-500 resize-none"
+                    />
+                  </div>
+                ))}
+
                 <button
                   type="button"
                   onClick={() => setFormPasos([...formPasos, { titulo_paso: `Paso ${formPasos.length + 1}`, descripcion: '', timestampStr: '00:00' }])}
-                  className="text-xs font-bold text-amber-400 hover:underline flex items-center gap-1"
+                  className="w-full py-2.5 rounded-xl border border-dashed border-amber-500/30 text-xs font-bold text-amber-400 hover:bg-amber-500/5 transition-colors flex items-center justify-center gap-1.5"
                 >
                   + Agregar Paso
                 </button>
               </div>
-
-              {formPasos.map((paso, idx) => (
-                <div key={idx} className="p-3 bg-zinc-950 border border-white/10 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-amber-400">Paso #{idx + 1}</span>
-                    {formPasos.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setFormPasos(formPasos.filter((_, i) => i !== idx))}
-                        className="text-xs text-red-400 hover:underline"
-                      >
-                        Eliminar
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div className="sm:col-span-2">
-                      <Input
-                        placeholder="Título del paso (ej. Degradado Base 0.5)"
-                        value={paso.titulo_paso}
-                        onChange={(e) => {
-                          const copy = [...formPasos]
-                          copy[idx].titulo_paso = e.target.value
-                          setFormPasos(copy)
-                        }}
-                        className="bg-zinc-900 border-white/10 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <Input
-                        placeholder="Tiempo MM:SS (ej. 02:30)"
-                        value={paso.timestampStr}
-                        onChange={(e) => {
-                          const copy = [...formPasos]
-                          copy[idx].timestampStr = e.target.value
-                          setFormPasos(copy)
-                        }}
-                        className="bg-zinc-900 border-white/10 text-xs font-mono text-center"
-                      />
-                    </div>
-                  </div>
-
-                  <textarea
-                    rows={1}
-                    placeholder="Detalles / Tips de precisión para este paso..."
-                    value={paso.descripcion}
-                    onChange={(e) => {
-                      const copy = [...formPasos]
-                      copy[idx].descripcion = e.target.value
-                      setFormPasos(copy)
-                    }}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-lg p-2 text-xs text-white outline-none focus:border-amber-500 resize-none"
-                  />
-                </div>
-              ))}
-            </div>
+            </FormSection>
 
             {/* Footer Buttons */}
             <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
@@ -868,7 +1010,7 @@ export default function AdminInduccionPage() {
                 Cancelar
               </Button>
               <Button type="submit" disabled={submitting} size="sm" className="bg-amber-500 text-black font-black">
-                {submitting ? 'Guardando...' : editingInduccionId ? 'Actualizar Inducción' : 'Guardar e Inducir'}
+                {submitting ? 'Guardando...' : editingInduccionId ? 'Actualizar Inducción' : 'Guardar Inducción'}
               </Button>
             </div>
           </form>
@@ -877,3 +1019,4 @@ export default function AdminInduccionPage() {
     </div>
   )
 }
+

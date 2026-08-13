@@ -32,9 +32,12 @@ export async function PUT(
       servicio_id,
       youtube_url,
       pdf_url,
+      pdf_urls,
       herramientas_requeridas,
       duracion_minutos,
       is_published,
+      nivel,
+      dirigido_a,
       pasos
     } = body
 
@@ -44,13 +47,16 @@ export async function PUT(
     }
     if (titulo !== undefined) updateData.titulo = titulo.trim()
     if (descripcion !== undefined) updateData.descripcion = descripcion ? descripcion.trim() : null
-    if (categoria !== undefined) updateData.categoria = categoria || 'Servicio Técnico'
+    if (categoria !== undefined) updateData.categoria = categoria || 'General'
     if (servicio_id !== undefined) updateData.servicio_id = servicio_id || null
     if (youtube_url !== undefined) updateData.youtube_url = youtube_url ? youtube_url.trim() : null
     if (pdf_url !== undefined) updateData.pdf_url = pdf_url ? pdf_url.trim() : null
+    if (pdf_urls !== undefined) updateData.pdf_urls = Array.isArray(pdf_urls) ? pdf_urls : []
     if (herramientas_requeridas !== undefined) updateData.herramientas_requeridas = Array.isArray(herramientas_requeridas) ? herramientas_requeridas : []
     if (duracion_minutos !== undefined) updateData.duracion_minutos = Number(duracion_minutos) || 15
     if (is_published !== undefined) updateData.is_published = !!is_published
+    if (nivel !== undefined) updateData.nivel = nivel || 'basico'
+    if (dirigido_a !== undefined) updateData.dirigido_a = Array.isArray(dirigido_a) ? dirigido_a : ['todos']
 
     const { data: updatedInd, error: indErr } = await supabase
       .from('inducciones')

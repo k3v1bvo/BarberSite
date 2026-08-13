@@ -26,9 +26,62 @@ export function OrdenLlegadaBarberos() {
 
   useEffect(() => {
     fetchOrdenLlegadaYTurnos()
+    fetchConfigTurnos()
+
     const interval = setInterval(fetchOrdenLlegadaYTurnos, 30000)
-    return () => clearInterval(interval)
+
+    // Subscripción en tiempo real a la tabla config_turnos
+    const channel = supabase
+      .channel('config_turnos_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'config_turnos', filter: 'id=eq.turno_offset' },
+        (payload: any) => {
+          if (payload.new && typeof payload.new.rotation_offset === 'number') {
+            const hoy = getBusinessDateString()
+            if (payload.new.fecha === hoy) {
+              setRotationOffset(payload.new.rotation_offset)
+            } else {
+              setRotationOffset(0)
+            }
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
   }, [])
+
+  const fetchConfigTurnos = async () => {
+    try {
+      const hoy = getBusinessDateString()
+      const { data } = await supabase
+        .from('config_turnos')
+        .select('*')
+        .eq('id', 'turno_offset')
+        .maybeSingle()
+
+      if (data) {
+        if (data.fecha === hoy) {
+          setRotationOffset(data.rotation_offset || 0)
+        } else {
+          // Es un nuevo día, reiniciar offset
+          setRotationOffset(0)
+          await supabase.from('config_turnos').upsert({
+            id: 'turno_offset',
+            fecha: hoy,
+            rotation_offset: 0,
+            updated_at: new Date().toISOString()
+          })
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching config_turnos:', err)
+    }
+  }
 
   const fetchOrdenLlegadaYTurnos = async () => {
     try {
@@ -117,9 +170,22 @@ export function OrdenLlegadaBarberos() {
     m.turnoPosicion = idx + 1
   })
 
-  const pasarTurno = () => {
+  const pasarTurno = async () => {
     if (listaTurnos.length === 0) return
-    setRotationOffset(prev => (prev + 1) % listaTurnos.length)
+    const nextOffset = (rotationOffset + 1) % listaTurnos.length
+    setRotationOffset(nextOffset)
+
+    try {
+      const hoy = getBusinessDateString()
+      await supabase.from('config_turnos').upsert({
+        id: 'turno_offset',
+        fecha: hoy,
+        rotation_offset: nextOffset,
+        updated_at: new Date().toISOString()
+      })
+    } catch (err) {
+      console.error('Error guardando rotación de turno:', err)
+    }
   }
 
   const proximoBarbero = turnosOrdenados[0]

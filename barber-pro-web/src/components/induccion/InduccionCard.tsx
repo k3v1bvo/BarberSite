@@ -3,7 +3,7 @@
 import { parseYouTubeVideoId } from '@/lib/youtube'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { Play, CheckCircle2, Clock, Wrench, ChevronRight, Layers } from 'lucide-react'
+import { Play, CheckCircle2, Clock, Wrench, ChevronRight, Layers, FileText } from 'lucide-react'
 
 interface InduccionCardProps {
   induccion: {
@@ -11,8 +11,11 @@ interface InduccionCardProps {
     titulo: string
     descripcion?: string
     categoria?: string
-    youtube_url: string
+    youtube_url?: string
     pdf_url?: string
+    pdf_urls?: string[]
+    nivel?: string
+    dirigido_a?: string[]
     duracion_minutos?: number
     herramientas_requeridas?: string[]
     is_published?: boolean
@@ -36,8 +39,21 @@ export function InduccionCard({
   onEdit,
   onDelete
 }: InduccionCardProps) {
-  const videoId = parseYouTubeVideoId(induccion.youtube_url)
+  const videoId = induccion.youtube_url ? parseYouTubeVideoId(induccion.youtube_url) : null
   const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null
+
+  const hasPdfs = (induccion.pdf_urls && induccion.pdf_urls.length > 0) || Boolean(induccion.pdf_url)
+  const pdfCount = induccion.pdf_urls?.length || (induccion.pdf_url ? 1 : 0)
+
+  const getNivelBadge = (nivel?: string) => {
+    switch (nivel) {
+      case 'avanzado': return { label: '🔴 Avanzado', color: 'border-red-500/30 text-red-400' }
+      case 'intermedio': return { label: '🟡 Intermedio', color: 'border-amber-500/30 text-amber-400' }
+      default: return { label: '🟢 Básico', color: 'border-emerald-500/30 text-emerald-400' }
+    }
+  }
+
+  const nivelBadge = getNivelBadge(induccion.nivel)
 
   return (
     <Card 
@@ -56,8 +72,9 @@ export function InduccionCard({
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-zinc-950 text-zinc-700">
-            <Play className="w-12 h-12 stroke-[1.5]" />
+          <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-zinc-900 to-zinc-950 text-zinc-600 p-4 text-center">
+            <FileText className="w-12 h-12 stroke-[1.2] text-amber-500/50 mb-1" />
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Documentación & Guía</span>
           </div>
         )}
 
@@ -79,7 +96,7 @@ export function InduccionCard({
         {/* Play Icon Overlay */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-[2px]">
           <div className="w-12 h-12 rounded-full bg-amber-500 text-black flex items-center justify-center shadow-xl transform scale-90 group-hover:scale-100 transition-transform font-black">
-            <Play className="w-6 h-6 fill-current ml-0.5" />
+            {thumbnailUrl ? <Play className="w-6 h-6 fill-current ml-0.5" /> : <FileText className="w-6 h-6" />}
           </div>
         </div>
 
@@ -95,11 +112,14 @@ export function InduccionCard({
               ✂️ {induccion.servicios.nombre}
             </span>
           )}
-          {induccion.pdf_url && (
+          {hasPdfs && (
             <span className="text-[9px] font-black uppercase tracking-widest text-blue-400 bg-black/80 border border-blue-500/30 px-2 py-0.5 rounded-md backdrop-blur-md flex items-center gap-1">
-              📄 Material PDF
+              📄 {pdfCount} {pdfCount === 1 ? 'PDF' : 'PDFs'}
             </span>
           )}
+          <span className={`text-[9px] font-black uppercase tracking-widest bg-black/80 border px-2 py-0.5 rounded-md backdrop-blur-md ${nivelBadge.color}`}>
+            {nivelBadge.label}
+          </span>
         </div>
       </div>
 

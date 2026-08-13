@@ -98,9 +98,12 @@ export async function POST(request: NextRequest) {
       servicio_id,
       youtube_url,
       pdf_url,
+      pdf_urls,
       herramientas_requeridas,
       duracion_minutos,
       is_published,
+      nivel,
+      dirigido_a,
       pasos,
       asignaciones_barberos // Array de barbero_ids a asignar
     } = body
@@ -115,13 +118,16 @@ export async function POST(request: NextRequest) {
       .insert({
         titulo: titulo.trim(),
         descripcion: descripcion ? descripcion.trim() : null,
-        categoria: categoria || 'Servicio Técnico',
+        categoria: categoria || 'General',
         servicio_id: servicio_id || null,
         youtube_url: youtube_url ? youtube_url.trim() : null,
         pdf_url: pdf_url ? pdf_url.trim() : null,
+        pdf_urls: Array.isArray(pdf_urls) ? pdf_urls : (pdf_url ? [pdf_url.trim()] : []),
         herramientas_requeridas: Array.isArray(herramientas_requeridas) ? herramientas_requeridas : [],
         duracion_minutos: Number(duracion_minutos) || 15,
         is_published: is_published !== false,
+        nivel: nivel || 'basico',
+        dirigido_a: Array.isArray(dirigido_a) ? dirigido_a : ['todos'],
         creado_por: user.id
       })
       .select()

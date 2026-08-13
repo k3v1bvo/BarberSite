@@ -236,7 +236,7 @@ export default async function RecepcionPage(props: { searchParams: Promise<{ dat
                   <div className="space-y-2">
                     <label className="text-[10px] uppercase font-black text-zinc-500 ml-1">Servicio</label>
                     <select name="servicio_id" className="w-full h-12 rounded-xl bg-zinc-950 border border-white/10 px-4 text-sm text-white" required>
-                      <option value="">Link...</option>
+                      <option value="">Seleccionar...</option>
                       {servicios?.map((s) => (
                         <option key={s.id} value={s.id}>{s.nombre}</option>
                       ))}
@@ -245,7 +245,7 @@ export default async function RecepcionPage(props: { searchParams: Promise<{ dat
                   <div className="space-y-2">
                     <label className="text-[10px] uppercase font-black text-zinc-500 ml-1">Barbero</label>
                     <select name="barbero_id" className="w-full h-12 rounded-xl bg-zinc-950 border border-white/10 px-4 text-sm text-white" required>
-                      <option value="">Link...</option>
+                      <option value="">Seleccionar...</option>
                       {barberos?.map((b) => (
                         <option key={b.id} value={b.id}>{b.full_name.split(' ')[0]}</option>
                       ))}
