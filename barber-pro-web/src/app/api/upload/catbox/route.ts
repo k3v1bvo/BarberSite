@@ -10,10 +10,12 @@ const DEFAULT_USERHASH = '15f90080f56ab18494d458380'
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    // Se permite la subida a Catbox para usuarios autenticados y reservas/formularios públicos
+    try {
+      const supabase = await createServerSupabaseClient()
+      await supabase.auth.getUser()
+    } catch {
+      // Ignorar errores de sesión
     }
 
     // Cualquier usuario autenticado puede subir archivos de avatar/perfil

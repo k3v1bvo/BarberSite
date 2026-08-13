@@ -2,8 +2,8 @@
  * Comprime una imagen antes de subirla para reducir su tamaño y acelerar la subida.
  */
 async function compressImage(file: File, maxWidth = 1920, maxHeight = 1920, quality = 0.85): Promise<File> {
-  // Si es SVG o es menor a 400KB, se sube directo sin procesar
-  if (file.type === 'image/svg+xml' || file.size < 400 * 1024) {
+  // Si no es una imagen (ej. PDF, DOCX), es SVG o es menor a 400KB, se sube directo sin procesar
+  if (!file.type.startsWith('image/') || file.type === 'image/svg+xml' || file.size < 400 * 1024) {
     return file
   }
 

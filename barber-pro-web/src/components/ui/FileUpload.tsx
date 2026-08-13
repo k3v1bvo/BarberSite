@@ -71,14 +71,26 @@ export function FileUpload({
         onUploadSuccess(localBase64, file.name)
       }
 
-      // 2. Intentar subida al API /api/upload si está disponible
+      // 2. Intentar subida a Catbox primero para PDFs o como fallback
       try {
         const formData = new FormData()
         formData.append('file', file)
-        const res = await fetch('/api/upload', {
+        
+        // Si es PDF o documento, probar Catbox primero
+        const endpoint = isFilePdf ? '/api/upload/catbox' : '/api/upload'
+        let res = await fetch(endpoint, {
           method: 'POST',
           body: formData,
         })
+
+        if (!res.ok && isFilePdf) {
+          // Intentar /api/upload si catbox falló
+          res = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          })
+        }
+
         if (res.ok) {
           const data = await res.json()
           if (data.url) {
@@ -88,10 +100,30 @@ export function FileUpload({
           }
         }
       } catch (uploadErr) {
-        console.warn('API upload falló, usando vista previa Base64:', uploadErr)
+        console.warn('Subida primaria falló, utilizando fallbacks:', uploadErr)
       }
 
-      // Fallback para imágenes a ImgBB si no es PDF
+      // 3. Fallback para imágenes / documentos a Catbox o ImgBB
+      try {
+        const catboxForm = new FormData()
+        catboxForm.append('file', file)
+        const catRes = await fetch('/api/upload/catbox', {
+          method: 'POST',
+          body: catboxForm,
+        })
+        if (catRes.ok) {
+          const cData = await catRes.json()
+          if (cData.url) {
+            setPreview(cData.url)
+            onUploadSuccess(cData.url, file.name)
+            return
+          }
+        }
+      } catch (catErr) {
+        console.warn('Catbox upload fallback error:', catErr)
+      }
+
+      // 4. Fallback a ImgBB si es imagen
       if (isImage) {
         try {
           const imgbbUrl = await uploadImageToImgBB(file)
@@ -100,7 +132,7 @@ export function FileUpload({
             onUploadSuccess(imgbbUrl, file.name)
           }
         } catch {
-          // Mantener Base64
+          // Mantener Base64 como último recurso
         }
       }
     } catch (error: any) {
