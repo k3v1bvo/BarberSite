@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getNotificationDbClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { isAfterAutoCloseHour, getBoliviaDayOfWeek, getBoliviaTime } from '@/lib/asistencia/helpers'
 
@@ -19,9 +20,9 @@ export async function PATCH(
       .eq('id', user.id)
       .single()
 
-    if (profile?.role !== 'admin') {
+    if (profile?.role !== 'admin' && profile?.role !== 'coordinador') {
       return NextResponse.json(
-        { error: 'Solo el administrador puede editar registros manualmente' },
+        { error: 'Solo el administrador o coordinador pueden editar registros manualmente' },
         { status: 403 }
       )
     }
@@ -54,17 +55,20 @@ export async function PATCH(
       )
     }
 
-    const { data, error } = await supabase
+    const updatePayload = {
+      hora_entrada: entrada.toISOString(),
+      hora_salida: salida ? salida.toISOString() : null,
+      horas_trabajadas,
+      notas: notas ?? existing.notas,
+      estado: salida ? 'finalizado' : existing.estado,
+      editado_admin: true,
+      cierre_automatico: existing.cierre_automatico,
+    }
+
+    const adminDb = getNotificationDbClient(supabase)
+    const { data, error } = await adminDb
       .from('asistencias')
-      .update({
-        hora_entrada: entrada.toISOString(),
-        hora_salida: salida?.toISOString() || null,
-        horas_trabajadas,
-        notas: notas ?? existing.notas,
-        estado: salida ? 'finalizado' : existing.estado,
-        editado_admin: true,
-        cierre_automatico: existing.cierre_automatico,
-      })
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single()
