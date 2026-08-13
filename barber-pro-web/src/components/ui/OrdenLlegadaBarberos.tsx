@@ -105,11 +105,26 @@ export function OrdenLlegadaBarberos() {
 
       if (error || !asistencias) return
 
-      // Deduplicar por profile_id — quedarse solo con la primera entrada de cada barbero
+      // Normalizador de nombre para deduplicar cuentas duplicadas del mismo barbero
+      const getNormalizedNameKey = (name: string): string => {
+        if (!name) return ''
+        const clean = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+        const parts = clean.split(/\s+/).filter(Boolean)
+        return parts.length >= 2 ? `${parts[0]} ${parts[1]}` : parts[0] || clean
+      }
+
+      // Deduplicar por profile_id y por nombre normalizado (ej: "alexandra valero", "jhoel leon")
       const seenProfileIds = new Set<string>()
+      const seenNameKeys = new Set<string>()
       const asistenciasUnicas = asistencias.filter((item: any) => {
+        const p = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+        const nameKey = getNormalizedNameKey(p?.full_name || '')
+
         if (seenProfileIds.has(item.profile_id)) return false
+        if (nameKey && seenNameKeys.has(nameKey)) return false
+
         seenProfileIds.add(item.profile_id)
+        if (nameKey) seenNameKeys.add(nameKey)
         return true
       })
 
