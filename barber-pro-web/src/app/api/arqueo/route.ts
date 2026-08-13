@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
         .from('daily_closures')
         .select('*')
         .order('fecha', { ascending: false })
-        .limit(50)
+        .limit(365)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
       // Consultar también si tienen comprobante en transactions de cierre (EGR-CIE) por fecha

@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { formatCurrency, getTodayBolivia } from '@/lib/utils'
-import { Scale, CheckCircle, AlertCircle, Store, DollarSign, ExternalLink } from 'lucide-react'
+import { formatCurrency, getTodayBolivia, exportToCSV } from '@/lib/utils'
+import { Scale, CheckCircle, AlertCircle, Store, DollarSign, ExternalLink, Printer, Download } from 'lucide-react'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface Resumen {
@@ -196,7 +196,23 @@ export default function ArqueoPage() {
         <>
           <Card className="border-white/5 bg-zinc-900/80">
             <CardContent className="p-6">
-              <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4">Historial de Cierres de Caja</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400">Historial de Cierres de Caja (Último Año)</h2>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => window.print()} className="gap-2 font-bold uppercase tracking-wider text-xs border-white/20 text-white hover:bg-white/10 print:hidden shadow-lg shadow-white/5">
+                    <Printer className="w-3.5 h-3.5" />
+                    Imprimir
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => exportToCSV(historialList, `arqueo_historial_${getTodayBolivia()}`)} 
+                    className="gap-2 font-bold uppercase tracking-wider text-xs border-blue-500/20 text-blue-400 hover:bg-blue-500/10 print:hidden shadow-lg shadow-blue-500/5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    CSV
+                  </Button>
+                </div>
+              </div>
               {loadingHistorial ? (
                 <div className="py-12 text-center text-zinc-500 text-sm">Cargando historial...</div>
               ) : historialList.length === 0 ? (

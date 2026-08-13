@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { formatCurrency } from '@/lib/utils'
-import { Landmark, Plus, X, ArrowUpRight, ArrowDownLeft, User, Building, FileText, AlertTriangle, CheckCircle2, Search, Wallet } from 'lucide-react'
+import { formatCurrency, exportToCSV } from '@/lib/utils'
+import { Landmark, Plus, X, ArrowUpRight, ArrowDownLeft, User, Building, FileText, AlertTriangle, CheckCircle2, Search, Wallet, Printer, Download } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 
@@ -34,7 +34,7 @@ export default function BancoPage() {
   const [userRole, setUserRole] = useState<string>('')
   const supabase = createClient()
 
-  const [periodo, setPeriodo] = useState<'todos' | 'hoy' | 'semana' | 'mes' | 'custom'>('hoy')
+  const [periodo, setPeriodo] = useState<'todos' | 'hoy' | 'semana' | 'mes' | 'ano' | 'custom'>('hoy')
   const [customDesde, setCustomDesde] = useState('')
   const [customHasta, setCustomHasta] = useState('')
   const [search, setSearch] = useState('')
@@ -75,10 +75,14 @@ export default function BancoPage() {
       const d = new Date(now.getFullYear(), now.getMonth(), 1)
       return { desde: formatLocal(d), hasta: todayStr }
     }
+    if (periodo === 'ano') {
+      const d = new Date(now.getFullYear(), 0, 1)
+      return { desde: formatLocal(d), hasta: todayStr }
+    }
     return { desde: customDesde || todayStr, hasta: customHasta || todayStr }
   }, [periodo, customDesde, customHasta])
 
-  const periodoLabel = periodo === 'todos' ? '(historial completo)' : periodo === 'hoy' ? 'de hoy' : periodo === 'semana' ? 'de la semana' : periodo === 'mes' ? 'del mes' : `${customDesde} → ${customHasta}`
+  const periodoLabel = periodo === 'todos' ? '(historial completo)' : periodo === 'hoy' ? 'de hoy' : periodo === 'semana' ? 'de la semana' : periodo === 'mes' ? 'del mes' : periodo === 'ano' ? 'del año' : `${customDesde} → ${customHasta}`
 
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -353,14 +357,26 @@ export default function BancoPage() {
             {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             {showForm ? 'Cerrar Formulario' : 'Nuevo Movimiento'}
           </Button>
+          <Button variant="outline" onClick={() => window.print()} className="gap-2 font-bold uppercase tracking-wider text-xs border-white/20 text-white hover:bg-white/10 print:hidden shadow-lg shadow-white/5">
+            <Printer className="w-3.5 h-3.5" />
+            Imprimir
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => exportToCSV(txFiltradas, `banco_${getTodayBolivia()}`)} 
+            className="gap-2 font-bold uppercase tracking-wider text-xs border-blue-500/20 text-blue-400 hover:bg-blue-500/10 print:hidden shadow-lg shadow-blue-500/5"
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV
+          </Button>
         </div>
       </div>
 
       {/* Filtro de Periodo y Búsqueda */}
       <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
         <div className="flex flex-wrap gap-2 items-center">
-          <div className="flex gap-1 bg-zinc-950 border border-white/10 rounded-xl p-1 flex-wrap">
-            {(['todos', 'hoy', 'semana', 'mes', 'custom'] as const).map(p => (
+          <div className="flex gap-1 bg-zinc-950 border border-white/10 rounded-xl p-1 flex-wrap print:hidden">
+            {(['todos', 'hoy', 'semana', 'mes', 'ano', 'custom'] as const).map(p => (
               <button
                 key={p}
                 onClick={() => setPeriodo(p)}
@@ -368,7 +384,7 @@ export default function BancoPage() {
                   periodo === p ? 'bg-blue-500/20 text-blue-400' : 'text-zinc-500 hover:text-white'
                 }`}
               >
-                {p === 'todos' ? '📋 Todo' : p === 'hoy' ? '📅 Hoy' : p === 'semana' ? '📆 Semana' : p === 'mes' ? '🗓 Mes' : '📊 Rango'}
+                {p === 'todos' ? '📋 Todo' : p === 'hoy' ? '📅 Hoy' : p === 'semana' ? '📆 Sem' : p === 'mes' ? '🗓 Mes' : p === 'ano' ? '📅 Año' : '📊 Rango'}
               </button>
             ))}
           </div>
