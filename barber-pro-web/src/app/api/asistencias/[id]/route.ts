@@ -156,7 +156,9 @@ export async function POST(
         .single()
 
       if (horario && horario.hora_fin) {
-        const { hour: currentHour, minute: currentMinute } = getBoliviaTime()
+        const bTime = getBoliviaTime()
+        const currentHour = bTime.getUTCHours()
+        const currentMinute = bTime.getUTCMinutes()
         const [endHour, endMinute] = horario.hora_fin.split(':').map(Number)
         
         const currentTime = currentHour * 60 + currentMinute
