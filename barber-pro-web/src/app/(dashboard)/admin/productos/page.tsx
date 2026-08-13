@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { formatCurrency, toTitleCase } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit, Trash2, Package, AlertTriangle, ArrowLeft, X, Save, Search, Filter } from 'lucide-react'
+import { Plus, Edit, Trash2, Package, AlertTriangle, ArrowLeft, X, Save, Search, Filter, ArrowUp, ArrowDown } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { MultiImageUpload } from '@/components/ui/MultiImageUpload'
@@ -27,6 +27,7 @@ interface Producto {
   image_url: string | null
   imagenes?: string[] | null
   is_active: boolean
+  orden?: number
 }
 
 export default function ProductosPage() {
@@ -62,13 +63,40 @@ export default function ProductosPage() {
       const { data: productosData } = await supabase
         .from('productos')
         .select('*')
-        .order('nombre')
+        .order('orden', { ascending: true })
+        .order('nombre', { ascending: true })
 
       setProductos(productosData as Producto[] || [])
     } catch (error) {
       console.error('Error:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleMoveProducto = async (producto: Producto, direction: 'up' | 'down') => {
+    const currentIndex = productos.findIndex(p => p.id === producto.id)
+    if (currentIndex === -1) return
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+    if (targetIndex < 0 || targetIndex >= productos.length) return
+
+    const targetProducto = productos[targetIndex]
+    const currentOrder = producto.orden ?? currentIndex
+    const targetOrder = targetProducto.orden ?? targetIndex
+
+    const newCurrentOrder = targetOrder === currentOrder ? (direction === 'up' ? currentOrder - 1 : currentOrder + 1) : targetOrder
+    const newTargetOrder = currentOrder
+
+    try {
+      await Promise.all([
+        supabase.from('productos').update({ orden: newCurrentOrder }).eq('id', producto.id),
+        supabase.from('productos').update({ orden: newTargetOrder }).eq('id', targetProducto.id)
+      ])
+
+      toastSuccess(`Posición actualizada para ${producto.nombre}`)
+      loadProductos()
+    } catch (err: any) {
+      toastError(err.message || 'Error al cambiar posición')
     }
   }
 
@@ -345,7 +373,24 @@ export default function ProductosPage() {
                         </Badge>
                       </td>
                       <td className="py-6 px-6 text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end items-center gap-1.5">
+                          <button
+                            type="button"
+                            title="Mover arriba en el catálogo"
+                            onClick={() => handleMoveProducto(producto, 'up')}
+                            className="p-2 rounded-lg bg-zinc-950 hover:bg-amber-500/20 text-zinc-400 hover:text-amber-400 border border-white/10 transition-colors"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Mover abajo en el catálogo"
+                            onClick={() => handleMoveProducto(producto, 'down')}
+                            className="p-2 rounded-lg bg-zinc-950 hover:bg-amber-500/20 text-zinc-400 hover:text-amber-400 border border-white/10 transition-colors"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+
                           <Button
                             variant="outline"
                             size="sm"

@@ -184,9 +184,9 @@ function ReservarContent() {
       }
 
       const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo] = await Promise.all([
-        supabase.from('servicios').select('*').eq('is_active', true),
+        supabase.from('servicios').select('*').eq('is_active', true).order('orden', { ascending: true }),
         supabase.from('profiles').select('id, full_name, email, avatar_url, qr_code_url').eq('role', 'barbero').eq('is_active', true),
-        supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url').eq('is_active', true).gt('stock_actual', 0).order('nombre'),
+        supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url').eq('is_active', true).gt('stock_actual', 0).order('orden', { ascending: true }),
         supabase.from('configuraciones').select('valor').eq('llave', 'qr_pago').maybeSingle(),
         supabase.from('promociones').select('*').eq('activa', true),
         supabase.from('configuraciones').select('valor').eq('llave', 'tiempo_minimo_reserva').maybeSingle()

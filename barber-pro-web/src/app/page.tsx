@@ -162,13 +162,14 @@ export default function HomePage() {
             .from('servicios')
             .select('id, nombre, precio, duracion_minutos, descripcion, categoria, imagen_url, imagenes')
             .eq('is_active', true)
-            .order('nombre')
+            .order('orden', { ascending: true })
             .limit(6),
           supabase
             .from('productos')
             .select('id, nombre, precio_venta, image_url')
             .eq('is_active', true)
             .gt('stock_actual', 0)
+            .order('orden', { ascending: true })
             .limit(4),
           supabase
             .from('portafolio')

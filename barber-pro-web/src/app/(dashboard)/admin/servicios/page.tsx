@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { formatCurrency, toTitleCase, toSentenceCase } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit, Trash2, Scissors, ArrowLeft, X, Save, Clock, Palette, UserX, CheckCircle, Tag, Image as ImageIcon } from 'lucide-react'
+import { Plus, Edit, Trash2, Scissors, ArrowLeft, X, Save, Clock, Palette, UserX, CheckCircle, Tag, Image as ImageIcon, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/Toast'
 import { MultiImageUpload } from '@/components/ui/MultiImageUpload'
@@ -23,6 +23,7 @@ interface Servicio {
   duracion_minutos: number
   color: string
   is_active: boolean
+  orden?: number
   imagen_url?: string | null
   imagenes?: string[] | null
   categoria?: string
@@ -75,7 +76,7 @@ export default function ServiciosPage() {
       if (!user) return router.push('/login')
 
       const [resServicios, resBarberos] = await Promise.all([
-        supabase.from('servicios').select('*').order('nombre'),
+        supabase.from('servicios').select('*').order('orden', { ascending: true }).order('nombre', { ascending: true }),
         supabase.from('profiles').select('id, full_name, avatar_url').eq('role', 'barbero').eq('is_active', true)
       ])
 
@@ -85,6 +86,33 @@ export default function ServiciosPage() {
       console.error('Error:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleMoveServicio = async (servicio: Servicio, direction: 'up' | 'down') => {
+    const currentIndex = servicios.findIndex(s => s.id === servicio.id)
+    if (currentIndex === -1) return
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+    if (targetIndex < 0 || targetIndex >= servicios.length) return
+
+    const targetServicio = servicios[targetIndex]
+    const currentOrder = servicio.orden ?? currentIndex
+    const targetOrder = targetServicio.orden ?? targetIndex
+
+    // Swap positions
+    const newCurrentOrder = targetOrder === currentOrder ? (direction === 'up' ? currentOrder - 1 : currentOrder + 1) : targetOrder
+    const newTargetOrder = currentOrder
+
+    try {
+      await Promise.all([
+        supabase.from('servicios').update({ orden: newCurrentOrder }).eq('id', servicio.id),
+        supabase.from('servicios').update({ orden: newTargetOrder }).eq('id', targetServicio.id)
+      ])
+
+      toastSuccess(`Posición actualizada para ${servicio.nombre}`)
+      loadServicios()
+    } catch (err: any) {
+      toastError(err.message || 'Error al cambiar posición')
     }
   }
 
@@ -339,7 +367,27 @@ export default function ServiciosPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-1.5">
+                  {/* Position order controls */}
+                  <div className="flex flex-col gap-1 mr-1">
+                    <button
+                      type="button"
+                      title="Mover arriba en el catálogo"
+                      onClick={() => handleMoveServicio(servicio, 'up')}
+                      className="p-1 rounded-md bg-zinc-950 hover:bg-amber-500/20 text-zinc-400 hover:text-amber-400 border border-white/10 transition-colors"
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Mover abajo en el catálogo"
+                      onClick={() => handleMoveServicio(servicio, 'down')}
+                      className="p-1 rounded-md bg-zinc-950 hover:bg-amber-500/20 text-zinc-400 hover:text-amber-400 border border-white/10 transition-colors"
+                    >
+                      <ArrowDown className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
                   <Button
                     variant="outline"
                     size="sm"

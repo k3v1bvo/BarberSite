@@ -47,7 +47,7 @@ export default function ServiciosPage() {
           .from('servicios')
           .select('id, nombre, precio, duracion_minutos, descripcion, categoria, imagen_url, imagenes')
           .eq('is_active', true)
-          .order('nombre', { ascending: true })
+          .order('orden', { ascending: true })
 
         if (error) throw error
         if (data) {

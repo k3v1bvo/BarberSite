@@ -86,7 +86,7 @@ export default function TiendaPage() {
         .select('*')
         .eq('is_active', true)
         .gt('stock_actual', 0)
-        .order('nombre')
+        .order('orden', { ascending: true })
       
       if (prods) {
         setProductos(prods)
