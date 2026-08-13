@@ -96,7 +96,8 @@ export function OrdenLlegadaBarberos() {
           profile_id,
           profiles (
             full_name,
-            avatar_url
+            avatar_url,
+            role
           )
         `)
         .eq('fecha', hoy)
@@ -113,11 +114,15 @@ export function OrdenLlegadaBarberos() {
         return parts.length >= 2 ? `${parts[0]} ${parts[1]}` : parts[0] || clean
       }
 
-      // Deduplicar por profile_id y por nombre normalizado (ej: "alexandra valero", "jhoel leon")
+      // Filtrar solo barberos (excluir coordinadores/admins) y deduplicar por profile_id y por nombre
       const seenProfileIds = new Set<string>()
       const seenNameKeys = new Set<string>()
       const asistenciasUnicas = asistencias.filter((item: any) => {
         const p = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+        
+        // Excluir si no es rol barbero (ej: coordinador, admin)
+        if (p?.role && p.role !== 'barbero') return false
+
         const nameKey = getNormalizedNameKey(p?.full_name || '')
 
         if (seenProfileIds.has(item.profile_id)) return false
