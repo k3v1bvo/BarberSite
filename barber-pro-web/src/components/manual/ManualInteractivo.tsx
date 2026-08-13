@@ -163,9 +163,13 @@ export function ManualInteractivo({ userRole }: ManualProps) {
                   </div>
                 </div>
                 <div className="space-y-3">
+                  <div className="p-3 bg-zinc-950/60 rounded-xl border border-amber-500/20">
+                    <p className="text-xs font-black text-amber-400 uppercase mb-1">💳 Adelanto Bs 20 (QR):</p>
+                    <p className="text-xs text-zinc-300">Cita asegurada. Tienes una tolerancia de <strong>5 min (ni más ni menos)</strong>.</p>
+                  </div>
                   <div className="p-3 bg-zinc-950/60 rounded-xl border border-emerald-500/20">
-                    <p className="text-xs font-black text-emerald-400 uppercase mb-1">💳 Adelanto Bs 20 (QR):</p>
-                    <p className="text-xs text-zinc-300">Cita 100% asegurada. Tienes una tolerancia de <strong>5 min (máximo 15 min total)</strong> y puedes reprogramar sin costo.</p>
+                    <p className="text-xs font-black text-emerald-400 uppercase mb-1">💳 Pago Total 100% (QR):</p>
+                    <p className="text-xs text-zinc-300">Cita 100% asegurada. Tienes una tolerancia completa de <strong>10 min en total</strong>.</p>
                   </div>
                   <div className="p-3 bg-zinc-950/60 rounded-xl border border-red-500/20">
                     <p className="text-xs font-black text-red-400 uppercase mb-1">🏬 Pagar en Local (Bs 0 QR):</p>

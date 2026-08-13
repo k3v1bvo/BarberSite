@@ -1025,7 +1025,7 @@ function ReservarContent() {
                               <span className="font-black text-sm text-white">Adelanto Bs 20 (QR)</span>
                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-black font-black">RECOMENDADO</span>
                             </div>
-                            <p className="text-xs text-zinc-400">Tolerancia de 5 min (máx. 15 min en total). Cita asegurada.</p>
+                            <p className="text-xs text-zinc-400">Tolerancia de 5 min (ni más ni menos). Cita asegurada.</p>
                           </button>
 
                           <button
@@ -1037,7 +1037,7 @@ function ReservarContent() {
                               <span className="font-black text-sm text-emerald-400">Pagar Total 100% (QR)</span>
                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500 text-black font-black">COMPLETO</span>
                             </div>
-                            <p className="text-xs text-zinc-400">Cita 100% pagada. Evitas trámites en local y puedes reprogramar.</p>
+                            <p className="text-xs text-zinc-400">Tolerancia de 10 min en total. Cita 100% pagada y asegurada.</p>
                           </button>
 
                           <button
@@ -1067,7 +1067,16 @@ function ReservarContent() {
                       <div className="mt-6 p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
                         <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">✅ Beneficio Adelanto Bs 20:</p>
                         <p className="text-xs text-zinc-300 font-medium">
-                          Con tu adelanto de Bs 20 tienes una tolerancia de <strong>5 min (máximo 15 min de tolerancia total)</strong>. Tu cita queda asegurada y puedes reprogramarla sin recargo.
+                          Con tu adelanto de Bs 20 tienes una tolerancia de <strong>5 min (ni más ni menos)</strong>. Tu cita queda asegurada y puedes reprogramarla sin recargo.
+                        </p>
+                      </div>
+                    )}
+
+                    {tipoReserva === 'pago_total' && totalReserva > 0 && (
+                      <div className="mt-6 p-5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl">
+                        <p className="text-xs font-black text-emerald-400 uppercase tracking-widest mb-1">✅ Beneficio Pago Total 100%:</p>
+                        <p className="text-xs text-zinc-300 font-medium">
+                          Con tu pago completo del 100% tienes una tolerancia de <strong>10 min en total</strong>. Evitas trámites en caja y tu cita queda asegurada.
                         </p>
                       </div>
                     )}
