@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export interface DomingoAsignacion {
@@ -49,7 +49,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Formato inválido' }, { status: 400 })
     }
 
-    const { error } = await supabase
+    const adminSupabase = await createServerAdminClient()
+    const { error } = await adminSupabase
       .from('sistema_config')
       .upsert({
         clave: 'domingos_rotativos_config',

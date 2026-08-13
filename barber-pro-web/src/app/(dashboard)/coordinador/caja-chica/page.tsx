@@ -5,8 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { formatCurrency, getTodayBolivia } from '@/lib/utils'
-import { Wallet, Plus, X, User, Building, Image as ImageIcon, ArrowUpCircle, ArrowDownCircle, Search, TrendingUp, TrendingDown, Scale, ShoppingCart, Receipt, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { formatCurrency, getTodayBolivia, exportToCSV } from '@/lib/utils'
+import { Wallet, Plus, X, User, Building, Image as ImageIcon, ArrowUpCircle, ArrowDownCircle, Search, TrendingUp, TrendingDown, Scale, ShoppingCart, Receipt, ArrowUpDown, ArrowUp, ArrowDown, Printer, Download } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import Link from 'next/link'
@@ -55,7 +55,7 @@ export default function CajaChicaPage() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
-  const [periodo, setPeriodo] = useState<'todos' | 'hoy' | 'semana' | 'mes' | 'custom'>('hoy')
+  const [periodo, setPeriodo] = useState<'todos' | 'hoy' | 'semana' | 'mes' | 'ano' | 'custom'>('hoy')
   const [customDesde, setCustomDesde] = useState('')
   const [customHasta, setCustomHasta] = useState('')
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'INGRESO' | 'EGRESO'>('todos')
@@ -91,11 +91,15 @@ export default function CajaChicaPage() {
       const d = new Date(now.getFullYear(), now.getMonth(), 1)
       return { desde: formatLocal(d), hasta: todayStr }
     }
+    if (periodo === 'ano') {
+      const d = new Date(now.getFullYear(), 0, 1)
+      return { desde: formatLocal(d), hasta: todayStr }
+    }
     // custom
     return { desde: customDesde || todayStr, hasta: customHasta || todayStr }
   }
 
-  const periodoLabel = periodo === 'todos' ? '(todos los registros)' : periodo === 'hoy' ? 'de hoy' : periodo === 'semana' ? 'de la semana' : periodo === 'mes' ? 'del mes' : `${customDesde} → ${customHasta}`
+  const periodoLabel = periodo === 'todos' ? '(todos los registros)' : periodo === 'hoy' ? 'de hoy' : periodo === 'semana' ? 'de la semana' : periodo === 'mes' ? 'del mes' : periodo === 'ano' ? 'del año' : `${customDesde} → ${customHasta}`
 
   const [form, setForm] = useState({
     direccion: '' as 'INGRESO' | 'EGRESO' | '',
@@ -625,13 +629,25 @@ export default function CajaChicaPage() {
             <Plus className="w-4 h-4" />
             Mov. Manual
           </Button>
+          <Button variant="outline" onClick={() => window.print()} className="gap-2 font-bold uppercase tracking-wider text-xs border-white/20 text-white hover:bg-white/10 print:hidden">
+            <Printer className="w-3.5 h-3.5" />
+            Imprimir
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => exportToCSV(transactions, `caja_chica_${getTodayBolivia()}`)} 
+            className="gap-2 font-bold uppercase tracking-wider text-xs border-blue-500/20 text-blue-400 hover:bg-blue-500/10 print:hidden"
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV
+          </Button>
         </div>
       </div>
 
       {/* Filtro de Periodo */}
       <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
-        <div className="flex gap-1 bg-zinc-950 border border-white/10 rounded-xl p-1 flex-wrap">
-          {(['todos', 'hoy', 'semana', 'mes', 'custom'] as const).map(p => (
+        <div className="flex gap-1 bg-zinc-950 border border-white/10 rounded-xl p-1 flex-wrap print:hidden">
+          {(['todos', 'hoy', 'semana', 'mes', 'ano', 'custom'] as const).map(p => (
             <button
               key={p}
               onClick={() => setPeriodo(p)}

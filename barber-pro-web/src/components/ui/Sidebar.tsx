@@ -390,7 +390,7 @@ export function Sidebar({ role, userId }: SidebarProps) {
       <aside
         ref={sidebarRef}
         className={cn(
-          'sidebar-desktop',
+          'sidebar-desktop print:hidden',
           collapsed ? 'sidebar-desktop--collapsed' : 'sidebar-desktop--expanded'
         )}
       >
@@ -403,7 +403,7 @@ export function Sidebar({ role, userId }: SidebarProps) {
       {/* Backdrop */}
       <div
         className={cn(
-          'sidebar-overlay',
+          'sidebar-overlay print:hidden',
           mobileOpen ? 'sidebar-overlay--visible' : 'sidebar-overlay--hidden'
         )}
         onClick={closeMobile}

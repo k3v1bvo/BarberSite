@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { formatCurrency, getTodayBolivia } from '@/lib/utils'
-import { Receipt, Plus, X, Store, Filter, ArrowUpDown, ArrowUp, ArrowDown, Search, Wallet, ShoppingBag, Image as ImageIcon, User, Sparkles, CheckCircle2, DollarSign, QrCode, CreditCard, Scissors, Package, Layers, AlertCircle } from 'lucide-react'
+import { formatCurrency, getTodayBolivia, exportToCSV } from '@/lib/utils'
+import { Receipt, Plus, X, Store, Filter, ArrowUpDown, ArrowUp, ArrowDown, Search, Wallet, ShoppingBag, Image as ImageIcon, User, Sparkles, CheckCircle2, DollarSign, QrCode, CreditCard, Scissors, Package, Layers, AlertCircle, Printer, Download } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import Link from 'next/link'
@@ -107,6 +107,8 @@ export default function VentasPage() {
     const [txRes, ctasRes, { data: sData }, { data: pData }, { data: profData }] = await Promise.all([
       filtroLibro === 'HOY'
         ? fetch(`/api/transactions?fecha=${getTodayBolivia()}&limit=200`).then(r => r.ok ? r.json() : [])
+        : filtroLibro === 'ESTE_AÑO'
+        ? fetch(`/api/transactions?desde=${new Date().getFullYear()}-01-01&limit=2000`).then(r => r.ok ? r.json() : [])
         : filtroLibro === 'TODOS'
         ? Promise.all([
             fetch(`/api/transactions?libro=VENTAS&limit=200`),
@@ -291,6 +293,18 @@ export default function VentasPage() {
             {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             {showForm ? 'Cerrar' : 'Nueva Venta'}
           </Button>
+          <Button variant="outline" onClick={() => window.print()} className="gap-2 font-bold uppercase tracking-wider text-xs border-white/20 text-white hover:bg-white/10 print:hidden">
+            <Printer className="w-3.5 h-3.5" />
+            Imprimir
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => exportToCSV(transactions, `ventas_${getTodayBolivia()}`)} 
+            className="gap-2 font-bold uppercase tracking-wider text-xs border-blue-500/20 text-blue-400 hover:bg-blue-500/10 print:hidden"
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV
+          </Button>
         </div>
       </div>
 
@@ -337,10 +351,10 @@ export default function VentasPage() {
       <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-zinc-500" />
-          {(['HOY', 'TODOS', 'SERVICIOS', 'VENTAS', 'USO_TIENDA'] as const).map(f => (
+          {(['HOY', 'ESTE_AÑO', 'TODOS', 'SERVICIOS', 'VENTAS', 'USO_TIENDA'] as const).map(f => (
             <button
               key={f}
-              onClick={() => setFiltroLibro(f)}
+              onClick={() => setFiltroLibro(f as any)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${
                 filtroLibro === f
                   ? f === 'HOY'
@@ -353,7 +367,7 @@ export default function VentasPage() {
                   : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
               }`}
             >
-              {f === 'HOY' ? '📅 Hoy' : f === 'TODOS' ? 'Todas' : f === 'SERVICIOS' ? 'Servicios' : f === 'VENTAS' ? 'Ventas' : '⚡ Uso Tienda'}
+              {f === 'HOY' ? '📅 Hoy' : f === 'ESTE_AÑO' ? '📅 Este Año' : f === 'TODOS' ? 'Todas' : f === 'SERVICIOS' ? 'Servicios' : f === 'VENTAS' ? 'Ventas' : '⚡ Uso Tienda'}
             </button>
           ))}
         </div>

@@ -67,3 +67,41 @@ export function getTodayBolivia(): string {
     day: '2-digit'
   }).format(new Date())
 }
+
+/**
+ * Convierte un arreglo de objetos a CSV y lo descarga en el navegador.
+ */
+export function exportToCSV(data: any[], filename: string) {
+  if (data.length === 0) return
+
+  // Obtener encabezados
+  const headers = Object.keys(data[0])
+  
+  // Construir filas
+  const csvRows = []
+  
+  // Agregar encabezados
+  csvRows.push(headers.join(','))
+  
+  // Agregar valores
+  for (const row of data) {
+    const values = headers.map(header => {
+      const escaped = ('' + (row[header] ?? '')).replace(/"/g, '""')
+      return `"${escaped}"`
+    })
+    csvRows.push(values.join(','))
+  }
+  
+  const csvString = csvRows.join('\n')
+  
+  // Descargar usando Blob
+  const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvString], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.setAttribute('href', url)
+  link.setAttribute('download', `${filename}.csv`)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}

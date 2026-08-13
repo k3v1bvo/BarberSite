@@ -34,7 +34,8 @@ import {
   UserCog,
   PackageOpen,
   GraduationCap,
-  Mail
+  Mail,
+  BookOpen
 } from 'lucide-react'
 
 export interface NavItem {
@@ -65,6 +66,7 @@ export function getAdminNavSections(agendaHref: string): NavSection[] {
         { label: 'Caja / POS', href: '/admin/caja', icon: ShoppingBag, description: 'Nueva cita o venta rápida' },
         { label: 'Asistencia', href: '/admin/asistencia', icon: Clock, description: 'Turnos del personal' },
         { label: 'Horarios', href: '/admin/horarios', icon: Clock, description: 'Plantillas y asignación' },
+        { label: 'Guía de Uso', href: '/manual', icon: BookOpen, description: 'Manual de usuario por rol' },
         { label: 'Notificaciones', href: '/notificaciones', icon: Bell, description: 'Alertas e historial' },
       ],
     },
@@ -126,6 +128,8 @@ export function getCoordinadorNavSections(agendaHref: string): NavSection[] {
         { label: 'Agenda', href: agendaHref, icon: Calendar, description: 'Citas y disponibilidad' },
         { label: 'Caja / POS', href: '/coordinador/caja', icon: ShoppingBag, description: 'Nueva cita o venta rápida' },
         { label: 'Asistencia', href: '/admin/asistencia', icon: Clock, description: 'Turnos del personal' },
+        { label: 'Horarios', href: '/admin/horarios', icon: Clock, description: 'Plantillas y asignación' },
+        { label: 'Guía de Uso', href: '/manual', icon: BookOpen, description: 'Manual de usuario por rol' },
         { label: 'Notificaciones', href: '/notificaciones', icon: Bell, description: 'Alertas e historial' },
       ],
     },
@@ -175,6 +179,7 @@ export const barberoNavItems = (agendaHref: string): NavItem[] => [
   { label: 'Mi panel', href: '/barbero', icon: LayoutDashboard },
   { label: 'Mi agenda', href: agendaHref, icon: Calendar },
   { label: 'Capacitación', href: '/barbero/induccion', icon: GraduationCap },
+  { label: 'Guía de Uso', href: '/manual', icon: BookOpen },
   { label: 'Notificaciones', href: '/notificaciones', icon: Bell },
   { label: 'Mi Perfil', href: '/perfil', icon: UserCog },
 ]
@@ -183,6 +188,7 @@ export const clienteNavItems: NavItem[] = [
   { label: 'Mis Citas', href: '/cliente', icon: Calendar },
   { label: 'Reservar', href: '/reservar', icon: Scissors },
   { label: 'Tienda', href: '/tienda', icon: ShoppingBag },
+  { label: 'Aprende / Referidos', href: '/manual', icon: BookOpen },
   { label: 'Notificaciones', href: '/notificaciones', icon: Bell },
   { label: 'Mi Perfil', href: '/perfil', icon: UserCog },
 ]
@@ -198,6 +204,7 @@ export function isDashboardRoute(pathname: string): boolean {
     '/calendario',
     '/notificaciones',
     '/perfil',
+    '/manual',
   ]
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 }
