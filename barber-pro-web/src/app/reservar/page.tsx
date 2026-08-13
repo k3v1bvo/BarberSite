@@ -1,6 +1,4 @@
-'use client'
-
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -104,6 +102,17 @@ function ReservarContent() {
   const searchParams = useSearchParams()
   const supabase = createClient()
 
+  const wizardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (wizardRef.current) {
+      const timer = setTimeout(() => {
+        wizardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [step])
+
   useEffect(() => {
     loadData()
     const servicioId = searchParams.get('servicio')
@@ -115,6 +124,9 @@ function ReservarContent() {
         ...(servicioId ? { servicio_id: servicioId } : {}),
         ...(barberoId ? { barbero_id: barberoId } : {}),
       }))
+      if (servicioId) {
+        setStep(2)
+      }
     }
   }, [searchParams])
 
@@ -561,7 +573,7 @@ function ReservarContent() {
   if (tipoReserva !== 'sin_adelanto' && totalReserva > 0 && !formData.comprobante_url) missingFields.push('Comprobante de Pago QR')
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black text-white pb-24 font-sans selection:bg-amber-500/30">
+    <div ref={wizardRef} className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black text-white pb-24 font-sans selection:bg-amber-500/30">
       <div className="max-w-4xl mx-auto px-4 py-8 lg:py-12">
         <div className="mb-10 text-center animate-in fade-in slide-in-from-top-4 duration-700">
           <h1 className="text-5xl md:text-6xl font-black tracking-tight text-white uppercase leading-none drop-shadow-lg">
