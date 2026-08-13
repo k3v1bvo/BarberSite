@@ -21,6 +21,26 @@ export function getBusinessDateString(d = new Date()): string {
   return `${year}-${month}-${day}`
 }
 
+export function getBoliviaDateString(d = new Date()): string {
+  return getBusinessDateString(d)
+}
+
+export function getBoliviaTime(d = new Date()): Date {
+  return new Date(d.getTime() - 4 * 60 * 60 * 1000)
+}
+
+export function getBoliviaDayOfWeek(d = new Date()): number {
+  return getBoliviaTime(d).getUTCDay()
+}
+
+export function getBoliviaMonth(d = new Date()): number {
+  return getBoliviaTime(d).getUTCMonth() + 1
+}
+
+export function getBoliviaYear(d = new Date()): number {
+  return getBoliviaTime(d).getUTCFullYear()
+}
+
 export function getMondayOfWeek(d = new Date()): Date {
   const localTime = new Date(d.getTime() - 4 * 60 * 60 * 1000)
   const day = localTime.getUTCDay()

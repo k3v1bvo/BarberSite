@@ -203,32 +203,7 @@ export default function AsistenciaAdminPage() {
   }
 
   const abrirEdicion = (r: Registro) => {
-    setEditando(r)
-    setFormEdit({ 
-      hora_entrada: isoToBoliviaInput(r.hora_entrada), 
-      hora_salida: isoToBoliviaInput(r.hora_salida), 
-      notas: r.notas || '' 
-    })
-  }
-
-  const guardarEdicion = async () => {
-    if (!editando) return
-    try {
-      const entIso = formEdit.hora_entrada ? new Date(formEdit.hora_entrada + '-04:00').toISOString() : ''
-      const salIso = formEdit.hora_salida ? new Date(formEdit.hora_salida + '-04:00').toISOString() : null
-
-      const res = await fetch(`/api/asistencias/${editando.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hora_entrada: entIso, hora_salida: salIso, notas: formEdit.notas }),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-      success('Registro actualizado')
-      setEditando(null)
-      vista === 'dia' ? loadDia() : loadSemana()
-    } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Error al guardar')
-    }
+    setSelectedAsistenciaForModal(r)
   }
 
   const horaFmt = (iso: string) =>
@@ -781,178 +756,10 @@ export default function AsistenciaAdminPage() {
         </>
       )}
 
-      {/* ── Modal Detalle + Edición Premium ── */}
-      {editando && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-8 overflow-y-auto bg-black/80 backdrop-blur-md" onClick={() => setEditando(null)}>
-          <div className="w-full max-w-lg animate-in slide-in-from-bottom-4 fade-in duration-300" onClick={e => e.stopPropagation()}>
-            {/* Header con perfil del barbero */}
-            <div className="relative bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 rounded-t-3xl border border-amber-500/20 border-b-0 p-6 pb-5">
-              {/* Botón cerrar */}
-              <button onClick={() => setEditando(null)} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-all">
-                ✕
-              </button>
-              
-              <div className="flex items-start gap-5">
-                {/* Avatar grande */}
-                <div className="relative shrink-0">
-                  {editando.selfie_url ? (
-                    <img src={editando.selfie_url} alt="Selfie" className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500/40 shadow-lg shadow-amber-500/10" />
-                  ) : editando.profiles?.avatar_url ? (
-                    <img src={editando.profiles.avatar_url} alt="" className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500/40 shadow-lg shadow-amber-500/10" />
-                  ) : (
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border-2 border-amber-500/30 flex items-center justify-center shadow-lg">
-                      <span className="text-3xl font-black text-amber-400">{editando.profiles?.full_name?.charAt(0) || '?'}</span>
-                    </div>
-                  )}
-                  {editando.lat != null && editando.lng != null && (
-                    <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-black text-[9px] font-black w-5 h-5 rounded-full border-2 border-zinc-900 flex items-center justify-center">📍</span>
-                  )}
-                </div>
-
-                {/* Info barbero */}
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-black text-white leading-tight truncate">{editando.profiles?.full_name}</h2>
-                  <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{editando.profiles?.role}</p>
-                  <div className="flex items-center gap-2 mt-3">
-                    <Badge variant={estadoBadgeVariant(editando.estado_calculado)} className="uppercase text-[10px] font-black">{estadoLabel(editando.estado_calculado)}</Badge>
-                    {editando.cierre_automatico && <span className="text-[9px] text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded-lg">Auto-cierre</span>}
-                    {editando.en_almuerzo && <span className="text-[9px] text-orange-400 font-bold bg-orange-500/10 px-2 py-0.5 rounded-lg">🍽️ Almuerzo</span>}
-                    {editando.editado_admin && <span className="text-[9px] text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded-lg">✏️ Editado</span>}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Datos de asistencia actuales */}
-            <div className="bg-zinc-900 border-x border-amber-500/20 px-6 py-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-zinc-950/80 rounded-xl p-3 border border-white/5 text-center">
-                  <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Entrada</p>
-                  <p className="text-base font-black text-white mt-1">{horaFmt(editando.hora_entrada)}</p>
-                  <p className="text-[10px] text-zinc-600 font-mono mt-0.5">{editando.fecha}</p>
-                </div>
-                <div className="bg-zinc-950/80 rounded-xl p-3 border border-white/5 text-center">
-                  <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Salida</p>
-                  <p className={`text-base font-black mt-1 ${editando.hora_salida ? 'text-white' : 'text-amber-500'}`}>
-                    {editando.hora_salida ? horaFmt(editando.hora_salida) : 'Abierto'}
-                  </p>
-                  {!editando.hora_salida && <p className="text-[9px] text-amber-500/60 font-bold mt-0.5">En turno</p>}
-                </div>
-                <div className="bg-zinc-950/80 rounded-xl p-3 border border-white/5 text-center">
-                  <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Horas</p>
-                  <p className={`text-base font-black mt-1 ${esEnVivo(editando) ? 'text-green-400 animate-pulse' : 'text-amber-400'}`}>
-                    {horasEnVivo(editando)}
-                  </p>
-                  {esEnVivo(editando) && <p className="text-[9px] text-green-500/60 font-bold mt-0.5">EN VIVO</p>}
-                </div>
-              </div>
-
-              {/* ── Sección dinámica de Almuerzo ── */}
-              {editando.en_almuerzo && (
-                <div className="mt-3 bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 flex items-center gap-3 animate-pulse">
-                  <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center shrink-0">
-                    <span className="text-xl">🍽️</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-black text-orange-400 uppercase tracking-wider">En pausa de almuerzo</p>
-                    <p className="text-[10px] text-orange-300/70 mt-0.5">El barbero está almorzando en este momento. No puede recibir citas.</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Info de almuerzo extraída de las notas */}
-              {!editando.en_almuerzo && editando.notas && editando.notas.includes('[ALMUERZO]') && (() => {
-                const lineas = editando.notas!.split('\n').filter(l => l.includes('[ALMUERZO]'))
-                return lineas.length > 0 ? (
-                  <div className="mt-3 space-y-2">
-                    {lineas.map((linea, idx) => {
-                      const horaMatch = linea.match(/a las (\d{1,2}:\d{2})/)
-                      const gpsMatch = linea.match(/GPS:\s*([-\d.]+),\s*([-\d.]+)/)
-                      const horaRetorno = horaMatch?.[1] || null
-                      const gpsLat = gpsMatch?.[1] || null
-                      const gpsLng = gpsMatch?.[2] || null
-                      return (
-                        <div key={idx} className="bg-orange-500/5 border border-orange-500/15 rounded-xl p-3 flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
-                            <span className="text-base">🍽️</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-[10px] font-black text-orange-400/80 uppercase tracking-wider">Almuerzo completado</p>
-                              {horaRetorno && (
-                                <span className="text-[10px] font-bold text-white bg-orange-500/20 px-2 py-0.5 rounded-md">
-                                  Retornó {horaRetorno}
-                                </span>
-                              )}
-                            </div>
-                            {gpsLat && gpsLng && (
-                              <div className="flex items-center gap-1.5 mt-1">
-                                <span className="text-[9px] text-emerald-400/70 font-mono font-bold">📍 {gpsLat}, {gpsLng}</span>
-                                <a
-                                  href={`https://www.google.com/maps?q=${gpsLat},${gpsLng}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-[9px] text-emerald-400 font-black underline hover:text-emerald-300"
-                                  onClick={e => e.stopPropagation()}
-                                >
-                                  Ver Mapa ↗
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-emerald-400 shrink-0">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : null
-              })()}
-            </div>
-
-            {/* Sección de edición */}
-            <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 rounded-b-3xl border border-amber-500/20 border-t-0 px-6 pb-6 pt-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Pencil className="w-4 h-4 text-amber-500" />
-                <h3 className="text-xs font-black uppercase tracking-widest text-amber-400">Editar Registro</h3>
-                <div className="flex-1 h-px bg-amber-500/10" />
-              </div>
-
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-wider block mb-1.5">Hora Entrada</label>
-                    <input type="datetime-local" value={formEdit.hora_entrada} onChange={e => setFormEdit({ ...formEdit, hora_entrada: e.target.value })}
-                      className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white text-sm font-bold focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-wider block mb-1.5">Hora Salida</label>
-                    <input type="datetime-local" value={formEdit.hora_salida} onChange={e => setFormEdit({ ...formEdit, hora_salida: e.target.value })}
-                      className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white text-sm font-bold focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all outline-none" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-wider block mb-1.5">Notas del Admin</label>
-                  <textarea value={formEdit.notas} onChange={e => setFormEdit({ ...formEdit, notas: e.target.value })} placeholder="Ej. Corrección de hora por olvido..."
-                    className="w-full min-h-[70px] bg-zinc-950 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all outline-none resize-none" />
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <Button variant="primary" className="flex-1 font-black uppercase text-sm h-12 rounded-xl" onClick={guardarEdicion}>
-                    <Pencil className="w-4 h-4 mr-2" />Guardar Cambios
-                  </Button>
-                  <Button variant="outline" className="flex-1 h-12 rounded-xl font-bold" onClick={() => setEditando(null)}>Cancelar</Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Modal Registrar Permiso */}
       {showPermiso && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto bg-black/70 backdrop-blur-sm">
-          <Card className="w-full max-w-md border-purple-500/20">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <Card className="w-full max-w-md border-purple-500/20 shadow-2xl my-auto">
             <CardHeader><CardTitle className="text-purple-400 flex items-center gap-2"><Calendar className="w-5 h-5" /> Registrar Permiso</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -997,128 +804,188 @@ export default function AsistenciaAdminPage() {
         </div>
       )}
 
-      {/* Modal de Detalle / Prueba de Asistencia (Selfie & GPS) */}
-      <Modal
-        isOpen={!!selectedAsistenciaForModal}
-        onClose={() => setSelectedAsistenciaForModal(null)}
-        title="Prueba de Asistencia y Geolocalización GPS"
-      >
-        {selectedAsistenciaForModal && (
-          <div className="space-y-6">
-            {/* Cabecera del Empleado */}
-            <div className="flex items-center justify-between p-4 bg-zinc-950 rounded-2xl border border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-bold text-lg">
-                  {selectedAsistenciaForModal.profiles?.full_name?.charAt(0) || 'U'}
-                </div>
-                <div>
-                  <h3 className="font-black text-white text-base">{selectedAsistenciaForModal.profiles?.full_name}</h3>
-                  <p className="text-xs text-zinc-400 uppercase tracking-wider">{selectedAsistenciaForModal.profiles?.role}</p>
-                </div>
-              </div>
-              <Badge variant={estadoBadgeVariant(selectedAsistenciaForModal.estado_calculado)} className="uppercase text-xs">
-                {estadoLabel(selectedAsistenciaForModal.estado_calculado)}
-              </Badge>
-            </div>
+      {/* Modal de Detalle / Prueba de Asistencia Fija Centrada */}
+      {selectedAsistenciaForModal && (
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setSelectedAsistenciaForModal(null)}
+        >
+          <div 
+            className="relative z-10 w-full max-w-lg max-h-[90vh] flex flex-col bg-zinc-950 border border-amber-500/30 rounded-3xl shadow-2xl overflow-y-auto animate-in zoom-in-95 duration-200 my-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header del Perfil con Foto Grande */}
+            <div className="relative bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 p-6 text-center border-b border-white/10 shrink-0">
+              <button 
+                onClick={() => setSelectedAsistenciaForModal(null)} 
+                className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-all"
+              >
+                ✕
+              </button>
 
-            {/* Grid 2 Columnas: Selfie + Mapa GPS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* Columna Selfie */}
-              <div className="space-y-2">
-                <p className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
-                  <Camera className="w-4 h-4 text-amber-500" /> Foto Selfie en Vivo
-                </p>
+              {/* FOTO GRANDE DEL BARBERO */}
+              <div className="relative w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-4">
                 {selectedAsistenciaForModal.selfie_url ? (
-                  <div className="relative rounded-2xl overflow-hidden border border-amber-500/30 bg-black aspect-square shadow-xl group">
-                    <img
-                      src={selectedAsistenciaForModal.selfie_url}
-                      alt="Selfie de asistencia"
-                      className="w-full h-full object-cover"
+                  <img 
+                    src={selectedAsistenciaForModal.selfie_url} 
+                    alt="Foto Perfil / Marcación" 
+                    className="w-full h-full rounded-3xl object-cover border-4 border-amber-500/50 shadow-2xl shadow-amber-500/20" 
+                  />
+                ) : selectedAsistenciaForModal.profiles?.avatar_url ? (
+                  <img 
+                    src={selectedAsistenciaForModal.profiles.avatar_url} 
+                    alt={selectedAsistenciaForModal.profiles.full_name || 'Barbero'} 
+                    className="w-full h-full rounded-3xl object-cover border-4 border-amber-500/50 shadow-2xl shadow-amber-500/20" 
+                  />
+                ) : (
+                  <div className="w-full h-full rounded-3xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border-4 border-amber-500/40 flex items-center justify-center shadow-2xl">
+                    <span className="text-5xl font-black text-amber-400">
+                      {selectedAsistenciaForModal.profiles?.full_name?.charAt(0) || '?'}
+                    </span>
+                  </div>
+                )}
+                {selectedAsistenciaForModal.lat != null && selectedAsistenciaForModal.lng != null && (
+                  <span className="absolute -bottom-2 -right-2 bg-emerald-500 text-black text-xs font-black w-8 h-8 rounded-full border-2 border-zinc-950 flex items-center justify-center shadow-lg" title="GPS Verificado">
+                    📍
+                  </span>
+                )}
+              </div>
+
+              <h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight leading-tight">
+                {selectedAsistenciaForModal.profiles?.full_name || 'Barbero'}
+              </h2>
+              <p className="text-xs font-bold text-amber-400 uppercase tracking-widest mt-1">
+                {selectedAsistenciaForModal.profiles?.role || 'barbero'}
+              </p>
+
+              <div className="flex items-center justify-center gap-2 mt-3 flex-wrap">
+                <Badge variant={estadoBadgeVariant(selectedAsistenciaForModal.estado_calculado)} className="uppercase text-[10px] font-black px-3 py-1">
+                  {estadoLabel(selectedAsistenciaForModal.estado_calculado)}
+                </Badge>
+                {selectedAsistenciaForModal.cierre_automatico && (
+                  <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-lg">
+                    Auto-cierre 22:00
+                  </span>
+                )}
+                {selectedAsistenciaForModal.en_almuerzo && (
+                  <span className="text-[10px] text-orange-400 font-bold bg-orange-500/15 border border-orange-500/30 px-2.5 py-0.5 rounded-lg animate-pulse">
+                    🍽️ Almuerzo activo
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Cuerpo del Detalle */}
+            <div className="p-6 space-y-5">
+              {/* Tarjetas de Marcación */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-zinc-900 rounded-2xl p-3 border border-white/5 text-center">
+                  <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Entrada</p>
+                  <p className="text-base font-black text-white mt-1">{horaFmt(selectedAsistenciaForModal.hora_entrada)}</p>
+                  <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{selectedAsistenciaForModal.fecha}</p>
+                </div>
+                <div className="bg-zinc-900 rounded-2xl p-3 border border-white/5 text-center">
+                  <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Salida</p>
+                  <p className={`text-base font-black mt-1 ${selectedAsistenciaForModal.hora_salida ? 'text-white' : 'text-amber-500'}`}>
+                    {selectedAsistenciaForModal.hora_salida ? horaFmt(selectedAsistenciaForModal.hora_salida) : 'Abierto'}
+                  </p>
+                  {!selectedAsistenciaForModal.hora_salida && <p className="text-[9px] text-amber-500/60 font-bold mt-0.5">En turno</p>}
+                </div>
+                <div className="bg-zinc-900 rounded-2xl p-3 border border-white/5 text-center">
+                  <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Horas</p>
+                  <p className={`text-base font-black mt-1 ${esEnVivo(selectedAsistenciaForModal) ? 'text-green-400 animate-pulse' : 'text-amber-400'}`}>
+                    {horasEnVivo(selectedAsistenciaForModal)}
+                  </p>
+                  {esEnVivo(selectedAsistenciaForModal) && <p className="text-[9px] text-green-500/60 font-bold mt-0.5">EN VIVO</p>}
+                </div>
+              </div>
+
+              {/* Sección dinámica de Almuerzo */}
+              {selectedAsistenciaForModal.en_almuerzo && (
+                <div className="bg-orange-500/10 border border-orange-500/30 rounded-2xl p-4 flex items-center gap-3 animate-pulse">
+                  <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center shrink-0">
+                    <span className="text-xl">🍽️</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-black text-orange-400 uppercase tracking-wider">Pausa de Almuerzo Activa</p>
+                    <p className="text-[10px] text-orange-300/80 mt-0.5">El barbero se encuentra almorzando actualmente.</p>
+                  </div>
+                </div>
+              )}
+
+              {!selectedAsistenciaForModal.en_almuerzo && selectedAsistenciaForModal.notas && selectedAsistenciaForModal.notas.includes('[ALMUERZO]') && (() => {
+                const lineas = selectedAsistenciaForModal.notas!.split('\n').filter(l => l.includes('[ALMUERZO]'))
+                return lineas.length > 0 ? (
+                  <div className="space-y-2">
+                    {lineas.map((linea, idx) => {
+                      const horaMatch = linea.match(/a las (\d{1,2}:\d{2})/)
+                      const gpsMatch = linea.match(/GPS:\s*([-\d.]+),\s*([-\d.]+)/)
+                      const horaRetorno = horaMatch?.[1] || null
+                      const gpsLat = gpsMatch?.[1] || null
+                      const gpsLng = gpsMatch?.[2] || null
+                      return (
+                        <div key={idx} className="bg-orange-500/10 border border-orange-500/20 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-orange-500/20 flex items-center justify-center shrink-0">
+                              <span className="text-base">🍽️</span>
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-black text-orange-400 uppercase tracking-wider">Almuerzo completado</p>
+                              {horaRetorno && (
+                                <p className="text-xs font-bold text-white mt-0.5">Retornó a las {horaRetorno}</p>
+                              )}
+                            </div>
+                          </div>
+                          {gpsLat && gpsLng && (
+                            <a
+                              href={`https://www.google.com/maps?q=${gpsLat},${gpsLng}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="bg-emerald-500 hover:bg-emerald-400 text-black px-3 py-1.5 rounded-xl font-black text-[10px] uppercase transition shadow-md shrink-0"
+                            >
+                              📍 Ver GPS ↗
+                            </a>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : null
+              })()}
+
+              {/* Geolocalización GPS Embed si existen coordenadas */}
+              {selectedAsistenciaForModal.lat != null && selectedAsistenciaForModal.lng != null && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4 text-emerald-400" /> Marcación GPS Verificada
+                  </p>
+                  <div className="relative rounded-2xl overflow-hidden border border-emerald-500/30 bg-black h-48 shadow-xl">
+                    <iframe
+                      src={`https://maps.google.com/maps?q=${selectedAsistenciaForModal.lat},${selectedAsistenciaForModal.lng}&z=17&output=embed`}
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      allowFullScreen
+                      loading="lazy"
+                      title="Ubicación GPS Marcada"
                     />
-                    <div className="absolute bottom-3 left-3 right-3 bg-black/80 backdrop-blur-md px-3 py-2 rounded-xl text-xs text-amber-400 font-mono font-bold flex items-center justify-between">
-                      <span>⏰ Hora Entrada</span>
-                      <span>{horaFmt(selectedAsistenciaForModal.hora_entrada)}</span>
-                    </div>
                   </div>
-                ) : (
-                  <div className="w-full aspect-square rounded-2xl bg-zinc-950 border border-dashed border-zinc-800 flex flex-col items-center justify-center text-zinc-600 space-y-2">
-                    <Camera className="w-10 h-10" />
-                    <p className="text-xs font-bold">Sin foto registrada</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Columna Mapa GPS */}
-              <div className="space-y-2">
-                <p className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-emerald-400" /> Ubicación GPS Marcada
-                </p>
-                {selectedAsistenciaForModal.lat != null && selectedAsistenciaForModal.lng != null ? (
-                  <div className="space-y-3">
-                    <div className="relative rounded-2xl overflow-hidden border border-emerald-500/30 bg-black aspect-square shadow-xl">
-                      <iframe
-                        src={`https://maps.google.com/maps?q=${selectedAsistenciaForModal.lat},${selectedAsistenciaForModal.lng}&z=17&output=embed`}
-                        width="100%"
-                        height="100%"
-                        style={{ border: 0 }}
-                        allowFullScreen
-                        loading="lazy"
-                        title="Ubicación GPS Marcada"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-2.5 text-xs text-emerald-400 font-mono font-bold">
-                      <span>📍 {selectedAsistenciaForModal.lat.toFixed(5)}, {selectedAsistenciaForModal.lng.toFixed(5)}</span>
-                      <a
-                        href={`https://www.google.com/maps?q=${selectedAsistenciaForModal.lat},${selectedAsistenciaForModal.lng}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="bg-emerald-500 text-black px-2.5 py-1 rounded-lg font-black uppercase text-[10px] hover:bg-emerald-400 transition"
-                      >
-                        Abrir Pin ↗
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="w-full aspect-square rounded-2xl bg-zinc-950 border border-dashed border-zinc-800 flex flex-col items-center justify-center text-zinc-600 space-y-2">
-                    <MapPin className="w-10 h-10" />
-                    <p className="text-xs font-bold">Sin coordenadas GPS</p>
-                  </div>
-                )}
-              </div>
-
+                </div>
+              )}
             </div>
 
-            {/* Detalles de Marcación */}
-            <div className="bg-zinc-950 p-4 rounded-2xl border border-white/5 space-y-2 text-xs">
-              <div className="flex justify-between text-zinc-400">
-                <span>Fecha de marcación:</span>
-                <span className="font-bold text-white">{selectedAsistenciaForModal.fecha}</span>
-              </div>
-              <div className="flex justify-between text-zinc-400">
-                <span>Hora de Entrada:</span>
-                <span className="font-bold text-white">{horaFmt(selectedAsistenciaForModal.hora_entrada)}</span>
-              </div>
-              <div className="flex justify-between text-zinc-400">
-                <span>Hora de Salida:</span>
-                <span className="font-bold text-white">
-                  {selectedAsistenciaForModal.hora_salida ? horaFmt(selectedAsistenciaForModal.hora_salida) : 'Pendiente / En turno'}
-                </span>
-              </div>
-              <div className="flex justify-between text-zinc-400">
-                <span>Cierre Automático:</span>
-                <span className="font-bold text-amber-400">{selectedAsistenciaForModal.cierre_automatico ? 'Sí (Auto a las 22:00)' : 'No (Marcación manual)'}</span>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <Button variant="secondary" onClick={() => setSelectedAsistenciaForModal(null)} className="font-bold uppercase text-xs">
+            {/* Footer Cierre */}
+            <div className="p-4 border-t border-white/10 bg-zinc-900/50 flex justify-end shrink-0">
+              <Button 
+                onClick={() => setSelectedAsistenciaForModal(null)} 
+                className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs h-11 px-6 rounded-xl shadow-lg"
+              >
                 Cerrar Detalle
               </Button>
             </div>
           </div>
-        )}
-      </Modal>
+        </div>
+      )}
     </div>
   )
 }

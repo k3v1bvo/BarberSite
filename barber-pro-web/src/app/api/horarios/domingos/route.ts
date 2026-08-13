@@ -34,6 +34,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role !== 'admin' && profile?.role !== 'coordinador') {
+      return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+    }
+
     const { domingos } = await request.json()
     if (!Array.isArray(domingos)) {
       return NextResponse.json({ error: 'Formato inválido' }, { status: 400 })

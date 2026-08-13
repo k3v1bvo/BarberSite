@@ -67,7 +67,7 @@ export async function PUT(
       .eq('id', user.id)
       .single()
 
-    if (profile?.role !== 'admin' && user.id !== barberoId) {
+    if (profile?.role !== 'admin' && profile?.role !== 'coordinador' && user.id !== barberoId) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
