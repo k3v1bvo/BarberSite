@@ -1,3 +1,3 @@
 git add .
-git commit -m "fix: export Bolivia date helpers for Vercel build, coordinador permissions and attendance UI fixes"
+git commit -m "fix: import Badge in reportes page and fix Vercel TypeScript build error"
 git push origin main
