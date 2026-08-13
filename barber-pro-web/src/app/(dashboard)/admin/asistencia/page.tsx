@@ -412,19 +412,19 @@ export default function AsistenciaAdminPage() {
                     <th className="py-4 px-6 text-[10px] font-black uppercase text-zinc-500 text-center">Salida</th>
                     <th className="py-4 px-6 text-[10px] font-black uppercase text-zinc-500 text-center">Horas</th>
                     <th className="py-4 px-6 text-[10px] font-black uppercase text-zinc-500 text-center">Estado</th>
-                    <th className="py-4 px-6 text-[10px] font-black uppercase text-zinc-500 text-center">Acción</th>
+                    <th className="py-4 px-6 text-[10px] font-black uppercase text-zinc-500 text-center"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {loading ? (
                     <tr><td colSpan={6} className="py-20 text-center"><Clock className="w-10 h-10 mx-auto text-amber-500 animate-spin" /></td></tr>
                   ) : registros.map(r => (
-                    <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
+                    <tr key={r.id} className="hover:bg-white/[0.02] transition-colors cursor-pointer group/row" onClick={() => abrirEdicion(r)}>
                       <td className="py-5 px-6">
                         <div className="flex items-center gap-3">
                           {/* Miniatura Selfie con indicador GPS */}
                           <div
-                            onClick={() => setSelectedAsistenciaForModal(r)}
+                            onClick={(e) => { e.stopPropagation(); setSelectedAsistenciaForModal(r) }}
                             className="relative group/avatar cursor-pointer shrink-0"
                             title="Haz clic para ver la Selfie y el Mapa GPS de marcación"
                           >
@@ -450,10 +450,11 @@ export default function AsistenciaAdminPage() {
                             <p className="font-bold text-white text-sm">{r.profiles?.full_name}</p>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-[10px] text-zinc-400 font-bold uppercase">{r.profiles?.role}</span>
-                              {r.en_almuerzo && <span className="text-[9px] text-orange-400 font-bold">🍽️ Almuerzo</span>}
+                              {r.en_almuerzo && <span className="text-[9px] text-orange-400 font-bold bg-orange-500/15 px-1.5 py-0.5 rounded-md animate-pulse border border-orange-500/20">🍽️ Almorzando</span>}
+                              {!r.en_almuerzo && r.notas?.includes('[ALMUERZO]') && <span className="text-[9px] text-orange-300/50 font-bold">✓ Almorzó</span>}
                               {(r.selfie_url || (r.lat != null && r.lng != null)) && (
                                 <button
-                                  onClick={() => setSelectedAsistenciaForModal(r)}
+                                  onClick={(e) => { e.stopPropagation(); setSelectedAsistenciaForModal(r) }}
                                   className="text-[10px] text-amber-400 hover:text-amber-300 font-extrabold flex items-center gap-1 underline ml-1"
                                 >
                                   <Eye className="w-3 h-3" /> Ver Prueba
@@ -477,7 +478,7 @@ export default function AsistenciaAdminPage() {
                         <Badge variant={estadoBadgeVariant(r.estado_calculado)} className="uppercase text-[10px]">{estadoLabel(r.estado_calculado)}</Badge>
                         {r.cierre_automatico && <p className="text-[9px] text-amber-500 mt-1 font-bold">Auto</p>}
                       </td>
-                      <td className="py-5 px-6 text-center">
+                      <td className="py-5 px-6 text-center" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           {r.en_almuerzo && (
                             <Button
@@ -497,7 +498,9 @@ export default function AsistenciaAdminPage() {
                               ⏹️ Fin Almuerzo
                             </Button>
                           )}
-                          <Button variant="ghost" size="sm" onClick={() => abrirEdicion(r)}><Pencil className="w-4 h-4" /></Button>
+                          <span className="text-[10px] text-zinc-600 group-hover/row:text-amber-400 font-bold uppercase transition-colors flex items-center gap-1">
+                            <Pencil className="w-3 h-3" /> Editar
+                          </span>
                         </div>
                       </td>
                     </tr>
@@ -599,7 +602,7 @@ export default function AsistenciaAdminPage() {
                             {diasDeSemana.map(dia => {
                               const r = diasMap?.get(dia)
                               return (
-                                <td key={dia} className="py-3 px-2 text-center">
+                                <td key={dia} className={`py-3 px-2 text-center ${r ? 'cursor-pointer hover:bg-amber-500/5 transition-colors' : ''}`} onClick={() => r && abrirEdicion(r)}>
                                   {r ? (
                                     <div className="space-y-1">
                                       <div className={`font-black text-xs ${celdaColor(r)} ${esEnVivo(r) ? 'animate-pulse' : ''}`}>
@@ -621,9 +624,9 @@ export default function AsistenciaAdminPage() {
                                       {r.estado_calculado === 'atrasado' && (
                                         <Badge variant="danger" className="text-[8px] py-0">tarde</Badge>
                                       )}
-                                      <button onClick={() => abrirEdicion(r)} className="block mx-auto text-zinc-700 hover:text-amber-500 transition-colors mt-1">
-                                        <Pencil size={11} />
-                                      </button>
+                                      {r.en_almuerzo && <span className="text-[8px] text-orange-400 animate-pulse">🍽️</span>}
+                                      {!r.en_almuerzo && r.notas?.includes('[ALMUERZO]') && <span className="text-[8px] text-orange-300/40">✓🍽️</span>}
+
                                     </div>
                                   ) : (
                                     <span className="text-zinc-800 font-black text-lg">—</span>
@@ -720,7 +723,7 @@ export default function AsistenciaAdminPage() {
                         const r = diasMap?.get(dia)
                         const isHoy = dia === fmt(new Date())
                         return (
-                          <div key={dia} className={`p-3 flex items-center justify-between ${isHoy ? 'bg-amber-500/[0.03]' : ''}`}>
+                          <div key={dia} className={`p-3 flex items-center justify-between ${isHoy ? 'bg-amber-500/[0.03]' : ''} ${r ? 'cursor-pointer hover:bg-white/[0.03] active:bg-white/[0.05]' : ''} transition-colors`} onClick={() => r && abrirEdicion(r)}>
                             <div className="flex items-center gap-3">
                               <span className={`text-[10px] font-black uppercase w-8 text-center ${isHoy ? 'text-amber-400' : 'text-zinc-500'}`}>{DIAS[i]}</span>
                               <span className="text-zinc-600 font-mono text-[10px] font-bold">{dia.slice(5)}</span>
@@ -731,6 +734,7 @@ export default function AsistenciaAdminPage() {
                                 <div className="text-right flex flex-col justify-center">
                                   <div className="flex items-center justify-end gap-2 mb-1">
                                     {r.estado_calculado === 'atrasado' && <Badge variant="danger" className="text-[8px] py-0 px-1 font-black leading-none">TARDE</Badge>}
+                                    {r.en_almuerzo && <span className="text-[8px] text-orange-400 font-bold bg-orange-500/15 px-1 py-0.5 rounded animate-pulse">🍽️</span>}
                                     <div className={`font-black text-sm leading-none ${celdaColor(r)} ${esEnVivo(r) ? 'animate-pulse' : ''}`}>
                                       {r.estado_calculado === 'permiso' as any || r.notas?.includes('PERMISO') ? 'PERMISO' : horasEnVivo(r)}
                                     </div>
@@ -746,6 +750,7 @@ export default function AsistenciaAdminPage() {
                                         </>
                                       )
                                     }
+                                    {!r.en_almuerzo && r.notas?.includes('[ALMUERZO]') && <span className="text-orange-300/50 ml-1">✓🍽️</span>}
                                   </div>
                                 </div>
                               ) : (
@@ -753,9 +758,7 @@ export default function AsistenciaAdminPage() {
                               )}
                               
                               {r && (
-                                <button onClick={() => abrirEdicion(r)} className="text-zinc-500 hover:text-amber-400 p-2 bg-black/40 hover:bg-black/80 rounded-xl transition-all border border-white/5 hover:border-amber-500/30">
-                                  <Pencil size={14} />
-                                </button>
+                                <span className="text-zinc-600 text-[10px] font-bold uppercase"><Pencil size={12} className="inline" /></span>
                               )}
                             </div>
                           </div>
@@ -778,33 +781,171 @@ export default function AsistenciaAdminPage() {
         </>
       )}
 
-      {/* Modal edición */}
+      {/* ── Modal Detalle + Edición Premium ── */}
       {editando && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto bg-black/70 backdrop-blur-sm">
-          <Card className="w-full max-w-md border-amber-500/20">
-            <CardHeader><CardTitle>Editar asistencia — {editando.profiles?.full_name}</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-zinc-500 uppercase">Entrada</label>
-                <input type="datetime-local" value={formEdit.hora_entrada} onChange={e => setFormEdit({ ...formEdit, hora_entrada: e.target.value })}
-                  className="w-full mt-1 h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white" />
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-8 overflow-y-auto bg-black/80 backdrop-blur-md" onClick={() => setEditando(null)}>
+          <div className="w-full max-w-lg animate-in slide-in-from-bottom-4 fade-in duration-300" onClick={e => e.stopPropagation()}>
+            {/* Header con perfil del barbero */}
+            <div className="relative bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 rounded-t-3xl border border-amber-500/20 border-b-0 p-6 pb-5">
+              {/* Botón cerrar */}
+              <button onClick={() => setEditando(null)} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-all">
+                ✕
+              </button>
+              
+              <div className="flex items-start gap-5">
+                {/* Avatar grande */}
+                <div className="relative shrink-0">
+                  {editando.selfie_url ? (
+                    <img src={editando.selfie_url} alt="Selfie" className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500/40 shadow-lg shadow-amber-500/10" />
+                  ) : editando.profiles?.avatar_url ? (
+                    <img src={editando.profiles.avatar_url} alt="" className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-500/40 shadow-lg shadow-amber-500/10" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border-2 border-amber-500/30 flex items-center justify-center shadow-lg">
+                      <span className="text-3xl font-black text-amber-400">{editando.profiles?.full_name?.charAt(0) || '?'}</span>
+                    </div>
+                  )}
+                  {editando.lat != null && editando.lng != null && (
+                    <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-black text-[9px] font-black w-5 h-5 rounded-full border-2 border-zinc-900 flex items-center justify-center">📍</span>
+                  )}
+                </div>
+
+                {/* Info barbero */}
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-xl font-black text-white leading-tight truncate">{editando.profiles?.full_name}</h2>
+                  <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{editando.profiles?.role}</p>
+                  <div className="flex items-center gap-2 mt-3">
+                    <Badge variant={estadoBadgeVariant(editando.estado_calculado)} className="uppercase text-[10px] font-black">{estadoLabel(editando.estado_calculado)}</Badge>
+                    {editando.cierre_automatico && <span className="text-[9px] text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded-lg">Auto-cierre</span>}
+                    {editando.en_almuerzo && <span className="text-[9px] text-orange-400 font-bold bg-orange-500/10 px-2 py-0.5 rounded-lg">🍽️ Almuerzo</span>}
+                    {editando.editado_admin && <span className="text-[9px] text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded-lg">✏️ Editado</span>}
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-bold text-zinc-500 uppercase">Salida</label>
-                <input type="datetime-local" value={formEdit.hora_salida} onChange={e => setFormEdit({ ...formEdit, hora_salida: e.target.value })}
-                  className="w-full mt-1 h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white" />
+            </div>
+
+            {/* Datos de asistencia actuales */}
+            <div className="bg-zinc-900 border-x border-amber-500/20 px-6 py-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-zinc-950/80 rounded-xl p-3 border border-white/5 text-center">
+                  <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Entrada</p>
+                  <p className="text-base font-black text-white mt-1">{horaFmt(editando.hora_entrada)}</p>
+                  <p className="text-[10px] text-zinc-600 font-mono mt-0.5">{editando.fecha}</p>
+                </div>
+                <div className="bg-zinc-950/80 rounded-xl p-3 border border-white/5 text-center">
+                  <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Salida</p>
+                  <p className={`text-base font-black mt-1 ${editando.hora_salida ? 'text-white' : 'text-amber-500'}`}>
+                    {editando.hora_salida ? horaFmt(editando.hora_salida) : 'Abierto'}
+                  </p>
+                  {!editando.hora_salida && <p className="text-[9px] text-amber-500/60 font-bold mt-0.5">En turno</p>}
+                </div>
+                <div className="bg-zinc-950/80 rounded-xl p-3 border border-white/5 text-center">
+                  <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Horas</p>
+                  <p className={`text-base font-black mt-1 ${esEnVivo(editando) ? 'text-green-400 animate-pulse' : 'text-amber-400'}`}>
+                    {horasEnVivo(editando)}
+                  </p>
+                  {esEnVivo(editando) && <p className="text-[9px] text-green-500/60 font-bold mt-0.5">EN VIVO</p>}
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-bold text-zinc-500 uppercase">Notas admin</label>
-                <textarea value={formEdit.notas} onChange={e => setFormEdit({ ...formEdit, notas: e.target.value })}
-                  className="w-full mt-1 min-h-[80px] bg-zinc-950 border border-white/10 rounded-xl p-3 text-white text-sm" />
+
+              {/* ── Sección dinámica de Almuerzo ── */}
+              {editando.en_almuerzo && (
+                <div className="mt-3 bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 flex items-center gap-3 animate-pulse">
+                  <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center shrink-0">
+                    <span className="text-xl">🍽️</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-black text-orange-400 uppercase tracking-wider">En pausa de almuerzo</p>
+                    <p className="text-[10px] text-orange-300/70 mt-0.5">El barbero está almorzando en este momento. No puede recibir citas.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Info de almuerzo extraída de las notas */}
+              {!editando.en_almuerzo && editando.notas && editando.notas.includes('[ALMUERZO]') && (() => {
+                const lineas = editando.notas!.split('\n').filter(l => l.includes('[ALMUERZO]'))
+                return lineas.length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {lineas.map((linea, idx) => {
+                      const horaMatch = linea.match(/a las (\d{1,2}:\d{2})/)
+                      const gpsMatch = linea.match(/GPS:\s*([-\d.]+),\s*([-\d.]+)/)
+                      const horaRetorno = horaMatch?.[1] || null
+                      const gpsLat = gpsMatch?.[1] || null
+                      const gpsLng = gpsMatch?.[2] || null
+                      return (
+                        <div key={idx} className="bg-orange-500/5 border border-orange-500/15 rounded-xl p-3 flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                            <span className="text-base">🍽️</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-[10px] font-black text-orange-400/80 uppercase tracking-wider">Almuerzo completado</p>
+                              {horaRetorno && (
+                                <span className="text-[10px] font-bold text-white bg-orange-500/20 px-2 py-0.5 rounded-md">
+                                  Retornó {horaRetorno}
+                                </span>
+                              )}
+                            </div>
+                            {gpsLat && gpsLng && (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="text-[9px] text-emerald-400/70 font-mono font-bold">📍 {gpsLat}, {gpsLng}</span>
+                                <a
+                                  href={`https://www.google.com/maps?q=${gpsLat},${gpsLng}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[9px] text-emerald-400 font-black underline hover:text-emerald-300"
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  Ver Mapa ↗
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-emerald-400 shrink-0">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : null
+              })()}
+            </div>
+
+            {/* Sección de edición */}
+            <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 rounded-b-3xl border border-amber-500/20 border-t-0 px-6 pb-6 pt-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Pencil className="w-4 h-4 text-amber-500" />
+                <h3 className="text-xs font-black uppercase tracking-widest text-amber-400">Editar Registro</h3>
+                <div className="flex-1 h-px bg-amber-500/10" />
               </div>
-              <div className="flex gap-3">
-                <Button variant="primary" className="flex-1 font-black uppercase" onClick={guardarEdicion}>Guardar</Button>
-                <Button variant="outline" className="flex-1" onClick={() => setEditando(null)}>Cancelar</Button>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-wider block mb-1.5">Hora Entrada</label>
+                    <input type="datetime-local" value={formEdit.hora_entrada} onChange={e => setFormEdit({ ...formEdit, hora_entrada: e.target.value })}
+                      className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white text-sm font-bold focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-wider block mb-1.5">Hora Salida</label>
+                    <input type="datetime-local" value={formEdit.hora_salida} onChange={e => setFormEdit({ ...formEdit, hora_salida: e.target.value })}
+                      className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white text-sm font-bold focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all outline-none" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-wider block mb-1.5">Notas del Admin</label>
+                  <textarea value={formEdit.notas} onChange={e => setFormEdit({ ...formEdit, notas: e.target.value })} placeholder="Ej. Corrección de hora por olvido..."
+                    className="w-full min-h-[70px] bg-zinc-950 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all outline-none resize-none" />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <Button variant="primary" className="flex-1 font-black uppercase text-sm h-12 rounded-xl" onClick={guardarEdicion}>
+                    <Pencil className="w-4 h-4 mr-2" />Guardar Cambios
+                  </Button>
+                  <Button variant="outline" className="flex-1 h-12 rounded-xl font-bold" onClick={() => setEditando(null)}>Cancelar</Button>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       )}
 
