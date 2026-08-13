@@ -352,6 +352,7 @@ export default function BarberoPage() {
       en_proceso: 'info' as const,
       completado: 'success' as const,
       cancelado: 'danger' as const,
+      comprobante_rechazado: 'danger' as const,
     }
     return variants[estado as keyof typeof variants] || 'default'
   }
@@ -669,6 +670,7 @@ export default function BarberoPage() {
                 <option value="confirmado">Confirmadas</option>
                 <option value="en_proceso">En proceso</option>
                 <option value="completado">Completadas</option>
+                <option value="comprobante_rechazado">Comprobante Rechazado</option>
               </select>
             </div>
 
@@ -720,6 +722,11 @@ export default function BarberoPage() {
                             {cita.estado === 'pendiente_pago' && (
                               <span className="bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] font-black uppercase px-2.5 py-1 rounded-lg animate-pulse">
                                 ⚠️ Verificar Pago
+                              </span>
+                            )}
+                            {cita.estado === 'comprobante_rechazado' && (
+                              <span className="bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] font-black uppercase px-2.5 py-1 rounded-lg">
+                                🚫 Comprobante Rechazado
                               </span>
                             )}
                           </div>
@@ -1091,21 +1098,38 @@ export default function BarberoPage() {
                   >
                     ✅ Aprobar Pago QR
                   </Button>
-                  <Button 
-                    onClick={async () => {
-                      if (!confirm('¿Cancelar esta cita o marcar que no asistió?')) return
-                      try {
-                        const res = await fetch('/api/citas/cancelar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cita_id: selectedCita.id, motivo: 'No asistió / Comprobante inválido' }) })
-                        if (!res.ok) throw new Error('Error')
-                        success('Cita cancelada correctamente')
-                        setSelectedCita(null)
-                        loadData()
-                      } catch (e) { toastError('No se pudo cancelar la cita') }
-                    }}
-                    variant="outline" className="w-full h-10 uppercase tracking-widest font-black text-xs text-red-500 border-red-500/20 hover:bg-red-500/10"
-                  >
-                    ❌ No Asistió / Cancelar
-                  </Button>
+                  <div className="flex gap-2 w-full">
+                    <Button 
+                      onClick={async () => {
+                        if (!confirm('¿Estás seguro? Esto marcará el comprobante como FALSO/NO VÁLIDO. Se notificará al admin, coordinador y barbero.')) return
+                        try {
+                          const res = await fetch('/api/citas/rechazar-comprobante', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ citaId: selectedCita.id }) })
+                          if (!res.ok) throw new Error('Error')
+                          success('🚫 Comprobante rechazado')
+                          setSelectedCita(null)
+                          loadData()
+                        } catch (e) { toastError('No se pudo rechazar el comprobante') }
+                      }}
+                      variant="outline" className="flex-1 h-10 uppercase tracking-widest font-black text-xs text-red-400 border-red-500/30 hover:bg-red-500/10"
+                    >
+                      🚫 Falso
+                    </Button>
+                    <Button 
+                      onClick={async () => {
+                        if (!confirm('¿Cancelar esta cita o marcar que no asistió?')) return
+                        try {
+                          const res = await fetch('/api/citas/cancelar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cita_id: selectedCita.id, motivo: 'No asistió / Cancelar' }) })
+                          if (!res.ok) throw new Error('Error')
+                          success('Cita cancelada correctamente')
+                          setSelectedCita(null)
+                          loadData()
+                        } catch (e) { toastError('No se pudo cancelar la cita') }
+                      }}
+                      variant="outline" className="flex-1 h-10 uppercase tracking-widest font-black text-xs text-red-500 border-red-500/20 hover:bg-red-500/10"
+                    >
+                      ❌ Cancelar
+                    </Button>
+                  </div>
                 </div>
               )}
               {selectedCita.estado === 'pendiente' && (

@@ -22,6 +22,7 @@ interface CitaDetailModalProps {
 export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }: CitaDetailModalProps) {
   const [verifying, setVerifying] = useState(false)
   const [canceling, setCanceling] = useState(false)
+  const [rejecting, setRejecting] = useState(false)
   const [showReprogramar, setShowReprogramar] = useState(false)
   const [newDate, setNewDate] = useState('')
   const [newTime, setNewTime] = useState('')
@@ -56,6 +57,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
     completado: 'success',
     cancelado: 'danger',
     no_presento: 'danger',
+    comprobante_rechazado: 'danger',
   }
 
   const downloadComprobante = async () => {
@@ -346,19 +348,33 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
 
                 {cita.estado === 'pendiente_pago' && (
                   <div className="space-y-2">
+                    <Button variant="warning" size="md" className="w-full h-11 font-black uppercase tracking-wider text-xs" disabled={verifying}
+                      onClick={async () => {
+                        setVerifying(true)
+                        try {
+                          const res = await fetch('/api/citas/verificar-pago', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ citaId: cita.id }) })
+                          if (!res.ok) throw new Error()
+                          success('✅ Pago verificado')
+                          onUpdate ? onUpdate() : window.location.reload()
+                          onClose()
+                        } catch { error('No se pudo verificar el pago') } finally { setVerifying(false) }
+                      }}>
+                      {verifying ? '...' : '✅ Verificar Pago'}
+                    </Button>
                     <div className="flex gap-2">
-                      <Button variant="warning" size="md" className="flex-1 h-11 font-black uppercase tracking-wider text-xs" disabled={verifying}
+                      <Button variant="outline" size="md" className="flex-1 h-11 font-black uppercase tracking-wider text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/30" disabled={rejecting}
                         onClick={async () => {
-                          setVerifying(true)
+                          if (!confirm('¿Estás seguro? Esto marcará el comprobante como FALSO/NO VÁLIDO y cancelará la cita. Se notificará al admin, coordinador y barbero.')) return
+                          setRejecting(true)
                           try {
-                            const res = await fetch('/api/citas/verificar-pago', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ citaId: cita.id }) })
+                            const res = await fetch('/api/citas/rechazar-comprobante', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ citaId: cita.id }) })
                             if (!res.ok) throw new Error()
-                            success('✅ Pago verificado')
+                            success('🚫 Comprobante rechazado')
                             onUpdate ? onUpdate() : window.location.reload()
                             onClose()
-                          } catch { error('No se pudo verificar el pago') } finally { setVerifying(false) }
+                          } catch { error('No se pudo rechazar el comprobante') } finally { setRejecting(false) }
                         }}>
-                        {verifying ? '...' : '✅ Verificar Pago'}
+                        {rejecting ? '...' : '🚫 Falso'}
                       </Button>
                       <Button variant="danger" size="md" className="flex-1 h-11 font-black uppercase tracking-wider text-xs" disabled={canceling}
                         onClick={async () => {

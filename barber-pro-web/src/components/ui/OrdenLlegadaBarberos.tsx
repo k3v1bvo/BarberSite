@@ -105,6 +105,14 @@ export function OrdenLlegadaBarberos() {
 
       if (error || !asistencias) return
 
+      // Deduplicar por profile_id — quedarse solo con la primera entrada de cada barbero
+      const seenProfileIds = new Set<string>()
+      const asistenciasUnicas = asistencias.filter((item: any) => {
+        if (seenProfileIds.has(item.profile_id)) return false
+        seenProfileIds.add(item.profile_id)
+        return true
+      })
+
       // 2. Obtener citas completadas hoy para saber la última atención y conteo de cada barbero
       const { data: citasHoy } = await supabase
         .from('citas')
@@ -125,8 +133,8 @@ export function OrdenLlegadaBarberos() {
         }
       }
 
-      // 3. Mapear los barberos llegados hoy
-      const mapeados: BarberoTurnoItem[] = asistencias.map((item: any) => {
+      // 3. Mapear los barberos llegados hoy (ya deduplicados)
+      const mapeados: BarberoTurnoItem[] = asistenciasUnicas.map((item: any) => {
         const p = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
         return {
           id: item.id,

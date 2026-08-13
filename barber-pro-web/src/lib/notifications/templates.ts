@@ -635,6 +635,54 @@ export function buildEmail(
         ),
       }
 
+    case 'pago_rechazado_admin':
+      return {
+        subject: `🚫 Comprobante Rechazado — ${nombre}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#ef4444;font-size:20px;">⚠️ Comprobante de Pago Rechazado</h2>
+          <p>El comprobante QR de <strong>${nombre}</strong> fue revisado y <strong style="color:#ef4444;">rechazado como falso/no válido</strong> por <strong>${data.verificadoPor || 'el equipo'}</strong>.</p>
+          <p style="color:#fbbf24;font-size:13px;margin-top:8px;">La cita fue cancelada automáticamente. El cliente ha sido notificado.</p>
+          ${detailBox([
+            { label: 'Cliente', value: nombre },
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Anticipo declarado', value: data.anticipo || '—' },
+            { label: 'Fecha', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+            { label: 'Barbero asignado', value: data.barbero || '—' },
+            { label: 'Rechazado por', value: data.verificadoPor || '—' },
+          ])}
+          ${data.comprobante_url ? `<div style="margin-top:16px;margin-bottom:16px;text-align:center;background-color:#09090b;padding:12px;border-radius:12px;border:1px solid #dc2626;">
+            <p style="margin:0 0 8px;font-size:11px;font-weight:bold;color:#ef4444;text-transform:uppercase;letter-spacing:1px;">🚫 Comprobante Rechazado</p>
+            <img src="${data.comprobante_url}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid #3f3f46;opacity:0.7;" alt="Comprobante rechazado" />
+            ${!data.comprobante_url.startsWith('data:') ? `<p style="margin:8px 0 0;"><a href="${data.comprobante_url}" target="_blank" style="color:#f59e0b;font-size:12px;font-weight:bold;text-decoration:underline;">🔍 Ver foto completa</a></p>` : ''}
+          </div>` : ''}
+          <p style="color:#a1a1aa;font-size:13px;">Revisa si es necesario tomar acciones adicionales con este cliente.</p>
+          ${cta(`${SITE}/admin`, 'Ir al Panel Admin')}`,
+          'Un comprobante de pago fue rechazado como falso'
+        ),
+      }
+
+    case 'pago_rechazado_cliente':
+      return {
+        subject: `❌ Comprobante No Válido — Tu reserva no pudo ser confirmada`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#ef4444;font-size:20px;">Tu comprobante no pudo ser verificado</h2>
+          <p>Hola <strong>${nombre}</strong>, lamentamos informarte que el comprobante de pago QR que enviaste <strong style="color:#ef4444;">no pudo ser validado</strong> por nuestro equipo.</p>
+          <p>Tu reserva ha sido cancelada. Si crees que esto es un error, contáctanos por WhatsApp o redes sociales con el comprobante original de tu banco.</p>
+          ${detailBox([
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Anticipo declarado', value: data.anticipo || '—' },
+            { label: 'Fecha', value: data.fecha || '—' },
+            { label: 'Hora', value: data.hora || '—' },
+            { label: 'Barbero', value: data.barbero || '—' },
+          ])}
+          <p style="margin-top:16px;">Si deseas volver a agendar, puedes hacerlo desde nuestro sitio web con un nuevo comprobante válido.</p>
+          <p style="color:#a1a1aa;font-size:13px;margin-top:8px;">Si tienes dudas, no dudes en contactarnos.</p>
+          ${cta(`${SITE}/reservar`, 'Agendar nueva cita')}`,
+          'Tu comprobante de pago no pasó la verificación'
+        ),
+      }
+
     default:
       return {
         subject: `Notificación — ${BRAND}`,

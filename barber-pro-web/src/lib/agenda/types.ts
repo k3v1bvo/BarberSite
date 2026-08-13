@@ -2,7 +2,7 @@ export interface AgendaCita {
   id: string
   fecha_hora: string
   duracion_minutos: number
-  estado: 'pendiente' | 'pendiente_pago' | 'confirmado' | 'en_proceso' | 'completado' | 'cancelado' | 'no_presento'
+  estado: 'pendiente' | 'pendiente_pago' | 'confirmado' | 'en_proceso' | 'completado' | 'cancelado' | 'no_presento' | 'comprobante_rechazado'
   reprogramacion_estado?: string
   fecha_hora_solicitada?: string
   anticipo_monto?: number

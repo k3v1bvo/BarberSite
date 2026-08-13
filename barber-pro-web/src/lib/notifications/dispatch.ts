@@ -612,6 +612,108 @@ export async function dispatchNotification(
         }
         break
       }
+
+      case 'pago_rechazado': {
+        const anticipo = p.monto != null ? `Bs ${Number(p.monto).toFixed(2)}` : '—'
+        const rechazadoPor = p.motivo || 'Equipo'
+        const msg = `🚫 Comprobante RECHAZADO por ${rechazadoPor} — ${p.clienteNombre || 'Cliente'} · ${anticipo}`
+        const meta = { cita_id: p.citaId }
+
+        // Notificar al admin (in-app y email)
+        await notifyRole(
+          db,
+          'admin',
+          {
+            titulo: '🚫 Comprobante rechazado como falso',
+            mensaje: msg,
+            tipo: 'danger',
+            categoria: event,
+            link: '/agenda' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
+            metadata: meta,
+          },
+          {
+            template: 'pago_rechazado_admin',
+            data: {
+              nombre: p.clienteNombre,
+              servicio: p.servicioNombre,
+              anticipo,
+              fecha: p.fecha,
+              hora: p.hora,
+              barbero: p.barberoNombre,
+              verificadoPor: rechazadoPor,
+              comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
+            }
+          }
+        )
+
+        // Notificar al coordinador (in-app y email)
+        await notifyRole(
+          db,
+          'coordinador',
+          {
+            titulo: '🚫 Comprobante rechazado como falso',
+            mensaje: msg,
+            tipo: 'danger',
+            categoria: event,
+            link: '/agenda' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
+            metadata: meta,
+          },
+          {
+            template: 'pago_rechazado_admin',
+            data: {
+              nombre: p.clienteNombre,
+              servicio: p.servicioNombre,
+              anticipo,
+              fecha: p.fecha,
+              hora: p.hora,
+              barbero: p.barberoNombre,
+              verificadoPor: rechazadoPor,
+              comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
+            }
+          }
+        )
+
+        // Notificar al barbero asignado (in-app)
+        if (p.barberoId) {
+          await notifyUser(db, p.barberoId, event, {
+            titulo: '🚫 Comprobante rechazado',
+            mensaje: `El comprobante de ${p.clienteNombre} fue rechazado como falso — cita cancelada`,
+            tipo: 'danger',
+            categoria: event,
+            link: '/barbero' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
+            metadata: meta,
+          })
+        }
+
+        // Notificación in-app al cliente
+        if (p.clienteId) {
+          await notifyUser(db, p.clienteId as string, event, {
+            titulo: '❌ Comprobante No Válido',
+            mensaje: `Tu comprobante de pago no pudo ser verificado. Tu reserva fue cancelada. Si crees que es un error, contáctanos.`,
+            tipo: 'danger',
+            categoria: event,
+            link: '/cliente',
+            metadata: meta,
+          })
+        }
+
+        // Email al cliente
+        if (p.clienteEmail) {
+          const emailRes = await sendNotificationEmail(p.clienteEmail, 'pago_rechazado_cliente', {
+            nombre: p.clienteNombre,
+            servicio: p.servicioNombre,
+            anticipo,
+            fecha: p.fecha,
+            hora: p.hora,
+            barbero: p.barberoNombre,
+            comprobante_url: typeof p.comprobante_url === 'string' ? p.comprobante_url : undefined,
+          })
+          if (!emailRes.ok) {
+            console.error('[dispatch] Error enviando email pago_rechazado_cliente a', p.clienteEmail, emailRes.error)
+          }
+        }
+        break
+      }
       case 'invitacion_2x1': {
         if (p.acompananteEmail) {
           await sendNotificationEmail(p.acompananteEmail, 'invitacion_2x1', {

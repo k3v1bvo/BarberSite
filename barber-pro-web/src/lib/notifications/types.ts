@@ -10,6 +10,7 @@ export type NotificationCategory =
   | 'sistema'
   | 'pago_pendiente'
   | 'pago_verificado'
+  | 'pago_rechazado'
   | 'invitacion_2x1'
   | 'invitacion_referido'
   | 'invitacion_cliente'
