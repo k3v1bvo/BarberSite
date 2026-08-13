@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -11,6 +11,7 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createServerSupabaseClient()
+  const adminSupabase = await createServerAdminClient()
 
   // Definir el rango del día
   const inicioDia = `${fecha}T00:00:00-04:00`
@@ -46,12 +47,12 @@ export async function GET(request: Request) {
       .gte('fecha_hora', inicioDia)
       .lte('fecha_hora', finDia)
       .not('estado', 'eq', 'cancelada'),
-    supabase
+    adminSupabase
       .from('sistema_config')
       .select('valor')
       .eq('clave', 'feriados_config')
       .maybeSingle(),
-    supabase
+    adminSupabase
       .from('sistema_config')
       .select('valor')
       .eq('clave', 'domingos_rotativos_config')

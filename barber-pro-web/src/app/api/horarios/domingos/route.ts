@@ -10,8 +10,8 @@ export interface DomingoAsignacion {
 /** GET: Obtener asignaciones de domingos rotativos */
 export async function GET() {
   try {
-    const supabase = await createServerSupabaseClient()
-    const { data } = await supabase
+    const adminSupabase = await createServerAdminClient()
+    const { data } = await adminSupabase
       .from('sistema_config')
       .select('valor')
       .eq('clave', 'domingos_rotativos_config')

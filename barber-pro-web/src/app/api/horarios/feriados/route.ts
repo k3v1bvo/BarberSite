@@ -14,8 +14,8 @@ export interface FeriadoItem {
 /** GET: Obtener lista de feriados configurados */
 export async function GET() {
   try {
-    const supabase = await createServerSupabaseClient()
-    const { data } = await supabase
+    const adminSupabase = await createServerAdminClient()
+    const { data } = await adminSupabase
       .from('sistema_config')
       .select('valor')
       .eq('clave', 'feriados_config')
