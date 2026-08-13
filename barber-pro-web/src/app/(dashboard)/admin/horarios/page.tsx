@@ -7,7 +7,10 @@ import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
-import { ArrowLeft, Clock, Plus, Save, Trash2, User, Edit, Zap, Calendar, X, Copy, Check, CalendarDays, SlidersHorizontal, AlertTriangle, Moon } from 'lucide-react'
+import {
+  ArrowLeft, Clock, Plus, Save, Trash2, User, Edit, Zap, Calendar, X, Copy, Check,
+  CalendarDays, SlidersHorizontal, AlertTriangle, Moon, Sun, Sparkles, CheckCircle2, ShieldAlert
+} from 'lucide-react'
 import type { PlantillaHorario, TipoHorario } from '@/types'
 import { getBusinessDateString } from '@/lib/asistencia/helpers'
 
@@ -39,6 +42,22 @@ interface BloqueoItem {
   todo_el_dia: boolean
 }
 
+interface FeriadoItem {
+  id: string
+  fecha: string
+  nombre: string
+  tipo: 'cerrado' | 'con_atencion'
+  hora_inicio?: string
+  hora_fin?: string
+  descripcion?: string
+}
+
+interface DomingoItem {
+  fecha: string
+  barberos_habilitados: string[]
+  notas?: string
+}
+
 const DIAS_CONFIG_INICIAL: DiaConfig[] = [
   { dia_semana: 1, nombre: 'Lunes', nombre_corto: 'Lun', activo: true, hora_inicio: '08:30', hora_fin: '20:30' },
   { dia_semana: 2, nombre: 'Martes', nombre_corto: 'Mar', activo: true, hora_inicio: '08:30', hora_fin: '20:30' },
@@ -58,11 +77,32 @@ const emptyForm = {
   is_active: true,
 }
 
+// Genera los próximos N domingos a partir de hoy
+function getProximosDomingos(cantidad = 8): { fecha: string; label: string }[] {
+  const domingos: { fecha: string; label: string }[] = []
+  const d = new Date()
+  // Ajustar al próximo domingo si no es domingo hoy
+  const day = d.getDay()
+  const diffToSunday = day === 0 ? 0 : 7 - day
+  d.setDate(d.getDate() + diffToSunday)
+
+  for (let i = 0; i < cantidad; i++) {
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    const dateStr = `${yyyy}-${mm}-${dd}`
+    const label = d.toLocaleDateString('es-BO', { weekday: 'short', day: 'numeric', month: 'short' })
+    domingos.push({ fecha: dateStr, label })
+    d.setDate(d.getDate() + 7)
+  }
+  return domingos
+}
+
 export default function AdminHorariosPage() {
   const router = useRouter()
   const { success, error: toastError } = useToast()
   
-  const [activeTab, setActiveTab] = useState<'semanal' | 'fecha_especifica'>('semanal')
+  const [activeTab, setActiveTab] = useState<'semanal' | 'domingos' | 'feriados' | 'fecha_especifica'>('semanal')
   const [plantillas, setPlantillas] = useState<PlantillaHorario[]>([])
   const [barberos, setBarberos] = useState<{ id: string; full_name: string }[]>([])
   const [barberoId, setBarberoId] = useState<string>('')
@@ -85,6 +125,23 @@ export default function AdminHorariosPage() {
   const [bloqueos, setBloqueos] = useState<BloqueoItem[]>([])
   const [savingExcepcion, setSavingExcepcion] = useState(false)
 
+  // Domingos Rotativos
+  const [proximosDomingos] = useState(() => getProximosDomingos(10))
+  const [domingosRotativos, setDomingosRotativos] = useState<DomingoItem[]>([])
+  const [savingDomingos, setSavingDomingos] = useState(false)
+
+  // Feriados
+  const [feriados, setFeriados] = useState<FeriadoItem[]>([])
+  const [formFeriado, setFormFeriado] = useState<Omit<FeriadoItem, 'id'>>({
+    fecha: getBusinessDateString(),
+    nombre: '',
+    tipo: 'cerrado',
+    hora_inicio: '10:00',
+    hora_fin: '16:00',
+    descripcion: ''
+  })
+  const [savingFeriados, setSavingFeriados] = useState(false)
+
   // Modales y plantillas
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<PlantillaHorario | null>(null)
@@ -100,6 +157,26 @@ export default function AdminHorariosPage() {
     } finally {
       setLoading(false)
     }
+  }, [toastError])
+
+  const loadFeriados = useCallback(async () => {
+    try {
+      const res = await fetch('/api/horarios/feriados')
+      const json = await res.json()
+      setFeriados(json.feriados || [])
+    } catch {
+      console.error('Error cargando feriados')
+    }
+  }, [])
+
+  const loadDomingos = useCallback(async () => {
+    try {
+      const res = await fetch('/api/horarios/domingos')
+      const json = await res.json()
+      setDomingosRotativos(json.domingos || [])
+    } catch {
+      console.error('Error cargando domingos')
+    }
   }, [])
 
   const searchParams = useSearchParams()
@@ -107,6 +184,8 @@ export default function AdminHorariosPage() {
 
   useEffect(() => {
     loadPlantillas()
+    loadFeriados()
+    loadDomingos()
     import('@/lib/supabase/client').then(({ createClient }) => {
       createClient()
         .from('profiles')
@@ -126,7 +205,7 @@ export default function AdminHorariosPage() {
           }
         })
     })
-  }, [loadPlantillas, targetBarberoId])
+  }, [loadPlantillas, loadFeriados, loadDomingos, targetBarberoId])
 
   // Cargar horario específico del barbero
   const loadHorarioBarbero = useCallback(async (bId: string) => {
@@ -229,7 +308,91 @@ export default function AdminHorariosPage() {
     }
   }
 
-  // Guardar Excepción por Fecha Específica (Un Solo Día)
+  // Domingos Rotativos: toggle de barbero en determinado domingo
+  const toggleBarberoDomingo = (fechaDom: string, bId: string) => {
+    setDomingosRotativos(prev => {
+      const exist = prev.find(d => d.fecha === fechaDom)
+      if (exist) {
+        const estaHabilitado = exist.barberos_habilitados.includes(bId)
+        const nuevaLista = estaHabilitado
+          ? exist.barberos_habilitados.filter(id => id !== bId)
+          : [...exist.barberos_habilitados, bId]
+        return prev.map(d => (d.fecha === fechaDom ? { ...d, barberos_habilitados: nuevaLista } : d))
+      } else {
+        return [...prev, { fecha: fechaDom, barberos_habilitados: [bId] }]
+      }
+    })
+  }
+
+  const guardarDomingosRotativos = async () => {
+    setSavingDomingos(true)
+    try {
+      const res = await fetch('/api/horarios/domingos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domingos: domingosRotativos }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      success('¡Asignaciones de Domingos guardadas!')
+    } catch (err: any) {
+      toastError(err.message || 'Error al guardar domingos')
+    } finally {
+      setSavingDomingos(false)
+    }
+  }
+
+  // Feriados: agregar feriado
+  const agregarFeriado = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formFeriado.nombre || !formFeriado.fecha) return toastError('Ingresa el nombre y fecha del feriado')
+    
+    const nuevoItem: FeriadoItem = {
+      id: String(Date.now()),
+      ...formFeriado
+    }
+    const nuevaLista = [...feriados.filter(f => f.fecha !== formFeriado.fecha), nuevoItem]
+    setFeriados(nuevaLista)
+    setSavingFeriados(true)
+    try {
+      const res = await fetch('/api/horarios/feriados', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feriados: nuevaLista }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      success('¡Feriado guardado correctamente!')
+      setFormFeriado({
+        fecha: getBusinessDateString(),
+        nombre: '',
+        tipo: 'cerrado',
+        hora_inicio: '10:00',
+        hora_fin: '16:00',
+        descripcion: ''
+      })
+    } catch (err: any) {
+      toastError(err.message || 'Error al guardar feriado')
+    } finally {
+      setSavingFeriados(false)
+    }
+  }
+
+  const eliminarFeriado = async (id: string) => {
+    if (!confirm('¿Eliminar este feriado registrado?')) return
+    const nuevaLista = feriados.filter(f => f.id !== id)
+    setFeriados(nuevaLista)
+    try {
+      await fetch('/api/horarios/feriados', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feriados: nuevaLista }),
+      })
+      success('Feriado eliminado')
+    } catch {
+      toastError('Error al eliminar')
+    }
+  }
+
+  // Guardar Excepción por Fecha Específica
   const guardarExcepcionFecha = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!barberoId || !fechaEspecifica) {
@@ -250,7 +413,6 @@ export default function AdminHorariosPage() {
         payload.fecha_fin = `${fechaEspecifica}T23:59:59-04:00`
         payload.todo_el_dia = true
       } else {
-        // Horario especial para esa fecha puntual
         payload.fecha_inicio = `${fechaEspecifica}T${excepcionInicio}:00-04:00`
         payload.fecha_fin = `${fechaEspecifica}T${excepcionFin}:00-04:00`
         payload.todo_el_dia = false
@@ -274,7 +436,6 @@ export default function AdminHorariosPage() {
     }
   }
 
-  // Eliminar excepción / bloqueo puntual
   const eliminarBloqueo = async (bloqueoId: string) => {
     if (!confirm('¿Eliminar esta excepción de horario para este día?')) return
     try {
@@ -287,49 +448,6 @@ export default function AdminHorariosPage() {
     } catch (err: any) {
       toastError(err.message || 'Error al eliminar')
     }
-  }
-
-  // Plantillas CRUD
-  const savePlantilla = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const res = await fetch('/api/horarios/plantillas', {
-      method: editing ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editing ? { id: editing.id, ...form } : form),
-    })
-    if (!res.ok) {
-      toastError((await res.json()).error)
-      return
-    }
-    success(editing ? 'Plantilla actualizada' : 'Plantilla creada')
-    setShowModal(false)
-    setEditing(null)
-    setForm(emptyForm)
-    loadPlantillas()
-  }
-
-  const deletePlantilla = async (id: string) => {
-    if (!confirm('¿Eliminar esta plantilla?')) return
-    const res = await fetch(`/api/horarios/plantillas?id=${id}`, { method: 'DELETE' })
-    if (!res.ok) {
-      toastError((await res.json()).error)
-      return
-    }
-    success('Plantilla eliminada')
-    loadPlantillas()
-  }
-
-  const openEdit = (p: PlantillaHorario) => {
-    setEditing(p)
-    setForm({
-      nombre: p.nombre,
-      tipo: p.tipo,
-      hora_inicio: p.hora_inicio?.slice(0, 5) || '08:30',
-      hora_fin: p.hora_fin?.slice(0, 5) || '20:30',
-      descripcion: p.descripcion || '',
-      is_active: p.is_active,
-    })
-    setShowModal(true)
   }
 
   if (loading) {
@@ -355,60 +473,84 @@ export default function AdminHorariosPage() {
             <h1 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tight mt-1">
               Horas de <span className="text-amber-500">Trabajo</span>
             </h1>
-            <p className="text-zinc-400 text-xs md:text-sm">Configura la planilla semanal o modifica un día específico en particular</p>
+            <p className="text-zinc-400 text-xs md:text-sm">Configura horarios semanales, domingos rotativos y feriados especiales</p>
           </div>
         </div>
 
         {/* SELECTOR DE BARBERO */}
-        <div className="w-full md:w-auto flex items-center gap-3 bg-zinc-900 border border-amber-500/30 p-2 rounded-2xl shadow-lg">
-          <User className="w-5 h-5 text-amber-500 ml-2 shrink-0" />
-          <select
-            className="bg-transparent text-white font-bold text-sm outline-none cursor-pointer pr-4 py-1"
-            value={barberoId}
-            onChange={(e) => setBarberoId(e.target.value)}
-          >
-            {barberos.map((b) => (
-              <option key={b.id} value={b.id} className="bg-zinc-950 text-white">
-                {b.full_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {activeTab !== 'feriados' && (
+          <div className="w-full md:w-auto flex items-center gap-3 bg-zinc-900 border border-amber-500/30 p-2 rounded-2xl shadow-lg">
+            <User className="w-5 h-5 text-amber-500 ml-2 shrink-0" />
+            <select
+              className="bg-transparent text-white font-bold text-sm outline-none cursor-pointer pr-4 py-1"
+              value={barberoId}
+              onChange={(e) => setBarberoId(e.target.value)}
+            >
+              {barberos.map((b) => (
+                <option key={b.id} value={b.id} className="bg-zinc-950 text-white">
+                  {b.full_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* PESTAÑAS NAVEGACIÓN: PLANILLA SEMANAL VS MODIFICACIÓN POR DÍA ESPECÍFICO */}
-      <div className="flex gap-2 p-1.5 bg-zinc-900 border border-white/10 rounded-2xl">
+      {/* PESTAÑAS NAVEGACIÓN */}
+      <div className="flex flex-wrap gap-2 p-1.5 bg-zinc-900 border border-white/10 rounded-2xl">
         <button
           onClick={() => setActiveTab('semanal')}
-          className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all min-w-[140px] ${
             activeTab === 'semanal'
               ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
               : 'text-zinc-400 hover:text-white hover:bg-white/5'
           }`}
         >
           <SlidersHorizontal className="w-4 h-4" />
-          Planilla Semanal Recurrente
+          Planilla Semanal
+        </button>
+
+        <button
+          onClick={() => setActiveTab('domingos')}
+          className={`flex-1 py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all min-w-[140px] ${
+            activeTab === 'domingos'
+              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+              : 'text-zinc-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Sun className="w-4 h-4" />
+          Domingos Rotativos
+        </button>
+
+        <button
+          onClick={() => setActiveTab('feriados')}
+          className={`flex-1 py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all min-w-[140px] ${
+            activeTab === 'feriados'
+              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+              : 'text-zinc-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          Feriados & Festivos
         </button>
 
         <button
           onClick={() => setActiveTab('fecha_especifica')}
-          className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all min-w-[140px] ${
             activeTab === 'fecha_especifica'
               ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
               : 'text-zinc-400 hover:text-white hover:bg-white/5'
           }`}
         >
           <CalendarDays className="w-4 h-4" />
-          Modificar un Día Específico (Fecha Puntual)
+          Día Específico
         </button>
       </div>
 
       {/* VISTA 1: PLANILLA SEMANAL RECURRENTE */}
       {activeTab === 'semanal' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* PANEL PRINCIPAL: EDITOR DE HORAS DE TRABAJO */}
           <div className="lg:col-span-2 space-y-6">
-            {/* SECCIÓN 1: DÍAS HÁBILES (BOTONES CIRCULARES DE SELECCIÓN DE DÍAS) */}
             <Card className="bg-zinc-950 border-white/10 shadow-xl overflow-hidden">
               <CardHeader className="pb-3 border-b border-white/5">
                 <CardTitle className="text-white text-base font-black uppercase tracking-wider flex items-center gap-2">
@@ -452,480 +594,482 @@ export default function AdminHorariosPage() {
               </CardContent>
             </Card>
 
-            {/* SECCIÓN 2: HORAS DE TRABAJO Y ASIGNACIÓN EN LOTE */}
+            {/* SECCIÓN HORAS POR DÍA */}
             <Card className="bg-zinc-950 border-white/10 shadow-xl overflow-hidden">
-              <CardHeader className="pb-3 border-b border-white/5 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-white text-base font-black uppercase tracking-wider flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-amber-500" />
-                    Horas de trabajo
-                  </CardTitle>
-                  <p className="text-xs text-zinc-400">Establece el rango de entrada y salida para cada día hábil.</p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => aplicarATodosLosDias(batchInicio, batchFin)}
-                  className="text-xs font-bold text-amber-400 hover:text-amber-300 underline underline-offset-4 transition"
-                >
-                  Aplicar a todos los días
-                </button>
+              <CardHeader className="pb-3 border-b border-white/5">
+                <CardTitle className="text-white text-base font-black uppercase tracking-wider flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-amber-500" />
+                  Horas de Trabajo por Día
+                </CardTitle>
               </CardHeader>
-
-              <CardContent className="p-6 space-y-6">
-                {/* RANGO GLOBAL RAPIDO */}
-                <div className="p-4 bg-zinc-900/80 border border-amber-500/20 rounded-2xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-amber-400 shrink-0" />
-                    <div>
-                      <p className="text-xs font-black text-white uppercase">Asignar Rango a Todos</p>
-                      <p className="text-[11px] text-zinc-400">Copia este horario a todos los días marcados arriba</p>
-                    </div>
+              <CardContent className="p-6 space-y-4">
+                {horarioSemanal.filter(d => d.activo).length === 0 ? (
+                  <div className="text-center py-10 border border-dashed border-zinc-800 rounded-2xl">
+                    <Moon className="w-10 h-10 text-zinc-600 mx-auto mb-2 opacity-50" />
+                    <p className="text-zinc-400 font-bold text-sm">Sin días hábiles seleccionados</p>
+                    <p className="text-zinc-600 text-xs mt-1">Activa al menos un día arriba para configurar horas.</p>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="time"
-                      value={batchInicio}
-                      onChange={(e) => setBatchInicio(e.target.value)}
-                      className="h-10 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs font-bold text-white outline-none focus:border-amber-500"
-                    />
-                    <span className="text-xs text-zinc-500 font-bold">a</span>
-                    <input
-                      type="time"
-                      value={batchFin}
-                      onChange={(e) => setBatchFin(e.target.value)}
-                      className="h-10 bg-zinc-950 border border-white/10 rounded-xl px-3 text-xs font-bold text-white outline-none focus:border-amber-500"
-                    />
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onClick={() => aplicarATodosLosDias(batchInicio, batchFin)}
-                      className="font-bold text-xs"
+                ) : (
+                  horarioSemanal.filter(d => d.activo).map((d) => (
+                    <div
+                      key={d.dia_semana}
+                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-zinc-900 border border-white/5 rounded-2xl hover:border-amber-500/20 transition"
                     >
-                      Aplicar
-                    </Button>
-                  </div>
-                </div>
-
-                {/* LISTA DETALLADA POR DÍA */}
-                <div className="space-y-4">
-                  {horarioSemanal.map((d, index) => {
-                    if (!d.activo) return null
-
-                    return (
-                      <div
-                        key={d.dia_semana}
-                        className="p-4 bg-zinc-900/60 border border-white/5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-white/20 transition"
-                      >
-                        <div className="flex items-center justify-between sm:justify-start gap-4">
-                          <span className="font-bold text-sm text-white min-w-[90px]">{d.nombre}</span>
-                          {index === 0 && (
-                            <button
-                              type="button"
-                              onClick={() => aplicarATodosLosDias(d.hora_inicio, d.hora_fin)}
-                              className="text-[11px] text-zinc-400 hover:text-amber-400 underline underline-offset-2 transition"
-                            >
-                              Aplicar a todos los días
-                            </button>
-                          )}
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-black text-sm">
+                          {d.nombre_corto}
                         </div>
-
-                        <div className="flex items-center justify-between sm:justify-end gap-3 bg-zinc-950/80 p-2 rounded-xl border border-white/5">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="time"
-                              value={d.hora_inicio}
-                              onChange={(e) => updateHoraDia(d.dia_semana, 'hora_inicio', e.target.value)}
-                              className="bg-transparent text-white font-bold text-sm outline-none px-2 py-1 cursor-pointer focus:text-amber-400"
-                            />
-                            <span className="text-xs text-zinc-500 font-bold">a</span>
-                            <input
-                              type="time"
-                              value={d.hora_fin}
-                              onChange={(e) => updateHoraDia(d.dia_semana, 'hora_fin', e.target.value)}
-                              className="bg-transparent text-white font-bold text-sm outline-none px-2 py-1 cursor-pointer focus:text-amber-400"
-                            />
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => aplicarATodosLosDias(d.hora_inicio, d.hora_fin)}
-                            className="p-1.5 text-zinc-500 hover:text-amber-400 hover:bg-white/5 rounded-lg transition"
-                            title="Copiar este horario a los demás días"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </button>
+                        <div>
+                          <p className="font-black text-white text-sm">{d.nombre}</p>
+                          <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-0.5">Día Hábil</p>
                         </div>
                       </div>
-                    )
-                  })}
-
-                  {horarioSemanal.filter(d => d.activo).length === 0 && (
-                    <div className="text-center py-12 bg-zinc-900/30 border border-dashed border-zinc-800 rounded-2xl">
-                      <p className="text-zinc-500 font-bold text-xs">No hay días hábiles seleccionados.</p>
-                      <p className="text-zinc-600 text-[11px] mt-1">Haz clic en los círculos de días de arriba para activar horas de trabajo.</p>
+                      <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <div className="flex-1 sm:flex-initial">
+                          <label className="text-[9px] font-black uppercase text-zinc-500 block mb-1">Entrada</label>
+                          <input
+                            type="time"
+                            value={d.hora_inicio}
+                            onChange={(e) => updateHoraDia(d.dia_semana, 'hora_inicio', e.target.value)}
+                            className="bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <span className="text-zinc-600 font-bold mt-4">→</span>
+                        <div className="flex-1 sm:flex-initial">
+                          <label className="text-[9px] font-black uppercase text-zinc-500 block mb-1">Salida</label>
+                          <input
+                            type="time"
+                            value={d.hora_fin}
+                            onChange={(e) => updateHoraDia(d.dia_semana, 'hora_fin', e.target.value)}
+                            className="bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
-
-                {/* BOTÓN GUARDAR HORARIO */}
-                <div className="pt-4 border-t border-white/5 flex justify-end">
+                  ))
+                )}
+                <div className="pt-4 flex justify-end">
                   <Button
-                    variant="primary"
                     onClick={guardarHorarioSemanal}
                     disabled={savingHorario}
-                    className="w-full sm:w-auto font-black uppercase text-xs tracking-wider px-8 py-6 bg-gradient-to-r from-amber-500 to-amber-400 text-black shadow-lg shadow-amber-500/20 hover:scale-[1.02] transition-all"
+                    className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-sm h-12 px-8 rounded-xl shadow-lg shadow-amber-500/20"
                   >
                     <Save className="w-4 h-4 mr-2" />
-                    {savingHorario ? 'Guardando...' : 'Guardar Horas de Trabajo'}
+                    {savingHorario ? 'Guardando...' : 'Guardar Planilla Semanal'}
                   </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* PANEL LATERAL: PLANTILLAS REUTILIZABLES */}
+          {/* LATERAL: ASIGNACIÓN EN LOTE Y PLANTILLAS RÁPIDAS */}
           <div className="space-y-6">
             <Card className="bg-zinc-950 border-white/10 shadow-xl">
-              <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-white/5">
-                <CardTitle className="text-white text-base font-black uppercase tracking-wider flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-amber-500" />
-                  Plantillas Rápidas
+              <CardHeader className="pb-3 border-b border-white/5">
+                <CardTitle className="text-white text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  Asignación en Lote
                 </CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setEditing(null)
-                    setForm(emptyForm)
-                    setShowModal(true)
-                  }}
-                  className="text-xs font-bold text-amber-400 border-amber-500/30"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Nueva
-                </Button>
               </CardHeader>
-
-              <CardContent className="p-6 space-y-4">
-                <p className="text-xs text-zinc-400">Haz clic en cualquier plantilla para aplicarla de inmediato a los días activos del barbero.</p>
-
-                {plantillas.map((p) => (
-                  <div
-                    key={p.id}
-                    className="p-4 bg-zinc-900/80 border border-white/5 rounded-2xl hover:border-amber-500/40 transition flex items-center justify-between gap-3 group"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <Badge variant="warning" className="text-[9px] uppercase font-black mb-1">
-                        {TIPOS.find((t) => t.value === p.tipo)?.label || p.tipo}
-                      </Badge>
-                      <h3 className="font-bold text-white text-sm truncate uppercase">{p.nombre}</h3>
-                      <p className="text-xs text-amber-400 font-mono font-bold mt-0.5">
-                        {p.hora_inicio?.slice(0, 5)} — {p.hora_fin?.slice(0, 5)}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => aplicarPlantilla(p)}
-                        className="text-xs font-bold bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500 hover:text-black transition"
-                      >
-                        Aplicar
-                      </Button>
-                      <button
-                        onClick={() => openEdit(p)}
-                        className="p-2 text-zinc-400 hover:text-white rounded-lg transition"
-                        title="Editar plantilla"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deletePlantilla(p.id)}
-                        className="p-2 text-zinc-500 hover:text-red-400 rounded-lg transition"
-                        title="Eliminar plantilla"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+              <CardContent className="p-5 space-y-4">
+                <p className="text-xs text-zinc-400">Aplica el mismo horario de entrada y salida a todos los días marcados como activos.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-zinc-500 block mb-1">Entrada Lote</label>
+                    <input
+                      type="time"
+                      value={batchInicio}
+                      onChange={(e) => setBatchInicio(e.target.value)}
+                      className="bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full"
+                    />
                   </div>
-                ))}
-
-                {plantillas.length === 0 && (
-                  <p className="text-center py-6 text-xs text-zinc-500 font-bold">No hay plantillas guardadas.</p>
-                )}
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-zinc-500 block mb-1">Salida Lote</label>
+                    <input
+                      type="time"
+                      value={batchFin}
+                      onChange={(e) => setBatchFin(e.target.value)}
+                      className="bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full"
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={() => aplicarATodosLosDias(batchInicio, batchFin)}
+                  variant="outline"
+                  className="w-full font-bold text-xs uppercase"
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  Aplicar a todos los días
+                </Button>
               </CardContent>
             </Card>
           </div>
         </div>
       )}
 
-      {/* VISTA 2: MODIFICAR UN DÍA ESPECÍFICO (EXCEPCIONES Y BLOQUEOS POR FECHA PUNTUAL) */}
-      {activeTab === 'fecha_especifica' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* FORMULARIO DE CREACIÓN DE EXCEPCIÓN PUNTUAL */}
-          <Card className="lg:col-span-2 bg-zinc-950 border-white/10 shadow-xl overflow-hidden">
-            <CardHeader className="pb-3 border-b border-white/5">
-              <CardTitle className="text-white text-base font-black uppercase tracking-wider flex items-center gap-2">
-                <CalendarDays className="w-5 h-5 text-amber-500" />
-                Modificar Horario de un Día Específico
-              </CardTitle>
-              <p className="text-xs text-zinc-400">
-                Selecciona una fecha puntual para cambiar el horario o marcar día libre sin modificar la planilla semanal recurrente.
-              </p>
+      {/* VISTA 2: DOMINGOS ROTATIVOS */}
+      {activeTab === 'domingos' && (
+        <div className="space-y-6">
+          <Card className="bg-zinc-950 border-amber-500/20 shadow-xl">
+            <CardHeader className="pb-3 border-b border-white/5 flex flex-col md:flex-row justify-between md:items-center gap-4">
+              <div>
+                <CardTitle className="text-amber-400 text-lg font-black uppercase tracking-wider flex items-center gap-2">
+                  <Sun className="w-5 h-5" />
+                  Asignación de Domingos Rotativos
+                </CardTitle>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Marca con un tike los domingos específicos en que trabajará cada barbero. Si un barbero no está tiqueado para determinado domingo, la web no permitirá reservas para él ese día.
+                </p>
+              </div>
+              <Button
+                onClick={guardarDomingosRotativos}
+                disabled={savingDomingos}
+                className="bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs h-11 px-6 rounded-xl shrink-0"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {savingDomingos ? 'Guardando...' : 'Guardar Domingos'}
+              </Button>
             </CardHeader>
-
-            <form onSubmit={guardarExcepcionFecha}>
-              <CardContent className="p-6 space-y-6">
-                {/* FECHA PUNTUAL */}
-                <div>
-                  <label className="text-xs font-black uppercase text-zinc-400 mb-2 block">
-                    1. Selecciona la Fecha Específica
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={fechaEspecifica}
-                    onChange={(e) => setFechaEspecifica(e.target.value)}
-                    className="w-full p-3.5 bg-zinc-900 border border-white/10 rounded-xl text-white font-bold outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                {/* TIPO DE MODIFICACIÓN */}
-                <div>
-                  <label className="text-xs font-black uppercase text-zinc-400 mb-2 block">
-                    2. ¿Qué deseas hacer en esta fecha?
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setTipoExcepcion('horario_especial')}
-                      className={`p-4 rounded-xl border text-left flex flex-col gap-1 transition ${
-                        tipoExcepcion === 'horario_especial'
-                          ? 'bg-amber-500/10 border-amber-500 text-white'
-                          : 'bg-zinc-900 border-white/5 text-zinc-400 hover:border-white/20'
-                      }`}
-                    >
-                      <Clock className="w-5 h-5 text-amber-400" />
-                      <span className="font-bold text-xs uppercase">Horario Especial</span>
-                      <span className="text-[10px] text-zinc-500">Cambiar horas de entrada/salida</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setTipoExcepcion('dia_libre')}
-                      className={`p-4 rounded-xl border text-left flex flex-col gap-1 transition ${
-                        tipoExcepcion === 'dia_libre'
-                          ? 'bg-purple-500/10 border-purple-500 text-white'
-                          : 'bg-zinc-900 border-white/5 text-zinc-400 hover:border-white/20'
-                      }`}
-                    >
-                      <Moon className="w-5 h-5 text-purple-400" />
-                      <span className="font-bold text-xs uppercase">Día Libre Puntual</span>
-                      <span className="text-[10px] text-zinc-500">No atenderá en esta fecha</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setTipoExcepcion('vacacion')}
-                      className={`p-4 rounded-xl border text-left flex flex-col gap-1 transition ${
-                        tipoExcepcion === 'vacacion'
-                          ? 'bg-red-500/10 border-red-500 text-white'
-                          : 'bg-zinc-900 border-white/5 text-zinc-400 hover:border-white/20'
-                      }`}
-                    >
-                      <AlertTriangle className="w-5 h-5 text-red-400" />
-                      <span className="font-bold text-xs uppercase">Ausencia / Vacación</span>
-                      <span className="text-[10px] text-zinc-500">Bloqueo por motivo especial</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* HORAS SI ES HORARIO ESPECIAL */}
-                {tipoExcepcion === 'horario_especial' && (
-                  <div className="p-4 bg-zinc-900 border border-white/5 rounded-2xl space-y-3">
-                    <label className="text-xs font-black uppercase text-amber-400 block">
-                      Definir Horas de Atención para el {fechaEspecifica}
-                    </label>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <span className="text-[11px] text-zinc-400 block mb-1">Hora de entrada</span>
-                        <input
-                          type="time"
-                          value={excepcionInicio}
-                          onChange={(e) => setExcepcionInicio(e.target.value)}
-                          className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white font-bold outline-none focus:border-amber-500"
-                        />
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {proximosDomingos.map((dom) => {
+                  const exist = domingosRotativos.find(d => d.fecha === dom.fecha)
+                  const habilitadosCount = exist?.barberos_habilitados?.length || 0
+                  return (
+                    <div key={dom.fecha} className="bg-zinc-900 border border-white/10 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                        <div className="flex items-center gap-2">
+                          <Sun className="w-4 h-4 text-amber-500" />
+                          <span className="font-black text-white text-sm uppercase">{dom.label}</span>
+                        </div>
+                        <span className="text-[10px] text-amber-400 font-mono font-bold bg-amber-500/10 px-2 py-0.5 rounded-md">
+                          {dom.fecha}
+                        </span>
                       </div>
-                      <div>
-                        <span className="text-[11px] text-zinc-400 block mb-1">Hora de salida</span>
-                        <input
-                          type="time"
-                          value={excepcionFin}
-                          onChange={(e) => setExcepcionFin(e.target.value)}
-                          className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white font-bold outline-none focus:border-amber-500"
-                        />
+                      <div className="space-y-2">
+                        {barberos.map((b) => {
+                          const isChecked = exist?.barberos_habilitados?.includes(b.id) || false
+                          return (
+                            <label
+                              key={b.id}
+                              className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
+                                isChecked
+                                  ? 'bg-amber-500/10 border-amber-500/40 text-white'
+                                  : 'bg-zinc-950 border-white/5 text-zinc-500 hover:border-white/10'
+                              }`}
+                            >
+                              <span className="text-xs font-bold truncate pr-2">{b.full_name}</span>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleBarberoDomingo(dom.fecha, b.id)}
+                                className="w-4 h-4 accent-amber-500 rounded cursor-pointer shrink-0"
+                              />
+                            </label>
+                          )
+                        })}
+                      </div>
+                      <div className="pt-1 text-[10px] text-zinc-500 font-bold text-right">
+                        {habilitadosCount} barbero(s) atiende(n)
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {/* MOTIVO */}
-                <Input
-                  label="Motivo o Nota (Opcional)"
-                  placeholder="Ej: Permiso médico, atención por evento especial, etc."
-                  value={motivoExcepcion}
-                  onChange={(e) => setMotivoExcepcion(e.target.value)}
-                />
-
-                <div className="pt-4 border-t border-white/5 flex justify-end">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={savingExcepcion}
-                    className="w-full sm:w-auto font-black uppercase text-xs tracking-wider px-8 py-6 bg-gradient-to-r from-amber-500 to-amber-400 text-black shadow-lg shadow-amber-500/20"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    {savingExcepcion ? 'Guardando...' : 'Aplicar Excepción a este Día'}
-                  </Button>
-                </div>
-              </CardContent>
-            </form>
-          </Card>
-
-          {/* LISTA DE EXCEPCIONES Y DÍAS MODIFICADOS */}
-          <Card className="bg-zinc-950 border-white/10 shadow-xl">
-            <CardHeader className="pb-3 border-b border-white/5">
-              <CardTitle className="text-white text-base font-black uppercase tracking-wider flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-amber-500" />
-                Días Modificados / Excepciones
-              </CardTitle>
-              <p className="text-xs text-zinc-400">Ajustes específicos por fecha registrados para este barbero.</p>
-            </CardHeader>
-
-            <CardContent className="p-6 space-y-4">
-              {bloqueos.map((b) => {
-                const fechaStr = b.fecha_inicio?.split('T')[0]
-                const horaIniStr = b.fecha_inicio?.split('T')[1]?.slice(0, 5)
-                const horaFinStr = b.fecha_fin?.split('T')[1]?.slice(0, 5)
-
-                return (
-                  <div key={b.id} className="p-4 bg-zinc-900 border border-white/5 rounded-2xl space-y-2 relative">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs font-bold text-amber-400">{fechaStr}</span>
-                      <Badge
-                        variant={b.todo_el_dia ? 'default' : 'warning'}
-                        className="text-[9px] uppercase font-black"
-                      >
-                        {b.todo_el_dia ? 'Día Libre' : 'Horario Especial'}
-                      </Badge>
-                    </div>
-
-                    {!b.todo_el_dia && (
-                      <p className="text-xs text-white font-bold">
-                        🕒 {horaIniStr} a {horaFinStr}
-                      </p>
-                    )}
-
-                    {b.motivo && <p className="text-xs text-zinc-400 italic">"{b.motivo}"</p>}
-
-                    <div className="pt-2 flex justify-end">
-                      <button
-                        onClick={() => eliminarBloqueo(b.id)}
-                        className="text-[11px] text-red-400 hover:text-red-300 font-bold flex items-center gap-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Eliminar Ajuste
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-
-              {bloqueos.length === 0 && (
-                <div className="text-center py-8 text-zinc-500 font-bold text-xs">
-                  No hay días modificados por fecha para este barbero.
-                </div>
-              )}
+                  )
+                })}
+              </div>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* MODAL CREAR / EDITAR PLANTILLA */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-start justify-center z-[100] p-4 pt-12 overflow-y-auto">
-          <Card className="w-full max-w-md bg-zinc-950 border-white/10 my-auto">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-white/5">
-              <CardTitle className="text-white uppercase font-black text-base">
-                {editing ? 'Editar plantilla' : 'Nueva plantilla de horario'}
-              </CardTitle>
-              <button onClick={() => setShowModal(false)} className="text-zinc-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </CardHeader>
-            <form onSubmit={savePlantilla}>
-              <CardContent className="space-y-4 p-6">
-                <Input
-                  label="Nombre de la plantilla"
-                  required
-                  placeholder="Ej: Jornada Completa, Turno Mañana"
-                  value={form.nombre}
-                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                />
-                <div>
-                  <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 block">Tipo de Turno</label>
-                  <select
-                    className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm"
-                    value={form.tipo}
-                    onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoHorario })}
+      {/* VISTA 3: FERIADOS Y DÍAS FESTIVOS */}
+      {activeTab === 'feriados' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* REGISTRAR FERIADO */}
+          <div className="lg:col-span-1">
+            <Card className="bg-zinc-950 border-purple-500/20 shadow-xl">
+              <CardHeader className="pb-3 border-b border-white/5">
+                <CardTitle className="text-purple-400 text-base font-black uppercase tracking-wider flex items-center gap-2">
+                  <Sparkles className="w-5 h-5" />
+                  Agregar Feriado
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 space-y-4">
+                <form onSubmit={agregarFeriado} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase">Nombre del Feriado</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Día de la Independencia"
+                      value={formFeriado.nombre}
+                      onChange={e => setFormFeriado({ ...formFeriado, nombre: e.target.value })}
+                      className="w-full mt-1 bg-zinc-900 border border-white/10 rounded-xl p-3 text-white text-sm font-bold outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase">Fecha del Feriado</label>
+                    <input
+                      type="date"
+                      value={formFeriado.fecha}
+                      onChange={e => setFormFeriado({ ...formFeriado, fecha: e.target.value })}
+                      className="w-full mt-1 bg-zinc-900 border border-white/10 rounded-xl p-3 text-white text-sm font-bold outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Tipo de Feriado</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormFeriado({ ...formFeriado, tipo: 'cerrado' })}
+                        className={`p-3 rounded-xl border text-xs font-black uppercase flex flex-col items-center gap-1 transition ${
+                          formFeriado.tipo === 'cerrado'
+                            ? 'bg-red-500/20 border-red-500 text-red-400'
+                            : 'bg-zinc-900 border-white/5 text-zinc-500'
+                        }`}
+                      >
+                        <ShieldAlert className="w-4 h-4" />
+                        🔴 Sin Atención (Cerrado)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormFeriado({ ...formFeriado, tipo: 'con_atencion' })}
+                        className={`p-3 rounded-xl border text-xs font-black uppercase flex flex-col items-center gap-1 transition ${
+                          formFeriado.tipo === 'con_atencion'
+                            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
+                            : 'bg-zinc-900 border-white/5 text-zinc-500'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        🟢 Horario Especial
+                      </button>
+                    </div>
+                  </div>
+
+                  {formFeriado.tipo === 'con_atencion' && (
+                    <div className="grid grid-cols-2 gap-3 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-emerald-400 block mb-1">Apertura</label>
+                        <input
+                          type="time"
+                          value={formFeriado.hora_inicio}
+                          onChange={e => setFormFeriado({ ...formFeriado, hora_inicio: e.target.value })}
+                          className="bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-emerald-400 block mb-1">Cierre</label>
+                        <input
+                          type="time"
+                          value={formFeriado.hora_fin}
+                          onChange={e => setFormFeriado({ ...formFeriado, hora_fin: e.target.value })}
+                          className="bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={savingFeriados}
+                    className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black uppercase text-xs h-12 rounded-xl"
                   >
-                    {TIPOS.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="Hora de Inicio"
-                    type="time"
-                    value={form.hora_inicio}
-                    onChange={(e) => setForm({ ...form, hora_inicio: e.target.value })}
-                  />
-                  <Input
-                    label="Hora de Fin"
-                    type="time"
-                    value={form.hora_fin}
-                    onChange={(e) => setForm({ ...form, hora_fin: e.target.value })}
-                  />
-                </div>
-                <Input
-                  label="Descripción (opcional)"
-                  placeholder="Ej: Aplica de Lunes a Sábado..."
-                  value={form.descripcion}
-                  onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
-                />
+                    <Plus className="w-4 h-4 mr-2" />
+                    Guardar Feriado
+                  </Button>
+                </form>
               </CardContent>
-              <div className="p-6 border-t border-white/5 flex gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setShowModal(false)
-                    setEditing(null)
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" variant="primary" className="flex-1">
-                  <Save className="w-4 h-4 mr-2" /> Guardar
-                </Button>
-              </div>
-            </form>
-          </Card>
+            </Card>
+          </div>
+
+          {/* LISTA DE FERIADOS */}
+          <div className="lg:col-span-2 space-y-4">
+            <Card className="bg-zinc-950 border-white/10 shadow-xl">
+              <CardHeader className="pb-3 border-b border-white/5">
+                <CardTitle className="text-white text-base font-black uppercase tracking-wider flex items-center gap-2">
+                  <CalendarDays className="w-5 h-5 text-amber-500" />
+                  Lista de Feriados Registrados
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {feriados.length === 0 ? (
+                  <div className="text-center py-12 border border-dashed border-zinc-800 rounded-2xl">
+                    <Sparkles className="w-10 h-10 text-zinc-600 mx-auto mb-2 opacity-40" />
+                    <p className="text-zinc-400 font-bold text-sm">Sin feriados registrados</p>
+                    <p className="text-zinc-600 text-xs mt-1">Agrega los feriados del año desde el formulario.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {feriados.map((f) => (
+                      <div
+                        key={f.id}
+                        className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-zinc-900 border border-white/5 rounded-2xl hover:border-white/10 transition"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border ${
+                            f.tipo === 'cerrado' ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          }`}>
+                            <span className="text-xl">{f.tipo === 'cerrado' ? '🚫' : '⏰'}</span>
+                          </div>
+                          <div>
+                            <p className="font-black text-white text-sm">{f.nombre}</p>
+                            <p className="text-xs text-amber-400 font-mono font-bold mt-0.5">{f.fecha}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+                          {f.tipo === 'cerrado' ? (
+                            <Badge variant="danger" className="uppercase text-[10px] font-black">Cerrado (Sin Atención)</Badge>
+                          ) : (
+                            <Badge variant="success" className="uppercase text-[10px] font-black">
+                              Especial: {f.hora_inicio} → {f.hora_fin}
+                            </Badge>
+                          )}
+                          <button
+                            onClick={() => eliminarFeriado(f.id)}
+                            className="p-2 hover:bg-red-500/10 text-zinc-500 hover:text-red-400 rounded-xl transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* VISTA 4: DÍA ESPECÍFICO (EXCEPCIONES PUNTUALES) */}
+      {activeTab === 'fecha_especifica' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1 space-y-6">
+            <Card className="bg-zinc-950 border-amber-500/20 shadow-xl">
+              <CardHeader className="pb-3 border-b border-white/5">
+                <CardTitle className="text-amber-400 text-base font-black uppercase tracking-wider flex items-center gap-2">
+                  <CalendarDays className="w-5 h-5" />
+                  Crear Excepción Puntual
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 space-y-4">
+                <form onSubmit={guardarExcepcionFecha} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase">Fecha Específica</label>
+                    <input
+                      type="date"
+                      value={fechaEspecifica}
+                      onChange={e => setFechaEspecifica(e.target.value)}
+                      className="w-full mt-1 bg-zinc-900 border border-white/10 rounded-xl p-3 text-white text-sm font-bold outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase block mb-1">Tipo de Excepción</label>
+                    <select
+                      value={tipoExcepcion}
+                      onChange={e => setTipoExcepcion(e.target.value as any)}
+                      className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-white font-bold text-sm outline-none"
+                    >
+                      <option value="horario_especial">Horario Especial en esta Fecha</option>
+                      <option value="dia_libre">Día Libre Puntual (Sin Atención)</option>
+                      <option value="vacacion">Vacación del Barbero</option>
+                    </select>
+                  </div>
+
+                  {tipoExcepcion === 'horario_especial' && (
+                    <div className="grid grid-cols-2 gap-3 p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-amber-400 block mb-1">Entrada</label>
+                        <input
+                          type="time"
+                          value={excepcionInicio}
+                          onChange={e => setExcepcionInicio(e.target.value)}
+                          className="bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-amber-400 block mb-1">Salida</label>
+                        <input
+                          type="time"
+                          value={excepcionFin}
+                          onChange={e => setExcepcionFin(e.target.value)}
+                          className="bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase">Motivo / Nota</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Permiso médico, Horario especial..."
+                      value={motivoExcepcion}
+                      onChange={e => setMotivoExcepcion(e.target.value)}
+                      className="w-full mt-1 bg-zinc-900 border border-white/10 rounded-xl p-3 text-white text-sm outline-none"
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={savingExcepcion}
+                    className="w-full bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs h-12 rounded-xl"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Guardar Excepción
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="lg:col-span-2 space-y-4">
+            <Card className="bg-zinc-950 border-white/10 shadow-xl">
+              <CardHeader className="pb-3 border-b border-white/5">
+                <CardTitle className="text-white text-base font-black uppercase tracking-wider flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-amber-500" />
+                  Excepciones Registradas ({barberos.find(b => b.id === barberoId)?.full_name})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {bloqueos.length === 0 ? (
+                  <div className="text-center py-12 border border-dashed border-zinc-800 rounded-2xl">
+                    <Calendar className="w-10 h-10 text-zinc-600 mx-auto mb-2 opacity-40" />
+                    <p className="text-zinc-400 font-bold text-sm">Sin excepciones registradas</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {bloqueos.map((b) => (
+                      <div
+                        key={b.id}
+                        className="flex items-center justify-between p-4 bg-zinc-900 border border-white/5 rounded-2xl"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={b.todo_el_dia ? 'danger' : 'warning'} className="uppercase text-[9px] font-black">
+                              {b.tipo}
+                            </Badge>
+                            <span className="text-xs text-amber-400 font-mono font-bold">
+                              {new Date(b.fecha_inicio).toLocaleDateString('es-BO')}
+                            </span>
+                          </div>
+                          <p className="text-white text-sm font-bold mt-1">{b.motivo || 'Excepción de horario'}</p>
+                        </div>
+                        <button
+                          onClick={() => eliminarBloqueo(b.id)}
+                          className="p-2 text-zinc-500 hover:text-red-400 transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
     </div>

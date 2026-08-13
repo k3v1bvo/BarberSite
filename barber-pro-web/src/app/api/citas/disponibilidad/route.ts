@@ -20,8 +20,8 @@ export async function GET(request: Request) {
   const dBolivia = new Date(`${fecha}T12:00:00-04:00`)
   const diaSemana = dBolivia.getDay()
 
-  // 2. Consultar horario semanal y tiempo mínimo de reserva en paralelo
-  const [horarioRes, configRes, bloqueosRes, citasRes] = await Promise.all([
+  // 2. Consultar horario semanal, tiempo mínimo de reserva, bloqueos, citas, feriados y domingos rotativos
+  const [horarioRes, configRes, bloqueosRes, citasRes, feriadosRes, domingosRes] = await Promise.all([
     supabase
       .from('barbero_horario_semanal')
       .select('hora_inicio, hora_fin, activo')
@@ -45,19 +45,76 @@ export async function GET(request: Request) {
       .eq('barbero_id', barbero_id)
       .gte('fecha_hora', inicioDia)
       .lte('fecha_hora', finDia)
-      .not('estado', 'eq', 'cancelada')
+      .not('estado', 'eq', 'cancelada'),
+    supabase
+      .from('sistema_config')
+      .select('valor')
+      .eq('clave', 'feriados_config')
+      .maybeSingle(),
+    supabase
+      .from('sistema_config')
+      .select('valor')
+      .eq('clave', 'domingos_rotativos_config')
+      .maybeSingle(),
   ])
 
   const horario = horarioRes.data
   const tiempoMinimoReserva = (configRes.data?.valor as any)?.minutos || 180
 
-  // Verificar si el barbero trabaja este día según horario semanal
+  // Feriados & Domingos Rotativos
+  const feriadosList: Array<{ fecha: string; nombre: string; tipo: 'cerrado' | 'con_atencion'; hora_inicio?: string; hora_fin?: string }> =
+    (feriadosRes.data?.valor as any)?.feriados || []
+
+  const domingosList: Array<{ fecha: string; barberos_habilitados: string[] }> =
+    (domingosRes.data?.valor as any)?.domingos || []
+
+  const feriadoCoincidente = feriadosList.find(f => f.fecha === fecha)
+  const domingoCoincidente = domingosList.find(d => d.fecha === fecha)
+
   let disponible = true
   let hora_inicio = '09:00'
   let hora_fin = '20:00'
   let motivo = ''
 
-  if (horario) {
+  // Prioridad 1: Evaluación de Feriados
+  if (feriadoCoincidente) {
+    if (feriadoCoincidente.tipo === 'cerrado') {
+      disponible = false
+      motivo = `Feriado: ${feriadoCoincidente.nombre} (Cerrado sin atención al público)`
+    } else {
+      disponible = true
+      hora_inicio = feriadoCoincidente.hora_inicio || '10:00'
+      hora_fin = feriadoCoincidente.hora_fin || '16:00'
+      motivo = `Feriado Especial: ${feriadoCoincidente.nombre}`
+    }
+  } 
+  // Prioridad 2: Evaluación de Domingos Rotativos
+  else if (diaSemana === 0) {
+    if (domingoCoincidente) {
+      const estaHabilitado = domingoCoincidente.barberos_habilitados?.includes(barbero_id)
+      if (estaHabilitado) {
+        disponible = true
+        // Usar horario de domingo si está configurado en semanal, sino 09:00 a 16:00
+        hora_inicio = horario?.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
+        hora_fin = horario?.hora_fin ? horario.hora_fin.slice(0, 5) : '16:00'
+      } else {
+        disponible = false
+        motivo = 'El barbero no atiende este domingo.'
+      }
+    } else {
+      // Si no está registrado en el lote de domingos rotativos, revisar horario semanal individual
+      if (horario && horario.activo) {
+        disponible = true
+        hora_inicio = horario.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
+        hora_fin = horario.hora_fin ? horario.hora_fin.slice(0, 5) : '16:00'
+      } else {
+        disponible = false
+        motivo = 'El barbero no atiende los domingos.'
+      }
+    }
+  } 
+  // Prioridad 3: Horario Semanal Estándar
+  else if (horario) {
     if (!horario.activo) {
       disponible = false
       motivo = 'El barbero no atiende en este día de la semana.'
@@ -65,10 +122,6 @@ export async function GET(request: Request) {
       hora_inicio = horario.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
       hora_fin = horario.hora_fin ? horario.hora_fin.slice(0, 5) : '20:00'
     }
-  } else if (diaSemana === 0) {
-    // Por defecto si no hay horario configurado, domingo no laborable
-    disponible = false
-    motivo = 'El barbero no atiende los domingos.'
   }
 
   // Verificar bloqueos de todo el día o día libre/vacación completa
@@ -130,4 +183,3 @@ export async function GET(request: Request) {
     tiempo_minimo_reserva: tiempoMinimoReserva
   })
 }
-

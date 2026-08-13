@@ -36,11 +36,12 @@ const GOLD_GRADIENT = ['#fbbf24', '#f59e0b', '#d97706']
 export default function ReportesPage() {
   const { brand } = useBrand()
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'general' | 'finanzas' | 'rendimiento' | 'clientes' | 'inventario'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'finanzas' | 'rendimiento' | 'clientes' | 'inventario' | 'libros'>('general')
   const hoyStrInicial = getTodayBolivia()
   const [fechaInicio, setFechaInicio] = useState(hoyStrInicial)
   const [fechaFin, setFechaFin] = useState(hoyStrInicial)
-  const [periodoRapido, setPeriodoRapido] = useState<'hoy' | 'semana' | 'mes' | 'personalizado'>('hoy')
+  const [periodoRapido, setPeriodoRapido] = useState<'hoy' | 'semana' | 'mes' | 'ano' | 'personalizado'>('hoy')
+  const [libroFiltro, setLibroFiltro] = useState<'TODOS' | 'BANCO' | 'CAJA_CHICA' | 'VENTAS' | 'SERVICIOS' | 'EGRESOS' | 'USO_TIENDA' | 'ARQUEOS'>('TODOS')
 
   const obtenerFechaBoliviaDesplazada = (diasAtras: number) => {
     const hoyStr = getTodayBolivia()
@@ -53,9 +54,10 @@ export default function ReportesPage() {
     return `${fy}-${fm}-${fd}`
   }
 
-  const aplicarPeriodoRapido = (periodo: 'hoy' | 'semana' | 'mes' | 'personalizado') => {
+  const aplicarPeriodoRapido = (periodo: 'hoy' | 'semana' | 'mes' | 'ano' | 'personalizado') => {
     setPeriodoRapido(periodo)
     const hoyStr = getTodayBolivia()
+    const anoActual = hoyStr.split('-')[0]
     if (periodo === 'hoy') {
       setFechaInicio(hoyStr)
       setFechaFin(hoyStr)
@@ -65,6 +67,9 @@ export default function ReportesPage() {
     } else if (periodo === 'mes') {
       setFechaInicio(obtenerFechaBoliviaDesplazada(30))
       setFechaFin(hoyStr)
+    } else if (periodo === 'ano') {
+      setFechaInicio(`${anoActual}-01-01`)
+      setFechaFin(`${anoActual}-12-31`)
     }
   }
   
@@ -115,14 +120,15 @@ export default function ReportesPage() {
       dPrevFin.setDate(dPrevFin.getDate() - 1)
       const prevFinStr = dPrevFin.toISOString().split('T')[0]
 
-      const [citasRes, txRes, prevCitasRes, prevTxRes, barberosRes, clientesRes, serviciosRes, inventarioRes] = await Promise.all([
+      const [citasRes, txRes, prevCitasRes, prevTxRes, barberosRes, clientesRes, serviciosRes, inventarioRes, closuresRes] = await Promise.all([
         supabase.from('citas').select('estado, precio, fecha_hora, barbero_id, servicio_id, metodo_pago')
           .gte('fecha_hora', `${fechaInicio}T00:00:00`)
           .lte('fecha_hora', `${fechaFin}T23:59:59`)
           .limit(50000),
-        supabase.from('transactions').select('tipo_movimiento, costo, fecha, metodo_pago, subcategoria, monto_efectivo, monto_qr, libro')
+        supabase.from('transactions').select('id, libro, fecha, ci, nombre, cuenta_codigo, cuenta_detalle, glosa, costo, tipo_movimiento, metodo_pago, usuario_registro, comprobante_url, subcategoria, monto_efectivo, monto_qr')
           .gte('fecha', fechaInicio)
           .lte('fecha', fechaFin)
+          .order('fecha', { ascending: true })
           .limit(50000),
         // Periodo Anterior
         supabase.from('citas').select('estado, precio')
@@ -141,7 +147,12 @@ export default function ReportesPage() {
           .select('id, tipo, cantidad, created_at, producto:productos(nombre, precio_venta)')
           .gte('created_at', `${fechaInicio}T00:00:00`)
           .lte('created_at', `${fechaFin}T23:59:59`)
-          .limit(50000)
+          .limit(50000),
+        supabase.from('daily_closures')
+          .select('*')
+          .gte('fecha', fechaInicio)
+          .lte('fecha', fechaFin)
+          .order('fecha', { ascending: true })
       ])
 
       const citas = citasRes.data || []
@@ -378,6 +389,8 @@ export default function ReportesPage() {
         costoUso: vals.costoUso
       }))
 
+      const rawCierres = closuresRes.data || []
+
       setData({
         resumen: {
           ingresosTotal,
@@ -402,7 +415,9 @@ export default function ReportesPage() {
         clientesNuevos,
         fidelidadDistribucion,
         ingresosPorDiaArr,
-        inventarioFlujo
+        inventarioFlujo,
+        rawTransactions: txs,
+        rawCierres
       })
 
     } catch (error) {
@@ -410,6 +425,168 @@ export default function ReportesPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const exportarLibroPDF = () => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+
+    const esArqueo = libroFiltro === 'ARQUEOS'
+    const txsFiltradas = (data.rawTransactions || []).filter((t: any) => {
+      if (libroFiltro === 'TODOS') return true
+      return t.libro === libroFiltro
+    })
+    const cierresFiltrados = data.rawCierres || []
+
+    let totalIngresosLibro = 0
+    let totalEgresosLibro = 0
+
+    txsFiltradas.forEach((t: any) => {
+      const costo = Math.abs(Number(t.costo || 0))
+      if (t.tipo_movimiento === 'EGRESO') {
+        totalEgresosLibro += costo
+      } else {
+        totalIngresosLibro += costo
+      }
+    })
+
+    const tituloLibro = esArqueo ? 'LIBRO DE ARQUEOS Y CIERRES DIARIOS' : `LIBRO DIARIO CONTABLE (${libroFiltro})`
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${tituloLibro} - ${fechaInicio} al ${fechaFin}</title>
+          <style>
+            body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 25px; color: #000; background: #fff; line-height: 1.4; font-size: 11px; }
+            .header { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; flex-direction: row; display: flex; justify-content: space-between; align-items: flex-end; }
+            .title { font-size: 18px; font-weight: 900; text-transform: uppercase; margin: 0; }
+            .subtitle { font-size: 11px; color: #555; margin-top: 3px; font-weight: 600; }
+            .badge { background: #000; color: #fff; padding: 4px 8px; font-weight: 800; font-size: 10px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 10px; }
+            th { background: #f2f2f2; color: #000; text-transform: uppercase; font-size: 9px; font-weight: 800; padding: 6px 8px; text-align: left; border: 1px solid #ccc; }
+            td { padding: 6px 8px; border: 1px solid #ddd; }
+            tr:nth-child(even) { background: #fcfcfc; }
+            .number { text-align: right; font-family: monospace; font-size: 10px; }
+            .totals { margin-top: 20px; border-top: 2px solid #000; padding-top: 10px; display: flex; justify-content: flex-end; gap: 30px; }
+            .tot-box { text-align: right; }
+            .tot-title { font-size: 9px; uppercase; font-weight: 800; color: #555; }
+            .tot-val { font-size: 14px; font-weight: 900; }
+            .signatures { margin-top: 50px; display: flex; justify-content: space-around; text-align: center; }
+            .sig-line { border-top: 1px solid #000; width: 180px; padding-top: 5px; font-weight: 800; font-size: 10px; uppercase; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1 class="title">💈 ${(brand.nombre || 'BarberSite').toUpperCase()}</h1>
+              <p class="subtitle">${tituloLibro}</p>
+            </div>
+            <div>
+              <span class="badge">Período: ${fechaInicio} al ${fechaFin}</span>
+            </div>
+          </div>
+
+          ${esArqueo ? `
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Usuario Cierre</th>
+                  <th>Caja Chica</th>
+                  <th>Ventas</th>
+                  <th>Servicios</th>
+                  <th>Banco</th>
+                  <th style="text-align: right">Total Registrado</th>
+                  <th style="text-align: right">Efectivo Físico</th>
+                  <th style="text-align: right">QR Físico</th>
+                  <th style="text-align: right">Diferencia</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${cierresFiltrados.map((c: any) => `
+                  <tr>
+                    <td><strong>${c.fecha}</strong></td>
+                    <td>${c.usuario_cierre || 'Sistema'}</td>
+                    <td class="number">Bs. ${Number(c.caja_chica || 0).toFixed(2)}</td>
+                    <td class="number">Bs. ${Number(c.ventas || 0).toFixed(2)}</td>
+                    <td class="number">Bs. ${Number(c.servicios || 0).toFixed(2)}</td>
+                    <td class="number">Bs. ${Number(c.banco || 0).toFixed(2)}</td>
+                    <td class="number"><strong>Bs. ${Number(c.total_registrado || 0).toFixed(2)}</strong></td>
+                    <td class="number">Bs. ${Number(c.total_efectivo_fisico || 0).toFixed(2)}</td>
+                    <td class="number">Bs. ${Number(c.total_qr || 0).toFixed(2)}</td>
+                    <td class="number" style="color: ${Number(c.diferencia || 0) < 0 ? 'red' : 'green'}; font-weight: bold;">
+                      Bs. ${Number(c.diferencia || 0).toFixed(2)}
+                    </td>
+                  </tr>
+                `).join('')}
+                ${cierresFiltrados.length === 0 ? '<tr><td colspan="10">Sin cierres registrados en este período</td></tr>' : ''}
+              </tbody>
+            </table>
+          ` : `
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Libro</th>
+                  <th>CI / RUC</th>
+                  <th>Nombre / Titular</th>
+                  <th>Glosa / Concepto</th>
+                  <th>Mét. Pago</th>
+                  <th style="text-align: right">Débito (Bs)</th>
+                  <th style="text-align: right">Crédito (Bs)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${txsFiltradas.map((t: any) => {
+                  const costo = Math.abs(Number(t.costo || 0))
+                  const esEgreso = t.tipo_movimiento === 'EGRESO'
+                  return `
+                    <tr>
+                      <td>${t.fecha}</td>
+                      <td><strong>${t.libro}</strong></td>
+                      <td>${t.ci || '-'}</td>
+                      <td>${t.nombre || '-'}</td>
+                      <td>${t.glosa || t.cuenta_detalle || '-'}</td>
+                      <td>${(t.metodo_pago || '-').toUpperCase()}</td>
+                      <td class="number" style="color: green;">${!esEgreso ? `Bs. ${costo.toFixed(2)}` : '-'}</td>
+                      <td class="number" style="color: red;">${esEgreso ? `Bs. ${costo.toFixed(2)}` : '-'}</td>
+                    </tr>
+                  `
+                }).join('')}
+                ${txsFiltradas.length === 0 ? '<tr><td colspan="8">Sin movimientos en este libro y período</td></tr>' : ''}
+              </tbody>
+            </table>
+
+            <div class="totals">
+              <div class="tot-box">
+                <div class="tot-title">Total Débitos (Ingresos)</div>
+                <div class="tot-val" style="color: green;">Bs. ${totalIngresosLibro.toFixed(2)}</div>
+              </div>
+              <div class="tot-box">
+                <div class="tot-title">Total Créditos (Egresos)</div>
+                <div class="tot-val" style="color: red;">Bs. ${totalEgresosLibro.toFixed(2)}</div>
+              </div>
+              <div class="tot-box">
+                <div class="tot-title">Saldo Neto del Libro</div>
+                <div class="tot-val">Bs. ${(totalIngresosLibro - totalEgresosLibro).toFixed(2)}</div>
+              </div>
+            </div>
+          `}
+
+          <div class="signatures">
+            <div className="sig-line">Firma Administrador</div>
+            <div className="sig-line">Firma Contabilidad / Auditoría</div>
+          </div>
+
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
   }
 
   const exportarCSV = () => {
@@ -1041,6 +1218,213 @@ export default function ReportesPage() {
     </div>
   )
 
+  const TabLibrosContables = () => {
+    const esArqueo = libroFiltro === 'ARQUEOS'
+    const txsFiltradas = (data.rawTransactions || []).filter((t: any) => {
+      if (libroFiltro === 'TODOS') return true
+      return t.libro === libroFiltro
+    })
+    const cierresFiltrados = data.rawCierres || []
+
+    let totalIngresosLibro = 0
+    let totalEgresosLibro = 0
+
+    txsFiltradas.forEach((t: any) => {
+      const costo = Math.abs(Number(t.costo || 0))
+      if (t.tipo_movimiento === 'EGRESO') {
+        totalEgresosLibro += costo
+      } else {
+        totalIngresosLibro += costo
+      }
+    })
+
+    const totalCajaChicaCierres = cierresFiltrados.reduce((acc: number, c: any) => acc + Number(c.caja_chica || 0), 0)
+    const totalVentasCierres = cierresFiltrados.reduce((acc: number, c: any) => acc + Number(c.ventas || 0), 0)
+    const totalServiciosCierres = cierresFiltrados.reduce((acc: number, c: any) => acc + Number(c.servicios || 0), 0)
+    const totalBancoCierres = cierresFiltrados.reduce((acc: number, c: any) => acc + Number(c.banco || 0), 0)
+    const totalRegistradoCierres = cierresFiltrados.reduce((acc: number, c: any) => acc + Number(c.total_registrado || 0), 0)
+    const totalDiferenciaCierres = cierresFiltrados.reduce((acc: number, c: any) => acc + Number(c.diferencia || 0), 0)
+
+    return (
+      <div className="space-y-6 animate-in fade-in">
+        {/* SELECTOR DE LIBRO */}
+        <Card className="border-amber-500/20 bg-zinc-900 shadow-xl">
+          <CardContent className="p-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-400 mr-2 flex items-center gap-1.5">
+                <FileText className="w-4 h-4" /> Seleccionar Libro:
+              </span>
+              {[
+                { id: 'TODOS', label: 'Todos los Libros' },
+                { id: 'CAJA_CHICA', label: 'Caja Chica' },
+                { id: 'BANCO', label: 'Banco / QR' },
+                { id: 'VENTAS', label: 'Ventas Productos' },
+                { id: 'SERVICIOS', label: 'Servicios' },
+                { id: 'EGRESOS', label: 'Egresos' },
+                { id: 'ARQUEOS', label: 'Arqueos & Cierres Diarios' }
+              ].map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => setLibroFiltro(b.id as any)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                    libroFiltro === b.id
+                      ? 'bg-amber-500 text-black shadow-md'
+                      : 'bg-zinc-950 text-zinc-400 hover:text-white border border-white/5'
+                  }`}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              onClick={exportarLibroPDF}
+              className="bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs h-10 px-4 rounded-xl shadow-lg shadow-amber-500/20"
+            >
+              <Printer className="w-4 h-4 mr-2" /> Imprimir Libro ({libroFiltro})
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* RESUMEN DE SALDOS */}
+        {!esArqueo ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="bg-zinc-900 border-green-500/20">
+              <CardContent className="p-4">
+                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Total Débitos (Ingresos)</p>
+                <p className="text-2xl font-black text-green-400 mt-1">{formatCurrency(totalIngresosLibro)}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-zinc-900 border-red-500/20">
+              <CardContent className="p-4">
+                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Total Créditos (Egresos)</p>
+                <p className="text-2xl font-black text-red-400 mt-1">{formatCurrency(totalEgresosLibro)}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-zinc-900 border-amber-500/20">
+              <CardContent className="p-4">
+                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Saldo Neto en Libros</p>
+                <p className={`text-2xl font-black mt-1 ${totalIngresosLibro - totalEgresosLibro >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                  {formatCurrency(totalIngresosLibro - totalEgresosLibro)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card className="bg-zinc-900 border-white/5">
+              <CardContent className="p-4">
+                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Total Cierres Registrados</p>
+                <p className="text-2xl font-black text-white mt-1">{cierresFiltrados.length} días</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-zinc-900 border-emerald-500/20">
+              <CardContent className="p-4">
+                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Total Registrado en Caja</p>
+                <p className="text-2xl font-black text-emerald-400 mt-1">{formatCurrency(totalRegistradoCierres)}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-zinc-900 border-blue-500/20">
+              <CardContent className="p-4">
+                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Total Banco / QR Cierres</p>
+                <p className="text-2xl font-black text-blue-400 mt-1">{formatCurrency(totalBancoCierres)}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-zinc-900 border-amber-500/20">
+              <CardContent className="p-4">
+                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Diferencia Acumulada</p>
+                <p className={`text-2xl font-black mt-1 ${totalDiferenciaCierres >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {formatCurrency(totalDiferenciaCierres)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* TABLA DETALLADA */}
+        <Card className="bg-zinc-900 border-white/5 overflow-hidden shadow-2xl">
+          <CardContent className="p-0 overflow-x-auto w-full">
+            {esArqueo ? (
+              <table className="w-full text-left min-w-[900px]">
+                <thead>
+                  <tr className="bg-zinc-950/80 border-b border-white/10">
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500">Fecha</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500">Usuario Cierre</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500 text-right">Caja Chica</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500 text-right">Ventas</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500 text-right">Servicios</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500 text-right">Banco</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500 text-right">Total Reg.</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500 text-right">Efectivo Físico</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500 text-right">Diferencia</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-xs font-bold">
+                  {cierresFiltrados.length === 0 ? (
+                    <tr><td colSpan={9} className="py-12 text-center text-zinc-500">Sin cierres de caja en este rango de fechas</td></tr>
+                  ) : (
+                    cierresFiltrados.map((c: any) => (
+                      <tr key={c.id || c.fecha} className="hover:bg-white/[0.02]">
+                        <td className="py-3.5 px-4 font-mono text-amber-400 font-bold">{c.fecha}</td>
+                        <td className="py-3.5 px-4 text-white">{c.usuario_cierre || 'Sistema'}</td>
+                        <td className="py-3.5 px-4 text-right text-zinc-300 font-mono">{formatCurrency(c.caja_chica || 0)}</td>
+                        <td className="py-3.5 px-4 text-right text-zinc-300 font-mono">{formatCurrency(c.ventas || 0)}</td>
+                        <td className="py-3.5 px-4 text-right text-zinc-300 font-mono">{formatCurrency(c.servicios || 0)}</td>
+                        <td className="py-3.5 px-4 text-right text-zinc-300 font-mono">{formatCurrency(c.banco || 0)}</td>
+                        <td className="py-3.5 px-4 text-right text-emerald-400 font-mono font-black">{formatCurrency(c.total_registrado || 0)}</td>
+                        <td className="py-3.5 px-4 text-right text-white font-mono">{formatCurrency(c.total_efectivo_fisico || 0)}</td>
+                        <td className={`py-3.5 px-4 text-right font-mono font-black ${Number(c.diferencia || 0) < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                          {formatCurrency(c.diferencia || 0)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            ) : (
+              <table className="w-full text-left min-w-[900px]">
+                <thead>
+                  <tr className="bg-zinc-950/80 border-b border-white/10">
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500">Fecha</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500">Libro</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500">CI / RUC</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500">Nombre / Titular</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500">Glosa / Concepto</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500">Mét. Pago</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500 text-right">Débito (Ingreso)</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase text-zinc-500 text-right">Crédito (Egreso)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-xs font-bold">
+                  {txsFiltradas.length === 0 ? (
+                    <tr><td colSpan={8} className="py-12 text-center text-zinc-500">Sin movimientos en este libro para el rango seleccionado</td></tr>
+                  ) : (
+                    txsFiltradas.map((t: any) => {
+                      const costo = Math.abs(Number(t.costo || 0))
+                      const esEgreso = t.tipo_movimiento === 'EGRESO'
+                      return (
+                        <tr key={t.id || Math.random()} className="hover:bg-white/[0.02]">
+                          <td className="py-3.5 px-4 font-mono text-zinc-400">{t.fecha}</td>
+                          <td className="py-3.5 px-4"><Badge variant="outline" className="text-[9px] uppercase font-black">{t.libro}</Badge></td>
+                          <td className="py-3.5 px-4 text-zinc-400 font-mono text-[11px]">{t.ci || '-'}</td>
+                          <td className="py-3.5 px-4 text-white">{t.nombre || '-'}</td>
+                          <td className="py-3.5 px-4 text-zinc-300 font-normal">{t.glosa || t.cuenta_detalle || '-'}</td>
+                          <td className="py-3.5 px-4 text-zinc-400 uppercase text-[10px]">{t.metodo_pago || '-'}</td>
+                          <td className="py-3.5 px-4 text-right text-emerald-400 font-mono font-black">{!esEgreso ? formatCurrency(costo) : '-'}</td>
+                          <td className="py-3.5 px-4 text-right text-red-400 font-mono font-black">{esEgreso ? formatCurrency(costo) : '-'}</td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       {/* Header */}
@@ -1066,7 +1450,8 @@ export default function ReportesPage() {
             {[
               { id: 'hoy', label: 'Hoy' },
               { id: 'semana', label: 'Últimos 7 Días' },
-              { id: 'mes', label: 'Últimos 30 Días' }
+              { id: 'mes', label: 'Últimos 30 Días' },
+              { id: 'ano', label: 'Año 2026' }
             ].map((p) => (
               <button
                 key={p.id}
@@ -1116,14 +1501,23 @@ export default function ReportesPage() {
             </div>
             
             <div className="flex gap-3 shrink-0 flex-wrap">
-              <Button variant="outline" size="lg" className="h-12 uppercase tracking-widest font-black border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" onClick={exportarCSV} title="Exportar archivo CSV completo para Excel">
-                <Download className="w-4 h-4 mr-2" />
-                CSV Excel
-              </Button>
-              <Button variant="outline" size="lg" className="h-12 uppercase tracking-widest font-black border-amber-500/30 text-amber-400 hover:bg-amber-500/10" onClick={exportarPDF} title="Generar e imprimir Reporte Ejecutivo PDF">
-                <Printer className="w-4 h-4 mr-2" />
-                PDF Ejecutivo
-              </Button>
+              {activeTab === 'libros' ? (
+                <Button variant="outline" size="lg" className="h-12 uppercase tracking-widest font-black border-amber-500/40 text-amber-400 hover:bg-amber-500/10" onClick={exportarLibroPDF} title="Imprimir Libro Contable o Arqueos">
+                  <Printer className="w-4 h-4 mr-2" />
+                  Imprimir Libro Contable
+                </Button>
+              ) : (
+                <>
+                  <Button variant="outline" size="lg" className="h-12 uppercase tracking-widest font-black border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" onClick={exportarCSV} title="Exportar archivo CSV completo para Excel">
+                    <Download className="w-4 h-4 mr-2" />
+                    CSV Excel
+                  </Button>
+                  <Button variant="outline" size="lg" className="h-12 uppercase tracking-widest font-black border-amber-500/30 text-amber-400 hover:bg-amber-500/10" onClick={exportarPDF} title="Generar e imprimir Reporte Ejecutivo PDF">
+                    <Printer className="w-4 h-4 mr-2" />
+                    PDF Ejecutivo
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </CardContent>
@@ -1134,6 +1528,7 @@ export default function ReportesPage() {
         {[
           { id: 'general', label: 'Resumen Ejecutivo', icon: BarChart3 },
           { id: 'finanzas', label: 'Finanzas', icon: DollarSign },
+          { id: 'libros', label: 'Libros Contables & Arqueos', icon: FileText },
           { id: 'rendimiento', label: 'Rendimiento (Staff)', icon: Activity },
           { id: 'clientes', label: 'Clientes & Fidelidad', icon: Heart },
           { id: 'inventario', label: 'Flujo Inventario', icon: Package }
@@ -1163,6 +1558,7 @@ export default function ReportesPage() {
         <div className="pt-2">
           {activeTab === 'general' && <TabGeneral />}
           {activeTab === 'finanzas' && <TabFinanzas />}
+          {activeTab === 'libros' && <TabLibrosContables />}
           {activeTab === 'rendimiento' && <TabRendimiento />}
           {activeTab === 'clientes' && <TabClientes />}
           {activeTab === 'inventario' && <TabInventario />}
