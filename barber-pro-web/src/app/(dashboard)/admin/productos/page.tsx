@@ -75,25 +75,26 @@ export default function ProductosPage() {
   }
 
   const handleMoveProducto = async (producto: Producto, direction: 'up' | 'down') => {
-    const currentIndex = productos.findIndex(p => p.id === producto.id)
+    const cat = producto.categoria || 'General'
+    const listInCat = productos.filter(p => (p.categoria || 'General') === cat)
+    const currentIndex = listInCat.findIndex(p => p.id === producto.id)
     if (currentIndex === -1) return
+
     const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
-    if (targetIndex < 0 || targetIndex >= productos.length) return
+    if (targetIndex < 0 || targetIndex >= listInCat.length) return
 
-    const targetProducto = productos[targetIndex]
-    const currentOrder = producto.orden ?? currentIndex
-    const targetOrder = targetProducto.orden ?? targetIndex
+    const newList = [...listInCat]
+    const temp = newList[currentIndex]
+    newList[currentIndex] = newList[targetIndex]
+    newList[targetIndex] = temp
 
-    const newCurrentOrder = targetOrder === currentOrder ? (direction === 'up' ? currentOrder - 1 : currentOrder + 1) : targetOrder
-    const newTargetOrder = currentOrder
+    const updates = newList.map((item, idx) =>
+      supabase.from('productos').update({ orden: idx }).eq('id', item.id)
+    )
 
     try {
-      await Promise.all([
-        supabase.from('productos').update({ orden: newCurrentOrder }).eq('id', producto.id),
-        supabase.from('productos').update({ orden: newTargetOrder }).eq('id', targetProducto.id)
-      ])
-
-      toastSuccess(`Posición actualizada para ${producto.nombre}`)
+      await Promise.all(updates)
+      toastSuccess(`Posición de "${producto.nombre}" actualizada`)
       loadProductos()
     } catch (err: any) {
       toastError(err.message || 'Error al cambiar posición')
