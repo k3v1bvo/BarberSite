@@ -37,7 +37,7 @@ export default function VentasPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [filtroLibro, setFiltroLibro] = useState<'HOY' | 'VENTAS' | 'SERVICIOS' | 'USO_TIENDA' | 'TODOS'>('HOY')
+  const [filtroLibro, setFiltroLibro] = useState<'HOY' | 'ESTE_AÑO' | 'VENTAS' | 'SERVICIOS' | 'USO_TIENDA' | 'TODOS'>('HOY')
   const [buscandoCi, setBuscandoCi] = useState(false)
   const [cumpleanosMsg, setCumpleanosMsg] = useState<string | null>(null)
   const [clienteEncontrado, setClienteEncontrado] = useState(false)

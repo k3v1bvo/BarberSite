@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getNotificationDbClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
@@ -15,22 +16,32 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { barbero_id, fecha, comprobante_url, notas } = body
+    const { barbero_id, fecha, comprobante_url, notas, tipo_permiso, duracion } = body
 
     if (!barbero_id || !fecha) {
       return NextResponse.json({ error: 'Faltan datos obligatorios' }, { status: 400 })
     }
 
-    // Insertar asistencia con estado "permiso"
-    const notaFinal = `PERMISO JUSTIFICADO: ${notas ?? ''} ${comprobante_url ? `[COMPROBANTE](${comprobante_url})` : ''}`
+    const tipoLabel = 
+      tipo_permiso === 'jornada_completa' ? 'Jornada Completa' :
+      tipo_permiso === 'horas' ? `Permiso Parcial (${duracion || 3} horas)` :
+      tipo_permiso === 'emergencia' ? 'Salida de Emergencia' :
+      tipo_permiso === 'enfermedad_grave' ? `Enfermedad Grave (${duracion || 2} días)` :
+      tipo_permiso === 'otro' ? `Otro Motivo (${duracion || ''})` : 'Permiso General'
 
-    const { data, error } = await supabase
+    // Insertar asistencia con estado "permiso"
+    const notaFinal = `PERMISO JUSTIFICADO [${tipoLabel}]: ${notas ?? ''} ${comprobante_url ? `[COMPROBANTE](${comprobante_url})` : ''}`
+
+    const adminDb = getNotificationDbClient(supabase)
+
+    const { data, error } = await adminDb
       .from('asistencias')
       .insert({
         profile_id: barbero_id,
         fecha: fecha,
         estado: 'permiso',
         notas: notaFinal.trim(),
+        selfie_url: comprobante_url || null,
         editado_admin: true,
       })
       .select()
@@ -38,11 +49,12 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       // Si ya existe un registro para esa fecha, intentamos hacer update
-      const { data: upData, error: upError } = await supabase
+      const { data: upData, error: upError } = await adminDb
         .from('asistencias')
         .update({
           estado: 'permiso',
           notas: notaFinal.trim(),
+          selfie_url: comprobante_url || null,
           editado_admin: true,
         })
         .eq('profile_id', barbero_id)
@@ -55,13 +67,13 @@ export async function POST(request: NextRequest) {
       }
       
       // Eliminar sanciones si existían para esa fecha
-      await supabase.from('sanciones').delete().eq('barbero_id', barbero_id).eq('fecha', fecha)
+      await adminDb.from('sanciones').delete().eq('barbero_id', barbero_id).eq('fecha', fecha)
       
       return NextResponse.json({ success: true, registro: upData })
     }
 
     // Eliminar sanciones si existían para esa fecha
-    await supabase.from('sanciones').delete().eq('barbero_id', barbero_id).eq('fecha', fecha)
+    await adminDb.from('sanciones').delete().eq('barbero_id', barbero_id).eq('fecha', fecha)
 
     return NextResponse.json({ success: true, registro: data })
   } catch (err) {

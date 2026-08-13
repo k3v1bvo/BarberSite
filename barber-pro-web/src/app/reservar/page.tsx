@@ -78,7 +78,7 @@ function ReservarContent() {
   const [qrPago, setQrPago] = useState<string | null>(null)
   const [step, setStep] = useState(1)
   const [filterCategoria, setFilterCategoria] = useState<string>('todos')
-  const [tipoReserva, setTipoReserva] = useState<'adelanto_20' | 'adelanto_10' | 'pago_total' | 'sin_adelanto'>('adelanto_20')
+  const [tipoReserva, setTipoReserva] = useState<'adelanto_20' | 'pago_total' | 'sin_adelanto'>('adelanto_20')
 
   const [formData, setFormData] = useState({
     servicio_id: '',
@@ -340,14 +340,13 @@ function ReservarContent() {
       }
 
       let anticipoCalculado = 20
-      if (tipoReserva === 'adelanto_10') anticipoCalculado = 10
-      else if (tipoReserva === 'adelanto_20') anticipoCalculado = 20
+      if (tipoReserva === 'adelanto_20') anticipoCalculado = 20
       else if (tipoReserva === 'pago_total') anticipoCalculado = precioFinalTotal
       else if (tipoReserva === 'sin_adelanto') anticipoCalculado = 0
 
       let notaReserva = ''
       if (tipoReserva === 'sin_adelanto') {
-        notaReserva = '[Reserva]: Sin adelanto QR (Paga en local. Reprogramación +5 Bs)'
+        notaReserva = '[Reserva]: Sin adelanto (Pago en local. Debe estar 5 min antes)'
       } else if (tipoReserva === 'pago_total') {
         notaReserva = `[Reserva QR]: Pago Completo por QR (Bs ${precioFinalTotal})`
       } else {
@@ -550,8 +549,7 @@ function ReservarContent() {
   const descuentoCruzado = (formData.servicio_id && carrito.length > 0) ? 10 : 0
   const totalReserva = Math.max(0, precioServicio + totalProductos - descuentoCruzado)
   let anticipo = 20
-  if (tipoReserva === 'adelanto_10') anticipo = 10
-  else if (tipoReserva === 'adelanto_20') anticipo = 20
+  if (tipoReserva === 'adelanto_20') anticipo = 20
   else if (tipoReserva === 'pago_total') anticipo = totalReserva
   else if (tipoReserva === 'sin_adelanto') anticipo = 0
 
@@ -1092,7 +1090,7 @@ function ReservarContent() {
                         <label className="text-xs font-black uppercase tracking-widest text-amber-500 block">
                           💳 Elige cómo confirmar tu reserva:
                         </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <button
                             type="button"
                             onClick={() => setTipoReserva('adelanto_20')}
@@ -1102,18 +1100,7 @@ function ReservarContent() {
                               <span className="font-black text-sm text-white">Adelanto Bs 20 (QR)</span>
                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-black font-black">RECOMENDADO</span>
                             </div>
-                            <p className="text-xs text-zinc-400">Permite reprogramar sin costo extra si tienes algún imprevisto.</p>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setTipoReserva('adelanto_10')}
-                            className={`p-4 rounded-2xl border text-left transition-all ${tipoReserva === 'adelanto_10' ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_20px_rgba(245,158,11,0.15)]' : 'border-zinc-800 bg-zinc-950 hover:border-amber-500/30'}`}
-                          >
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="font-black text-sm text-white">Adelanto Bs 10 (QR)</span>
-                            </div>
-                            <p className="text-xs text-zinc-400">Reserva con adelanto mínimo. Reprogramación sin recargo.</p>
+                            <p className="text-xs text-zinc-400">Tolerancia de 5 min (máx. 15 min en total). Cita asegurada.</p>
                           </button>
 
                           <button
@@ -1136,7 +1123,7 @@ function ReservarContent() {
                             <div className="flex justify-between items-center mb-1">
                               <span className="font-black text-sm text-red-400">Pagar en Local (Bs 0 QR)</span>
                             </div>
-                            <p className="text-xs text-zinc-400">⚠️ Tolerancia estricta o pierdes turno. Reprogramar costará +Bs 5 extra.</p>
+                            <p className="text-xs text-zinc-400">Estar 5 minutos antes de tu cita o el turno se pasa a otro cliente.</p>
                           </button>
                         </div>
                       </div>
@@ -1144,9 +1131,18 @@ function ReservarContent() {
 
                     {tipoReserva === 'sin_adelanto' && totalReserva > 0 && (
                       <div className="mt-6 p-5 bg-red-500/10 border border-red-500/30 rounded-2xl">
-                        <p className="text-xs font-black text-red-400 uppercase tracking-widest mb-1">⚠️ Aviso importante para reserva sin adelanto:</p>
+                        <p className="text-xs font-black text-red-400 uppercase tracking-widest mb-1">⚠️ Regla para Pago en Local:</p>
                         <p className="text-xs text-zinc-300 font-medium">
-                          Tu reserva es válida, pero requerimos máxima puntualidad. Si no llegas a tu hora exacta, el turno pasará a otro cliente. Si necesitas reprogramar tu cita, tendrá un costo adicional de <strong>+Bs 5.00</strong> en el local.
+                          Si deseas pagar en el local, debes estar <strong>5 minutos antes</strong> de tu cita. Si llegas tarde, el turno pasará a ser atendido por otro cliente.
+                        </p>
+                      </div>
+                    )}
+
+                    {tipoReserva === 'adelanto_20' && totalReserva > 0 && (
+                      <div className="mt-6 p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
+                        <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">✅ Beneficio Adelanto Bs 20:</p>
+                        <p className="text-xs text-zinc-300 font-medium">
+                          Con tu adelanto de Bs 20 tienes una tolerancia de <strong>5 min (máximo 15 min de tolerancia total)</strong>. Tu cita queda asegurada y puedes reprogramarla sin recargo.
                         </p>
                       </div>
                     )}
@@ -1313,8 +1309,7 @@ function ReservarContent() {
                             const calcDescuentoCruzado = (formData.servicio_id && carrito.length > 0) ? 10 : 0
                             const calcTotal = Math.max(0, calcPrecioServicio + calcTotalProductos - calcDescuentoCruzado)
                             let calcAnticipo = 20
-                            if (tipoReserva === 'adelanto_10') calcAnticipo = 10
-                            else if (tipoReserva === 'adelanto_20') calcAnticipo = 20
+                            if (tipoReserva === 'adelanto_20') calcAnticipo = 20
                             else if (tipoReserva === 'pago_total') calcAnticipo = calcTotal
                             else if (tipoReserva === 'sin_adelanto') calcAnticipo = 0
                             return <span className="font-black text-4xl text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.3)]">{formatCurrency(calcAnticipo)}</span>

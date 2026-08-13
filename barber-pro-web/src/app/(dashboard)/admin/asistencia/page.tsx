@@ -21,7 +21,7 @@ import {
 } from '@/lib/asistencia/helpers'
 import { AUTO_CLOSE_HOUR } from '@/lib/asistencia/constants'
 import { useToast } from '@/components/ui/Toast'
-import { ImageUpload } from '@/components/ui/ImageUpload'
+import { FileUpload } from '@/components/ui/FileUpload'
 import { createClient } from '@/lib/supabase/client'
 
 interface Registro {
@@ -88,7 +88,14 @@ export default function AsistenciaAdminPage() {
 
   // Permisos
   const [showPermiso, setShowPermiso] = useState(false)
-  const [formPermiso, setFormPermiso] = useState(() => ({ barbero_id: '', fecha: getBusinessDateString(), notas: '', comprobante_url: '' }))
+  const [formPermiso, setFormPermiso] = useState(() => ({ 
+    barbero_id: '', 
+    fecha: getBusinessDateString(), 
+    tipo_permiso: 'jornada_completa',
+    duracion: '3',
+    notas: '', 
+    comprobante_url: '' 
+  }))
   const [savingPermiso, setSavingPermiso] = useState(false)
 
   // ─── Load barberos ──────────────────────────────────────────────────
@@ -246,12 +253,12 @@ export default function AsistenciaAdminPage() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
-      success('Permiso registrado')
+      success('Permiso registrado exitosamente')
       setShowPermiso(false)
-      setFormPermiso({ barbero_id: '', fecha: new Date().toISOString().split('T')[0], notas: '', comprobante_url: '' })
+      setFormPermiso({ barbero_id: '', fecha: getBusinessDateString(), tipo_permiso: 'jornada_completa', duracion: '3', notas: '', comprobante_url: '' })
       vista === 'dia' ? loadDia() : loadSemana()
     } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Error')
+      toastError(e instanceof Error ? e.message : 'Error al guardar permiso')
     } finally {
       setSavingPermiso(false)
     }
@@ -759,42 +766,74 @@ export default function AsistenciaAdminPage() {
       {/* Modal Registrar Permiso */}
       {showPermiso && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-          <Card className="w-full max-w-md border-purple-500/20 shadow-2xl my-auto">
-            <CardHeader><CardTitle className="text-purple-400 flex items-center gap-2"><Calendar className="w-5 h-5" /> Registrar Permiso</CardTitle></CardHeader>
+          <Card className="w-full max-w-lg border-purple-500/20 shadow-2xl my-auto max-h-[90vh] overflow-y-auto">
+            <CardHeader><CardTitle className="text-purple-400 flex items-center gap-2"><Calendar className="w-5 h-5" /> Registrar Permiso Especial</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-zinc-500 uppercase">Empleado</label>
+                <label className="text-xs font-bold text-zinc-500 uppercase">Empleado *</label>
                 <select value={formPermiso.barbero_id} onChange={e => setFormPermiso({ ...formPermiso, barbero_id: e.target.value })}
-                  className="w-full mt-1 h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white font-bold">
-                  <option value="">Seleccione...</option>
+                  className="w-full mt-1 h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white font-bold outline-none focus:border-purple-500">
+                  <option value="">Seleccione Empleado...</option>
                   {barberos.map(b => <option key={b.id} value={b.id}>{b.full_name}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="text-xs font-bold text-zinc-500 uppercase">Fecha</label>
-                <input type="date" value={formPermiso.fecha} onChange={e => setFormPermiso({ ...formPermiso, fecha: e.target.value })}
-                  className="w-full mt-1 h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-zinc-500 uppercase">Motivo / Notas</label>
-                <textarea value={formPermiso.notas} onChange={e => setFormPermiso({ ...formPermiso, notas: e.target.value })}
-                  placeholder="Ej. Cita médica, Problema familiar..."
-                  className="w-full mt-1 min-h-[80px] bg-zinc-950 border border-white/10 rounded-xl p-3 text-white text-sm" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-zinc-500 uppercase block mb-1">Comprobante (Opcional)</label>
-                <div className="bg-zinc-950 border border-white/10 rounded-xl p-2">
-                  <ImageUpload 
-                    onUploadSuccess={(url) => setFormPermiso({ ...formPermiso, comprobante_url: url })}
-                    onUploadError={(err) => toastError(err)}
-                  />
-                  {formPermiso.comprobante_url && (
-                    <p className="text-xs text-green-400 mt-2 font-bold text-center">✓ Imagen subida con éxito</p>
-                  )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-zinc-500 uppercase">Fecha *</label>
+                  <input type="date" value={formPermiso.fecha} onChange={e => setFormPermiso({ ...formPermiso, fecha: e.target.value })}
+                    className="w-full mt-1 h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white outline-none focus:border-purple-500" />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-zinc-500 uppercase">Tipo de Permiso</label>
+                  <select 
+                    value={formPermiso.tipo_permiso} 
+                    onChange={e => setFormPermiso({ ...formPermiso, tipo_permiso: e.target.value })}
+                    className="w-full mt-1 h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white font-bold outline-none focus:border-purple-500"
+                  >
+                    <option value="jornada_completa">🟢 Jornada Completa (Día entero)</option>
+                    <option value="horas">⏳ Permiso Parcial (ej. 3 Horas)</option>
+                    <option value="emergencia">🚨 Salida de Emergencia</option>
+                    <option value="enfermedad_grave">🏥 Enfermedad Grave (2+ días)</option>
+                    <option value="otro">📝 Otro Motivo Personal</option>
+                  </select>
                 </div>
               </div>
-              <div className="flex gap-3 pt-4">
-                <Button variant="primary" className="flex-1 font-black uppercase bg-purple-600 hover:bg-purple-500 text-white" onClick={guardarPermiso} disabled={savingPermiso}>
+
+              {(formPermiso.tipo_permiso === 'horas' || formPermiso.tipo_permiso === 'enfermedad_grave' || formPermiso.tipo_permiso === 'otro') && (
+                <div>
+                  <label className="text-xs font-bold text-purple-400 uppercase">
+                    {formPermiso.tipo_permiso === 'horas' ? 'Duración en Horas' : 'Duración en Días / Detalle'}
+                  </label>
+                  <input 
+                    type="text" 
+                    value={formPermiso.duracion} 
+                    onChange={e => setFormPermiso({ ...formPermiso, duracion: e.target.value })}
+                    placeholder={formPermiso.tipo_permiso === 'horas' ? 'Ej. 3 horas' : 'Ej. 2 días con descanso médico'}
+                    className="w-full mt-1 h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white text-sm outline-none focus:border-purple-500" 
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-bold text-zinc-500 uppercase">Motivo / Notas Justificativas</label>
+                <textarea value={formPermiso.notas} onChange={e => setFormPermiso({ ...formPermiso, notas: e.target.value })}
+                  placeholder="Ej. Cita médica en seguro social, trámite bancario urgente, etc."
+                  className="w-full mt-1 min-h-[80px] bg-zinc-950 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-purple-500" />
+              </div>
+
+              <div>
+                <FileUpload 
+                  label="Comprobante o Documento Médico (Imagen o PDF)"
+                  defaultUrl={formPermiso.comprobante_url}
+                  onUploadSuccess={(url) => setFormPermiso({ ...formPermiso, comprobante_url: url })}
+                  onUploadError={(err) => toastError(err)}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="primary" className="flex-1 font-black uppercase bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-600/20" onClick={guardarPermiso} disabled={savingPermiso}>
                   {savingPermiso ? 'Guardando...' : 'Guardar Permiso'}
                 </Button>
                 <Button variant="outline" className="flex-1" onClick={() => setShowPermiso(false)}>Cancelar</Button>
