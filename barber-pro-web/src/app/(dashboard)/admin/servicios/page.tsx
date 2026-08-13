@@ -90,26 +90,27 @@ export default function ServiciosPage() {
   }
 
   const handleMoveServicio = async (servicio: Servicio, direction: 'up' | 'down') => {
-    const cat = servicio.categoria || 'Cortes'
-    const listInCat = servicios.filter(s => (s.categoria || 'Cortes') === cat)
-    const currentIndex = listInCat.findIndex(s => s.id === servicio.id)
+    const targetList = filterCategoria === 'todos'
+      ? [...servicios]
+      : servicios.filter(s => (s.categoria || 'Cortes') === filterCategoria)
+
+    const currentIndex = targetList.findIndex(s => s.id === servicio.id)
     if (currentIndex === -1) return
 
     const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
-    if (targetIndex < 0 || targetIndex >= listInCat.length) return
+    if (targetIndex < 0 || targetIndex >= targetList.length) return
 
-    const newList = [...listInCat]
-    const temp = newList[currentIndex]
-    newList[currentIndex] = newList[targetIndex]
-    newList[targetIndex] = temp
+    const temp = targetList[currentIndex]
+    targetList[currentIndex] = targetList[targetIndex]
+    targetList[targetIndex] = temp
 
-    const updates = newList.map((item, idx) =>
+    const updates = targetList.map((item, idx) =>
       supabase.from('servicios').update({ orden: idx }).eq('id', item.id)
     )
 
     try {
       await Promise.all(updates)
-      toastSuccess(`Posición de "${servicio.nombre}" actualizada en ${cat}`)
+      toastSuccess(`Posición de "${servicio.nombre}" actualizada`)
       loadServicios()
     } catch (err: any) {
       toastError(err.message || 'Error al cambiar posición')

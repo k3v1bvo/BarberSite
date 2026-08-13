@@ -664,104 +664,16 @@ function ReservarContent() {
                   })}
                 </div>
 
-                {/* Renderizado de Servicios (Agrupado si es todos, o grid si es filtrado) */}
-                {filterCategoria === 'todos' ? (
-                  <div className="space-y-12">
-                    {CATEGORIAS_SERVICIOS.map(cat => {
-                      const servsDeCat = servicios.filter(s => (s.categoria || 'Cortes') === cat.id)
-                      if (servsDeCat.length === 0) return null
-                      return (
-                        <div key={cat.id} className="space-y-4">
-                          <div className="flex items-center gap-3 border-b border-zinc-800 pb-3">
-                            <div className="w-2 h-6 bg-amber-500 rounded-full" />
-                            <h3 className="text-xl font-black uppercase tracking-tight text-white">{cat.label}</h3>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            {servsDeCat.map((s) => {
-                              const allImgs = s.imagenes && s.imagenes.length > 0
-                                ? s.imagenes
-                                : (s.imagen_url ? [s.imagen_url] : [])
-                              return (
-                              <div
-                                key={s.id}
-                                onClick={() => {
-                                  setFormData({ ...formData, servicio_id: s.id, barbero_id: '' })
-                                  setTimeout(() => setStep(2), 250)
-                                }}
-                                className={`rounded-2xl cursor-pointer overflow-hidden transition-all duration-300 border-2 group hover:-translate-y-1 ${
-                                  formData.servicio_id === s.id
-                                    ? 'border-amber-500 shadow-[0_0_25px_rgba(245,158,11,0.2)] scale-[1.01]'
-                                    : 'border-zinc-800 bg-zinc-900/80 hover:border-amber-500/50'
-                                }`}
-                              >
-                                {/* Imagen banner compacta - nombre VISIBLE encima */}
-                                <div className="relative w-full h-36 overflow-hidden bg-zinc-950">
-                                  {allImgs.length > 0 ? (
-                                    <img
-                                      src={allImgs[0]}
-                                      alt={s.nombre}
-                                      loading="lazy"
-                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-900 to-zinc-950">
-                                      <Scissors className="w-10 h-10 text-zinc-700" />
-                                    </div>
-                                  )}
-                                  {/* Badge categoría */}
-                                  <span className="absolute top-2 left-2 text-[9px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-amber-400 border border-amber-400/30">
-                                    {s.categoria || 'Cortes'}
-                                  </span>
-                                  {/* Check si está seleccionado */}
-                                  {formData.servicio_id === s.id && (
-                                    <div className="absolute inset-0 bg-amber-500/20 flex items-center justify-center">
-                                      <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center shadow-lg">
-                                        <CheckCircle className="w-6 h-6 text-black" />
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                                {/* Contenido: nombre + descripción + precio */}
-                                <div className={`p-4 ${ formData.servicio_id === s.id ? 'bg-amber-500/5' : 'bg-zinc-900/80' }`}>
-                                  <h4 className="font-black text-base text-white group-hover:text-amber-400 transition-colors mb-1 leading-tight">
-                                    {toSentenceCase(s.nombre)}
-                                  </h4>
-                                  {s.descripcion && (
-                                    <p className="text-xs text-zinc-500 line-clamp-2 mb-3 leading-relaxed">
-                                      {toSentenceCase(s.descripcion)}
-                                    </p>
-                                  )}
-                                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-zinc-800/50">
-                                    <span className="text-amber-400 font-black text-xl tracking-tight">{formatCurrency(s.precio)}</span>
-                                    <div className="flex items-center gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => { e.stopPropagation(); setSelectedServicioForDetail(s) }}
-                                        className="text-[10px] font-black uppercase text-amber-500 hover:text-amber-300 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 transition-all hover:scale-105"
-                                      >
-                                        🔍 Info
-                                      </button>
-                                      <span className="text-xs font-bold text-zinc-400 flex items-center gap-1">
-                                        <Clock className="w-3.5 h-3.5 text-amber-500"/> {s.duracion_minutos} min
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {servicios.filter(s => (s.categoria || 'Cortes') === filterCategoria).map((s) => {
-                      const allImgs = s.imagenes && s.imagenes.length > 0
-                        ? s.imagenes
-                        : (s.imagen_url ? [s.imagen_url] : [])
-                      return (
+                {/* Renderizado de Servicios (Filtro Todos o por Categoría) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {(filterCategoria === 'todos'
+                    ? servicios
+                    : servicios.filter(s => (s.categoria || 'Cortes') === filterCategoria)
+                  ).map((s) => {
+                    const allImgs = s.imagenes && s.imagenes.length > 0
+                      ? s.imagenes
+                      : (s.imagen_url ? [s.imagen_url] : [])
+                    return (
                       <div
                         key={s.id}
                         onClick={() => {
@@ -826,10 +738,9 @@ function ReservarContent() {
                           </div>
                         </div>
                       </div>
-                      )
-                    })}
-                  </div>
-                )}
+                    )
+                  })}
+                </div>
 
                 {/* PROMOCIONES PUBLICAS */}
                 {promociones.length > 0 && (
