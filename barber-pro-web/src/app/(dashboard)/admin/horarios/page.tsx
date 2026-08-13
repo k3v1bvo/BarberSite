@@ -104,7 +104,7 @@ export default function AdminHorariosPage() {
   
   const [activeTab, setActiveTab] = useState<'semanal' | 'domingos' | 'feriados' | 'fecha_especifica'>('semanal')
   const [plantillas, setPlantillas] = useState<PlantillaHorario[]>([])
-  const [barberos, setBarberos] = useState<{ id: string; full_name: string }[]>([])
+  const [barberos, setBarberos] = useState<{ id: string; full_name: string; role?: string }[]>([])
   const [barberoId, setBarberoId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [savingHorario, setSavingHorario] = useState(false)
@@ -197,7 +197,8 @@ export default function AdminHorariosPage() {
           if (data && data.length > 0) {
             const formatted = data.map(b => ({
               id: b.id,
-              full_name: b.role === 'coordinador' ? `${b.full_name || 'Sin Nombre'} (Coordinador)` : (b.full_name || 'Sin Nombre')
+              full_name: b.role === 'coordinador' ? `${b.full_name || 'Sin Nombre'} (Coordinador)` : (b.full_name || 'Sin Nombre'),
+              role: b.role
             }))
             setBarberos(formatted)
             const initialId = (targetBarberoId && data.some(b => b.id === targetBarberoId)) ? targetBarberoId : formatted[0].id
@@ -747,7 +748,7 @@ export default function AdminHorariosPage() {
                         </span>
                       </div>
                       <div className="space-y-2">
-                        {barberos.map((b) => {
+                        {barberos.filter(b => b.role === 'barbero' || !b.role).map((b) => {
                           const isChecked = exist?.barberos_habilitados?.includes(b.id) || false
                           return (
                             <label
