@@ -75,15 +75,13 @@ export default function ProductosPage() {
   }
 
   const handleMoveProducto = async (producto: Producto, direction: 'up' | 'down') => {
-    const cat = producto.categoria || 'General'
-    const listInCat = productos.filter(p => (p.categoria || 'General') === cat)
-    const currentIndex = listInCat.findIndex(p => p.id === producto.id)
+    const currentIndex = productos.findIndex(p => p.id === producto.id)
     if (currentIndex === -1) return
 
     const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
-    if (targetIndex < 0 || targetIndex >= listInCat.length) return
+    if (targetIndex < 0 || targetIndex >= productos.length) return
 
-    const newList = [...listInCat]
+    const newList = [...productos]
     const temp = newList[currentIndex]
     newList[currentIndex] = newList[targetIndex]
     newList[targetIndex] = temp
