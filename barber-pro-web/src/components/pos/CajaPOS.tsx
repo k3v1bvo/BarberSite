@@ -13,6 +13,7 @@ import { formatCurrency, toTitleCase } from '@/lib/utils'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { CATEGORIAS_SERVICIOS } from '@/types'
 import { ClienteHistorialModal } from '@/components/pos/ClienteHistorialModal'
+import { ClienteSearchModal } from '@/components/pos/ClienteSearchModal'
 
 interface Cliente {
   id: string
@@ -131,6 +132,8 @@ export function CajaPOS() {
   const [searchCi, setSearchCi] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
   const [showCiDropdown, setShowCiDropdown] = useState(false)
+  const [showClientSearchModal, setShowClientSearchModal] = useState(false)
+  const [clientesRecientes, setClientesRecientes] = useState<Cliente[]>([])
   const [editingCliente, setEditingCliente] = useState(false)
   const [savingCliente, setSavingCliente] = useState(false)
   const [promoSeleccionada, setPromoSeleccionada] = useState<string>('')
@@ -222,6 +225,15 @@ export function CajaPOS() {
           .order('updated_at', { ascending: false })
           .limit(15)
         setUltimosServicios(ultimosData || [])
+
+        // Pre-cargar clientes frecuentes para búsqueda instantánea
+        const { data: recClientes } = await supabase
+          .from('clientes')
+          .select('id, nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado, codigo_tarjeta')
+          .order('total_visitas', { ascending: false })
+          .limit(40)
+        setClientesRecientes(recClientes || [])
+        setClientes(recClientes || [])
 
         const { data: ultimosTxData } = await supabase
           .from('transactions')
@@ -316,7 +328,7 @@ export function CajaPOS() {
 
   useEffect(() => {
     if (!searchCliente || searchCliente.trim().length < 2) {
-      setClientes([])
+      setClientes(clientesRecientes)
       return
     }
 
@@ -326,13 +338,13 @@ export function CajaPOS() {
         .from('clientes')
         .select('id, nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado, codigo_tarjeta')
         .or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,email.ilike.%${q}%,ci.ilike.%${q}%,codigo_tarjeta.ilike.%${q}%`)
-        .limit(15)
+        .limit(50)
 
       setClientes(data || [])
-    }, 300)
+    }, 250)
 
     return () => clearTimeout(timeoutId)
-  }, [searchCliente, supabase])
+  }, [searchCliente, supabase, clientesRecientes])
 
   useEffect(() => {
     if (!acompanante.nombre || acompanante.nombre.trim().length < 2) {
@@ -376,7 +388,7 @@ export function CajaPOS() {
 
   useEffect(() => {
     if (!searchCi || searchCi.trim().length < 2) {
-      if (searchCliente.trim().length < 2) setClientes([])
+      if (searchCliente.trim().length < 2) setClientes(clientesRecientes)
       return
     }
 
@@ -386,13 +398,13 @@ export function CajaPOS() {
         .from('clientes')
         .select('id, nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado, codigo_tarjeta')
         .or(`ci.ilike.%${q}%,codigo_tarjeta.ilike.%${q}%`)
-        .limit(10)
+        .limit(30)
 
       setClientes(data || [])
-    }, 300)
+    }, 250)
 
     return () => clearTimeout(timeoutId)
-  }, [searchCi, supabase, searchCliente])
+  }, [searchCi, supabase, searchCliente, clientesRecientes])
 
   // Fetch referral bonuses and client extras when a client is selected
   const fetchClientExtras = useCallback(async (clienteId: string, cliente?: Cliente) => {
@@ -1164,47 +1176,135 @@ export function CajaPOS() {
           {/* CLIENTE */}
           <Card className="bg-zinc-900 border-zinc-800 relative z-30" style={{ overflow: 'visible' }}>
             <CardContent className="pt-6 space-y-4">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <User className="w-5 h-5 text-amber-500" /> 1. Datos del Cliente
-              </h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <User className="w-5 h-5 text-amber-500" /> 1. Datos del Cliente
+                </h2>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  onClick={() => setShowClientSearchModal(true)}
+                  className="gap-1.5 font-black uppercase text-xs tracking-wider bg-amber-500 hover:bg-amber-400 text-black shadow-md shrink-0"
+                >
+                  <Search className="w-3.5 h-3.5" /> Explorar Todos los Clientes
+                </Button>
+              </div>
               
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
-                <Input
-                  className="pl-9 bg-black/50"
-                  placeholder="Buscar por nombre, carnet, teléfono o correo..."
-                  value={searchCliente}
-                  onChange={handleSearchChange}
-                  onFocus={() => setShowDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-                />
-                
-                {showDropdown && searchCliente && (
-                  <div className="absolute z-10 w-full mt-1 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    {clientesFiltrados.length > 0 ? (
-                      clientesFiltrados.map(c => (
-                        <div 
-                          key={c.id} 
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-zinc-500" />
+                  <Input
+                    className="pl-10 pr-9 bg-black/60 border-white/10 text-sm h-11 focus:border-amber-500/60"
+                    placeholder="Buscar por nombre, carnet, teléfono, correo o código de tarjeta..."
+                    value={searchCliente}
+                    onChange={handleSearchChange}
+                    onFocus={() => setShowDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowDropdown(false), 250)}
+                  />
+                  {searchCliente && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchCliente('')
+                        setFormData(p => ({ ...p, cliente_id: '', nombre: '', ci: '', telefono: '', email: '' }))
+                        setClienteDetalle(null)
+                      }}
+                      className="absolute right-3 top-3.5 text-zinc-400 hover:text-white transition"
+                      title="Limpiar"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                  
+                  {showDropdown && (
+                    <div className="absolute z-50 w-full mt-1.5 bg-zinc-900 border border-zinc-700/80 rounded-2xl shadow-2xl max-h-80 overflow-y-auto divide-y divide-zinc-800 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="p-2 bg-zinc-950/80 sticky top-0 flex items-center justify-between border-b border-zinc-800 text-[11px] text-zinc-400 font-bold px-3">
+                        <span>{searchCliente ? `Resultados para "${searchCliente}"` : 'Clientes Frecuentes'}</span>
+                        <button
+                          type="button"
                           onMouseDown={(e) => {
                             e.preventDefault()
-                            handleSelectCliente(c)
+                            setShowDropdown(false)
+                            setShowClientSearchModal(true)
                           }}
-                          className="px-4 py-2 hover:bg-zinc-800 cursor-pointer flex justify-between items-center"
+                          className="text-amber-400 hover:underline flex items-center gap-1"
                         >
-                          <div>
-                            <p className="font-semibold">{c.nombre} {c.codigo_tarjeta ? `(Cód: ${c.codigo_tarjeta})` : ''}</p>
-                            <p className="text-xs text-zinc-400">CI: {c.ci || 'N/A'} • {c.telefono || 'Sin cel'}</p>
-                          </div>
-                          <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-1 rounded-full">Seleccionar</span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="px-4 py-3 text-zinc-400 text-sm">
-                        No encontrado. Se creará como nuevo cliente.
+                          Ver todos ({clientesFiltrados.length}) <Search className="w-3 h-3" />
+                        </button>
                       </div>
-                    )}
-                  </div>
-                )}
+
+                      {clientesFiltrados.length > 0 ? (
+                        clientesFiltrados.map(c => {
+                          const nivel = (c.nivel_fidelidad || 'BRONCE').toUpperCase()
+                          return (
+                            <div 
+                              key={c.id} 
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                handleSelectCliente(c)
+                              }}
+                              className="px-3.5 py-2.5 hover:bg-amber-500/10 cursor-pointer flex items-center justify-between gap-2.5 transition group"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
+                                  nivel === 'ORO' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
+                                  nivel === 'PLATA' ? 'bg-zinc-400/20 text-zinc-300 border border-zinc-400/30' :
+                                  'bg-amber-700/20 text-amber-500 border border-amber-700/30'
+                                }`}>
+                                  {c.nombre ? c.nombre.charAt(0).toUpperCase() : 'C'}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="font-bold text-white text-xs group-hover:text-amber-400 transition-colors truncate">{c.nombre}</p>
+                                    <span className="text-[9px] font-black uppercase text-amber-500 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
+                                      {c.nivel_fidelidad || 'Bronce'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                                    {c.ci ? `CI: ${c.ci}` : 'Sin CI'} {c.telefono && `· Cel: ${c.telefono}`} {c.total_visitas ? `· ${c.total_visitas} visitas` : ''}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <span className="text-[10px] font-black bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-1 rounded-lg group-hover:bg-amber-500 group-hover:text-black transition shrink-0">
+                                Seleccionar
+                              </span>
+                            </div>
+                          )
+                        })
+                      ) : (
+                        <div className="px-4 py-4 text-center text-zinc-400 text-xs">
+                          <p className="font-bold text-white">No se encontró cliente con ese nombre o CI</p>
+                          <p className="text-[11px] text-zinc-500 mt-1">Se creará automáticamente como nuevo cliente al completar el cobro.</p>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          setShowDropdown(false)
+                          setShowClientSearchModal(true)
+                        }}
+                        className="w-full text-center py-2.5 bg-zinc-950 hover:bg-zinc-900 text-amber-400 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                      >
+                        <Search className="w-3.5 h-3.5" /> Abrir buscador avanzado de clientes
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowClientSearchModal(true)}
+                  className="h-11 px-3.5 border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-black font-bold text-xs shrink-0"
+                  title="Abrir buscador global completo"
+                >
+                  <Search className="w-4 h-4 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Explorar Todos</span>
+                </Button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -1220,10 +1320,10 @@ export function CajaPOS() {
                     value={formData.ci || searchCi} 
                     onChange={handleCiSearchChange} 
                     onFocus={() => setShowCiDropdown(true)}
-                    onBlur={() => setTimeout(() => setShowCiDropdown(false), 200)}
+                    onBlur={() => setTimeout(() => setShowCiDropdown(false), 250)}
                   />
                   {showCiDropdown && searchCi && (
-                    <div className="absolute z-10 w-full mt-1 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-50 w-full mt-1.5 bg-zinc-900 border border-zinc-700/80 rounded-2xl shadow-2xl max-h-60 overflow-y-auto divide-y divide-zinc-800">
                       {clientesFiltrados.length > 0 ? (
                         clientesFiltrados.map(c => (
                           <div 
@@ -1232,17 +1332,17 @@ export function CajaPOS() {
                               e.preventDefault()
                               handleSelectCliente(c)
                             }}
-                            className="px-4 py-2 hover:bg-zinc-800 cursor-pointer flex justify-between items-center"
+                            className="px-3.5 py-2.5 hover:bg-amber-500/10 cursor-pointer flex justify-between items-center transition"
                           >
                             <div>
-                              <p className="font-semibold">{c.ci || 'Sin CI'} {c.codigo_tarjeta ? `| Cód: ${c.codigo_tarjeta}` : ''}</p>
-                              <p className="text-xs text-zinc-400">{c.nombre}</p>
+                              <p className="font-bold text-white text-xs">{c.ci || 'Sin CI'} {c.codigo_tarjeta ? `| Cód: ${c.codigo_tarjeta}` : ''}</p>
+                              <p className="text-[11px] text-zinc-400">{c.nombre}</p>
                             </div>
-                            <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-1 rounded-full">Seleccionar</span>
+                            <span className="text-[10px] font-black bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">Seleccionar</span>
                           </div>
                         ))
                       ) : (
-                        <div className="px-4 py-3 text-zinc-400 text-sm">
+                        <div className="px-4 py-3 text-zinc-400 text-xs">
                           CI no encontrado.
                         </div>
                       )}
@@ -2340,6 +2440,14 @@ export function CajaPOS() {
         transaccionesCaja={historialTransaccionesCliente}
         stats={statsCliente}
         loading={loadingHistorial}
+      />
+
+      {/* MODAL DE BÚSQUEDA GLOBAL DE CLIENTES */}
+      <ClienteSearchModal
+        isOpen={showClientSearchModal}
+        onClose={() => setShowClientSearchModal(false)}
+        onSelectCliente={(c) => handleSelectCliente(c as Cliente)}
+        initialQuery={searchCliente}
       />
     </div>
   )
