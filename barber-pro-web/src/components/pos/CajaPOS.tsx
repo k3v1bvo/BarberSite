@@ -134,6 +134,7 @@ export function CajaPOS() {
   const [showCiDropdown, setShowCiDropdown] = useState(false)
   const [showClientSearchModal, setShowClientSearchModal] = useState(false)
   const [clientesRecientes, setClientesRecientes] = useState<Cliente[]>([])
+  const [historialInlineTab, setHistorialInlineTab] = useState<'servicios' | 'productos' | 'caja'>('servicios')
   const [editingCliente, setEditingCliente] = useState(false)
   const [savingCliente, setSavingCliente] = useState(false)
   const [promoSeleccionada, setPromoSeleccionada] = useState<string>('')
@@ -1135,32 +1136,68 @@ export function CajaPOS() {
               
               {/* Banner de cita seleccionada */}
               {formData.cita_id && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <Edit3 className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-amber-400 font-black text-xs uppercase tracking-widest">✏️ Cita Cargada en Formulario</p>
-                    {citaSeleccionadaFechaHora && (
-                      <p className="text-amber-300/60 text-[10px] mt-0.5 font-mono">
-                        📅 Cita Original: {new Date(citaSeleccionadaFechaHora).toLocaleDateString('es-BO', { weekday: 'short', day: '2-digit', month: 'short' })} · {new Date(citaSeleccionadaFechaHora).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    )}
-                    <p className="text-amber-200/70 text-[11px] mt-1">
-                      Puedes modificar el servicio, agregar productos al carrito y cobrar directamente.
-                    </p>
+                <div className="p-4 bg-gradient-to-r from-amber-500/15 via-zinc-900 to-zinc-950 border border-amber-500/40 rounded-2xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200 shadow-xl">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+                        <Scissors className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-amber-400 font-black text-xs uppercase tracking-widest">
+                            ✂️ Cita Lista para Cobro: <span className="text-white normal-case font-bold">{formData.nombre}</span>
+                          </p>
+                          {clienteDetalle?.nivel_fidelidad && (
+                            <span className="text-[9px] font-black uppercase text-black bg-amber-400 px-2 py-0.5 rounded-full">
+                              {clienteDetalle.nivel_fidelidad} · {clienteDetalle.total_visitas || 0} visitas
+                            </span>
+                          )}
+                        </div>
+                        {citaSeleccionadaFechaHora && (
+                          <p className="text-amber-300/80 text-[11px] mt-0.5 font-mono">
+                            📅 Turno: {new Date(citaSeleccionadaFechaHora).toLocaleDateString('es-BO', { weekday: 'short', day: '2-digit', month: 'short' })} · {new Date(citaSeleccionadaFechaHora).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        )}
+                        <p className="text-zinc-300 text-xs mt-1">
+                          Barbero: <strong className="text-amber-300">{barberos.find(b => b.id === formData.barbero_id)?.full_name || 'Asignado'}</strong>
+                          {statsCliente.barberoFrecuente && statsCliente.barberoFrecuente !== barberos.find(b => b.id === formData.barbero_id)?.full_name && (
+                            <span className="text-zinc-500 text-[11px] ml-2">(Frecuente habitual: {statsCliente.barberoFrecuente})</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end md:self-auto">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowHistorialModal(true)}
+                        className="gap-1.5 font-bold text-xs bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500 hover:text-black shrink-0 shadow-sm"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                        <span>Ver Historial y Movimientos ({historialCitasCliente.length})</span>
+                      </Button>
+
+                      <button 
+                        onClick={() => {
+                          setFormData({
+                            cita_id: '', cliente_id: '', nombre: '', email: '', telefono: '', ci: '',
+                            servicio_id: '', barbero_id: '', metodo_pago: 'efectivo', propinas: 0, notas: 'Venta desde Caja', comprobante_url: '', monto_efectivo: 0, monto_qr: 0, anticipo_monto: 0
+                          })
+                          setSearchCliente('')
+                          setSearchCi('')
+                          setCarrito([])
+                          setClienteDetalle(null)
+                          setCitaSeleccionadaFechaHora(null)
+                        }} 
+                        className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors shrink-0" 
+                        title="Deseleccionar cita"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
                   </div>
-                  <button onClick={() => {
-                    setFormData({
-                      cita_id: '', cliente_id: '', nombre: '', email: '', telefono: '', ci: '',
-                      servicio_id: '', barbero_id: '', metodo_pago: 'efectivo', propinas: 0, notas: 'Venta desde Caja', comprobante_url: '', monto_efectivo: 0, monto_qr: 0, anticipo_monto: 0
-                    })
-                    setSearchCliente('')
-                    setSearchCi('')
-                    setCarrito([])
-                    setClienteDetalle(null)
-                    setCitaSeleccionadaFechaHora(null)
-                  }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded-md transition-colors shrink-0" title="Deseleccionar cita">
-                    <X size={14} />
-                  </button>
                 </div>
               )}
             </div>
@@ -1583,44 +1620,202 @@ export function CajaPOS() {
             </div>
           )}
 
-          {/* BOTÓN Y RESUMEN RÁPIDO DE HISTORIAL DEL CLIENTE */}
+          {/* HISTORIAL Y MOVIMIENTOS RECIENTES DEL CLIENTE EN TIEMPO REAL */}
           {formData.cliente_id && (
-            <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-950 border border-zinc-800 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
-                  <History className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-xs font-black text-white uppercase tracking-wider">Historial y Movimientos</p>
-                    <span className="text-[10px] bg-zinc-800 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-zinc-700">
-                      {historialCitasCliente.length} servicios · {historialProductosCliente.length} productos · {historialTransaccionesCliente.length} pagos
-                    </span>
+            <Card className="bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 border-zinc-800 shadow-xl rounded-2xl overflow-hidden">
+              <div className="p-4 bg-zinc-950/80 border-b border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                    <History className="w-5 h-5" />
                   </div>
-                  <p className="text-[11px] text-zinc-400 mt-0.5">
-                    {statsCliente.barberoFrecuente ? (
-                      <>Barbero frecuente: <strong className="text-amber-400">{statsCliente.barberoFrecuente}</strong> · </>
-                    ) : null}
-                    {statsCliente.ultimaVisitaFecha ? (
-                      <>Última visita: <span className="text-zinc-300">{new Date(statsCliente.ultimaVisitaFecha).toLocaleDateString('es-BO', { day: '2-digit', month: 'short' })}</span></>
-                    ) : (
-                      'Consulta sus servicios anteriores, productos comprados y pagos.'
-                    )}
-                  </p>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-black text-white uppercase tracking-wider">Historial y Movimientos del Cliente</h3>
+                      {clienteDetalle?.nivel_fidelidad && (
+                        <span className="text-[9px] font-black uppercase text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
+                          {clienteDetalle.nivel_fidelidad} · {clienteDetalle.total_visitas || 0} visitas
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">
+                      {statsCliente.barberoFrecuente ? (
+                        <>Barbero preferido: <strong className="text-amber-400">{statsCliente.barberoFrecuente}</strong> · </>
+                      ) : null}
+                      {statsCliente.ultimaVisitaFecha ? (
+                        <>Última visita: <span className="text-zinc-300 font-semibold">{new Date(statsCliente.ultimaVisitaFecha).toLocaleDateString('es-BO', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</span></>
+                      ) : (
+                        'Movimientos y consumos registrados en barbería'
+                      )}
+                    </p>
+                  </div>
                 </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowHistorialModal(true)}
+                  className="gap-1.5 bg-amber-500/10 hover:bg-amber-500 hover:text-black text-amber-400 border-amber-500/30 text-xs font-black uppercase tracking-wider shrink-0 shadow-md"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  Ver Modal Completo
+                </Button>
               </div>
 
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setShowHistorialModal(true)}
-                className="gap-2 bg-amber-500/10 hover:bg-amber-500 hover:text-black text-amber-400 border-amber-500/30 text-xs font-black uppercase tracking-wider shrink-0 transition-all shadow-md"
-              >
-                <History className="w-3.5 h-3.5" />
-                Ver Historial Completo
-              </Button>
-            </div>
+              {/* Pestañas rápidas */}
+              <div className="flex border-b border-zinc-800 bg-zinc-950/40 px-4 pt-2 gap-2 text-xs font-bold overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setHistorialInlineTab('servicios')}
+                  className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 shrink-0 ${
+                    historialInlineTab === 'servicios'
+                      ? 'border-amber-500 text-amber-400 font-black'
+                      : 'border-transparent text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <Scissors className="w-3.5 h-3.5" />
+                  Servicios y Cortes ({historialCitasCliente.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistorialInlineTab('productos')}
+                  className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 shrink-0 ${
+                    historialInlineTab === 'productos'
+                      ? 'border-amber-500 text-amber-400 font-black'
+                      : 'border-transparent text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  Productos ({historialProductosCliente.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistorialInlineTab('caja')}
+                  className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 shrink-0 ${
+                    historialInlineTab === 'caja'
+                      ? 'border-amber-500 text-amber-400 font-black'
+                      : 'border-transparent text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <DollarSign className="w-3.5 h-3.5" />
+                  Pagos y Caja ({historialTransaccionesCliente.length})
+                </button>
+              </div>
+
+              {/* Contenido según pestaña */}
+              <CardContent className="p-4">
+                {historialInlineTab === 'servicios' && (
+                  <div className="space-y-2.5">
+                    {loadingHistorial ? (
+                      <div className="py-6 text-center text-zinc-500 text-xs flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></span>
+                        Cargando historial de cortes...
+                      </div>
+                    ) : historialCitasCliente.length > 0 ? (
+                      historialCitasCliente.slice(0, 4).map((cita, idx) => (
+                        <div key={cita.id || idx} className="p-3 bg-zinc-950/60 border border-zinc-800/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-amber-500/30 transition">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white text-xs">
+                                {cita.servicios?.nombre || 'Servicio de Barbería'}
+                              </span>
+                              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                cita.estado === 'completado' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                cita.estado === 'cancelado' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                                'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              }`}>
+                                {cita.estado}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-zinc-400 flex flex-wrap items-center gap-2">
+                              <span className="text-amber-400/90 font-medium">
+                                💈 {cita.profiles?.full_name || 'Barbero'}
+                              </span>
+                              <span>•</span>
+                              <span>
+                                📅 {cita.fecha_hora ? new Date(cita.fecha_hora).toLocaleDateString('es-BO', { weekday: 'short', day: '2-digit', month: 'short' }) : 'Sin fecha'} {cita.fecha_hora ? new Date(cita.fecha_hora).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : ''}
+                              </span>
+                              {cita.metodo_pago && (
+                                <>
+                                  <span>•</span>
+                                  <span className="uppercase text-[10px] text-zinc-500">
+                                    {cita.metodo_pago === 'efectivo' ? '💵 Efectivo' : cita.metodo_pago === 'qr' ? '📱 QR' : cita.metodo_pago}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            {cita.notas && (
+                              <p className="text-[11px] text-zinc-400 italic bg-black/40 px-2.5 py-1 rounded-lg border border-white/5 mt-1">
+                                💬 "{cita.notas}"
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span className="text-sm font-black text-amber-400">
+                              {formatCurrency(Number(cita.precio || 0))}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-zinc-500 text-center py-4">No tiene servicios o cortes anteriores registrados.</p>
+                    )}
+                  </div>
+                )}
+
+                {historialInlineTab === 'productos' && (
+                  <div className="space-y-2.5">
+                    {loadingHistorial ? (
+                      <div className="py-6 text-center text-zinc-500 text-xs flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></span>
+                        Cargando productos comprados...
+                      </div>
+                    ) : historialProductosCliente.length > 0 ? (
+                      historialProductosCliente.slice(0, 4).map((p, idx) => (
+                        <div key={p.id || idx} className="p-3 bg-zinc-950/60 border border-zinc-800/80 rounded-xl flex items-center justify-between gap-2.5 hover:border-amber-500/30 transition">
+                          <div>
+                            <p className="font-bold text-white text-xs">{p.productos?.nombre || 'Producto'}</p>
+                            <p className="text-[11px] text-zinc-400 mt-0.5">
+                              {p.cantidad} unidad(es) · {formatCurrency(p.precio_unitario)} c/u
+                              {p.citas?.fecha_hora && ` · ${new Date(p.citas.fecha_hora).toLocaleDateString('es-BO', { day: '2-digit', month: 'short' })}`}
+                            </p>
+                          </div>
+                          <span className="text-sm font-black text-amber-400">{formatCurrency(p.subtotal)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-zinc-500 text-center py-4">No tiene compras de productos registradas.</p>
+                    )}
+                  </div>
+                )}
+
+                {historialInlineTab === 'caja' && (
+                  <div className="space-y-2.5">
+                    {loadingHistorial ? (
+                      <div className="py-6 text-center text-zinc-500 text-xs flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></span>
+                        Cargando pagos y movimientos...
+                      </div>
+                    ) : historialTransaccionesCliente.length > 0 ? (
+                      historialTransaccionesCliente.slice(0, 4).map((tx, idx) => (
+                        <div key={tx.id || idx} className="p-3 bg-zinc-950/60 border border-zinc-800/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-amber-500/30 transition">
+                          <div>
+                            <p className="font-bold text-white text-xs">{tx.glosa || 'Transacción'}</p>
+                            <p className="text-[11px] text-zinc-400 mt-0.5">
+                              📅 {tx.fecha ? new Date(tx.fecha).toLocaleDateString('es-BO', { day: '2-digit', month: 'short' }) : 'Sin fecha'} · Libro: <span className="uppercase text-amber-400/90">{tx.libro}</span> · Método: <span className="uppercase">{tx.metodo_pago}</span>
+                            </p>
+                          </div>
+                          <span className="text-sm font-black text-amber-400 text-right">{formatCurrency(Number(tx.costo || 0))}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-zinc-500 text-center py-4">No tiene transacciones de caja registradas.</p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {/* PROMOCIONES */}
@@ -2078,19 +2273,27 @@ export function CajaPOS() {
               </h2>
               
               <div className="space-y-4">
-                <div className="flex justify-between text-sm items-center">
+                <div className="flex justify-between text-sm items-start">
                   <span className="text-zinc-400">Cliente</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-medium truncate max-w-[150px]">{formData.nombre || 'No seleccionado'}</span>
-                    {formData.cliente_id && (
-                      <button
-                        type="button"
-                        onClick={() => setShowHistorialModal(true)}
-                        className="p-1 text-amber-400 hover:text-black hover:bg-amber-500 bg-amber-500/10 rounded-md transition"
-                        title="Ver historial y movimientos del cliente"
-                      >
-                        <History className="w-3.5 h-3.5" />
-                      </button>
+                  <div className="flex flex-col items-end gap-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-white truncate max-w-[140px]">{formData.nombre || 'No seleccionado'}</span>
+                      {formData.cliente_id && (
+                        <button
+                          type="button"
+                          onClick={() => setShowHistorialModal(true)}
+                          className="px-1.5 py-0.5 text-[10px] font-black uppercase text-amber-400 hover:text-black hover:bg-amber-500 bg-amber-500/10 border border-amber-500/30 rounded-md transition flex items-center gap-1 shrink-0"
+                          title="Ver historial completo del cliente"
+                        >
+                          <History className="w-3 h-3" />
+                          <span>Movimientos</span>
+                        </button>
+                      )}
+                    </div>
+                    {clienteDetalle?.nivel_fidelidad && (
+                      <span className="text-[10px] text-amber-400 font-bold">
+                        ★ {clienteDetalle.nivel_fidelidad} · {clienteDetalle.total_visitas || 0} visitas
+                      </span>
                     )}
                   </div>
                 </div>
