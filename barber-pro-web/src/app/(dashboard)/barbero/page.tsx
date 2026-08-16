@@ -15,6 +15,7 @@ import {
 import { AsistenciaWidget } from '@/components/ui/AsistenciaWidget'
 import { AsistenciaHistorialWidget } from '@/components/ui/AsistenciaHistorialWidget'
 import { HorarioTrabajoBarberoWidget } from '@/components/ui/HorarioTrabajoBarberoWidget'
+import { BarberoPermisosWidget } from '@/components/permisos/BarberoPermisosWidget'
 import { useToast } from '@/components/ui/Toast'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -482,6 +483,11 @@ export default function BarberoPage() {
       {/* Historial semanal de asistencia */}
       <div className="w-full">
         <AsistenciaHistorialWidget />
+      </div>
+
+      {/* Solicitudes de Permiso con PDF */}
+      <div className="w-full">
+        <BarberoPermisosWidget userId={userId} />
       </div>
 
       {/* Stats Grid */}

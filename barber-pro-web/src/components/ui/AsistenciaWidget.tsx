@@ -5,8 +5,9 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { Clock, Play, Square, Loader2, Info, AlertTriangle, UtensilsCrossed, Coffee, MapPin, Camera, X } from 'lucide-react'
+import { Clock, Play, Square, Loader2, Info, AlertTriangle, UtensilsCrossed, Coffee, MapPin, Camera, X, FileText } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
+import { SolicitarPermisoModal } from '@/components/permisos/SolicitarPermisoModal'
 import {
   computeEstadoFromRecord,
   estadoBadgeVariant,
@@ -51,6 +52,7 @@ export function AsistenciaWidget() {
 
   // Selfie & Foto
   const [showSelfiePrompt, setShowSelfiePrompt] = useState(false)
+  const [showPermisoModal, setShowPermisoModal] = useState(false)
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null)
   const [selfieLinkInput, setSelfieLinkInput] = useState('')
   const [requiereFotoConfig, setRequiereFotoConfig] = useState(true)
@@ -634,6 +636,15 @@ export function AsistenciaWidget() {
                   Horario de marcación cerrado por hoy
                 </p>
               )}
+
+              <button
+                type="button"
+                onClick={() => setShowPermisoModal(true)}
+                className="w-full mt-3 py-2.5 px-3 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-amber-400 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Solicitar Permiso / Subir Justificativo</span>
+              </button>
             </div>
           )}
 
@@ -844,6 +855,13 @@ export function AsistenciaWidget() {
           </div>
         </div>
       )}
+
+      {/* Modal de Solicitud de Permiso */}
+      <SolicitarPermisoModal
+        isOpen={showPermisoModal}
+        onClose={() => setShowPermisoModal(false)}
+        onSuccess={checkStatus}
+      />
     </>
   )
 }

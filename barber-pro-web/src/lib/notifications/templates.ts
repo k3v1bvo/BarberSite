@@ -686,6 +686,71 @@ export function buildEmail(
         ),
       }
 
+    case 'permiso_solicitado_admin':
+      const barberoSolicitante = data.barberoNombre || data.nombre || 'Un barbero'
+      return {
+        subject: `📋 Solicitud de Permiso: ${barberoSolicitante} — ${data.fecha || 'Fecha'}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">Nueva Solicitud de Permiso</h2>
+          <p><strong>${barberoSolicitante}</strong> ha registrado una solicitud de permiso laboral en el sistema y requiere tu revisión.</p>
+          ${detailBox([
+            { label: 'Barbero', value: barberoSolicitante },
+            { label: 'Fecha Solicitada', value: data.fechaFin && data.fechaFin !== data.fecha ? `${data.fecha} al ${data.fechaFin}` : (data.fecha || '—') },
+            { label: 'Horario / Cobertura', value: data.todo_el_dia ? 'Día Completo (Toda la Jornada)' : `${data.horaInicio || '09:00'} a ${data.horaFin || '20:00'}` },
+            { label: 'Tipo de Permiso', value: data.tipoPermiso || 'Permiso General' },
+            { label: 'Motivo / Justificación', value: data.motivo || 'Sin motivo especificado' },
+          ])}
+          ${data.comprobante_url ? `
+            <div style="margin:20px 0;padding:16px;background:#27272a;border-radius:12px;border:1px solid #3f3f46;text-align:center;">
+              <p style="margin:0 0 8px;font-size:12px;color:#a1a1aa;text-transform:uppercase;font-weight:bold;letter-spacing:0.05em;">📄 Documento / Justificativo Adjunto</p>
+              <p style="margin:0 0 12px;color:#fff;font-size:14px;font-weight:600;">${data.archivoNombre || 'Archivo Justificativo (PDF/Imagen)'}</p>
+              <a href="${data.comprobante_url}" target="_blank" style="display:inline-block;background:#f59e0b;color:#000;font-weight:800;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:12px;text-transform:uppercase;">
+                🔍 Abrir Documento Adjunto
+              </a>
+            </div>
+          ` : '<p style="color:#71717a;font-size:13px;">No se adjuntó ningún archivo PDF o imagen.</p>'}
+          <p style="color:#e4e4e7;font-size:14px;margin-top:16px;">Por favor ingresa al panel de Asistencia para <strong>Aprobar</strong> o <strong>Rechazar</strong> la solicitud.</p>
+          ${cta(`${SITE}/admin/asistencia`, 'Revisar en Panel de Asistencia')}`,
+          `Nueva solicitud de permiso de ${barberoSolicitante}`
+        ),
+      }
+
+    case 'permiso_aprobado_barbero':
+      return {
+        subject: `✅ Tu solicitud de permiso ha sido APROBADA — ${BRAND}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#22c55e;font-size:20px;">¡Permiso Aprobado!</h2>
+          <p>Hola <strong>${nombre}</strong>, tu solicitud de permiso laboral ha sido revisada y <strong style="color:#22c55e;">Aprobada</strong> por la Administración.</p>
+          ${detailBox([
+            { label: 'Fecha Aprobada', value: data.fechaFin && data.fechaFin !== data.fecha ? `${data.fecha} al ${data.fechaFin}` : (data.fecha || '—') },
+            { label: 'Horario Cubierto', value: data.todo_el_dia ? 'Día Completo' : `${data.horaInicio || '09:00'} a ${data.horaFin || '20:00'}` },
+            { label: 'Tipo de Permiso', value: data.tipoPermiso || 'Permiso General' },
+            { label: 'Aprobado Por', value: data.revisadoPor || 'Administración' },
+          ])}
+          <p style="color:#a1a1aa;font-size:13px;margin-top:16px;">Tu asistencia ha sido registrada debidamente como <strong>Permiso Justificado</strong>, por lo que no incurrirás en faltas ni sanciones.</p>
+          ${cta(`${SITE}/barbero`, 'Ir a Mi Panel de Barbero')}`,
+          `Tu permiso para el ${data.fecha} fue aprobado`
+        ),
+      }
+
+    case 'permiso_rechazado_barbero':
+      return {
+        subject: `❌ Tu solicitud de permiso fue RECHAZADA — ${BRAND}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#ef4444;font-size:20px;">Solicitud de Permiso Rechazada</h2>
+          <p>Hola <strong>${nombre}</strong>, lamentamos informarte que tu solicitud de permiso para el <strong>${data.fecha}</strong> no pudo ser aprobada.</p>
+          ${detailBox([
+            { label: 'Fecha Solicitada', value: data.fecha || '—' },
+            { label: 'Horario', value: data.todo_el_dia ? 'Día Completo' : `${data.horaInicio || '09:00'} a ${data.horaFin || '20:00'}` },
+            { label: 'Motivo del Rechazo', value: data.motivoRechazo || 'No especificado por la administración' },
+            { label: 'Revisado Por', value: data.revisadoPor || 'Administración' },
+          ])}
+          <p style="color:#a1a1aa;font-size:13px;margin-top:16px;">Si necesitas coordinar una reprogramación o tienes dudas sobre el motivo, comunícate directamente con tu coordinador o administrador.</p>
+          ${cta(`${SITE}/barbero`, 'Ir a Mi Panel de Barbero')}`,
+          `Tu solicitud de permiso fue rechazada`
+        ),
+      }
+
     default:
       return {
         subject: `Notificación — ${BRAND}`,

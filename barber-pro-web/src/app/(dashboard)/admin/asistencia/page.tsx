@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/Modal'
 import {
   ArrowLeft, Clock, Download, Filter, AlertTriangle,
   Pencil, Users, RefreshCw, ChevronLeft, ChevronRight,
-  CalendarDays, Calendar, Camera, MapPin, Eye,
+  CalendarDays, Calendar, Camera, MapPin, Eye, FileText,
 } from 'lucide-react'
 import {
   estadoBadgeVariant,
@@ -23,6 +23,7 @@ import { AUTO_CLOSE_HOUR } from '@/lib/asistencia/constants'
 import { useToast } from '@/components/ui/Toast'
 import { FileUpload } from '@/components/ui/FileUpload'
 import { createClient } from '@/lib/supabase/client'
+import { AdminPermisosPanel } from '@/components/permisos/AdminPermisosPanel'
 
 interface Registro {
   id: string
@@ -63,7 +64,7 @@ export default function AsistenciaAdminPage() {
   const supabase = createClient()
   const { success, error: toastError } = useToast()
 
-  const [vista, setVista] = useState<'dia' | 'semana'>('semana')
+  const [vista, setVista] = useState<'semana' | 'dia' | 'permisos'>('semana')
   const [loading, setLoading] = useState(true)
   const [registros, setRegistros] = useState<Registro[]>([])
   const [resumen, setResumen] = useState({ total: 0, turnos_abiertos: 0, finalizados: 0 })
@@ -297,10 +298,10 @@ export default function AsistenciaAdminPage() {
       </Card>
 
       {/* Toggle vista */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <p className="text-zinc-600 text-xs font-black uppercase tracking-widest">Vista:</p>
-        <div className="flex bg-zinc-900 border border-white/5 rounded-2xl p-1 gap-1">
-          {([['dia', 'Día', Calendar], ['semana', 'Semana', CalendarDays]] as const).map(([key, label, Icon]) => (
+        <div className="flex flex-wrap bg-zinc-900 border border-white/5 rounded-2xl p-1 gap-1">
+          {([['semana', 'Semana', CalendarDays], ['dia', 'Día', Calendar], ['permisos', '📋 Solicitudes de Permiso', FileText]] as const).map(([key, label, Icon]) => (
             <button key={key} onClick={() => setVista(key)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase text-xs tracking-widest transition-all ${vista === key ? 'bg-amber-500 text-black' : 'text-zinc-500 hover:text-white'}`}>
               <Icon size={13} />{label}
@@ -309,8 +310,13 @@ export default function AsistenciaAdminPage() {
         </div>
       </div>
 
+      {/* ── VISTA SOLICITUDES DE PERMISOS (PDF) ── */}
+      {vista === 'permisos' && (
+        <AdminPermisosPanel />
+      )}
+
       {/* Alertas turno abierto */}
-      {resumen.turnos_abiertos > 0 && (
+      {vista !== 'permisos' && resumen.turnos_abiertos > 0 && (
         <Card className="border-red-500/30 bg-red-500/10 animate-pulse">
           <CardContent className="p-5 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -325,26 +331,28 @@ export default function AsistenciaAdminPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-white/5 bg-zinc-900">
-          <CardContent className="p-5">
-            <p className="text-[10px] font-black uppercase text-zinc-500">Registros {vista === 'semana' ? '(semana)' : '(día)'}</p>
-            <p className="text-3xl font-black text-white mt-1">{resumen.total}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-green-500/20 bg-green-500/5">
-          <CardContent className="p-5">
-            <p className="text-[10px] font-black uppercase text-green-400">Finalizados</p>
-            <p className="text-3xl font-black text-green-400 mt-1">{resumen.finalizados}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-amber-500/20 bg-amber-500/5">
-          <CardContent className="p-5">
-            <p className="text-[10px] font-black uppercase text-amber-400">En turno / abiertos</p>
-            <p className="text-3xl font-black text-amber-400 mt-1">{resumen.turnos_abiertos}</p>
-          </CardContent>
-        </Card>
-      </div>
+      {vista !== 'permisos' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card className="border-white/5 bg-zinc-900">
+            <CardContent className="p-5">
+              <p className="text-[10px] font-black uppercase text-zinc-500">Registros {vista === 'semana' ? '(semana)' : '(día)'}</p>
+              <p className="text-3xl font-black text-white mt-1">{resumen.total}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-green-500/20 bg-green-500/5">
+            <CardContent className="p-5">
+              <p className="text-[10px] font-black uppercase text-green-400">Finalizados</p>
+              <p className="text-3xl font-black text-green-400 mt-1">{resumen.finalizados}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-amber-500/20 bg-amber-500/5">
+            <CardContent className="p-5">
+              <p className="text-[10px] font-black uppercase text-amber-400">En turno / abiertos</p>
+              <p className="text-3xl font-black text-amber-400 mt-1">{resumen.turnos_abiertos}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* ── VISTA DÍA ── */}
       {vista === 'dia' && (

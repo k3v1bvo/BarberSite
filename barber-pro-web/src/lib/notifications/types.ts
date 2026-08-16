@@ -22,6 +22,9 @@ export type NotificationCategory =
   | 'cumpleanos'
   | 'cumpleanos_registro'
   | 'cumpleanos_semana_antes'
+  | 'permiso_solicitado'
+  | 'permiso_aprobado'
+  | 'permiso_rechazado'
 
 export type NotificationTipo = 'info' | 'success' | 'warning' | 'danger'
 
@@ -48,6 +51,14 @@ export interface NotificationPayload {
   comprobante_url?: string
   nuevaFecha?: string
   nuevaHora?: string
+  permisoId?: string
+  tipoPermiso?: string
+  horaInicio?: string
+  horaFin?: string
+  fechaFin?: string
+  revisadoPor?: string
+  motivoRechazo?: string
+  archivoNombre?: string
   [key: string]: string | number | undefined
 }
 

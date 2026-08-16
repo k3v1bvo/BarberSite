@@ -933,6 +933,110 @@ export async function dispatchNotification(
         break
       }
 
+      case 'permiso_solicitado': {
+        const barberoName = (p.barberoNombre as string) || 'Un barbero'
+        const fechaTxt = p.fechaFin && p.fechaFin !== p.fecha ? `${p.fecha} al ${p.fechaFin}` : (p.fecha || 'Fecha')
+        const horarioTxt = p.todo_el_dia ? 'Día Completo' : `${p.horaInicio || '09:00'} - ${p.horaFin || '20:00'}`
+        const msg = `📋 ${barberoName} solicitó permiso: ${fechaTxt} (${horarioTxt}). Motivo: ${p.motivo || 'Personal'}${p.comprobante_url ? ' [Con PDF]' : ''}`
+
+        const emailData = {
+          template: 'permiso_solicitado_admin',
+          data: {
+            barberoNombre: barberoName,
+            fecha: p.fecha as string,
+            fechaFin: p.fechaFin as string,
+            horaInicio: p.horaInicio as string,
+            horaFin: p.horaFin as string,
+            todo_el_dia: p.todo_el_dia ? 'true' : undefined,
+            tipoPermiso: (p.tipoPermiso as string) || 'Permiso General',
+            motivo: p.motivo as string,
+            comprobante_url: p.comprobante_url as string,
+            archivoNombre: p.archivoNombre as string,
+          }
+        }
+
+        // Notificar al admin por in-app y por email (Gmail SMTP)
+        await notifyRole(db, 'admin', {
+          titulo: `📋 Solicitud de Permiso: ${barberoName}`,
+          mensaje: msg,
+          tipo: 'warning',
+          categoria: 'asistencia',
+          link: '/admin/asistencia',
+          metadata: { permiso_id: p.permisoId, barbero_id: p.barberoId, comprobante_url: p.comprobante_url },
+        }, emailData)
+
+        // Notificar al coordinador por in-app y por email (Gmail SMTP)
+        await notifyRole(db, 'coordinador', {
+          titulo: `📋 Solicitud de Permiso: ${barberoName}`,
+          mensaje: msg,
+          tipo: 'warning',
+          categoria: 'asistencia',
+          link: '/admin/asistencia',
+          metadata: { permiso_id: p.permisoId, barbero_id: p.barberoId, comprobante_url: p.comprobante_url },
+        }, emailData)
+        break
+      }
+
+      case 'permiso_aprobado': {
+        const fechaTxt = p.fechaFin && p.fechaFin !== p.fecha ? `${p.fecha} al ${p.fechaFin}` : (p.fecha || 'Fecha')
+        const horarioTxt = p.todo_el_dia ? 'Día Completo' : `${p.horaInicio || '09:00'} - ${p.horaFin || '20:00'}`
+
+        if (p.barberoId) {
+          await notifyUser(db, p.barberoId as string, 'asistencia', {
+            titulo: '✅ ¡Permiso Aprobado!',
+            mensaje: `Tu solicitud de permiso para el ${fechaTxt} (${horarioTxt}) ha sido aprobada por ${p.revisadoPor || 'Administración'}.`,
+            tipo: 'success',
+            categoria: 'asistencia',
+            link: '/barbero',
+            metadata: { permiso_id: p.permisoId },
+          })
+        }
+
+        if (p.barberoEmail || input.userEmail) {
+          const targetEmail = (p.barberoEmail || input.userEmail) as string
+          await sendNotificationEmail(targetEmail, 'permiso_aprobado_barbero', {
+            nombre: (p.barberoNombre as string) || 'Barbero',
+            fecha: p.fecha as string,
+            fechaFin: p.fechaFin as string,
+            horaInicio: p.horaInicio as string,
+            horaFin: p.horaFin as string,
+            todo_el_dia: p.todo_el_dia ? 'true' : undefined,
+            tipoPermiso: (p.tipoPermiso as string) || 'Permiso General',
+            revisadoPor: p.revisadoPor as string,
+          })
+        }
+        break
+      }
+
+      case 'permiso_rechazado': {
+        const fechaTxt = p.fechaFin && p.fechaFin !== p.fecha ? `${p.fecha} al ${p.fechaFin}` : (p.fecha || 'Fecha')
+
+        if (p.barberoId) {
+          await notifyUser(db, p.barberoId as string, 'asistencia', {
+            titulo: '❌ Solicitud de Permiso Rechazada',
+            mensaje: `Tu solicitud para el ${fechaTxt} fue rechazada. Motivo: ${p.motivoRechazo || 'No especificado'}.`,
+            tipo: 'danger',
+            categoria: 'asistencia',
+            link: '/barbero',
+            metadata: { permiso_id: p.permisoId },
+          })
+        }
+
+        if (p.barberoEmail || input.userEmail) {
+          const targetEmail = (p.barberoEmail || input.userEmail) as string
+          await sendNotificationEmail(targetEmail, 'permiso_rechazado_barbero', {
+            nombre: (p.barberoNombre as string) || 'Barbero',
+            fecha: p.fecha as string,
+            horaInicio: p.horaInicio as string,
+            horaFin: p.horaFin as string,
+            todo_el_dia: p.todo_el_dia ? 'true' : undefined,
+            motivoRechazo: p.motivoRechazo as string,
+            revisadoPor: p.revisadoPor as string,
+          })
+        }
+        break
+      }
+
       default:
         errors.push(`Evento desconocido: ${event}`)
     }
