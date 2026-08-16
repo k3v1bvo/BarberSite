@@ -135,9 +135,10 @@ function ReservarContent() {
         ...(servicioId ? { servicio_id: servicioId } : {}),
         ...(barberoId ? { barbero_id: barberoId } : {}),
       }))
-      if (servicioId) {
-        setStep(2)
-      }
+      // NO forzar setStep(2) aquí — loadData determinará el step correcto
+      // basándose en si el usuario está logueado o no.
+      // Si está logueado Y tiene servicio pre-seleccionado, loadData salta a step 2.
+      // Si NO está logueado, loadData deja step 0 para que se registre primero.
     }
   }, [searchParams])
 
@@ -307,7 +308,9 @@ function ReservarContent() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (authUser) {
         await loadUserProfile(authUser)
-        setStep(1) // Skip step 0 if already logged in
+        // If user arrived with a pre-selected service, jump to step 2 (Barbero)
+        const preServicio = searchParams.get('servicio')
+        setStep(preServicio ? 2 : 1)
       }
 
       const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo] = await Promise.all([
