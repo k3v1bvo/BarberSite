@@ -68,7 +68,6 @@ export async function middleware(request: NextRequest) {
     isAdminRoute ||
     isCoordinadorRoute ||
     isBarberoRoute ||
-    isReservarRoute ||
     isAgendaRoute ||
     isClienteRoute ||
     isCalendarioRoute
