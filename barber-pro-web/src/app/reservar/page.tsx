@@ -517,12 +517,13 @@ function ReservarContent() {
         if (prodError) console.error('Error insertando productos de la cita', prodError)
       }
 
+      const isSinAdelanto = tipoReserva === 'sin_adelanto'
       try {
         await fetch('/api/notificaciones/dispatch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            event: 'pago_pendiente',
+            event: isSinAdelanto ? 'reserva_nueva' : 'pago_pendiente',
             allowPublic: true,
             payload: {
               citaId: citaNueva.id,
@@ -534,8 +535,11 @@ function ReservarContent() {
               servicioNombre: servicio?.nombre || 'Solo Productos',
               fecha: formData.fecha,
               hora: formData.hora,
-              monto: anticipoCalculado,
-              comprobante_url: formData.comprobante_url || null,
+              monto: isSinAdelanto ? precioFinalTotal : anticipoCalculado,
+              metodoPago: isSinAdelanto 
+                ? 'Pago en el local' 
+                : (tipoReserva === 'pago_total' ? 'Pago Total por QR' : 'Anticipo por QR'),
+              comprobante_url: isSinAdelanto ? null : (formData.comprobante_url || null),
             },
           }),
         })

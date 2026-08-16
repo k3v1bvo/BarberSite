@@ -174,8 +174,9 @@ export function buildEmail(
             { label: 'Fecha', value: data.fecha || '—' },
             { label: 'Hora', value: data.hora || '—' },
             { label: 'Barbero', value: data.barbero || '—' },
+            { label: 'Modalidad de Pago', value: data.metodoPago || 'Pago en el local' },
           ])}
-          <p>Te esperamos puntual. Si necesitas cambiar algo, contáctanos con anticipación.</p>
+          <p>Te esperamos puntual en la barbería. Si necesitas cambiar algo, contáctanos con anticipación.</p>
           ${cta(`${SITE}/cliente`, 'Ver mis citas')}`,
           `Tu cita en ${BRAND} está confirmada`
         ),
@@ -191,6 +192,7 @@ export function buildEmail(
             { label: 'Servicio', value: data.servicio || '—' },
             { label: 'Fecha', value: data.fecha || '—' },
             { label: 'Hora', value: data.hora || '—' },
+            { label: 'Modalidad de Pago', value: data.metodoPago || 'Pago en el local' },
           ])}
           ${cta(`${SITE}/agenda`, 'Abrir mi agenda')}`,
           'Tienes una nueva cita agendada'
@@ -209,6 +211,7 @@ export function buildEmail(
             { label: 'Fecha', value: data.fecha || '—' },
             { label: 'Hora', value: data.hora || '—' },
             { label: 'Barbero', value: data.barbero || '—' },
+            { label: 'Modalidad de Pago', value: data.metodoPago || 'Pago en el local' },
           ])}
           <p>Todo está fluyendo excelente. Puedes revisar los detalles en tu agenda administrativa.</p>
           ${cta(`${SITE}/admin`, 'Ver Agenda Admin')}`,

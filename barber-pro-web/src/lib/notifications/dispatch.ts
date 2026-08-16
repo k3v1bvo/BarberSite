@@ -104,7 +104,8 @@ export async function dispatchNotification(
   try {
     switch (event) {
       case 'reserva_nueva': {
-        const msg = `${p.clienteNombre || 'Cliente'} — ${p.servicioNombre || 'Servicio'} · ${p.fecha} ${p.hora}`
+        const metodoPagoLabel = p.metodoPago || (p.monto != null ? `Pago en el local (Bs ${Number(p.monto).toFixed(2)})` : 'Pago en el local')
+        const msg = `${p.clienteNombre || 'Cliente'} — ${p.servicioNombre || 'Servicio'} · ${p.fecha} ${p.hora} (${metodoPagoLabel})`
         const meta = { cita_id: p.citaId, barbero_id: p.barberoId }
 
         if (p.barberoId) {
@@ -129,6 +130,7 @@ export async function dispatchNotification(
                     servicio: p.servicioNombre,
                     fecha: p.fecha,
                     hora: p.hora,
+                    metodoPago: metodoPagoLabel,
                   },
                 }
               : undefined
@@ -160,6 +162,7 @@ export async function dispatchNotification(
             fecha: p.fecha,
             hora: p.hora,
             barbero: p.barberoNombre,
+            metodoPago: metodoPagoLabel,
           })
         }
 
@@ -169,6 +172,7 @@ export async function dispatchNotification(
           fecha: p.fecha,
           hora: p.hora,
           barbero: p.barberoNombre,
+          metodoPago: metodoPagoLabel,
         })
         break
       }
