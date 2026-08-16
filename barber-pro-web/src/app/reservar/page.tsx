@@ -747,37 +747,31 @@ function ReservarContent() {
 
           {/* PASO 0: REGISTRO RÁPIDO (solo visitantes sin cuenta) */}
           {step === 0 && !user && (
-            <Card className="bg-zinc-900/90 backdrop-blur-2xl border-zinc-800/80 shadow-2xl rounded-3xl overflow-hidden">
-              <div className="relative p-8 md:p-12 text-center border-b border-white/10 bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950 overflow-hidden">
-                {/* Glow radial dorado sutil y textura de lujo */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.12),transparent_70%)] pointer-events-none" />
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none" />
-
-                <div className="relative z-10">
+            <Card className="bg-zinc-900/80 backdrop-blur-xl border-zinc-800/80 shadow-2xl rounded-3xl overflow-hidden">
+              <CardContent className="p-6 md:p-10">
+                {/* Header limpio integrado */}
+                <div className="text-center mb-8">
                   {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
-                    <div className="flex justify-center items-center mb-5">
+                    <div className="flex justify-center items-center mb-4">
                       <img 
                         src={brand.logo_url} 
                         alt={brand.nombre} 
-                        className="h-24 md:h-32 max-w-[320px] w-auto object-contain filter drop-shadow-[0_4px_30px_rgba(245,158,11,0.35)] transition-transform duration-300 hover:scale-105" 
+                        className="h-16 md:h-20 max-w-[260px] w-auto object-contain filter drop-shadow-[0_4px_20px_rgba(245,158,11,0.25)]" 
                       />
                     </div>
                   ) : (
-                    <div className="w-16 h-16 mx-auto bg-amber-500/10 rounded-2xl flex items-center justify-center mb-5 border border-amber-500/20 shadow-lg shadow-amber-500/10">
-                      <UserPlus className="w-8 h-8 text-amber-400" />
+                    <div className="w-12 h-12 mx-auto bg-amber-500/10 rounded-2xl flex items-center justify-center mb-4 border border-amber-500/20 shadow-lg shadow-amber-500/10">
+                      <UserPlus className="w-6 h-6 text-amber-500" />
                     </div>
                   )}
-                  <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">
+                  <h2 className="text-3xl font-black tracking-tight text-white">
                     Crea tu Cuenta para <span className="text-amber-500">Reservar</span>
                   </h2>
-                  <p className="text-zinc-400 font-medium text-sm md:text-base mt-2 max-w-lg mx-auto leading-relaxed">
-                    Tu CI nos permite vincular automáticamente tu historial de visitas y beneficios de lealtad.
+                  <p className="text-zinc-400 font-medium text-sm mt-2 max-w-lg mx-auto leading-relaxed">
+                    Ingresa tus datos para registrar tu cita y vincular automáticamente tu historial de visitas y descuentos.
                   </p>
                 </div>
-              </div>
 
-              <CardContent className="p-6 md:p-10">
                 <form onSubmit={handleQuickRegister} className="space-y-5">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="relative">
