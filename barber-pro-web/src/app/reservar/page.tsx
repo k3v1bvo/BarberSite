@@ -747,32 +747,31 @@ function ReservarContent() {
 
           {/* PASO 0: REGISTRO RÁPIDO (solo visitantes sin cuenta) */}
           {step === 0 && !user && (
-            <Card className="bg-zinc-900/80 backdrop-blur-xl border-zinc-800/80 shadow-2xl rounded-3xl overflow-hidden">
-              <div className="bg-gradient-to-br from-amber-600 via-amber-500 to-orange-500 p-8 md:p-12 text-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-black/10 mix-blend-multiply"></div>
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-                <div className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"></div>
-                <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-black/10 rounded-full blur-2xl"></div>
+            <Card className="bg-zinc-900/90 backdrop-blur-2xl border-zinc-800/80 shadow-2xl rounded-3xl overflow-hidden">
+              <div className="relative p-8 md:p-12 text-center border-b border-white/10 bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950 overflow-hidden">
+                {/* Glow radial dorado sutil y textura de lujo */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.12),transparent_70%)] pointer-events-none" />
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none" />
+
                 <div className="relative z-10">
                   {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
-                    <div className="flex justify-center items-center mb-6">
-                      <div className="bg-black/60 backdrop-blur-md rounded-2xl px-8 py-4 border border-white/10 shadow-[0_8px_40px_rgba(0,0,0,0.5)]">
-                        <img 
-                          src={brand.logo_url} 
-                          alt={brand.nombre} 
-                          className="h-16 md:h-24 max-w-[260px] w-auto object-contain filter brightness-110 transition-transform duration-300 hover:scale-105" 
-                        />
-                      </div>
+                    <div className="flex justify-center items-center mb-5">
+                      <img 
+                        src={brand.logo_url} 
+                        alt={brand.nombre} 
+                        className="h-24 md:h-32 max-w-[320px] w-auto object-contain filter drop-shadow-[0_4px_30px_rgba(245,158,11,0.35)] transition-transform duration-300 hover:scale-105" 
+                      />
                     </div>
                   ) : (
-                    <div className="w-16 h-16 mx-auto bg-black/20 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-sm border border-white/10">
-                      <UserPlus className="w-8 h-8 text-white" />
+                    <div className="w-16 h-16 mx-auto bg-amber-500/10 rounded-2xl flex items-center justify-center mb-5 border border-amber-500/20 shadow-lg shadow-amber-500/10">
+                      <UserPlus className="w-8 h-8 text-amber-400" />
                     </div>
                   )}
-                  <h2 className="text-3xl md:text-4xl font-black text-white drop-shadow-lg tracking-tight">
-                    Crea tu Cuenta para Reservar
+                  <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">
+                    Crea tu Cuenta para <span className="text-amber-500">Reservar</span>
                   </h2>
-                  <p className="text-white/90 font-medium text-base mt-3 max-w-lg mx-auto leading-relaxed">
+                  <p className="text-zinc-400 font-medium text-sm md:text-base mt-2 max-w-lg mx-auto leading-relaxed">
                     Tu CI nos permite vincular automáticamente tu historial de visitas y beneficios de lealtad.
                   </p>
                 </div>
