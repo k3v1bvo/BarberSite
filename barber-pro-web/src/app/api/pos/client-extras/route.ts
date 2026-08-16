@@ -81,10 +81,92 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // 4. Historial de Citas / Servicios Anteriores
+    let historialCitas: any[] = []
+    let barberoFrecuente = ''
+    let ultimaVisitaFecha = ''
+    if (clienteId) {
+      const { data: citas } = await supabase
+        .from('citas')
+        .select(`
+          id, fecha_hora, precio, estado, metodo_pago, notas, propinas, anticipo_monto,
+          servicios (nombre, precio, duracion_minutos),
+          profiles!citas_barbero_id_fkey (full_name)
+        `)
+        .eq('cliente_id', clienteId)
+        .order('fecha_hora', { ascending: false })
+        .limit(10)
+
+      historialCitas = citas || []
+
+      // Calcular barbero más frecuente y última visita
+      const barberoCount: Record<string, number> = {}
+      for (const c of historialCitas) {
+        const barberoName = (c.profiles as any)?.full_name
+        if (barberoName) {
+          barberoCount[barberoName] = (barberoCount[barberoName] || 0) + 1
+        }
+        if (!ultimaVisitaFecha && c.estado === 'completado') {
+          ultimaVisitaFecha = c.fecha_hora
+        }
+      }
+      let maxCount = 0
+      for (const [bName, count] of Object.entries(barberoCount)) {
+        if (count > maxCount) {
+          maxCount = count
+          barberoFrecuente = bName
+        }
+      }
+    }
+
+    // 5. Historial de Compras de Productos
+    let historialProductos: any[] = []
+    if (clienteId) {
+      const { data: prods } = await supabase
+        .from('citas_productos')
+        .select(`
+          id, cantidad, precio_unitario, subtotal,
+          productos (nombre, categoria),
+          citas!inner (cliente_id, fecha_hora)
+        `)
+        .eq('citas.cliente_id', clienteId)
+        .order('id', { ascending: false })
+        .limit(10)
+
+      historialProductos = prods || []
+    }
+
+    // 6. Transacciones de Caja Chica / Ventas históricas
+    let transaccionesCaja: any[] = []
+    const orFilters: string[] = []
+    if (clienteNombre && clienteNombre.trim().length >= 3) {
+      orFilters.push(`nombre.ilike.%${clienteNombre.trim()}%`)
+      orFilters.push(`glosa.ilike.%${clienteNombre.trim()}%`)
+    }
+    if (clienteCi && clienteCi.trim().length >= 4) {
+      orFilters.push(`ci.ilike.%${clienteCi.trim()}%`)
+    }
+    if (orFilters.length > 0) {
+      const { data: txs } = await supabase
+        .from('transactions')
+        .select('id, fecha, creado_en, glosa, costo, metodo_pago, libro, tipo_movimiento, usuario_registro, nombre')
+        .or(orFilters.join(','))
+        .order('creado_en', { ascending: false })
+        .limit(10)
+      transaccionesCaja = txs || []
+    }
+
     return NextResponse.json({
       referralBonuses,
       cumpleanosVerificado,
-      pareja2x1Pendiente
+      pareja2x1Pendiente,
+      historialCitas,
+      historialProductos,
+      transaccionesCaja,
+      stats: {
+        barberoFrecuente,
+        ultimaVisitaFecha,
+      }
     })
   } catch (err: any) {
     console.error('Error en GET /api/pos/client-extras:', err)

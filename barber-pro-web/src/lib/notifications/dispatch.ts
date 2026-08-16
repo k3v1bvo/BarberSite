@@ -104,7 +104,7 @@ export async function dispatchNotification(
   try {
     switch (event) {
       case 'reserva_nueva': {
-        const metodoPagoLabel = p.metodoPago || (p.monto != null ? `Pago en el local (Bs ${Number(p.monto).toFixed(2)})` : 'Pago en el local')
+        const metodoPagoLabel = String(p.metodoPago || (p.monto != null ? `Pago en el local (Bs ${Number(p.monto).toFixed(2)})` : 'Pago en el local'))
         const msg = `${p.clienteNombre || 'Cliente'} — ${p.servicioNombre || 'Servicio'} · ${p.fecha} ${p.hora} (${metodoPagoLabel})`
         const meta = { cita_id: p.citaId, barbero_id: p.barberoId }
 

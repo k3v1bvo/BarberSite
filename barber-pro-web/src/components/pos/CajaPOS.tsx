@@ -12,6 +12,7 @@ import { User, Scissors, DollarSign, Search, CheckCircle, Check, Clock, Package,
 import { formatCurrency, toTitleCase } from '@/lib/utils'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { CATEGORIAS_SERVICIOS } from '@/types'
+import { ClienteHistorialModal } from '@/components/pos/ClienteHistorialModal'
 
 interface Cliente {
   id: string
@@ -111,6 +112,12 @@ export function CajaPOS() {
   const [cumpleanosVerifData, setCumpleanosVerifData] = useState<any | null>(null)
   const [pareja2x1PendienteData, setPareja2x1PendienteData] = useState<any | null>(null)
   const [clienteDetalle, setClienteDetalle] = useState<Cliente | null>(null)
+  const [historialCitasCliente, setHistorialCitasCliente] = useState<any[]>([])
+  const [historialProductosCliente, setHistorialProductosCliente] = useState<any[]>([])
+  const [historialTransaccionesCliente, setHistorialTransaccionesCliente] = useState<any[]>([])
+  const [statsCliente, setStatsCliente] = useState<{ barberoFrecuente?: string; ultimaVisitaFecha?: string }>({})
+  const [showHistorialModal, setShowHistorialModal] = useState(false)
+  const [loadingHistorial, setLoadingHistorial] = useState(false)
   const [qrPagoUrl, setQrPagoUrl] = useState<string | null>(null)
   const [citasPendientes, setCitasPendientes] = useState<any[]>([])
   const [ultimosServicios, setUltimosServicios] = useState<any[]>([])
@@ -395,6 +402,7 @@ export function CajaPOS() {
     setPromoSeleccionada('')
     setCumpleanosVerifData(null)
     setPareja2x1PendienteData(null)
+    setLoadingHistorial(true)
     try {
       const res = await fetch(`/api/pos/client-extras?cliente_id=${clienteId}&nombre=${encodeURIComponent(cl?.nombre || '')}&email=${encodeURIComponent(cl?.email || '')}&ci=${encodeURIComponent(cl?.ci || '')}`)
       const data = await res.json()
@@ -402,6 +410,10 @@ export function CajaPOS() {
         setReferralBonuses(data.referralBonuses || [])
         setCumpleanosVerifData(data.cumpleanosVerificado || null)
         setPareja2x1PendienteData(data.pareja2x1Pendiente || null)
+        setHistorialCitasCliente(data.historialCitas || [])
+        setHistorialProductosCliente(data.historialProductos || [])
+        setHistorialTransaccionesCliente(data.transaccionesCaja || [])
+        setStatsCliente(data.stats || {})
         
         // Si hay promoción de cumpleaños verificada y no hay otra promo seleccionada, preseleccionarla
         if (data.cumpleanosVerificado?.promo?.id) {
@@ -409,11 +421,21 @@ export function CajaPOS() {
         }
       } else {
         setReferralBonuses([])
+        setHistorialCitasCliente([])
+        setHistorialProductosCliente([])
+        setHistorialTransaccionesCliente([])
+        setStatsCliente({})
       }
     } catch {
       setReferralBonuses([])
       setCumpleanosVerifData(null)
       setPareja2x1PendienteData(null)
+      setHistorialCitasCliente([])
+      setHistorialProductosCliente([])
+      setHistorialTransaccionesCliente([])
+      setStatsCliente({})
+    } finally {
+      setLoadingHistorial(false)
     }
   }, [clientes])
 
@@ -650,6 +672,11 @@ export function CajaPOS() {
       setSearchCi('')
       setCarrito([])
       setClienteDetalle(null)
+      setHistorialCitasCliente([])
+      setHistorialProductosCliente([])
+      setHistorialTransaccionesCliente([])
+      setStatsCliente({})
+      setShowHistorialModal(false)
       setReferralBonuses([])
       setCumpleanosVerifData(null)
       setPareja2x1PendienteData(null)
@@ -1456,6 +1483,46 @@ export function CajaPOS() {
             </div>
           )}
 
+          {/* BOTÓN Y RESUMEN RÁPIDO DE HISTORIAL DEL CLIENTE */}
+          {formData.cliente_id && (
+            <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-950 border border-zinc-800 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+                  <History className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-black text-white uppercase tracking-wider">Historial y Movimientos</p>
+                    <span className="text-[10px] bg-zinc-800 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-zinc-700">
+                      {historialCitasCliente.length} servicios · {historialProductosCliente.length} productos · {historialTransaccionesCliente.length} pagos
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    {statsCliente.barberoFrecuente ? (
+                      <>Barbero frecuente: <strong className="text-amber-400">{statsCliente.barberoFrecuente}</strong> · </>
+                    ) : null}
+                    {statsCliente.ultimaVisitaFecha ? (
+                      <>Última visita: <span className="text-zinc-300">{new Date(statsCliente.ultimaVisitaFecha).toLocaleDateString('es-BO', { day: '2-digit', month: 'short' })}</span></>
+                    ) : (
+                      'Consulta sus servicios anteriores, productos comprados y pagos.'
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setShowHistorialModal(true)}
+                className="gap-2 bg-amber-500/10 hover:bg-amber-500 hover:text-black text-amber-400 border-amber-500/30 text-xs font-black uppercase tracking-wider shrink-0 transition-all shadow-md"
+              >
+                <History className="w-3.5 h-3.5" />
+                Ver Historial Completo
+              </Button>
+            </div>
+          )}
+
           {/* PROMOCIONES */}
           {formData.cliente_id && promociones.length > 0 && (
             <Card className="bg-zinc-900 border-zinc-800">
@@ -1911,9 +1978,21 @@ export function CajaPOS() {
               </h2>
               
               <div className="space-y-4">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-sm items-center">
                   <span className="text-zinc-400">Cliente</span>
-                  <span className="font-medium truncate max-w-[150px]">{formData.nombre || 'No seleccionado'}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium truncate max-w-[150px]">{formData.nombre || 'No seleccionado'}</span>
+                    {formData.cliente_id && (
+                      <button
+                        type="button"
+                        onClick={() => setShowHistorialModal(true)}
+                        className="p-1 text-amber-400 hover:text-black hover:bg-amber-500 bg-amber-500/10 rounded-md transition"
+                        title="Ver historial y movimientos del cliente"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-between text-sm items-center">
                   <span className="text-zinc-400">Servicio</span>
@@ -2243,6 +2322,24 @@ export function CajaPOS() {
         </div>
       </div>
       )}
+
+      {/* MODAL DE HISTORIAL COMPLETO DEL CLIENTE */}
+      <ClienteHistorialModal
+        isOpen={showHistorialModal}
+        onClose={() => setShowHistorialModal(false)}
+        cliente={clienteDetalle || (formData.cliente_id ? {
+          id: formData.cliente_id,
+          nombre: formData.nombre,
+          email: formData.email,
+          telefono: formData.telefono,
+          ci: formData.ci
+        } : null)}
+        historialCitas={historialCitasCliente}
+        historialProductos={historialProductosCliente}
+        transaccionesCaja={historialTransaccionesCliente}
+        stats={statsCliente}
+        loading={loadingHistorial}
+      />
     </div>
   )
 }
