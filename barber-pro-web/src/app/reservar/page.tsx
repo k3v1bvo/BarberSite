@@ -760,7 +760,7 @@ function ReservarContent() {
                       <img 
                         src={brand.logo_url} 
                         alt={brand.nombre} 
-                        className="h-20 md:h-28 max-w-[280px] w-auto object-contain filter drop-shadow-[0_4px_25px_rgba(245,158,11,0.35)] transition-transform duration-300 hover:scale-105" 
+                        className="h-36 md:h-52 max-w-[420px] md:max-w-[540px] w-auto object-contain filter drop-shadow-[0_8px_40px_rgba(245,158,11,0.45)] transition-transform duration-300 hover:scale-105" 
                       />
                     </div>
                   ) : (
