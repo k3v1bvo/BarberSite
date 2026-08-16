@@ -756,11 +756,13 @@ function ReservarContent() {
                 <div className="relative z-10">
                   {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
                     <div className="flex justify-center items-center mb-6">
-                      <img 
-                        src={brand.logo_url} 
-                        alt={brand.nombre} 
-                        className="h-20 md:h-28 max-w-[280px] w-auto object-contain filter drop-shadow-[0_4px_20px_rgba(0,0,0,0.3)] transition-transform duration-300 hover:scale-105" 
-                      />
+                      <div className="bg-black/60 backdrop-blur-md rounded-2xl px-8 py-4 border border-white/10 shadow-[0_8px_40px_rgba(0,0,0,0.5)]">
+                        <img 
+                          src={brand.logo_url} 
+                          alt={brand.nombre} 
+                          className="h-16 md:h-24 max-w-[260px] w-auto object-contain filter brightness-110 transition-transform duration-300 hover:scale-105" 
+                        />
+                      </div>
                     </div>
                   ) : (
                     <div className="w-16 h-16 mx-auto bg-black/20 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-sm border border-white/10">
