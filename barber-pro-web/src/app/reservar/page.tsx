@@ -4,15 +4,18 @@ import { Suspense, useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 import { Card, CardContent } from '@/components/ui/Card'
 import { formatCurrency, toTitleCase, toSentenceCase } from '@/lib/utils'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Calendar, User, Scissors, CheckCircle, Package, Plus, Minus, X, Info, AlertTriangle, Clock, UserPlus, Gift } from 'lucide-react'
+import { Calendar, User, Scissors, CheckCircle, Package, Plus, Minus, X, Info, AlertTriangle, Clock, UserPlus, Gift, Shield, Smartphone, Mail, IdCard } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { CATEGORIAS_SERVICIOS } from '@/types'
 import { ServicioGalleryBanner } from '@/components/ui/ServicioGalleryBanner'
 import { ServicioDetailModal } from '@/components/ui/ServicioDetailModal'
+import Link from 'next/link'
+import { useBrand } from '@/components/providers/BrandProvider'
 
 // Interfaces
 interface Servicio {
@@ -60,6 +63,7 @@ export default function ReservarPage() {
 }
 
 function ReservarContent() {
+  const { brand } = useBrand()
   const { error: toastError, success: toastSuccess } = useToast()
   
   const [servicios, setServicios] = useState<Servicio[]>([])
@@ -76,7 +80,12 @@ function ReservarContent() {
   const [success, setSuccess] = useState(false)
   const [user, setUser] = useState<UserProfile | null>(null)
   const [qrPago, setQrPago] = useState<string | null>(null)
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(0) // starts at 0 for guests, loadData sets to 1 if logged in
+
+  // Step 0: Quick Registration state
+  const [registerData, setRegisterData] = useState({ full_name: '', ci: '', phone: '', email: '', password: '' })
+  const [registering, setRegistering] = useState(false)
+  const [registerError, setRegisterError] = useState('')
   const [filterCategoria, setFilterCategoria] = useState<string>('todos')
   const [tipoReserva, setTipoReserva] = useState<'adelanto_20' | 'pago_total' | 'sin_adelanto'>('adelanto_20')
 
@@ -163,38 +172,142 @@ function ReservarContent() {
     }
   }, [formData.barbero_id, formData.fecha])
 
+  const loadUserProfile = async (authUser: { id: string; email?: string }) => {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, phone')
+      .eq('id', authUser.id)
+      .single()
+    if (profile) {
+      setUser(profile as UserProfile)
+      setFormData(prev => ({
+        ...prev,
+        nombre: profile.full_name || '',
+        telefono: profile.phone || '',
+        email: profile.email || '',
+      }))
+      const { data: clienteData } = await supabase
+        .from('clientes')
+        .select('total_visitas')
+        .eq('id', authUser.id)
+        .single()
+      if (clienteData) {
+        const visitasActuales = clienteData.total_visitas || 0
+        const enCiclo = visitasActuales % 10
+        if (enCiclo === 4) {
+          setLealtadInfo({ descuento: 15, mensaje: '¡5to Corte! Tienes 15 Bs de descuento en el servicio.' })
+        } else if (enCiclo === 9) {
+          setLealtadInfo({ descuento: 1, mensaje: '¡10mo Corte! Tu servicio es GRATIS.' })
+        }
+      }
+    }
+  }
+
+  const handleQuickRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setRegistering(true)
+    setRegisterError('')
+
+    try {
+      if (!registerData.full_name.trim()) throw new Error('Ingresa tu nombre completo')
+      if (!registerData.ci.trim()) throw new Error('Ingresa tu CI / Carnet para vincular tu historial')
+      if (!registerData.phone.trim()) throw new Error('Ingresa tu número de teléfono')
+      if (!registerData.email.trim()) throw new Error('Ingresa tu correo electrónico')
+      if (registerData.password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres')
+
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: registerData.email.trim(),
+        password: registerData.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`,
+          data: {
+            full_name: registerData.full_name.trim(),
+            phone: registerData.phone.trim(),
+            ci: registerData.ci.trim(),
+          },
+        },
+      })
+
+      if (authError) throw new Error(authError.message)
+      if (!authData.user) throw new Error('Error al crear la cuenta')
+
+      // Insert into clientes table
+      const cleanCi = registerData.ci.trim()
+      let skipInsert = false
+
+      if (cleanCi) {
+        const { data: existingByCi } = await supabase
+          .from('clientes')
+          .select('id')
+          .eq('ci', cleanCi)
+          .maybeSingle()
+        if (existingByCi) skipInsert = true
+      }
+
+      if (!skipInsert) {
+        await supabase.from('clientes').insert({
+          id: authData.user.id,
+          nombre: registerData.full_name.trim(),
+          telefono: registerData.phone.trim() || null,
+          ci: cleanCi || null,
+          email: registerData.email.trim(),
+          total_visitas: 0,
+          total_gastado: 0,
+        })
+      }
+
+      // Auto-sync history
+      try {
+        await fetch('/api/auth/autosync-cliente', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            new_user_id: authData.user.id,
+            ci: registerData.ci.trim(),
+            email: registerData.email.trim(),
+            nombre: registerData.full_name.trim(),
+          })
+        })
+      } catch (syncErr) {
+        console.warn('Error al auto-sincronizar historial:', syncErr)
+      }
+
+      // Send welcome email
+      fetch('/api/auth/bienvenida', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: registerData.email.trim(),
+          full_name: registerData.full_name.trim(),
+          password: registerData.password
+        })
+      }).catch(err => console.error('Error enviando email de bienvenida:', err))
+
+      // Auto-login: if session exists, load user profile and advance
+      if (authData.session) {
+        await loadUserProfile(authData.user)
+        toastSuccess(`¡Bienvenido, ${registerData.full_name.split(' ')[0]}! Tu cuenta fue creada.`)
+        setStep(1)
+      } else {
+        // Email confirmation required — redirect to login
+        toastSuccess('¡Cuenta creada! Revisa tu correo para confirmar y luego inicia sesión.')
+        router.push('/login')
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Error inesperado al crear la cuenta'
+      setRegisterError(msg)
+      toastError(msg)
+    } finally {
+      setRegistering(false)
+    }
+  }
+
   const loadData = async () => {
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (authUser) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id, email, full_name, phone')
-          .eq('id', authUser.id)
-          .single()
-        if (profile) {
-          setUser(profile as UserProfile)
-          setFormData(prev => ({
-            ...prev,
-            nombre: profile.full_name || '',
-            telefono: profile.phone || '',
-            email: profile.email || '',
-          }))
-          const { data: clienteData } = await supabase
-            .from('clientes')
-            .select('total_visitas')
-            .eq('id', authUser.id)
-            .single()
-          if (clienteData) {
-            const visitasActuales = clienteData.total_visitas || 0
-            const enCiclo = visitasActuales % 10
-            if (enCiclo === 4) {
-              setLealtadInfo({ descuento: 15, mensaje: '¡5to Corte! Tienes 15 Bs de descuento en el servicio.' })
-            } else if (enCiclo === 9) {
-              setLealtadInfo({ descuento: 1, mensaje: '¡10mo Corte! Tu servicio es GRATIS.' })
-            }
-          }
-        }
+        await loadUserProfile(authUser)
+        setStep(1) // Skip step 0 if already logged in
       }
 
       const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo] = await Promise.all([
@@ -574,6 +687,18 @@ function ReservarContent() {
   if (!formData.nombre || !formData.telefono || !formData.email) missingFields.push('Tus Datos')
   if (tipoReserva !== 'sin_adelanto' && totalReserva > 0 && !formData.comprobante_url) missingFields.push('Comprobante de Pago QR')
 
+  const wizardSteps = [
+    ...(!user ? [{ s: 0, label: 'Registro', icon: UserPlus }] : []),
+    { s: 1, label: 'Servicio', icon: Scissors },
+    { s: 2, label: 'Barbero', icon: User },
+    { s: 3, label: 'Fecha', icon: Calendar },
+    { s: 4, label: 'Tienda', icon: Package },
+    { s: 5, label: 'Resumen', icon: CheckCircle }
+  ]
+  const totalSteps = wizardSteps.length
+  const currentStepIndex = wizardSteps.findIndex(s => s.s === step)
+  const progressWidth = totalSteps > 1 ? (currentStepIndex / (totalSteps - 1)) * 100 : 0
+
   return (
     <div ref={wizardRef} className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black text-white pb-24 font-sans selection:bg-amber-500/30">
       <div className="max-w-4xl mx-auto px-4 py-8 lg:py-12">
@@ -592,20 +717,13 @@ function ReservarContent() {
         <div className="mb-12 max-w-2xl mx-auto px-4 animate-in fade-in duration-1000 delay-150">
           <div className="flex justify-between items-center relative">
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1.5 bg-zinc-800 rounded-full z-0 shadow-inner"></div>
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-amber-500 rounded-full z-0 transition-all duration-700 ease-out shadow-[0_0_10px_rgba(245,158,11,0.5)]" style={{ width: `${((step - 1) / 4) * 100}%` }}></div>
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-amber-500 rounded-full z-0 transition-all duration-700 ease-out shadow-[0_0_10px_rgba(245,158,11,0.5)]" style={{ width: `${progressWidth}%` }}></div>
             
-            {[
-              { s: 1, label: 'Servicio', icon: Scissors },
-              { s: 2, label: 'Barbero', icon: User },
-              { s: 3, label: 'Fecha', icon: Calendar },
-              { s: 4, label: 'Tienda', icon: Package },
-              { s: 5, label: 'Resumen', icon: CheckCircle }
-            ].map((item) => (
+            {wizardSteps.map((item) => (
               <div key={item.s} className="relative z-10 flex flex-col items-center gap-2">
                 <button
                   onClick={() => {
-                    // Permite navegar a pasos anteriores
-                    if (item.s < step) setStep(item.s)
+                    if (item.s < step && item.s > 0) setStep(item.s)
                   }}
                   className={`w-12 h-12 rounded-full flex items-center justify-center font-bold transition-all duration-500 ${
                     step === item.s ? 'bg-amber-500 text-black scale-110 shadow-[0_0_20px_rgba(245,158,11,0.6)] ring-4 ring-amber-500/20' 
@@ -623,6 +741,148 @@ function ReservarContent() {
 
         {/* CONTENIDO DE LOS PASOS */}
         <div className="relative animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out">
+
+          {/* PASO 0: REGISTRO RÁPIDO (solo visitantes sin cuenta) */}
+          {step === 0 && !user && (
+            <Card className="bg-zinc-900/80 backdrop-blur-xl border-zinc-800/80 shadow-2xl rounded-3xl overflow-hidden">
+              <div className="bg-gradient-to-r from-amber-600 via-amber-500 to-orange-500 p-8 text-center relative overflow-hidden">
+                <div className="absolute inset-0 bg-black/10 mix-blend-multiply"></div>
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+                <div className="relative z-10">
+                  <div className="w-16 h-16 mx-auto bg-black/20 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-sm border border-white/10">
+                    {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
+                      <img src={brand.logo_url} alt={brand.nombre} className="w-10 h-10 object-contain" />
+                    ) : (
+                      <UserPlus className="w-8 h-8 text-white" />
+                    )}
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-black text-white drop-shadow-lg tracking-tight">
+                    Crea tu Cuenta para Reservar
+                  </h2>
+                  <p className="text-white/90 font-medium text-base mt-3 max-w-lg mx-auto leading-relaxed">
+                    Tu CI nos permite vincular automáticamente tu historial de visitas y beneficios de lealtad.
+                  </p>
+                </div>
+              </div>
+
+              <CardContent className="p-6 md:p-10">
+                <form onSubmit={handleQuickRegister} className="space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="relative">
+                      <Input
+                        label="Nombre completo *"
+                        value={registerData.full_name}
+                        onChange={(e) => setRegisterData({ ...registerData, full_name: e.target.value })}
+                        placeholder="Juan Pérez"
+                        required
+                        className="bg-zinc-950 border-zinc-800 h-14 text-lg pl-12"
+                      />
+                      <User className="absolute left-4 top-10 w-5 h-5 text-zinc-600" />
+                    </div>
+
+                    <div className="relative">
+                      <Input
+                        label="CI / Carnet / Pasaporte *"
+                        value={registerData.ci}
+                        onChange={(e) => setRegisterData({ ...registerData, ci: e.target.value })}
+                        placeholder="Ej: 1234567"
+                        required
+                        className="bg-zinc-950 border-zinc-800 h-14 text-lg pl-12"
+                      />
+                      <IdCard className="absolute left-4 top-10 w-5 h-5 text-zinc-600" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="relative">
+                      <Input
+                        label="Teléfono / WhatsApp *"
+                        type="tel"
+                        value={registerData.phone}
+                        onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
+                        placeholder="71234567"
+                        required
+                        className="bg-zinc-950 border-zinc-800 h-14 text-lg pl-12"
+                      />
+                      <Smartphone className="absolute left-4 top-10 w-5 h-5 text-zinc-600" />
+                    </div>
+
+                    <div className="relative">
+                      <Input
+                        label="Email *"
+                        type="email"
+                        value={registerData.email}
+                        onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                        placeholder="tu@email.com"
+                        required
+                        className="bg-zinc-950 border-zinc-800 h-14 text-lg pl-12"
+                      />
+                      <Mail className="absolute left-4 top-10 w-5 h-5 text-zinc-600" />
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <PasswordInput
+                      label="Contraseña *"
+                      value={registerData.password}
+                      onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                      placeholder="Mínimo 6 caracteres"
+                      required
+                      minLength={6}
+                      className="bg-zinc-950 border-zinc-800 h-14 text-lg"
+                    />
+                  </div>
+
+                  {/* Info box */}
+                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3">
+                    <Shield className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">¿Eres cliente antiguo?</p>
+                      <p className="text-xs text-zinc-400 leading-relaxed">
+                        Si tu CI coincide con registros anteriores de caja, tu historial de visitas, nivel de lealtad y descuentos se vincularán automáticamente a tu nueva cuenta.
+                      </p>
+                    </div>
+                  </div>
+
+                  {registerError && (
+                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-3">
+                      <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+                      <p className="text-sm text-red-400 font-bold">{registerError}</p>
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={registering}
+                    className="w-full h-16 text-lg font-black bg-amber-500 hover:bg-amber-400 text-black shadow-[0_0_30px_rgba(245,158,11,0.3)] rounded-2xl uppercase tracking-widest transition-all duration-300 hover:scale-[1.02] active:scale-95"
+                  >
+                    {registering ? (
+                      <span className="flex items-center gap-3"><span className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin"></span> Creando cuenta...</span>
+                    ) : (
+                      <span className="flex items-center gap-3"><UserPlus className="w-5 h-5" /> Crear Cuenta y Reservar</span>
+                    )}
+                  </Button>
+                </form>
+
+                <div className="mt-8 text-center space-y-3">
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-zinc-800"></div>
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-zinc-900 px-4 text-xs text-zinc-500 font-bold uppercase tracking-widest">o</span>
+                    </div>
+                  </div>
+                  <p className="text-zinc-400 text-sm">
+                    ¿Ya tienes cuenta?{' '}
+                    <Link href="/login" className="text-amber-400 hover:text-amber-300 font-bold transition-colors">
+                      Iniciar Sesión
+                    </Link>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           
           {/* PASO 1: SERVICIO */}
           {step === 1 && (

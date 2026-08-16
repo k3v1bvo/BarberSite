@@ -57,18 +57,20 @@ export default function PerfilPage() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
+      const res = await fetch('/api/perfil/update', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           full_name: profile.full_name,
           phone: profile.phone,
           ci: profile.ci,
           avatar_url: profile.avatar_url,
           qr_code_url: profile.qr_code_url,
-        })
-        .eq('id', profile.id)
+        }),
+      })
 
-      if (error) throw error
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al guardar')
       success('Perfil actualizado correctamente')
     } catch (err: any) {
       toastError(err.message || 'Error al guardar')
