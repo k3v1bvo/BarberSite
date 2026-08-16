@@ -745,17 +745,25 @@ function ReservarContent() {
           {/* PASO 0: REGISTRO RÁPIDO (solo visitantes sin cuenta) */}
           {step === 0 && !user && (
             <Card className="bg-zinc-900/80 backdrop-blur-xl border-zinc-800/80 shadow-2xl rounded-3xl overflow-hidden">
-              <div className="bg-gradient-to-r from-amber-600 via-amber-500 to-orange-500 p-8 text-center relative overflow-hidden">
+              <div className="bg-gradient-to-br from-amber-600 via-amber-500 to-orange-500 p-8 md:p-12 text-center relative overflow-hidden">
                 <div className="absolute inset-0 bg-black/10 mix-blend-multiply"></div>
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+                <div className="absolute -top-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"></div>
+                <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-black/10 rounded-full blur-2xl"></div>
                 <div className="relative z-10">
-                  <div className="w-16 h-16 mx-auto bg-black/20 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-sm border border-white/10">
-                    {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
-                      <img src={brand.logo_url} alt={brand.nombre} className="w-10 h-10 object-contain" />
-                    ) : (
+                  {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
+                    <div className="flex justify-center items-center mb-6">
+                      <img 
+                        src={brand.logo_url} 
+                        alt={brand.nombre} 
+                        className="h-20 md:h-28 max-w-[280px] w-auto object-contain filter drop-shadow-[0_4px_20px_rgba(0,0,0,0.3)] transition-transform duration-300 hover:scale-105" 
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 mx-auto bg-black/20 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-sm border border-white/10">
                       <UserPlus className="w-8 h-8 text-white" />
-                    )}
-                  </div>
+                    </div>
+                  )}
                   <h2 className="text-3xl md:text-4xl font-black text-white drop-shadow-lg tracking-tight">
                     Crea tu Cuenta para Reservar
                   </h2>
