@@ -458,7 +458,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Construir glosa y notas detalladas
-        let glosaFinal = `Servicio: ${serv.nombre}\nAtendido por ${barberoNombre}`
+        let glosaFinal = `Servicio: ${serv.nombre}`
+        if (descuentoManual > 0) {
+          glosaFinal += ` (Precio Especial: Bs ${precioBase})`
+        }
+        glosaFinal += `\nAtendido por ${barberoNombre}`
         if (citaId) glosaFinal += ` — Cita #${citaId.substring(0, 6)}`
 
         const notasParts: string[] = []
@@ -470,7 +474,7 @@ export async function POST(request: NextRequest) {
         } else {
           if (anticipoQr > 0) notasParts.push(`Cobrado en caja (Efectivo): Bs ${restoPagar}`)
         }
-        if (descuentoManual > 0) notasParts.push(`✂️ Desc. Dueño: -Bs ${descuentoManual}`)
+        if (descuentoManual > 0) notasParts.push(`⭐ Precio Especial / Desc: -Bs ${descuentoManual}`)
         if (descuentoTotal > 0 && descuentoTotal !== descuentoManual) notasParts.push(`Descuento total: -Bs ${descuentoTotal}`)
         const notasFinales = notasParts.length > 0 ? notasParts.join(' | ') : null
 

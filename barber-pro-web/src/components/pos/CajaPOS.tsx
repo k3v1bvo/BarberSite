@@ -2020,7 +2020,7 @@ export function CajaPOS() {
                   </div>
                   {formData.servicio_id && (
                     <div className="flex items-center gap-2 mb-2 p-2 bg-zinc-800/50 rounded-lg border border-white/5">
-                      <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider shrink-0">✂️ Desc. Dueño</span>
+                      <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider shrink-0">⭐ Desc. Especial</span>
                       <input
                         type="number"
                         step="0.5"
@@ -2030,10 +2030,11 @@ export function CajaPOS() {
                         value={descuentoManual || ''}
                         onChange={(e) => setDescuentoManual(Math.min(Number(e.target.value) || 0, subtotalServicio))}
                         className="w-20 h-7 bg-zinc-950 border border-amber-500/30 rounded-lg px-2 text-xs font-bold text-white text-right outline-none focus:border-amber-500"
+                        title="Descuento o Precio Especial"
                       />
                       <span className="text-[10px] text-zinc-500">Bs</span>
                       {descuentoManual > 0 && (
-                        <button type="button" onClick={() => setDescuentoManual(0)} className="text-zinc-500 hover:text-red-400 transition">
+                        <button type="button" onClick={() => setDescuentoManual(0)} className="text-zinc-500 hover:text-red-400 transition" title="Quitar descuento">
                           <span className="text-xs">✕</span>
                         </button>
                       )}
@@ -2086,10 +2087,10 @@ export function CajaPOS() {
 
                   {descuentoManual > 0 && (
                     <div className="flex justify-between items-center text-sm mb-2">
-                      <span className="text-orange-400 text-xs flex items-center gap-1">
-                        ✂️ Descuento del Dueño
+                      <span className="text-amber-400 text-xs flex items-center gap-1">
+                        ⭐ Descuento / Precio Especial
                       </span>
-                      <span className="text-orange-400 font-semibold">-{formatCurrency(descuentoManual)}</span>
+                      <span className="text-amber-400 font-semibold">-{formatCurrency(descuentoManual)}</span>
                     </div>
                   )}
 
