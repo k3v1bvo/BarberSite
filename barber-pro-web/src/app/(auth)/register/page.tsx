@@ -211,11 +211,11 @@ function RegisterContent() {
       <Card className="relative w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl">
         <CardHeader className="text-center space-y-3 pt-6 pb-2">
           {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
-            <div className="flex justify-center items-center py-2">
+            <div className="flex justify-center items-center py-2 w-full px-2">
               <img 
                 src={brand.logo_url} 
                 alt={brand.nombre} 
-                className="h-28 md:h-32 max-w-[320px] w-auto object-contain filter drop-shadow-[0_4px_25px_rgba(245,158,11,0.3)] transition-transform duration-300 hover:scale-105" 
+                className="w-auto h-auto max-w-[200px] sm:max-w-[260px] md:max-w-[300px] max-h-16 sm:max-h-20 object-contain filter drop-shadow-[0_4px_25px_rgba(245,158,11,0.3)] transition-transform duration-300 hover:scale-105" 
               />
             </div>
           ) : (
