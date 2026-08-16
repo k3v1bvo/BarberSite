@@ -114,6 +114,8 @@ export async function POST(request: Request) {
         servicioNombre: servicioRow?.nombre,
         fecha: fh.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' }),
         hora: fh.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false }),
+        metodoPago: 'Pago en el local',
+        monto: servicio.precio,
       },
     })
 
