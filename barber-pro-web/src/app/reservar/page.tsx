@@ -752,38 +752,38 @@ function ReservarContent() {
           {/* PASO 0: REGISTRO RÁPIDO (solo visitantes sin cuenta) */}
           {step === 0 && !user && (
             <Card className="bg-zinc-900/80 backdrop-blur-xl border-zinc-800/80 shadow-2xl rounded-3xl overflow-hidden">
-              <div className="bg-gradient-to-br from-zinc-900 via-zinc-950 to-black p-8 md:p-12 text-center relative overflow-hidden border-b border-white/10">
+              <div className="bg-gradient-to-br from-zinc-900 via-zinc-950 to-black py-5 px-4 md:py-7 md:px-8 text-center relative overflow-hidden border-b border-white/10">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-30"></div>
-                <div className="absolute -top-20 -right-20 w-64 h-64 bg-amber-500/15 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                <div className="absolute -top-16 -right-16 w-48 h-48 bg-amber-500/15 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
                 <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-amber-500/40 to-transparent"></div>
 
                 <div className="relative z-10">
                   {brand.logo_url && brand.mostrar_modo !== 'texto' ? (
-                    <div className="flex justify-center items-center mb-6">
+                    <div className="flex justify-center items-center mb-3">
                       <img 
                         src={brand.logo_url} 
                         alt={brand.nombre} 
-                        className="h-36 md:h-52 max-w-[420px] md:max-w-[540px] w-auto object-contain filter drop-shadow-[0_8px_40px_rgba(245,158,11,0.45)] transition-transform duration-300 hover:scale-105" 
+                        className="h-14 md:h-20 max-w-[240px] md:max-w-[300px] w-auto object-contain filter drop-shadow-[0_4px_25px_rgba(245,158,11,0.35)] transition-transform duration-300 hover:scale-105" 
                       />
                     </div>
                   ) : (
-                    <div className="w-16 h-16 mx-auto bg-amber-500/10 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-sm border border-amber-500/20 shadow-lg shadow-amber-500/10">
-                      <UserPlus className="w-8 h-8 text-amber-400" />
+                    <div className="w-12 h-12 mx-auto bg-amber-500/10 rounded-2xl flex items-center justify-center mb-3 backdrop-blur-sm border border-amber-500/20 shadow-lg shadow-amber-500/10">
+                      <UserPlus className="w-6 h-6 text-amber-400" />
                     </div>
                   )}
-                  <h2 className="text-3xl md:text-4xl font-black text-white drop-shadow-lg tracking-tight">
+                  <h2 className="text-2xl md:text-3xl font-black text-white drop-shadow-lg tracking-tight">
                     Crea tu Cuenta para <span className="text-amber-500">Reservar</span>
                   </h2>
-                  <p className="text-zinc-300 font-medium text-base mt-3 max-w-lg mx-auto leading-relaxed drop-shadow-sm">
+                  <p className="text-zinc-400 font-medium text-xs md:text-sm mt-1.5 max-w-md mx-auto leading-relaxed">
                     Tu CI nos permite vincular automáticamente tu historial de visitas y beneficios de lealtad.
                   </p>
                 </div>
               </div>
 
-              <CardContent className="p-6 md:p-10">
-                <form onSubmit={handleQuickRegister} className="space-y-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <CardContent className="p-5 md:p-8">
+                <form onSubmit={handleQuickRegister} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="relative">
                       <Input
                         label="Nombre completo *"
@@ -791,9 +791,9 @@ function ReservarContent() {
                         onChange={(e) => setRegisterData({ ...registerData, full_name: e.target.value })}
                         placeholder="Juan Pérez"
                         required
-                        className="bg-zinc-950 border-zinc-800 h-14 text-lg pl-12"
+                        className="bg-zinc-950 border-zinc-800 h-12 text-sm pl-11"
                       />
-                      <User className="absolute left-4 top-10 w-5 h-5 text-zinc-600" />
+                      <User className="absolute left-3.5 top-9 w-4 h-4 text-zinc-500" />
                     </div>
 
                     <div className="relative">
@@ -803,13 +803,13 @@ function ReservarContent() {
                         onChange={(e) => setRegisterData({ ...registerData, ci: e.target.value })}
                         placeholder="Ej: 1234567"
                         required
-                        className="bg-zinc-950 border-zinc-800 h-14 text-lg pl-12"
+                        className="bg-zinc-950 border-zinc-800 h-12 text-sm pl-11"
                       />
-                      <IdCard className="absolute left-4 top-10 w-5 h-5 text-zinc-600" />
+                      <IdCard className="absolute left-3.5 top-9 w-4 h-4 text-zinc-500" />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="relative">
                       <Input
                         label="Teléfono / WhatsApp *"
@@ -818,9 +818,9 @@ function ReservarContent() {
                         onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
                         placeholder="71234567"
                         required
-                        className="bg-zinc-950 border-zinc-800 h-14 text-lg pl-12"
+                        className="bg-zinc-950 border-zinc-800 h-12 text-sm pl-11"
                       />
-                      <Smartphone className="absolute left-4 top-10 w-5 h-5 text-zinc-600" />
+                      <Smartphone className="absolute left-3.5 top-9 w-4 h-4 text-zinc-500" />
                     </div>
 
                     <div className="relative">
@@ -831,9 +831,9 @@ function ReservarContent() {
                         onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
                         placeholder="tu@email.com"
                         required
-                        className="bg-zinc-950 border-zinc-800 h-14 text-lg pl-12"
+                        className="bg-zinc-950 border-zinc-800 h-12 text-sm pl-11"
                       />
-                      <Mail className="absolute left-4 top-10 w-5 h-5 text-zinc-600" />
+                      <Mail className="absolute left-3.5 top-9 w-4 h-4 text-zinc-500" />
                     </div>
                   </div>
 
@@ -845,37 +845,37 @@ function ReservarContent() {
                       placeholder="Mínimo 6 caracteres"
                       required
                       minLength={6}
-                      className="bg-zinc-950 border-zinc-800 h-14 text-lg"
+                      className="bg-zinc-950 border-zinc-800 h-12 text-sm"
                     />
                   </div>
 
                   {/* Info box */}
-                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3">
-                    <Shield className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5">
+                    <Shield className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">¿Eres cliente antiguo?</p>
+                      <p className="text-[11px] font-black text-amber-400 uppercase tracking-widest mb-0.5">¿Eres cliente antiguo?</p>
                       <p className="text-xs text-zinc-400 leading-relaxed">
-                        Si tu CI coincide con registros anteriores de caja, tu historial de visitas, nivel de lealtad y descuentos se vincularán automáticamente a tu nueva cuenta.
+                        Si tu CI coincide con registros anteriores de caja, tu historial de visitas y nivel de lealtad se vincularán automáticamente.
                       </p>
                     </div>
                   </div>
 
                   {registerError && (
-                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-3">
-                      <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
-                      <p className="text-sm text-red-400 font-bold">{registerError}</p>
+                    <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-2.5">
+                      <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                      <p className="text-xs text-red-400 font-bold">{registerError}</p>
                     </div>
                   )}
 
                   <Button
                     type="submit"
                     disabled={registering}
-                    className="w-full h-16 text-lg font-black bg-amber-500 hover:bg-amber-400 text-black shadow-[0_0_30px_rgba(245,158,11,0.3)] rounded-2xl uppercase tracking-widest transition-all duration-300 hover:scale-[1.02] active:scale-95"
+                    className="w-full h-13 py-3.5 text-base font-black bg-amber-500 hover:bg-amber-400 text-black shadow-[0_0_25px_rgba(245,158,11,0.25)] rounded-xl uppercase tracking-wider transition-all duration-300 hover:scale-[1.01] active:scale-95 mt-2"
                   >
                     {registering ? (
-                      <span className="flex items-center gap-3"><span className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin"></span> Creando cuenta...</span>
+                      <span className="flex items-center gap-2.5"><span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin"></span> Creando cuenta...</span>
                     ) : (
-                      <span className="flex items-center gap-3"><UserPlus className="w-5 h-5" /> Crear Cuenta y Reservar</span>
+                      <span className="flex items-center gap-2.5"><UserPlus className="w-4 h-4" /> Crear Cuenta y Reservar</span>
                     )}
                   </Button>
                 </form>
