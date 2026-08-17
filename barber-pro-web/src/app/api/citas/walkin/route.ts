@@ -186,6 +186,31 @@ export async function POST(request: Request) {
           })
           .eq('id', clienteId)
       }
+
+      // 5. Activar bono de referido si es su primer servicio pagado
+      const { data: pendingReferral } = await adminSupabase
+        .from('referrals')
+        .select('id, cliente_recomendante_id, monto_bono, recomendante:clientes!cliente_recomendante_id(nombre, email)')
+        .eq('cliente_recomendado_id', clienteId)
+        .eq('bono_otorgado', false)
+        .maybeSingle()
+
+      if (pendingReferral) {
+        await adminSupabase.from('referrals').update({ bono_otorgado: true, bono_usado: false }).eq('id', pendingReferral.id)
+
+        if (pendingReferral.cliente_recomendante_id) {
+          try {
+            await adminSupabase.from('notificaciones').insert({
+              usuario_id: pendingReferral.cliente_recomendante_id,
+              tipo: 'bono_referido',
+              titulo: '🎉 ¡Bono de Referido Acreditado!',
+              mensaje: `Tu amigo ${nombreCliente || 'referido'} acaba de atenderse en BarberSite. Te acreditamos Bs ${pendingReferral.monto_bono} en tu billetera.`,
+              leido: false,
+              created_at: new Date().toISOString()
+            })
+          } catch (_) {}
+        }
+      }
     }
 
     return NextResponse.json({ success: true })
