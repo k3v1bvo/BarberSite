@@ -2,37 +2,71 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Bell, Check, Clock, Info, AlertCircle, CheckCircle2, ExternalLink } from 'lucide-react'
+import { Bell, Check, Clock, Info, AlertCircle, CheckCircle2, ExternalLink, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
-const playNotificationSound = () => {
+// Variable global para reutilizar AudioContext ya desbloqueado por interacción del usuario
+let sharedAudioCtx: AudioContext | null = null
+
+const getAudioContext = () => {
+  if (typeof window === 'undefined') return null
+  if (!sharedAudioCtx) {
+    const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext
+    if (AudioCtxClass) {
+      sharedAudioCtx = new AudioCtxClass()
+    }
+  }
+  if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
+    sharedAudioCtx.resume().catch(() => {})
+  }
+  return sharedAudioCtx
+}
+
+// Reproduce el timbre sonoro cristalino y activa la vibración en móviles
+export const playNotificationSound = () => {
   try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext
-    if (!AudioContext) return
+    // 1. Vibración háptica en celulares
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate([120, 70, 150])
+      } catch {}
+    }
+
+    // 2. Timbre acústico de alta definición mediante Web Audio API
+    const ctx = getAudioContext()
+    if (!ctx) return
+
+    const now = ctx.currentTime
     
-    const ctx = new AudioContext()
-    const osc = ctx.createOscillator()
-    const gainNode = ctx.createGain()
-    
-    osc.connect(gainNode)
-    gainNode.connect(ctx.destination)
-    
-    // Tono agradable (ding)
-    osc.type = 'sine'
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime) // D5
-    osc.frequency.exponentialRampToValueAtTime(880.00, ctx.currentTime + 0.1) // A5
-    
-    // Volumen y fade out
-    gainNode.gain.setValueAtTime(0, ctx.currentTime)
-    gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05)
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
-    
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + 0.5)
+    // Campanada armónica 1 (Nota Mi6 / E6: 1318.5 Hz)
+    const osc1 = ctx.createOscillator()
+    const gain1 = ctx.createGain()
+    osc1.type = 'sine'
+    osc1.frequency.setValueAtTime(1318.5, now)
+    gain1.gain.setValueAtTime(0, now)
+    gain1.gain.linearRampToValueAtTime(0.25, now + 0.02)
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6)
+    osc1.connect(gain1)
+    gain1.connect(ctx.destination)
+    osc1.start(now)
+    osc1.stop(now + 0.6)
+
+    // Campanada armónica 2 (Nota Sol6 / G6: 1567.98 Hz - tono de confirmación)
+    const osc2 = ctx.createOscillator()
+    const gain2 = ctx.createGain()
+    osc2.type = 'sine'
+    osc2.frequency.setValueAtTime(1567.98, now + 0.1)
+    gain2.gain.setValueAtTime(0, now + 0.1)
+    gain2.gain.linearRampToValueAtTime(0.28, now + 0.12)
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.75)
+    osc2.connect(gain2)
+    gain2.connect(ctx.destination)
+    osc2.start(now + 0.1)
+    osc2.stop(now + 0.75)
   } catch (e) {
-    // Ignorar si el navegador bloquea el autoplay o no soporta Web Audio API
+    // Ignorar si el navegador bloquea autoplay antes de cualquier toque
   }
 }
 
@@ -57,11 +91,27 @@ interface Props {
 export function CampanaNotificaciones({ userId, userRole }: Props) {
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([])
   const [isOpen, setIsOpen] = useState(false)
+  const [liveToast, setLiveToast] = useState<Notificacion | null>(null)
   const supabase = createClient()
   const router = useRouter()
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const unreadCount = notificaciones.filter((n) => !n.leido).length
+
+  // Desbloqueo proactivo del AudioContext en el primer toque del usuario
+  useEffect(() => {
+    const handleUnlock = () => {
+      getAudioContext()
+    }
+    window.addEventListener('click', handleUnlock, { once: true })
+    window.addEventListener('touchstart', handleUnlock, { once: true })
+    window.addEventListener('keydown', handleUnlock, { once: true })
+    return () => {
+      window.removeEventListener('click', handleUnlock)
+      window.removeEventListener('touchstart', handleUnlock)
+      window.removeEventListener('keydown', handleUnlock)
+    }
+  }, [])
 
   const belongsToUser = useCallback(
     (n: Notificacion) => n.user_id === userId || n.rol_destino === userRole,
@@ -91,6 +141,11 @@ export function CampanaNotificaciones({ userId, userRole }: Props) {
           const n = payload.new as Notificacion
           if (belongsToUser(n)) {
             playNotificationSound()
+            setLiveToast(n)
+            setTimeout(() => {
+              setLiveToast((current) => (current?.id === n.id ? null : current))
+            }, 6000)
+
             setNotificaciones((prev) => {
               if (prev.some((x) => x.id === n.id)) return prev
               return [n, ...prev]
@@ -255,6 +310,40 @@ export function CampanaNotificaciones({ userId, userRole }: Props) {
               Ver historial completo
               <ExternalLink size={12} />
             </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Banner flotante emergente en tiempo real */}
+      {liveToast && (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => handleNotifClick(liveToast)}
+          onKeyDown={(e) => e.key === 'Enter' && handleNotifClick(liveToast)}
+          className="fixed top-20 right-4 sm:right-6 z-50 max-w-sm w-[90vw] p-4 bg-zinc-950/95 border border-amber-500/50 rounded-2xl shadow-[0_10px_30px_rgba(245,158,11,0.2)] backdrop-blur-xl flex items-start gap-3.5 cursor-pointer animate-in slide-in-from-top-4 duration-300 hover:scale-[1.02] transition-transform"
+        >
+          <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0 mt-0.5 animate-pulse">
+            <Bell className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-black uppercase text-amber-400 tracking-wider">
+                Nueva Notificación
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setLiveToast(null)
+                }}
+                className="text-zinc-500 hover:text-white p-0.5"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-sm font-bold text-white mt-0.5 truncate">{liveToast.titulo}</p>
+            <p className="text-xs text-zinc-300 line-clamp-2 mt-0.5 leading-relaxed">{liveToast.mensaje}</p>
           </div>
         </div>
       )}
