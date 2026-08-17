@@ -45,6 +45,9 @@ export function ReferralCardWidget({ clienteId, clienteNombre, ci }: Props) {
   const referralCode = ci || clienteId.slice(0, 8).toUpperCase()
   const montoBono = data?.monto_bono_default || 15
 
+  const shareText = `💈 ¡Hola! Te recomiendo cortarte en BarberSite. Agenda tu cita en línea desde este enlace y te atenderán con la mejor calidad: ${referralLink}`
+  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`
+
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(referralLink)
@@ -56,10 +59,21 @@ export function ReferralCardWidget({ clienteId, clienteNombre, ci }: Props) {
     }
   }
 
-  const shareWhatsApp = () => {
-    const text = `💈 ¡Hola! Te recomiendo cortarte en BarberSite. Agenda tu cita en línea desde este enlace y te atenderán con la mejor calidad: ${referralLink}`
-    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`
-    window.open(url, '_blank')
+  const handleNativeShare = async () => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: 'BarberSite - Recomendación',
+          text: shareText,
+          url: referralLink,
+        })
+      } catch (_) {
+        // Fallback to whatsapp url
+        window.open(whatsappUrl, '_blank')
+      }
+    } else {
+      window.open(whatsappUrl, '_blank')
+    }
   }
 
   const saldoDisponible = data?.saldo_disponible || 0
@@ -147,13 +161,15 @@ export function ReferralCardWidget({ clienteId, clienteNombre, ci }: Props) {
 
       {/* Botones de Acción Viral */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-        <Button
-          onClick={shareWhatsApp}
-          className="flex-1 h-13 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-wider text-xs rounded-2xl shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 hover:scale-[1.02] transition-all cursor-pointer"
+        <a
+          href={whatsappUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 h-13 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-wider text-xs rounded-2xl shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 hover:scale-[1.02] transition-all cursor-pointer no-underline text-center"
         >
           <Share2 className="w-4 h-4" />
           <span>📲 Compartir mi Enlace por WhatsApp</span>
-        </Button>
+        </a>
 
         <Button
           onClick={copyLink}
