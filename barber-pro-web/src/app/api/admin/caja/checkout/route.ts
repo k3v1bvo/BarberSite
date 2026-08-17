@@ -227,6 +227,11 @@ export async function POST(request: NextRequest) {
         finalNotas += `\n[PROMO 2x1] Acompañante: ${acompanante_2x1.nombre}${acompanante_2x1.email ? ` (${acompanante_2x1.email})` : ''}`
       }
 
+      // Calcular el precio neto del servicio (después de descuentos, sin contar productos/propinas)
+      const precioNetoServicio = Math.max(0, precioBase - descuentoTotal)
+      // Total real a cobrar (servicio neto + productos + propinas - anticipo)
+      const totalRealACobrar = Math.max(0, precioNetoServicio + totalProductos + (propinas || 0) - anticipoQr)
+
       const insertData: any = {
         cliente_id: finalClienteId,
         barbero_id,
@@ -245,6 +250,7 @@ export async function POST(request: NextRequest) {
         insertData.comision_barbero = comisionTotal
         insertData.comision_categoria = comisionCategoria
         insertData.comision_herramientas = comisionHerramientas
+        insertData.total = precioNetoServicio + totalProductos + (propinas || 0)
         if (descuentoTotal > 0) insertData.descuento = descuentoTotal
         if (comprobante_url) {
           insertData.notas = `${insertData.notas}\n[Comprobante]: ${comprobante_url}`
@@ -434,10 +440,12 @@ export async function POST(request: NextRequest) {
           const nuevoTotalVisitas = (cData.total_visitas || 0) + 1
           const nuevoNivel = await calcularNivelFidelidad(supabase, nuevoTotalVisitas)
           
+          // Usar el precio NETO (después de descuentos) para el total gastado del cliente
+          const gastoRealCliente = Math.max(0, precioBase - descuentoTotal) + totalProductosCliente
           await adminSupabase.from('clientes')
             .update({
               total_visitas: nuevoTotalVisitas,
-              total_gastado: (cData.total_gastado || 0) + precioBase + totalProductosCliente,
+              total_gastado: (cData.total_gastado || 0) + gastoRealCliente,
               nivel_fidelidad: nuevoNivel
             })
             .eq('id', finalClienteId)
@@ -475,8 +483,8 @@ export async function POST(request: NextRequest) {
 
         // Construir glosa y notas detalladas
         let glosaFinal = `Servicio: ${serv.nombre}`
-        if (descuentoManual > 0) {
-          glosaFinal += ` (Precio Especial: Bs ${precioBase})`
+        if (descuentoTotal > 0) {
+          glosaFinal += ` (Original: Bs ${precioBase} → Neto: Bs ${precioNetoServicio})`
         }
         glosaFinal += `\nAtendido por ${barberoNombre}`
         if (citaId) glosaFinal += ` — Cita #${citaId.substring(0, 6)}`
@@ -492,8 +500,11 @@ export async function POST(request: NextRequest) {
         }
         if (descuentoManual > 0) notasParts.push(`⭐ Precio Especial / Desc: -Bs ${descuentoManual}`)
         if (descuentoTotal > 0 && descuentoTotal !== descuentoManual) notasParts.push(`Descuento total: -Bs ${descuentoTotal}`)
+        if (descuentoTotal > 0) notasParts.push(`Precio original: Bs ${precioBase} → Neto cobrado: Bs ${precioNetoServicio}`)
         const notasFinales = notasParts.length > 0 ? notasParts.join(' | ') : null
 
+        // IMPORTANTE: costo debe ser el precio NETO (después de descuentos)
+        // para que el resumen de caja chica refleje lo realmente cobrado
         await adminSupabase
           .from('transactions')
           .insert({
@@ -504,7 +515,7 @@ export async function POST(request: NextRequest) {
             cuenta_codigo: 'ING-001',
             cuenta_detalle: serv.nombre,
             glosa: glosaFinal,
-            costo: precioBase,
+            costo: precioNetoServicio,
             tipo_movimiento: 'INGRESO',
             subcategoria: 'SERVICIO',
             es_sancion: false,
