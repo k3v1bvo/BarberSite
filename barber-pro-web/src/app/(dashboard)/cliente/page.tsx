@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { formatCurrency, cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { VincularRecomendanteWidget } from '@/components/cliente/VincularRecomendanteWidget'
+import { ReferralCardWidget } from '@/components/cliente/ReferralCardWidget'
 import {
   Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
@@ -586,133 +587,29 @@ export default function ClientePage() {
             )
           })()}
 
-          {/* ——— BANNER DESTACADO: PROMO PROGRAMA DE REFERIDOS (TRAE A UN AMIGO) ——— */}
-          <div className="bg-gradient-to-br from-emerald-950/80 via-zinc-900 to-zinc-950 border-2 border-emerald-500/30 rounded-3xl p-6 sm:p-8 mt-8 shadow-2xl relative overflow-hidden print:hidden">
-            <div className="absolute top-0 right-0 p-8 text-7xl opacity-10 pointer-events-none font-black text-emerald-400">
-              🎁
+          {/* ——— WIDGET PROGRAMA DE REFERIDOS CON WHATSAPP Y BILLETERA ——— */}
+          {cliente && (
+            <ReferralCardWidget
+              clienteId={cliente.id}
+              clienteNombre={cliente.nombre}
+              ci={cliente.ci}
+            />
+          )}
+
+          {/* SECCIÓN VINCULAR MI RECOMENDANTE (Únicamente 1 vez para clientes nuevos en su 1er servicio) */}
+          {visitas === 0 && !cliente?.referido_por && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-6 sm:p-8 mt-6 space-y-3">
+              <div className="flex items-center gap-2 text-amber-400">
+                <UserPlus className="w-5 h-5" />
+                <p className="font-black text-sm uppercase">¿Te recomendó un amigo a la Barbería?</p>
+              </div>
+              <p className="text-xs text-zinc-300 leading-relaxed">
+                Búscalo por su <strong>Nombre, Celular o CI</strong>. Al vincularlo, cuando realices y pagues tu primer corte en la barbería, tu recomendante recibirá su <strong>premio de bienvenida</strong>.
+              </p>
+
+              <VincularRecomendanteWidget onSuccess={loadData} />
             </div>
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-400 shadow-lg shadow-emerald-500/10">
-                  <Gift className="w-6 h-6" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
-                    🔥 Promoción Permanente
-                  </span>
-                  <h3 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight mt-1">
-                    Trae a un Amigo & <span className="text-emerald-400">Gana Bs. 10</span>
-                  </h3>
-                </div>
-              </div>
-
-              {totalBonosDisponibles > 0 && (
-                <div className="bg-emerald-500 text-black font-black px-4 py-2 rounded-2xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-500/20">
-                  <Sparkles size={16} />
-                  <span>Saldo a favor: {formatCurrency(totalBonosDisponibles)}</span>
-                </div>
-              )}
-            </div>
-
-            {/* 3 Pasos de la Promoción Interna */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-              <div className="bg-zinc-900/90 border border-white/5 p-4 rounded-2xl space-y-1">
-                <span className="text-xs font-black text-emerald-400 font-mono">PASO 1</span>
-                <p className="text-xs font-bold text-white">Recomienda o ven con tu amigo</p>
-                <p className="text-[11px] text-zinc-400">Invita a tus amigos a cortarse o vengan juntos a la barbería.</p>
-              </div>
-
-              <div className="bg-zinc-900/90 border border-white/5 p-4 rounded-2xl space-y-1">
-                <span className="text-xs font-black text-emerald-400 font-mono">PASO 2</span>
-                <p className="text-xs font-bold text-white">Indica tu Código en Caja</p>
-                <p className="text-[11px] text-zinc-400">Al pagar su 1er servicio en caja, tu amigo o tú mencionan tu código o nombre.</p>
-              </div>
-
-              <div className="bg-zinc-900/90 border border-white/5 p-4 rounded-2xl space-y-1">
-                <span className="text-xs font-black text-emerald-400 font-mono">PASO 3</span>
-                <p className="text-xs font-bold text-white">¡Ganas Bs. 10 de Saldo!</p>
-                <p className="text-[11px] text-zinc-400">Tus Bs. 10 se acreditan automáticamente a tu saldo a favor para tu próximo corte.</p>
-              </div>
-            </div>
-
-            {/* Caja del Código */}
-            <div className="bg-black/60 border border-emerald-500/30 rounded-2xl p-5 space-y-4 mb-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest mb-1">Tu Código Personal de Referido</p>
-                  <p className="text-3xl font-black text-emerald-400 font-mono tracking-widest">{referralCode}</p>
-                </div>
-
-                <div>
-                  <Button
-                    onClick={() => {
-                      navigator.clipboard.writeText(referralCode);
-                      success('¡Código copiado al portapapeles!');
-                    }}
-                    className="bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs uppercase tracking-wider px-6 py-3 rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95"
-                  >
-                    📋 Copiar Mi Código
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* SECCIÓN VINCULAR MI RECOMENDANTE (Únicamente 1 vez para clientes nuevos en su 1er servicio) */}
-            {visitas === 0 && !cliente?.referido_por && (
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 mb-6 space-y-3">
-                <div className="flex items-center gap-2 text-amber-400">
-                  <UserPlus className="w-5 h-5" />
-                  <p className="font-black text-sm uppercase">¿Te recomendó un amigo a la Barbería?</p>
-                </div>
-                <p className="text-xs text-zinc-300 leading-relaxed">
-                  Búscalo por su <strong>Nombre, Código de Referido (ej. ROBERTO10), Celular o CI</strong>. Al vincularlo, cuando realices y pagues tu primer corte en la barbería, tu recomendante recibirá sus <strong>Bs. 10 de premio</strong>.
-                </p>
-
-                <VincularRecomendanteWidget onSuccess={loadData} />
-              </div>
-            )}
-
-            {/* Amigos Referidos Lista */}
-            {cardData?.misReferidos && cardData.misReferidos.length > 0 && (
-              <div className="space-y-3 pt-2 border-t border-white/10">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                    Historial de Amigos Referidos ({cardData.misReferidos.length})
-                  </p>
-                  <span className="text-[10px] text-emerald-400 font-bold">
-                    {cardData.misReferidos.filter((r: any) => r.bono_otorgado && !r.bono_usado).length} bonos activos por canjear
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {cardData.misReferidos.map((ref: any) => (
-                    <div key={ref.id} className="flex items-center justify-between bg-zinc-900/90 border border-white/5 rounded-xl p-3 text-xs">
-                      <div>
-                        <p className="font-bold text-white">{ref.recomendado?.nombre || 'Amigo Registrado'}</p>
-                        <p className="text-[10px] text-zinc-500">{new Date(ref.creado_en).toLocaleDateString('es-BO')}</p>
-                      </div>
-                      <div>
-                        {ref.bono_usado ? (
-                          <Badge variant="outline" className="text-zinc-500 border-zinc-700 text-[9px]">
-                            Bono Canjeado
-                          </Badge>
-                        ) : ref.bono_otorgado ? (
-                          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[9px] font-black">
-                            +Bs. {ref.monto_bono || 10} Disponible
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-amber-400 border-amber-500/30 text-[9px]">
-                            Pendiente 1er Corte
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
         {/* ══════════ COLUMNA DERECHA: CITAS ══════════ */}

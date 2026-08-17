@@ -35,7 +35,8 @@ import {
   PackageOpen,
   GraduationCap,
   Mail,
-  BookOpen
+  BookOpen,
+  Trophy
 } from 'lucide-react'
 
 export interface NavItem {
@@ -100,7 +101,7 @@ export function getAdminNavSections(agendaHref: string): NavSection[] {
         { label: 'Cumpleaños', href: '/coordinador/cumpleanos', icon: Cake },
         { label: 'Comisiones', href: '/admin/comisiones', icon: Coins },
         { label: 'Lealtad', href: '/admin/lealtad', icon: Gift, description: 'Programa de recompensas' },
-        { label: 'Referidos', href: '/coordinador/referidos', icon: UserPlus, description: 'Bonos por recomendación' },
+        { label: 'Referidos & Rankings', href: '/coordinador/referidos', icon: Trophy, description: 'Top embajadores, clientes VIP y bonos' },
         { label: 'Conteo Inventario', href: '/admin/inventario-fisico', icon: ClipboardCheck, description: 'Conteo físico y ajustes' },
         { label: 'Auditoría', href: '/admin/auditoria', icon: Shield, description: 'Registro de cambios' },
         { label: 'Pedidos', href: '/admin/pedidos', icon: ClipboardList },
@@ -154,7 +155,7 @@ export function getCoordinadorNavSections(agendaHref: string): NavSection[] {
         { label: 'Cumpleaños', href: '/coordinador/cumpleanos', icon: Cake, description: 'Verificar cumpleañeros del día' },
         { label: 'Comisiones', href: '/admin/comisiones', icon: Coins, description: 'Cálculo y pagos' },
         { label: 'Lealtad', href: '/admin/lealtad', icon: Gift, description: 'Programa de recompensas' },
-        { label: 'Referidos', href: '/coordinador/referidos', icon: UserPlus, description: 'Bonos por recomendación' },
+        { label: 'Referidos & Rankings', href: '/coordinador/referidos', icon: Trophy, description: 'Top embajadores, clientes VIP y bonos' },
         { label: 'Reportes', href: '/admin/reportes', icon: BarChart3, description: 'Análisis y datos' },
         { label: 'Reseñas', href: '/admin/resenas', icon: MessageSquare, description: 'Moderación de testimonios' },
         { label: 'Configuración', href: '/admin/configuracion', icon: Settings, description: 'Ajustes globales y QR' },

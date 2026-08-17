@@ -406,16 +406,17 @@ export async function POST(request: NextRequest) {
           const recEmail = Array.isArray(recInfo) ? recInfo[0]?.email : recInfo?.email
           const recNombre = Array.isArray(recInfo) ? recInfo[0]?.nombre : recInfo?.nombre
           
-          if (recEmail) {
-            await dispatchNotification(adminSupabase, {
-              event: 'invitacion_referido',
-              payload: {
-                acompananteNombre: recNombre || 'Amigo',
-                clienteNombre: (nombre as string) || 'Tu amigo',
-                montoBono: pendingReferral.monto_bono.toString()
-              },
-              userEmail: recEmail
-            })
+          if (pendingReferral.cliente_recomendante_id) {
+            try {
+              await adminSupabase.from('notificaciones').insert({
+                usuario_id: pendingReferral.cliente_recomendante_id,
+                tipo: 'bono_referido',
+                titulo: '🎉 ¡Bono de Referido Acreditado!',
+                mensaje: `Tu amigo ${(nombre as string) || 'referido'} acaba de atenderse en BarberSite. Te acreditamos Bs ${pendingReferral.monto_bono} en tu billetera.`,
+                leido: false,
+                created_at: new Date().toISOString()
+              })
+            } catch (_) {}
           }
         } catch (e) { console.error('Error dispatching referral bonus notification', e) }
       }

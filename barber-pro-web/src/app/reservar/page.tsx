@@ -72,6 +72,7 @@ function ReservarContent() {
   const [carrito, setCarrito] = useState<ProductoCarrito[]>([])
   const [barberos, setBarberos] = useState<Barbero[]>([])
   const [barberoServicios, setBarberoServicios] = useState<{ barbero_id: string; servicio_id: string }[]>([])
+  const [referidoInfo, setReferidoInfo] = useState<{ id: string; nombre: string } | null>(null)
   const [promociones, setPromociones] = useState<any[]>([])
   const [promoSeleccionada, setPromoSeleccionada] = useState<string>('')
   const [acompanante, setAcompanante] = useState({ nombre: '', email: '' })
@@ -255,7 +256,19 @@ function ReservarContent() {
           email: registerData.email.trim(),
           total_visitas: 0,
           total_gastado: 0,
+          referido_por: referidoInfo?.id || null,
         })
+
+        if (referidoInfo?.id) {
+          try {
+            await supabase.from('referrals').insert({
+              cliente_recomendante_id: referidoInfo.id,
+              cliente_recomendado_id: authData.user.id,
+              monto_bono: 15,
+              bono_otorgado: false,
+            })
+          } catch (_) {}
+        }
       }
 
       // Auto-sync history
@@ -343,6 +356,25 @@ function ReservarContent() {
       } else if (typeof configQr.data?.valor === 'string') {
         setQrPago(configQr.data.valor)
       }
+
+      // Capturar recomendante desde ?ref=...
+      const refParam = searchParams.get('ref')
+      if (refParam) {
+        const cleanRef = refParam.trim()
+        const orList = [`id.eq.${cleanRef}`]
+        if (!cleanRef.includes('-')) {
+          orList.push(`ci.eq.${cleanRef}`)
+        }
+        const { data: refClient } = await supabase
+          .from('clientes')
+          .select('id, nombre')
+          .or(orList.join(','))
+          .maybeSingle()
+
+        if (refClient) {
+          setReferidoInfo({ id: refClient.id, nombre: refClient.nombre })
+        }
+      }
     } catch (error) {
       console.error(error)
     } finally {
@@ -386,12 +418,24 @@ function ReservarContent() {
               nombre: formData.nombre,
               email: formData.email,
               telefono: formData.telefono,
+              referido_por: referidoInfo?.id || null,
             })
             .select('id')
             .single()
 
           if (clienteError) throw new Error('No se pudo crear el cliente')
           clienteId = nuevoCliente?.id
+
+          if (referidoInfo?.id && clienteId) {
+            try {
+              await supabase.from('referrals').insert({
+                cliente_recomendante_id: referidoInfo.id,
+                cliente_recomendado_id: clienteId,
+                monto_bono: 15,
+                bono_otorgado: false,
+              })
+            } catch (_) {}
+          }
         }
       }
 
@@ -740,7 +784,7 @@ function ReservarContent() {
           </Link>
         </div>
 
-        <div className="mb-10 text-center animate-in fade-in slide-in-from-top-4 duration-700">
+        <div className="mb-8 text-center animate-in fade-in slide-in-from-top-4 duration-700">
           <h1 className="text-5xl md:text-6xl font-black tracking-tight text-white uppercase leading-none drop-shadow-lg">
             Agenda tu <span className="text-amber-500">Cita</span>
           </h1>
@@ -750,6 +794,23 @@ function ReservarContent() {
             </p>
           )}
         </div>
+
+        {/* Banner de Invitación de Referido */}
+        {referidoInfo && (
+          <div className="mb-8 max-w-2xl mx-auto p-4 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-emerald-500/10 to-transparent border border-emerald-500/40 flex items-center gap-3.5 shadow-lg shadow-emerald-500/10 animate-in fade-in slide-in-from-top-2">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500 text-black flex items-center justify-center font-black text-lg shrink-0 shadow-md">
+              🎁
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-widest text-emerald-400">
+                ¡Invitación Especial de Bienvenida!
+              </p>
+              <p className="text-xs text-zinc-200 mt-0.5 font-medium leading-relaxed">
+                Llegaste por recomendación de <strong className="text-white font-black">{referidoInfo.nombre}</strong>. Tu cuenta recibirá beneficios exclusivos en tu primera visita.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* PROGRESS BAR */}
         <div className="mb-12 max-w-2xl mx-auto px-4 animate-in fade-in duration-1000 delay-150">
