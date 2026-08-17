@@ -8,7 +8,7 @@ import { PasswordInput } from '@/components/ui/PasswordInput'
 import { Card, CardContent } from '@/components/ui/Card'
 import { formatCurrency, toTitleCase, toSentenceCase } from '@/lib/utils'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Calendar, User, Scissors, CheckCircle, Package, Plus, Minus, X, Info, AlertTriangle, Clock, UserPlus, Gift, Shield, Smartphone, Mail, IdCard } from 'lucide-react'
+import { Calendar, User, Scissors, CheckCircle, Package, Plus, Minus, X, Info, AlertTriangle, Clock, UserPlus, Gift, Shield, Smartphone, Mail, IdCard, ArrowLeft, Home } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { CATEGORIAS_SERVICIOS } from '@/types'
@@ -71,6 +71,7 @@ function ReservarContent() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [carrito, setCarrito] = useState<ProductoCarrito[]>([])
   const [barberos, setBarberos] = useState<Barbero[]>([])
+  const [barberoServicios, setBarberoServicios] = useState<{ barbero_id: string; servicio_id: string }[]>([])
   const [promociones, setPromociones] = useState<any[]>([])
   const [promoSeleccionada, setPromoSeleccionada] = useState<string>('')
   const [acompanante, setAcompanante] = useState({ nombre: '', email: '' })
@@ -313,18 +314,22 @@ function ReservarContent() {
         setStep(preServicio ? 2 : 1)
       }
 
-      const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo] = await Promise.all([
+      const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo, resBarberoServicios] = await Promise.all([
         supabase.from('servicios').select('*').eq('is_active', true).order('orden', { ascending: true }),
         supabase.from('profiles').select('id, full_name, email, avatar_url, qr_code_url').eq('role', 'barbero').eq('is_active', true),
         supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url').eq('is_active', true).gt('stock_actual', 0).order('orden', { ascending: true }),
         supabase.from('configuraciones').select('valor').eq('llave', 'qr_pago').maybeSingle(),
         supabase.from('promociones').select('*').eq('activa', true),
-        supabase.from('configuraciones').select('valor').eq('llave', 'tiempo_minimo_reserva').maybeSingle()
+        supabase.from('configuraciones').select('valor').eq('llave', 'tiempo_minimo_reserva').maybeSingle(),
+        supabase.from('comision_barbero_servicios').select('barbero_id, servicio_id')
       ])
 
       setServicios(resServicios.data || [])
       setBarberos(resBarberos.data || [])
       setProductos(resProductos.data || [])
+      if (resBarberoServicios.data) {
+        setBarberoServicios(resBarberoServicios.data)
+      }
       const rawPromosData = resPromos.data || []
       const promosUnicas = Array.from(
         new Map(rawPromosData.map((p: any) => [(p.nombre || '').toLowerCase().trim(), p])).values()
@@ -708,7 +713,33 @@ function ReservarContent() {
 
   return (
     <div ref={wizardRef} className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black text-white pb-24 font-sans selection:bg-amber-500/30">
-      <div className="max-w-4xl mx-auto px-4 py-8 lg:py-12">
+      <div className="max-w-4xl mx-auto px-4 py-6 lg:py-10">
+        {/* Barra superior de navegación / Regreso */}
+        <div className="flex items-center justify-between gap-4 mb-8 pb-4 border-b border-white/5 animate-in fade-in duration-500">
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) {
+                router.back()
+              } else {
+                router.push('/')
+              }
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-white/10 text-xs font-black uppercase tracking-wider text-zinc-300 hover:text-white transition-all hover:scale-105 shadow-lg group cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 text-amber-500 group-hover:-translate-x-1 transition-transform" />
+            <span>Volver Atrás</span>
+          </button>
+
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900/60 hover:bg-zinc-900 border border-white/5 text-xs font-bold text-zinc-400 hover:text-amber-400 transition-all shadow-md group"
+          >
+            <Home className="w-4 h-4 text-zinc-400 group-hover:text-amber-400 transition-colors" />
+            <span className="hidden sm:inline">Página Principal</span>
+          </Link>
+        </div>
+
         <div className="mb-10 text-center animate-in fade-in slide-in-from-top-4 duration-700">
           <h1 className="text-5xl md:text-6xl font-black tracking-tight text-white uppercase leading-none drop-shadow-lg">
             Agenda tu <span className="text-amber-500">Cita</span>
@@ -945,7 +976,19 @@ function ReservarContent() {
                   {(filterCategoria === 'todos'
                     ? servicios
                     : servicios.filter(s => (s.categoria || 'Cortes') === filterCategoria)
-                  ).map((s) => {
+                  )
+                  .filter(s => {
+                    if (!formData.barbero_id) return true
+                    const tieneConfigComisiones = barberoServicios.some(bs => bs.barbero_id === formData.barbero_id)
+                    if (tieneConfigComisiones) {
+                      return barberoServicios.some(bs => bs.barbero_id === formData.barbero_id && bs.servicio_id === s.id)
+                    }
+                    if (s.barberos_excluidos?.length) {
+                      return !s.barberos_excluidos.includes(formData.barbero_id)
+                    }
+                    return true
+                  })
+                  .map((s) => {
                     const allImgs = s.imagenes && s.imagenes.length > 0
                       ? s.imagenes
                       : (s.imagen_url ? [s.imagen_url] : [])
@@ -1080,6 +1123,11 @@ function ReservarContent() {
                   {barberos
                     .filter(b => {
                       if (!formData.servicio_id) return true
+                      // Si el barbero tiene servicios configurados en comisiones, solo mostrarlo si realiza este servicio
+                      const tieneConfigComisiones = barberoServicios.some(bs => bs.barbero_id === b.id)
+                      if (tieneConfigComisiones) {
+                        return barberoServicios.some(bs => bs.barbero_id === b.id && bs.servicio_id === formData.servicio_id)
+                      }
                       const servicio = servicios.find(s => s.id === formData.servicio_id)
                       if (!servicio?.barberos_excluidos?.length) return true
                       return !servicio.barberos_excluidos.includes(b.id)

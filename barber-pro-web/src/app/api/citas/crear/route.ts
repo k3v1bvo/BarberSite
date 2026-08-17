@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
+import { calcularComisionBarbero } from '@/lib/comisiones/calcular'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
@@ -54,16 +55,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Servicio no encontrado' }, { status: 404 })
     }
 
-    // Ya no se usa la comisión de perfil
-    let comisionBarbero = 0
-
-    if (servicio.comision_activa !== false && servicio.comision_tipo !== 'ninguna') {
-      if (servicio.comision_tipo === 'fija') {
-        comisionBarbero = servicio.comision_valor || 0
-      } else if (servicio.comision_tipo === 'porcentaje') {
-        comisionBarbero = (servicio.precio * (servicio.comision_valor || 0)) / 100
-      }
-    }
+    // Calcular comisión personalizada por barbero
+    const fechaCita = fecha_hora ? new Date(fecha_hora) : new Date()
+    const comResult = await calcularComisionBarbero(
+      supabase, barbero_id, servicio_id, servicio.precio, fechaCita,
+      { comision_activa: servicio.comision_activa, comision_tipo: servicio.comision_tipo, comision_valor: servicio.comision_valor }
+    )
 
     const { data: cita, error } = await supabase
       .from('citas')
@@ -73,7 +70,9 @@ export async function POST(request: Request) {
         barbero_id,
         fecha_hora,
         precio: servicio.precio,
-        comision_barbero: comisionBarbero,
+        comision_barbero: comResult.monto,
+        comision_categoria: comResult.categoria_nombre,
+        comision_herramientas: comResult.tiene_herramientas,
         duracion_real_minutos: servicio.duracion_minutos,
         estado: 'pendiente',
       })

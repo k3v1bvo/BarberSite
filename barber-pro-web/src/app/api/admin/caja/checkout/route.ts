@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminSupabaseClient, getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification, dispatchCitaReprogramada } from '@/lib/notifications/dispatch'
 import { calcularNivelFidelidad } from '@/lib/lealtad/calcular-nivel'
+import { calcularComisionBarbero } from '@/lib/comisiones/calcular'
 import { NextRequest, NextResponse } from 'next/server'
 
 interface ProductoCarrito {
@@ -173,6 +174,8 @@ export async function POST(request: NextRequest) {
     let serv: any = null
     let precioBase = 0
     let comisionTotal = 0
+    let comisionCategoria: string | null = null
+    let comisionHerramientas: boolean | null = null
 
     if (servicio_id) {
       const { data: servData } = await supabase
@@ -185,19 +188,17 @@ export async function POST(request: NextRequest) {
       serv = servData
       precioBase = serv.precio || 0
 
-      if (estado === 'completado') {
-        // (La comisión base de perfil ya no se usa, ahora es estrictamente por servicio)
-        
-        let baseComision = 0
-        if (serv.comision_activa !== false && serv.comision_tipo !== 'ninguna') {
-          if (serv.comision_tipo === 'fija') {
-            baseComision = serv.comision_valor || 0
-          } else if (serv.comision_tipo === 'porcentaje') {
-            baseComision = (precioBase * (serv.comision_valor || 0)) / 100
-          }
-        }
+      if (estado === 'completado' && barbero_id) {
+        // Calcular comisión personalizada por barbero
+        const fechaCita = reserva_fecha ? new Date(`${reserva_fecha}T12:00:00-04:00`) : new Date()
+        const comResult = await calcularComisionBarbero(
+          supabase, barbero_id, servicio_id, precioBase, fechaCita,
+          { comision_activa: serv.comision_activa, comision_tipo: serv.comision_tipo, comision_valor: serv.comision_valor, comision_acumulable: serv.comision_acumulable }
+        )
         const extraPropinas = serv.comision_acumulable !== false ? (propinas || 0) : 0
-        comisionTotal = baseComision + (extraPropinas * 0.5)
+        comisionTotal = comResult.monto + (extraPropinas * 0.5)
+        comisionCategoria = comResult.categoria_nombre
+        comisionHerramientas = comResult.tiene_herramientas
       }
     }
 
@@ -242,6 +243,8 @@ export async function POST(request: NextRequest) {
         insertData.metodo_pago = metodo_pago || 'efectivo'
         insertData.propinas = propinas || 0
         insertData.comision_barbero = comisionTotal
+        insertData.comision_categoria = comisionCategoria
+        insertData.comision_herramientas = comisionHerramientas
         if (descuentoTotal > 0) insertData.descuento = descuentoTotal
         if (comprobante_url) {
           insertData.notas = `${insertData.notas}\n[Comprobante]: ${comprobante_url}`

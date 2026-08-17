@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ArrowLeft, X, Save, Edit, Eye, EyeOff, Users, Instagram, Globe, GripVertical, RotateCcw, Link, Link2Off, Search } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, X, Save, Edit, Eye, EyeOff, Users, Instagram, Globe, GripVertical, RotateCcw, Link, Link2Off, Search, DollarSign } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { cn, toTitleCase } from '@/lib/utils'
 import { useToast } from '@/components/ui/Toast'
 import { isValidImageUrl } from '@/lib/validators'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import ComisionBarberoModal from '@/components/comisiones/ComisionBarberoModal'
 
 interface EquipoMember {
   id: string
@@ -61,6 +62,9 @@ export default function AdminEquipoPage() {
   const [editing, setEditing] = useState<EquipoMember | null>(null)
   const [formData, setFormData] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  
+  // Comisiones modal
+  const [comisionModal, setComisionModal] = useState<{ barberoId: string; nombre: string; imagen?: string } | null>(null)
   
   // UI Filters
   const [activeTab, setActiveTab] = useState<TabFilter>('todos')
@@ -465,22 +469,39 @@ export default function AdminEquipoPage() {
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (member.profile_id) {
-                          router.push(`/admin/horarios?barbero_id=${member.profile_id}`)
-                        } else {
-                          router.push('/admin/horarios')
-                        }
-                      }}
-                      className="text-[10px] font-black uppercase text-amber-400 border-amber-500/20 bg-amber-500/5 hover:bg-amber-500 hover:text-black transition-all"
-                    >
-                      🕒 Ver / Ajustar Horario
-                    </Button>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                  <div className="pt-2 border-t border-white/5 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (member.profile_id) {
+                            router.push(`/admin/horarios?barbero_id=${member.profile_id}`)
+                          } else {
+                            router.push('/admin/horarios')
+                          }
+                        }}
+                        className="flex-1 text-[10px] font-black uppercase text-amber-400 border-amber-500/20 bg-amber-500/5 hover:bg-amber-500 hover:text-black transition-all"
+                      >
+                        🕒 Horario
+                      </Button>
+                      {member.profile_id && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setComisionModal({
+                            barberoId: member.profile_id!,
+                            nombre: member.nombre,
+                            imagen: member.imagen_url,
+                          })}
+                          className="flex-1 text-[10px] font-black uppercase text-emerald-400 border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500 hover:text-black transition-all"
+                        >
+                          <DollarSign size={12} className="mr-1" />
+                          Comisiones
+                        </Button>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest text-center">
                       Orden: #{member.sort_order}
                     </span>
                   </div>
@@ -699,6 +720,17 @@ export default function AdminEquipoPage() {
             </form>
           </Card>
         </div>
+      )}
+
+      {/* Modal de Comisiones por Barbero */}
+      {comisionModal && (
+        <ComisionBarberoModal
+          barberoId={comisionModal.barberoId}
+          barberoNombre={comisionModal.nombre}
+          barberoImagen={comisionModal.imagen}
+          onClose={() => setComisionModal(null)}
+          onSaved={() => setComisionModal(null)}
+        />
       )}
     </div>
   )

@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
+import { calcularComisionBarbero } from '@/lib/comisiones/calcular'
 import { NextResponse } from 'next/server'
 
 interface ProductoWalkin {
@@ -67,18 +68,14 @@ export async function POST(request: Request) {
       const { data: serv } = await supabase.from('servicios').select('precio, comision_activa, comision_tipo, comision_valor, comision_acumulable').eq('id', servicio_id).single()
       precioBase = serv?.precio || 0
       
-      // (La comisión base de perfil ya no se usa, ahora es estrictamente por servicio)
-      let baseComision = 0
-      if (serv?.comision_activa !== false && serv?.comision_tipo !== 'ninguna') {
-        if (serv?.comision_tipo === 'fija') {
-          baseComision = serv?.comision_valor || 0
-        } else if (serv?.comision_tipo === 'porcentaje') {
-          baseComision = (precioBase * (serv?.comision_valor || 0)) / 100
-        }
-      }
+      // Calcular comisión personalizada por barbero
+      const comResult = await calcularComisionBarbero(
+        supabase, user.id, servicio_id, precioBase, new Date(),
+        { comision_activa: serv?.comision_activa, comision_tipo: serv?.comision_tipo, comision_valor: serv?.comision_valor, comision_acumulable: serv?.comision_acumulable }
+      )
       
       const extraPropinas = serv?.comision_acumulable !== false ? (propinas || 0) : 0
-      const comisionTotal = baseComision + extraPropinas
+      const comisionTotal = comResult.monto + extraPropinas
 
       // Crear Cita Completada
       const inicio = new Date(ahora.getTime() - 30 * 60000)
@@ -94,6 +91,8 @@ export async function POST(request: Request) {
         metodo_pago,
         propinas: propinas || 0,
         comision_barbero: comisionTotal,
+        comision_categoria: comResult.categoria_nombre,
+        comision_herramientas: comResult.tiene_herramientas,
         notas: 'Venta Rápida (Walk-in)',
       })
       if (citaError) throw citaError
