@@ -27,29 +27,50 @@ export async function GET(req: NextRequest) {
 
     if (!barbero_id) return NextResponse.json({ error: 'barbero_id requerido' }, { status: 400 })
 
-    // 1. Obtener horario semanal
-    const { data: horario, error: hErr } = await supabase
-      .from('comision_barbero_horario')
-      .select('*, categoria:comision_categorias(id, nombre, requiere_herramientas)')
-      .eq('barbero_id', barbero_id)
-      .order('dia_semana', { ascending: true })
+    // 1. Obtener horario semanal (silenciar error si la tabla aún no existe)
+    let horario: any[] = []
+    try {
+      const { data: hData } = await supabase
+        .from('comision_barbero_horario')
+        .select('*, categoria:comision_categorias(id, nombre, requiere_herramientas)')
+        .eq('barbero_id', barbero_id)
+        .order('dia_semana', { ascending: true })
+      if (hData) horario = hData
+    } catch (_) {}
 
-    if (hErr) throw hErr
+    // 2. Obtener comisiones por servicio (silenciar error si la tabla aún no existe)
+    let servicios: any[] = []
+    try {
+      const { data: sData } = await supabase
+        .from('comision_barbero_servicios')
+        .select('*, servicio:servicios(id, nombre, precio, is_active), categoria:comision_categorias(id, nombre)')
+        .eq('barbero_id', barbero_id)
+      if (sData) servicios = sData
+    } catch (_) {}
 
-    // 2. Obtener comisiones por servicio
-    const { data: servicios, error: sErr } = await supabase
-      .from('comision_barbero_servicios')
-      .select('*, servicio:servicios(id, nombre, precio, is_active), categoria:comision_categorias(id, nombre)')
-      .eq('barbero_id', barbero_id)
+    // 3. Obtener categorías activas (con fallback a categorías estándar)
+    let categorias: any[] = []
+    try {
+      const { data: cData } = await supabase
+        .from('comision_categorias')
+        .select('*')
+        .eq('is_active', true)
+        .order('orden', { ascending: true })
+      if (cData && cData.length > 0) {
+        categorias = cData
+      }
+    } catch (_) {}
 
-    if (sErr) throw sErr
-
-    // 3. Obtener categorías activas
-    const { data: categorias } = await supabase
-      .from('comision_categorias')
-      .select('*')
-      .eq('is_active', true)
-      .order('orden', { ascending: true })
+    // Fallback de categorías estándar si la tabla aún no existe o está vacía
+    if (categorias.length === 0) {
+      categorias = [
+        { id: 'cat-8h', nombre: '8 Horas', descripcion: 'Turno de 8 horas estándar', requiere_herramientas: false, is_active: true, orden: 1 },
+        { id: 'cat-comp', nombre: 'Completo', descripcion: 'Horario completo del día', requiere_herramientas: false, is_active: true, orden: 2 },
+        { id: 'cat-plus', nombre: 'Plus', descripcion: 'Horario plus extendido', requiere_herramientas: false, is_active: true, orden: 3 },
+        { id: 'cat-dom', nombre: 'Domingo o Feriado', descripcion: 'Domingos y días feriados', requiere_herramientas: true, is_active: true, orden: 4 },
+        { id: 'cat-dom-plus', nombre: 'Domingo o Feriado Plus', descripcion: 'Domingos y feriados plus', requiere_herramientas: true, is_active: true, orden: 5 },
+      ]
+    }
 
     // 4. Obtener todos los servicios activos
     const { data: todosServicios } = await supabase
@@ -91,7 +112,6 @@ export async function POST(req: NextRequest) {
 
     // ── 1. Guardar horario semanal ──
     if (horario && horario.length > 0) {
-      // Borrar horario existente del barbero y reinsertar
       await supabase
         .from('comision_barbero_horario')
         .delete()
@@ -108,12 +128,18 @@ export async function POST(req: NextRequest) {
         .from('comision_barbero_horario')
         .insert(horarioRows)
 
-      if (hInsErr) throw hInsErr
+      if (hInsErr) {
+        if (hInsErr.message?.includes('does not exist')) {
+          return NextResponse.json({
+            error: 'Las tablas de comisiones aún no han sido creadas en Supabase. Ejecuta el archivo supabase_comisiones_barbero.sql en el SQL Editor de Supabase.'
+          }, { status: 400 })
+        }
+        throw hInsErr
+      }
     }
 
     // ── 2. Guardar comisiones por servicio ──
     if (servicios && servicios.length > 0) {
-      // Borrar comisiones existentes del barbero y reinsertar
       await supabase
         .from('comision_barbero_servicios')
         .delete()
@@ -133,9 +159,15 @@ export async function POST(req: NextRequest) {
         .from('comision_barbero_servicios')
         .insert(servicioRows)
 
-      if (sInsErr) throw sInsErr
+      if (sInsErr) {
+        if (sInsErr.message?.includes('does not exist')) {
+          return NextResponse.json({
+            error: 'Las tablas de comisiones aún no han sido creadas en Supabase. Ejecuta el archivo supabase_comisiones_barbero.sql en el SQL Editor de Supabase.'
+          }, { status: 400 })
+        }
+        throw sInsErr
+      }
     } else {
-      // Si no envían servicios, borrar los existentes
       await supabase
         .from('comision_barbero_servicios')
         .delete()

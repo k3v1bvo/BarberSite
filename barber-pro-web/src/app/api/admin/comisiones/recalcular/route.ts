@@ -46,12 +46,19 @@ export async function POST(request: Request) {
       const comisionTotal = comResult.monto + (extraPropinas * 0.5)
 
       if (comisionTotal > 0) {
-        await adminClient.from('citas').update({
+        const updateData: any = {
           comision_barbero: comisionTotal,
           comision_categoria: comResult.categoria_nombre,
           comision_herramientas: comResult.tiene_herramientas,
-        }).eq('id', cita.id)
-        actualizadas++
+        }
+        let { error: updErr } = await adminClient.from('citas').update(updateData).eq('id', cita.id)
+        if (updErr && (updErr.message?.includes('comision_') || updErr.message?.includes('column') || (updErr as any).code === 'PGRST204')) {
+          delete updateData.comision_categoria
+          delete updateData.comision_herramientas
+          const retry = await adminClient.from('citas').update(updateData).eq('id', cita.id)
+          updErr = retry.error
+        }
+        if (!updErr) actualizadas++
       }
     }
 

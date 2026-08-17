@@ -49,9 +49,21 @@ export async function calcularComisionBarbero(
   }
 
   try {
-    // Determinar día de la semana (0=Domingo, 6=Sábado)
-    const d = fecha ? new Date(fecha) : new Date()
-    const diaSemana = d.getDay() // 0=Sunday, 1=Monday, ... 6=Saturday
+    // Determinar día de la semana (0=Domingo, 6=Sábado) de forma segura sin desface horario
+    let diaSemana = new Date().getDay()
+    if (fecha) {
+      if (typeof fecha === 'string') {
+        const cleanStr = fecha.trim()
+        if (cleanStr.length === 10 && cleanStr.includes('-')) {
+          const [year, month, day] = cleanStr.split('-').map(Number)
+          diaSemana = new Date(year, month - 1, day, 12, 0, 0).getDay()
+        } else {
+          diaSemana = new Date(cleanStr).getDay()
+        }
+      } else if (fecha instanceof Date) {
+        diaSemana = fecha.getDay()
+      }
+    }
 
     // 1. Buscar horario del barbero para este día
     const { data: horarioDia } = await supabase
@@ -59,14 +71,14 @@ export async function calcularComisionBarbero(
       .select('categoria_id, tiene_herramientas, categoria:comision_categorias(id, nombre, requiere_herramientas)')
       .eq('barbero_id', barbero_id)
       .eq('dia_semana', diaSemana)
-      .single()
+      .maybeSingle()
 
     if (horarioDia && horarioDia.categoria_id) {
       const cat = horarioDia.categoria as any
       resultado.categoria_nombre = cat?.nombre || null
       resultado.tiene_herramientas = cat?.requiere_herramientas
         ? true // Si la categoría requiere herramientas, siempre es true
-        : horarioDia.tiene_herramientas
+        : (horarioDia.tiene_herramientas ?? false)
 
       // 2. Buscar comisión personalizada para este servicio + categoría
       const { data: comisionPersonal } = await supabase
@@ -75,7 +87,7 @@ export async function calcularComisionBarbero(
         .eq('barbero_id', barbero_id)
         .eq('servicio_id', servicio_id)
         .eq('categoria_id', horarioDia.categoria_id)
-        .single()
+        .maybeSingle()
 
       if (comisionPersonal) {
         // Usar la comisión con/sin herramientas según el día

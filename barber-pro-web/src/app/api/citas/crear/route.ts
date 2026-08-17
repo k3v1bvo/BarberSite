@@ -62,22 +62,32 @@ export async function POST(request: Request) {
       { comision_activa: servicio.comision_activa, comision_tipo: servicio.comision_tipo, comision_valor: servicio.comision_valor }
     )
 
-    const { data: cita, error } = await supabase
+    const insertData: any = {
+      cliente_id,
+      servicio_id,
+      barbero_id,
+      fecha_hora,
+      precio: servicio.precio,
+      comision_barbero: comResult.monto,
+      comision_categoria: comResult.categoria_nombre,
+      comision_herramientas: comResult.tiene_herramientas,
+      duracion_real_minutos: servicio.duracion_minutos,
+      estado: 'pendiente',
+    }
+
+    let { data: cita, error } = await supabase
       .from('citas')
-      .insert({
-        cliente_id,
-        servicio_id,
-        barbero_id,
-        fecha_hora,
-        precio: servicio.precio,
-        comision_barbero: comResult.monto,
-        comision_categoria: comResult.categoria_nombre,
-        comision_herramientas: comResult.tiene_herramientas,
-        duracion_real_minutos: servicio.duracion_minutos,
-        estado: 'pendiente',
-      })
+      .insert(insertData)
       .select()
       .single()
+
+    if (error && (error.message?.includes('comision_') || error.message?.includes('column') || (error as any).code === 'PGRST204')) {
+      delete insertData.comision_categoria
+      delete insertData.comision_herramientas
+      const retry = await supabase.from('citas').insert(insertData).select().single()
+      cita = retry.data
+      error = retry.error
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

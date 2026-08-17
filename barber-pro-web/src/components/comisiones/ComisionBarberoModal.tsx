@@ -215,9 +215,27 @@ export default function ComisionBarberoModal({ barberoId, barberoNombre, barbero
     }
   }
 
+  const activarTodosLosServicios = (categoriaId: string) => {
+    setServiciosComision(prev => {
+      const rest = prev.filter(s => s.categoria_id !== categoriaId)
+      const nuevos = todosServicios.map(serv => ({
+        servicio_id: serv.id,
+        categoria_id: categoriaId,
+        comision_tipo_con: 'porcentaje',
+        comision_valor_con: 30,
+        comision_tipo_sin: 'porcentaje',
+        comision_valor_sin: 25,
+      }))
+      return [...rest, ...nuevos]
+    })
+  }
+
+  const desactivarTodosLosServicios = (categoriaId: string) => {
+    setServiciosComision(prev => prev.filter(s => s.categoria_id !== categoriaId))
+  }
+
   // ── Categorías que están asignadas en el horario ──
   const categoriasUsadas = [...new Set(horario.map(h => h.categoria_id))].filter(Boolean)
-  const categoriasConServicios = categorias.filter(c => categoriasUsadas.includes(c.id))
 
   // ── Contar servicios activos por categoría ──
   const countServiciosPorCategoria = (catId: string) => {
@@ -344,49 +362,93 @@ export default function ComisionBarberoModal({ barberoId, barberoNombre, barbero
             <div className="flex items-center gap-2 border-b border-white/5 pb-2">
               <DollarSign className="w-4 h-4 text-amber-400" />
               <span className="text-[11px] font-black uppercase tracking-widest text-amber-400">
-                Comisiones por Servicio
+                Comisiones por Servicio según Categoría
               </span>
             </div>
+            <p className="text-[10px] text-zinc-500">
+              Configura los servicios que realiza este barbero y sus comisiones (Con y Sin Herramientas) en cada categoría.
+            </p>
 
-            {categoriasConServicios.length === 0 ? (
+            {categorias.length === 0 ? (
               <div className="bg-zinc-900/40 border border-dashed border-white/10 rounded-2xl p-8 text-center">
                 <Calendar className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
-                <p className="text-zinc-400 text-xs font-bold">Primero asigna categorías en el horario semanal</p>
-                <p className="text-zinc-500 text-[10px] mt-1">Los servicios aparecerán agrupados por cada categoría asignada</p>
+                <p className="text-zinc-400 text-xs font-bold">No hay categorías registradas</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {categoriasConServicios.map(cat => (
-                  <div key={cat.id} className="rounded-2xl border border-white/10 bg-zinc-900/60 overflow-hidden">
-                    {/* Category header */}
-                    <button
-                      onClick={() => setExpandedCategoria(expandedCategoria === cat.id ? null : cat.id)}
-                      className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-black text-white uppercase">{cat.nombre}</span>
-                        {cat.requiere_herramientas && (
-                          <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <Wrench size={9} /> Herramientas obligatorias
-                          </span>
-                        )}
-                        <span className="text-[10px] font-bold text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">
-                          {countServiciosPorCategoria(cat.id)} servicios activos
-                        </span>
-                      </div>
-                      {expandedCategoria === cat.id ? <ChevronUp size={16} className="text-zinc-400" /> : <ChevronDown size={16} className="text-zinc-400" />}
-                    </button>
+                {categorias.map(cat => {
+                  const isUsadaEnHorario = categoriasUsadas.includes(cat.id)
+                  const countActivos = countServiciosPorCategoria(cat.id)
 
-                    {/* Services list */}
-                    {expandedCategoria === cat.id && (
-                      <div className="border-t border-white/5 p-4 space-y-2">
-                        {/* Table header */}
-                        <div className="hidden sm:grid grid-cols-12 gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-500 px-3 py-1">
-                          <div className="col-span-1">✓</div>
-                          <div className="col-span-3">Servicio</div>
-                          <div className="col-span-4 text-center">🔧 Con Herramientas</div>
-                          <div className="col-span-4 text-center">Sin Herramientas</div>
+                  return (
+                    <div key={cat.id} className={cn(
+                      'rounded-2xl border transition-all overflow-hidden',
+                      isUsadaEnHorario ? 'border-amber-500/30 bg-zinc-900/80' : 'border-white/10 bg-zinc-900/40 opacity-90'
+                    )}>
+                      {/* Category header */}
+                      <div className="flex flex-wrap items-center justify-between p-4 gap-3 bg-zinc-900/60 border-b border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedCategoria(expandedCategoria === cat.id ? null : cat.id)}
+                          className="flex items-center gap-3 text-left flex-1 hover:opacity-80 transition-opacity"
+                        >
+                          <span className="text-sm font-black text-white uppercase">{cat.nombre}</span>
+                          {isUsadaEnHorario ? (
+                            <span className="text-[9px] font-black bg-amber-500 text-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                              📅 Asignada al horario
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold bg-zinc-800 text-zinc-400 border border-white/10 px-2 py-0.5 rounded-full">
+                              Configuración
+                            </span>
+                          )}
+                          {cat.requiere_herramientas && (
+                            <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <Wrench size={9} /> Herramientas obligatorias
+                            </span>
+                          )}
+                          <span className="text-[10px] font-bold text-zinc-400 bg-zinc-800/80 px-2.5 py-0.5 rounded-full">
+                            {countActivos} de {todosServicios.length} activos
+                          </span>
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => activarTodosLosServicios(cat.id)}
+                            className="text-[9px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-2.5 py-1 rounded-lg transition-all"
+                            title="Habilitar todos los servicios con valores estándar"
+                          >
+                            ⚡ Activar Todos
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => desactivarTodosLosServicios(cat.id)}
+                            className="text-[9px] font-black uppercase tracking-wider text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-2.5 py-1 rounded-lg transition-all"
+                            title="Desactivar todos los servicios en esta categoría"
+                          >
+                            Limpiar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedCategoria(expandedCategoria === cat.id ? null : cat.id)}
+                            className="p-1 text-zinc-400 hover:text-white"
+                          >
+                            {expandedCategoria === cat.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </button>
                         </div>
+                      </div>
+
+                      {/* Services list */}
+                      {expandedCategoria === cat.id && (
+                        <div className="p-4 space-y-2">
+                          {/* Table header */}
+                          <div className="hidden sm:grid grid-cols-12 gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-500 px-3 py-1">
+                            <div className="col-span-1">✓</div>
+                            <div className="col-span-3">Servicio</div>
+                            <div className="col-span-4 text-center">🔧 Con Herramientas</div>
+                            <div className="col-span-4 text-center">Sin Herramientas</div>
+                          </div>
 
                         {todosServicios.map(serv => {
                           const sc = getServicioComision(serv.id, cat.id)
@@ -549,9 +611,10 @@ export default function ComisionBarberoModal({ barberoId, barberoNombre, barbero
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
-            )}
+                )
+              })}
+            </div>
+          )}
           </div>
         </div>
 

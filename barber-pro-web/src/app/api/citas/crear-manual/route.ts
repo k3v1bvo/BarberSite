@@ -103,23 +103,33 @@ export async function POST(request: Request) {
     }
 
     // 3. Insertar la cita manual
-    const { data: cita, error: citaError } = await supabase
+    const insertData: any = {
+      cliente_id,
+      barbero_id,
+      servicio_id,
+      fecha_hora: formattedFechaHora,
+      precio: servicio.precio,
+      comision_barbero: comResult.monto,
+      comision_categoria: comResult.categoria_nombre,
+      comision_herramientas: comResult.tiene_herramientas,
+      duracion_real_minutos: servicio.duracion_minutos,
+      estado: 'confirmado',
+      notas: notas || `Cita manual agendada por ${profile.full_name || profile.role}`,
+    }
+
+    let { data: cita, error: citaError } = await supabase
       .from('citas')
-      .insert({
-        cliente_id,
-        barbero_id,
-        servicio_id,
-        fecha_hora: formattedFechaHora,
-        precio: servicio.precio,
-        comision_barbero: comResult.monto,
-        comision_categoria: comResult.categoria_nombre,
-        comision_herramientas: comResult.tiene_herramientas,
-        duracion_real_minutos: servicio.duracion_minutos,
-        estado: 'confirmado',
-        notas: notas || `Cita manual agendada por ${profile.full_name || profile.role}`,
-      })
+      .insert(insertData)
       .select()
       .single()
+
+    if (citaError && (citaError.message?.includes('comision_') || citaError.message?.includes('column') || (citaError as any).code === 'PGRST204')) {
+      delete insertData.comision_categoria
+      delete insertData.comision_herramientas
+      const retry = await supabase.from('citas').insert(insertData).select().single()
+      cita = retry.data
+      citaError = retry.error
+    }
 
     if (citaError) throw citaError
 

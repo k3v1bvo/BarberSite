@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
       // Crear Cita Completada
       const inicio = new Date(ahora.getTime() - 30 * 60000)
-      const { error: citaError } = await supabase.from('citas').insert({
+      const citaData: any = {
         cliente_id: clienteId,
         barbero_id: user.id,
         servicio_id,
@@ -94,7 +94,15 @@ export async function POST(request: Request) {
         comision_categoria: comResult.categoria_nombre,
         comision_herramientas: comResult.tiene_herramientas,
         notas: 'Venta Rápida (Walk-in)',
-      })
+      }
+
+      let { error: citaError } = await supabase.from('citas').insert(citaData)
+      if (citaError && (citaError.message?.includes('comision_') || citaError.message?.includes('column') || (citaError as any).code === 'PGRST204')) {
+        delete citaData.comision_categoria
+        delete citaData.comision_herramientas
+        const retry = await supabase.from('citas').insert(citaData)
+        citaError = retry.error
+      }
       if (citaError) throw citaError
 
       const { data: barberoProfileServ } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()

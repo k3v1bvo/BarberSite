@@ -284,6 +284,18 @@ export async function POST(request: NextRequest) {
         citaError = res.error
       }
 
+      if (citaError) {
+        if (citaError.message?.includes('comision_') || citaError.message?.includes('column') || (citaError as any).code === 'PGRST204') {
+          delete insertData.comision_categoria
+          delete insertData.comision_herramientas
+          const retryRes = cita_id
+            ? await supabase.from('citas').update(insertData).eq('id', cita_id).select('id').single()
+            : await supabase.from('citas').insert(insertData).select('id').single()
+          citaNueva = retryRes.data
+          citaError = retryRes.error
+        }
+      }
+
       if (citaError) throw citaError
       if (!citaNueva) throw new Error('Error guardando cita')
       citaId = citaNueva.id
