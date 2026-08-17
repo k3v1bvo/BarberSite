@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Bell, Check, Clock, Info, AlertCircle, CheckCircle2, ExternalLink, X } from 'lucide-react'
+import { Bell, Check, Clock, Info, AlertCircle, CheckCircle2, ExternalLink, X, Volume2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -245,15 +245,25 @@ export function CampanaNotificaciones({ userId, userRole }: Props) {
             <h3 className="font-bold text-white flex items-center gap-2">
               <Bell size={16} className="text-amber-500" /> Notificaciones
             </h3>
-            {unreadCount > 0 && (
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={markAllAsRead}
-                className="text-[10px] uppercase font-black tracking-widest text-zinc-500 hover:text-amber-500 transition-colors flex items-center gap-1"
+                onClick={playNotificationSound}
+                title="Probar sonido de notificación"
+                className="text-[10px] uppercase font-black tracking-wider text-amber-400/80 hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-1 rounded-lg border border-amber-500/20 transition-all flex items-center gap-1"
               >
-                <Check size={12} /> Leídas
+                <Volume2 size={11} /> Probar
               </button>
-            )}
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={markAllAsRead}
+                  className="text-[10px] uppercase font-black tracking-widest text-zinc-500 hover:text-amber-500 transition-colors flex items-center gap-1"
+                >
+                  <Check size={12} /> Leídas
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="max-h-[400px] overflow-y-auto">
