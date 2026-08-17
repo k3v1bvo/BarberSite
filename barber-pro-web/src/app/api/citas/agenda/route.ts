@@ -67,9 +67,8 @@ export async function GET(request: NextRequest) {
         precio,
         notas,
         anticipo_monto,
-        comprobante_url,
         barbero_id,
-        clientes (nombre, telefono, email),
+        clientes (nombre, telefono, email, ci),
         servicios (nombre, duracion_minutos),
         barberos:profiles!barbero_id (full_name, avatar_url)
       `)
@@ -113,6 +112,7 @@ export async function GET(request: NextRequest) {
         cliente_nombre: pickName(cita.clientes, 'Cliente'),
         cliente_telefono: clienteData?.telefono || undefined,
         cliente_email: clienteData?.email || undefined,
+        cliente_ci: clienteData?.ci || undefined,
         servicio_nombre: pickName(cita.servicios, 'Servicio'),
         precio: cita.precio,
         anticipo_monto: cita.anticipo_monto,

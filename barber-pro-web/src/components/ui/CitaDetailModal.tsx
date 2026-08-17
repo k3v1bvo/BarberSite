@@ -165,14 +165,36 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                 <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span className="text-white font-black text-xs truncate max-w-[140px]">{cita.cliente_nombre}</span>
               </div>
+              {cita.cliente_ci && (
+                <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1.5">
+                  <span className="text-[10px] font-black text-zinc-500 uppercase">CI:</span>
+                  <span className="text-zinc-300 font-bold text-xs">{cita.cliente_ci}</span>
+                </div>
+              )}
               {cita.cliente_telefono && (
-                <a
-                  href={`tel:${cita.cliente_telefono}`}
-                  className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1.5 hover:border-amber-500/50 transition"
-                >
-                  <Phone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span className="text-amber-400 font-bold text-xs">{cita.cliente_telefono}</span>
-                </a>
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href={`tel:${cita.cliente_telefono}`}
+                    className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1.5 hover:border-amber-500/50 transition"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="text-amber-400 font-bold text-xs">{cita.cliente_telefono}</span>
+                  </a>
+                  <a
+                    href={`https://wa.me/591${cita.cliente_telefono.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full px-2.5 py-1.5 text-xs font-bold hover:bg-emerald-500/20 transition"
+                    title="Chatear por WhatsApp"
+                  >
+                    <MessageCircle className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
+              {cita.cliente_email && (
+                <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1.5">
+                  <span className="text-zinc-400 text-xs truncate max-w-[160px]">{cita.cliente_email}</span>
+                </div>
               )}
               <Badge variant={estadoVariant[cita.estado] || 'default'} className="uppercase text-[10px] font-black py-1 px-3 rounded-full">
                 {cita.estado.replace('_', ' ')}
@@ -209,17 +231,26 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                 </div>
               )}
 
+              {/* Desglose Financiero y Tipo de Reserva */}
               {cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 ? (
-                <div className="flex justify-between items-center px-3 py-2.5 bg-amber-500/5 rounded-xl border border-amber-500/20">
-                  <span className="text-zinc-400 text-xs font-bold uppercase tracking-widest">
-                    {cita.anticipo_monto >= cita.precio ? 'Pago Completo QR' : 'Anticipo QR'}
-                  </span>
-                  <span className="text-amber-400 font-black">{formatCurrency(cita.anticipo_monto)}</span>
+                <div className="p-3 bg-amber-500/5 rounded-xl border border-amber-500/20 space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-zinc-400 font-bold uppercase tracking-widest">
+                      {cita.anticipo_monto >= cita.precio ? 'Pago Total por QR' : 'Anticipo por QR'}
+                    </span>
+                    <span className="text-amber-400 font-black">{formatCurrency(cita.anticipo_monto)}</span>
+                  </div>
+                  {cita.precio > cita.anticipo_monto && (
+                    <div className="flex justify-between items-center text-xs pt-1.5 border-t border-white/5">
+                      <span className="text-zinc-400 font-bold">Saldo restante a cobrar en local:</span>
+                      <span className="text-white font-black text-sm">{formatCurrency(cita.precio - cita.anticipo_monto)}</span>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex justify-between items-center px-3 py-2.5 bg-red-500/5 rounded-xl border border-red-500/20">
                   <span className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Tipo de Reserva</span>
-                  <span className="text-red-400 font-black text-xs">Sin Adelanto · Paga en Local</span>
+                  <span className="text-red-400 font-black text-xs">Sin Adelanto · Paga 100% en Local ({formatCurrency(cita.precio)})</span>
                 </div>
               )}
 

@@ -59,7 +59,7 @@ export default function AgendaGeneralPage() {
         const { data: cita } = await supabase
           .from('citas')
           .select(`
-            id, fecha_hora, duracion_real_minutos, estado, anticipo_monto, precio, notas, comprobante_url,
+            id, fecha_hora, duracion_real_minutos, estado, anticipo_monto, precio, notas,
             clientes (nombre),
             servicios (nombre),
             barberos:profiles!barbero_id (id, full_name)

@@ -9,6 +9,7 @@ export interface AgendaCita {
   cliente_nombre: string
   cliente_telefono?: string
   cliente_email?: string
+  cliente_ci?: string
   servicio_nombre: string
   precio: number
   barbero_id: string
