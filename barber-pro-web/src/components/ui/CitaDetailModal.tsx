@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { Badge } from './Badge'
 import { Button } from './Button'
 import { formatCurrency } from '@/lib/utils'
-import { X, Phone, User, Scissors, Clock, Download, Maximize2 } from 'lucide-react'
+import { X, Phone, User, Scissors, Clock, Download, Maximize2, AlertCircle, MessageCircle } from 'lucide-react'
 import type { AgendaCita } from '@/lib/agenda/types'
 import Link from 'next/link'
 import { useToast } from './Toast'
@@ -231,6 +231,35 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                     className="w-full max-h-64 object-contain bg-zinc-950 cursor-pointer"
                     onClick={() => setLightboxOpen(true)}
                   />
+                </div>
+              )}
+
+              {/* Advertencia si no hay comprobante pero hay anticipo QR pendiente */}
+              {!cita.comprobante_url && cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 && cita.estado === 'pendiente_pago' && (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-black text-amber-400 uppercase tracking-wider">
+                        Comprobante no adjunto
+                      </p>
+                      <p className="text-[11px] text-zinc-400 mt-0.5 leading-relaxed">
+                        El cliente reservó con anticipo de <span className="font-bold text-white">{formatCurrency(cita.anticipo_monto)}</span> pero no subió la captura de pago.
+                      </p>
+                    </div>
+                  </div>
+                  {cita.cliente_telefono && (
+                    <a
+                      href={`https://wa.me/591${cita.cliente_telefono.replace(/\D/g, '')}?text=${encodeURIComponent(
+                        `Hola ${cita.cliente_nombre}, te saludamos de BarberSite 💈. Vemos tu reserva para hoy con ${cita.barbero_nombre}. Por favor, envíanos la captura de tu pago QR de Bs ${cita.anticipo_monto} para confirmar tu horario. ¡Muchas gracias!`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow-lg shadow-emerald-600/20"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" /> Pedir Comprobante por WhatsApp
+                    </a>
+                  )}
                 </div>
               )}
             </div>
