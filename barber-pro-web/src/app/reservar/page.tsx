@@ -423,6 +423,28 @@ function ReservarContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!formData.servicio_id && carrito.length === 0) {
+      toastError('Debes seleccionar al menos un servicio o producto.')
+      return
+    }
+    if (!formData.barbero_id) {
+      toastError('Debes seleccionar a tu barbero de preferencia.')
+      return
+    }
+    if (!formData.fecha || !formData.hora) {
+      toastError('Debes seleccionar la fecha y hora de tu cita.')
+      return
+    }
+    if (!formData.nombre?.trim() || !formData.telefono?.trim() || !formData.email?.trim()) {
+      toastError('Por favor completa todos tus datos personales.')
+      return
+    }
+    if (tipoReserva !== 'sin_adelanto' && totalReserva > 0 && !formData.comprobante_url) {
+      toastError('⚠️ Para confirmar tu reserva con QR, es OBLIGATORIO adjuntar la captura de tu comprobante de pago.')
+      return
+    }
+
     setSubmitting(true)
 
     try {
