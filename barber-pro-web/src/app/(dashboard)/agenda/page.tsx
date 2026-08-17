@@ -59,7 +59,7 @@ export default function AgendaGeneralPage() {
         const { data: cita } = await supabase
           .from('citas')
           .select(`
-            id, fecha_hora, duracion_real_minutos, estado, anticipo_monto, precio, notas,
+            id, fecha_hora, duracion_real_minutos, estado, anticipo_monto, precio, notas, comprobante_url,
             clientes (nombre),
             servicios (nombre),
             barberos:profiles!barbero_id (id, full_name)
@@ -71,7 +71,10 @@ export default function AgendaGeneralPage() {
           const cliente = Array.isArray(cita.clientes) ? cita.clientes[0] : cita.clientes
           const servicio = Array.isArray(cita.servicios) ? cita.servicios[0] : cita.servicios
           const barbero = Array.isArray(cita.barberos) ? cita.barberos[0] : cita.barberos
-          const comprobanteMatch = cita.notas?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s]+)/)
+          const matchStandard = cita.notas?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s\n\r]+|data:image\/[a-zA-Z0-9+]+;base64,[^\s\n\r]+)/i)
+          const matchBase64 = cita.notas?.match(/(data:image\/[a-zA-Z0-9+]+;base64,[^\s\n\r]+)/i)
+          const matchAnyUrl = cita.notas?.match(/(https?:\/\/[^\s\n\r]+\.(?:jpg|jpeg|png|webp|gif|svg)|https?:\/\/(?:i\.)?ibb\.co\/[^\s\n\r]+|https?:\/\/res\.cloudinary\.com\/[^\s\n\r]+)/i)
+          const compUrl = (cita as any).comprobante_url || (matchStandard ? matchStandard[1].trim() : (matchBase64 ? matchBase64[1].trim() : (matchAnyUrl ? matchAnyUrl[1].trim() : undefined)))
 
           setSelectedCita({
             id: cita.id,
@@ -84,7 +87,7 @@ export default function AgendaGeneralPage() {
             servicio_nombre: servicio?.nombre || 'Desconocido',
             barbero_id: barbero?.id || '',
             barbero_nombre: barbero?.full_name || 'Sin asignar',
-            comprobante_url: comprobanteMatch ? comprobanteMatch[1] : undefined
+            comprobante_url: compUrl
           })
         }
       }

@@ -574,23 +574,36 @@ function ReservarContent() {
 
       const barbero = barberos.find((b) => b.id === formData.barbero_id)
 
-      const { data: citaNueva, error: citaError } = await supabase
+      const insertPayload: any = {
+        cliente_id: clienteId,
+        barbero_id: formData.barbero_id,
+        servicio_id: formData.servicio_id || null,
+        fecha_hora: fechaHora,
+        precio: precioFinalTotal,
+        duracion_real_minutos: servicio?.duracion_minutos || 30,
+        estado: tipoReserva === 'sin_adelanto' ? 'confirmado' : 'pendiente_pago',
+        notas: formData.comprobante_url ? `${notasFinales}\n[Comprobante]: ${formData.comprobante_url}` : notasFinales,
+        anticipo_monto: anticipoCalculado,
+      }
+      if (formData.comprobante_url) {
+        insertPayload.comprobante_url = formData.comprobante_url
+      }
+
+      let { data: citaNueva, error: citaError } = await supabase
         .from('citas')
-        .insert({
-          cliente_id: clienteId,
-          barbero_id: formData.barbero_id,
-          servicio_id: formData.servicio_id || null,
-          fecha_hora: fechaHora,
-          precio: precioFinalTotal,
-          duracion_real_minutos: servicio?.duracion_minutos || 30,
-          estado: tipoReserva === 'sin_adelanto' ? 'confirmado' : 'pendiente_pago',
-          notas: formData.comprobante_url ? `${notasFinales}\n[Comprobante]: ${formData.comprobante_url}` : notasFinales,
-          anticipo_monto: anticipoCalculado,
-        })
+        .insert(insertPayload)
         .select('id')
         .single()
 
-      if (citaError) throw new Error(citaError.message)
+      // Fallback si la columna comprobante_url no existiese
+      if (citaError && citaError.message?.includes('comprobante_url')) {
+        delete insertPayload.comprobante_url
+        const retry = await supabase.from('citas').insert(insertPayload).select('id').single()
+        citaNueva = retry.data
+        citaError = retry.error
+      }
+
+      if (citaError || !citaNueva) throw new Error(citaError?.message || 'Error al crear la cita')
 
       if (carrito.length > 0) {
         const { error: prodError } = await supabase.from('citas_productos').insert(

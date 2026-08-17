@@ -347,6 +347,30 @@ export function CalendarView({
                           <span className="truncate">💈 {dayCita.servicio_nombre}</span>
                           <span className="shrink-0 font-black text-amber-400">Bs {dayCita.precio}</span>
                         </div>
+
+                        {/* Badges de Detalle */}
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {dayCita.anticipo_monto !== undefined && dayCita.anticipo_monto > 0 && (
+                            <span className="px-1 py-0.2 text-[8px] font-black rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              QR Bs {dayCita.anticipo_monto}
+                            </span>
+                          )}
+                          {dayCita.notas?.toLowerCase().includes('2x1') && (
+                            <span className="px-1 py-0.2 text-[8px] font-black rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                              ✂️ 2x1
+                            </span>
+                          )}
+                          {dayCita.notas?.toLowerCase().includes('producto') && (
+                            <span className="px-1 py-0.2 text-[8px] font-black rounded bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                              🛍️ +Prod
+                            </span>
+                          )}
+                          {dayCita.estado === 'pendiente_pago' && (
+                            <span className="px-1 py-0.2 text-[8px] font-black rounded bg-orange-500/25 text-orange-300 border border-orange-500/40 animate-pulse">
+                              ⚠️ Validar
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -444,9 +468,28 @@ export function CalendarView({
                             {cita.estado.replace('_', ' ')}
                           </Badge>
                         </div>
-                        <div className="text-xs text-zinc-400 mt-2">
-                          {getBoliviaTimeStr(cita.fecha_hora)} · {cita.duracion_minutos}{' '}
-                          min · {formatCurrency(cita.precio)}
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400 mt-2">
+                          <span>{getBoliviaTimeStr(cita.fecha_hora)} · {cita.duracion_minutos} min · {formatCurrency(cita.precio)}</span>
+                          {cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              📱 Anticipo QR {formatCurrency(cita.anticipo_monto)}
+                            </span>
+                          )}
+                          {cita.notas?.toLowerCase().includes('2x1') && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                              ✂️ Promo 2x1
+                            </span>
+                          )}
+                          {cita.notas?.toLowerCase().includes('producto') && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                              🛍️ Incluye Productos
+                            </span>
+                          )}
+                          {cita.estado === 'pendiente_pago' && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-orange-500/25 text-orange-300 border border-orange-500/40 animate-pulse">
+                              ⚠️ Pendiente Verificación QR
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}

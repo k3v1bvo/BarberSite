@@ -97,9 +97,10 @@ export async function GET(request: NextRequest) {
       const clienteData = Array.isArray(cita.clientes) ? cita.clientes[0] : cita.clientes
       
       const notasStr = cita.notas as string | null
-      const matchStandard = notasStr?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s\n\r]+)/i)
+      const matchStandard = notasStr?.match(/\[Comprobante\]:\s*(https?:\/\/[^\s\n\r]+|data:image\/[a-zA-Z0-9+]+;base64,[^\s\n\r]+)/i)
+      const matchBase64 = notasStr?.match(/(data:image\/[a-zA-Z0-9+]+;base64,[^\s\n\r]+)/i)
       const matchAnyUrl = notasStr?.match(/(https?:\/\/[^\s\n\r]+\.(?:jpg|jpeg|png|webp|gif|svg)|https?:\/\/(?:i\.)?ibb\.co\/[^\s\n\r]+|https?:\/\/res\.cloudinary\.com\/[^\s\n\r]+)/i)
-      const comprobante_url = (cita as any).comprobante_url || (matchStandard ? matchStandard[1].trim() : (matchAnyUrl ? matchAnyUrl[1].trim() : undefined))
+      const comprobante_url = (cita as any).comprobante_url || (matchStandard ? matchStandard[1].trim() : (matchBase64 ? matchBase64[1].trim() : (matchAnyUrl ? matchAnyUrl[1].trim() : undefined)))
 
       return {
         id: cita.id,
