@@ -479,12 +479,12 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                     </Link>
                     <div className="grid grid-cols-3 gap-2">
                       {(userRole === 'admin' || userRole === 'coordinador') && (
-                        <Button variant="outline" size="sm" className="h-10 font-black uppercase tracking-wider text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 border-amber-500/20 text-[10px]"
+                        <Button variant="outline" size="sm" className="h-11 font-black uppercase tracking-wider text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border-amber-500/30 text-xs"
                           onClick={() => { setNewDate(getBoliviaDateKey(cita.fecha_hora)); setNewTime(getBoliviaTimeStr(cita.fecha_hora)); setShowReprogramar(true) }}>
-                          Reprogramar
+                          📅 Reprogramar
                         </Button>
                       )}
-                      <Button variant="outline" size="sm" className="h-10 font-black uppercase tracking-wider text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 border-orange-500/30 text-[10px]" disabled={canceling}
+                      <Button variant="outline" size="sm" className="h-11 font-black uppercase tracking-wider text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 border-orange-500/30 text-xs" disabled={canceling}
                         onClick={async () => {
                           if (!confirm('¿Marcar que el cliente no se presentó a su cita? La hora quedará libre para otros clientes.')) return
                           setCanceling(true)
@@ -497,11 +497,11 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                             onClose()
                           } catch { error('Error al actualizar') } finally { setCanceling(false) }
                         }}>
-                        {canceling ? '...' : 'No Asistió'}
+                        {canceling ? '...' : '⚠️ No Asistió'}
                       </Button>
-                      <Button variant="danger" size="sm" className="h-10 font-black uppercase tracking-wider text-[10px]" disabled={canceling}
+                      <Button variant="danger" size="sm" className="h-11 font-black uppercase tracking-wider text-xs bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20" disabled={canceling}
                         onClick={async () => {
-                          if (!confirm('¿Deseas cancelar esta cita? El horario quedará liberado inmediatamente.')) return
+                          if (!confirm('¿Deseas cancelar esta cita? El horario quedará liberado inmediatamente para otros clientes.')) return
                           setCanceling(true)
                           try {
                             const supabase = createClient()
