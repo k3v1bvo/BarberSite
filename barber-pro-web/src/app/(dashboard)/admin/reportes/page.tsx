@@ -105,7 +105,7 @@ export default function ReportesPage() {
       if (!user) return router.push('/login')
 
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-      if (profile?.role !== 'admin') return router.push('/')
+      if (profile?.role !== 'admin' && profile?.role !== 'coordinador') return router.push('/')
 
       // Calcular fechas del periodo anterior para tendencias
       const dInicio = new Date(fechaInicio)

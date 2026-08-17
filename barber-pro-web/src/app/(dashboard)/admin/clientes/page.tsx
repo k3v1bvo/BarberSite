@@ -181,7 +181,7 @@ export default function ClientesAdminPage() {
     if (!user) return router.push('/login')
 
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (profile?.role !== 'admin') return router.push('/')
+    if (profile?.role !== 'admin' && profile?.role !== 'coordinador') return router.push('/')
 
     const [resClientes, resProfiles] = await Promise.all([
       supabase
