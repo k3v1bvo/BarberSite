@@ -504,9 +504,15 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                           if (!confirm('¿Deseas cancelar esta cita? El horario quedará liberado inmediatamente para otros clientes.')) return
                           setCanceling(true)
                           try {
-                            const supabase = createClient()
-                            const { error: err } = await supabase.from('citas').update({ estado: 'cancelado', updated_at: new Date().toISOString() }).eq('id', cita.id)
-                            if (err) throw err
+                            const res = await fetch('/api/citas/cancelar', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ cita_id: cita.id, motivo: 'Cancelada desde panel de administración/agenda' })
+                            })
+                            if (!res.ok) {
+                              const supabase = createClient()
+                              await supabase.from('citas').update({ estado: 'cancelado', updated_at: new Date().toISOString() }).eq('id', cita.id)
+                            }
                             success('Cita cancelada (Horario liberado)')
                             onUpdate ? onUpdate() : window.location.reload()
                             onClose()
@@ -553,10 +559,16 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                           if (!confirm('¿Cancelar cita no pagada?')) return
                           setCanceling(true)
                           try {
-                            const supabase = createClient()
-                            const { error: err } = await supabase.from('citas').update({ estado: 'cancelado', anticipo_monto: 0, updated_at: new Date().toISOString() }).eq('id', cita.id)
-                            if (err) throw err
-                            success('Cita cancelada')
+                            const res = await fetch('/api/citas/cancelar', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ cita_id: cita.id, motivo: 'Pago QR no completado' })
+                            })
+                            if (!res.ok) {
+                              const supabase = createClient()
+                              await supabase.from('citas').update({ estado: 'cancelado', anticipo_monto: 0, updated_at: new Date().toISOString() }).eq('id', cita.id)
+                            }
+                            success('Cita cancelada (Horario liberado)')
                             onUpdate ? onUpdate() : window.location.reload()
                             onClose()
                           } catch { error('Error al cancelar') } finally { setCanceling(false) }
