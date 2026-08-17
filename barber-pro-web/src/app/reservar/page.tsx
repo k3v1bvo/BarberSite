@@ -1227,18 +1227,21 @@ function ReservarContent() {
                       >
                         Sin promo
                       </button>
-                      {promociones.map(p => (
-                        <button
-                          key={p.id}
-                          onClick={() => setPromoSeleccionada(p.id === promoSeleccionada ? '' : p.id)}
-                          className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
-                            promoSeleccionada === p.id ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'bg-black/50 border border-zinc-800 text-amber-500/80 hover:border-amber-500/50 hover:text-amber-400'
-                          }`}
-                        >
-                          <span>{p.icono}</span>
-                          {p.nombre}
-                        </button>
-                      ))}
+                      {promociones.map(p => {
+                        const cleanName = p.nombre.replace(new RegExp(`^${p.icono}\\s*`, 'u'), '').trim()
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => setPromoSeleccionada(p.id === promoSeleccionada ? '' : p.id)}
+                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+                              promoSeleccionada === p.id ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'bg-black/50 border border-zinc-800 text-amber-500/80 hover:border-amber-500/50 hover:text-amber-400'
+                            }`}
+                          >
+                            <span>{p.icono}</span>
+                            <span>{cleanName}</span>
+                          </button>
+                        )
+                      })}
                     </div>
                     {promociones.find(p => p.id === promoSeleccionada)?.tipo === '2x1' && (
                       <div className="mt-6 max-w-lg mx-auto p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl animate-in fade-in zoom-in-95 duration-300">
