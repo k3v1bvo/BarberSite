@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { Badge } from './Badge'
 import { Button } from './Button'
 import { formatCurrency } from '@/lib/utils'
-import { X, Phone, User, Scissors, Clock, Download, Maximize2, AlertCircle, MessageCircle } from 'lucide-react'
+import { X, Phone, User, Scissors, Clock, Download, Maximize2, AlertCircle, MessageCircle, ShoppingBag, Gift, Tag } from 'lucide-react'
 import type { AgendaCita } from '@/lib/agenda/types'
 import Link from 'next/link'
 import { useToast } from './Toast'
@@ -31,6 +31,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
   const [responding, setResponding] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [productos, setProductos] = useState<{ id: string; nombre: string; cantidad: number; precio_unitario: number; subtotal: number }[]>([])
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -45,6 +46,35 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
     }
     fetchRole()
   }, [])
+
+  useEffect(() => {
+    if (!cita?.id) {
+      setProductos([])
+      return
+    }
+
+    const fetchProductos = async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('citas_productos')
+        .select('id, cantidad, precio_unitario, subtotal, productos(nombre)')
+        .eq('cita_id', cita.id)
+
+      if (data && data.length > 0) {
+        setProductos(data.map((item: any) => ({
+          id: item.id,
+          nombre: item.productos?.nombre || 'Producto',
+          cantidad: item.cantidad,
+          precio_unitario: item.precio_unitario,
+          subtotal: item.subtotal || (item.cantidad * item.precio_unitario)
+        })))
+      } else {
+        setProductos([])
+      }
+    }
+
+    fetchProductos()
+  }, [cita?.id])
 
   const { success, error } = useToast()
   if (!cita || !mounted) return null
@@ -193,14 +223,76 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                 </div>
               )}
 
-              {cita.notas && (
-                <div className="p-3 bg-zinc-900/60 rounded-xl border border-zinc-800/50">
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1.5">Notas</p>
-                  <p className="text-zinc-300 text-xs leading-relaxed whitespace-pre-wrap">
-                    {cita.notas.replace(/\[Comprobante\]:\s*([^\s\n\r]+)/i, '').replace(/data:image\/[a-zA-Z]+;base64,[^\s\n\r]+/i, '').trim() || 'Sin notas.'}
-                  </p>
+              {/* Productos Reservados */}
+              {productos.length > 0 && (
+                <div className="p-3 bg-violet-500/10 rounded-xl border border-violet-500/25 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-widest text-violet-400 font-black flex items-center gap-1.5">
+                      <ShoppingBag className="w-3.5 h-3.5" /> Productos Extra en Reserva
+                    </span>
+                    <span className="text-[10px] text-violet-300 font-bold bg-violet-500/20 px-2 py-0.5 rounded-full">{productos.length} item(s)</span>
+                  </div>
+                  <div className="space-y-1.5 pt-0.5">
+                    {productos.map(p => (
+                      <div key={p.id} className="flex justify-between items-center text-xs bg-black/40 px-2.5 py-1.5 rounded-lg border border-white/5">
+                        <span className="text-zinc-200 font-medium">
+                          <span className="font-black text-violet-400 mr-1.5">{p.cantidad}x</span>
+                          {p.nombre}
+                        </span>
+                        <span className="font-black text-violet-300">{formatCurrency(p.subtotal)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
+
+              {/* Notas y Promociones */}
+              {cita.notas && (() => {
+                const rawNotas = cita.notas
+                  .replace(/\[Comprobante\]:\s*([^\s\n\r]+)/gi, '')
+                  .replace(/data:image\/[a-zA-Z]+;base64,[^\s\n\r]+/gi, '')
+                  .trim()
+
+                if (!rawNotas) return null
+
+                const lines = rawNotas.split('\n').map(l => l.trim()).filter(Boolean)
+                const tagLines = lines.filter(l => l.startsWith('[') && l.includes(']'))
+                const userNotes = lines.filter(l => !(l.startsWith('[') && l.includes(']'))).join('\n')
+
+                return (
+                  <div className="p-3 bg-zinc-900/60 rounded-xl border border-zinc-800/50 space-y-2">
+                    {tagLines.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {tagLines.map((t, idx) => {
+                          const isPromo = t.toLowerCase().includes('promo') || t.toLowerCase().includes('descuento')
+                          const isQR = t.toLowerCase().includes('qr') || t.toLowerCase().includes('adelanto')
+                          return (
+                            <span
+                              key={idx}
+                              className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg border flex items-center gap-1 ${
+                                isPromo
+                                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                                  : isQR
+                                  ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
+                                  : 'bg-zinc-800 border-zinc-700 text-zinc-300'
+                              }`}
+                            >
+                              {isPromo && <Gift className="w-3 h-3" />}
+                              {t.replace(/^\[|\]$/g, '')}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {userNotes && (
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1">Comentarios del Cliente</p>
+                        <p className="text-zinc-300 text-xs leading-relaxed whitespace-pre-wrap">{userNotes}</p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Comprobante inline */}
               {cita.comprobante_url && (
