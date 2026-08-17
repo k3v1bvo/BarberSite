@@ -86,6 +86,8 @@ function ReservarContent() {
 
   // Step 0: Quick Registration state
   const [registerData, setRegisterData] = useState({ full_name: '', ci: '', phone: '', email: '', password: '' })
+  const [manualRefInput, setManualRefInput] = useState('')
+  const [validatingRef, setValidatingRef] = useState(false)
   const [registering, setRegistering] = useState(false)
   const [registerError, setRegisterError] = useState('')
   const [filterCategoria, setFilterCategoria] = useState<string>('todos')
@@ -373,6 +375,7 @@ function ReservarContent() {
 
         if (refClient) {
           setReferidoInfo({ id: refClient.id, nombre: refClient.nombre })
+          setManualRefInput(cleanRef)
         }
       }
     } catch (error) {
@@ -381,6 +384,42 @@ function ReservarContent() {
       setLoading(false)
     }
   }
+
+  // Validar código de referido manual en tiempo real
+  useEffect(() => {
+    const val = manualRefInput.trim()
+    if (!val) {
+      if (!searchParams.get('ref')) setReferidoInfo(null)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setValidatingRef(true)
+      try {
+        const orQueries = [`id.eq.${val}`]
+        if (!val.includes('-')) {
+          orQueries.push(`ci.eq.${val}`)
+        }
+        const { data: refClient } = await supabase
+          .from('clientes')
+          .select('id, nombre')
+          .or(orQueries.join(','))
+          .maybeSingle()
+
+        if (refClient) {
+          setReferidoInfo({ id: refClient.id, nombre: refClient.nombre })
+        } else {
+          setReferidoInfo(null)
+        }
+      } catch (_) {
+        setReferidoInfo(null)
+      } finally {
+        setValidatingRef(false)
+      }
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [manualRefInput, supabase, searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -939,6 +978,44 @@ function ReservarContent() {
                       minLength={6}
                       className="bg-zinc-950 border-zinc-800 h-12 text-sm"
                     />
+                  </div>
+
+                  {/* Campo de Código de Referido Manual / Automático */}
+                  <div className="space-y-1.5 p-3.5 rounded-2xl bg-zinc-950/80 border border-white/10">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                        <Gift size={13} /> ¿Alguien te recomendó BarberSite?
+                      </label>
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase">Opcional</span>
+                    </div>
+                    <Input
+                      value={manualRefInput}
+                      onChange={(e) => setManualRefInput(e.target.value)}
+                      placeholder="Código, C.I. o ID de tu amigo..."
+                      className="bg-zinc-900 border-white/10 text-xs h-11 text-white"
+                    />
+                    {validatingRef && (
+                      <p className="text-[10px] text-zinc-400 animate-pulse">Buscando a tu amigo...</p>
+                    )}
+                    {referidoInfo && (
+                      <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+                        <p className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
+                          ✓ Recomendado por: <span className="text-white font-black">{referidoInfo.nombre}</span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => { setManualRefInput(''); setReferidoInfo(null) }}
+                          className="text-[10px] text-zinc-400 hover:text-red-400 font-bold"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    )}
+                    {manualRefInput.trim() && !validatingRef && !referidoInfo && (
+                      <p className="text-[10px] text-amber-400/80">
+                        ⚠️ No encontramos cliente con ese código/CI (Puedes dejarlo en blanco si no tienes).
+                      </p>
+                    )}
                   </div>
 
                   {/* Info box */}

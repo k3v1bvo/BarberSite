@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -18,7 +18,7 @@ function RegisterContent() {
   const { brand } = useBrand()
   const { error: toastError, success } = useToast()
   const searchParams = useSearchParams()
-  const refCode = searchParams.get('ref')
+  const urlRefParam = searchParams.get('ref')
   const [isRecoveryOpen, setIsRecoveryOpen] = useState(false)
 
   const [formData, setFormData] = useState({
@@ -29,11 +29,52 @@ function RegisterContent() {
     ci: '',
   })
 
+  // Código de referido manual o automático
+  const [referralInput, setReferralInput] = useState(urlRefParam || '')
+  const [recomendanteFound, setRecomendanteFound] = useState<{ id: string; nombre: string } | null>(null)
+  const [validatingRef, setValidatingRef] = useState(false)
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [welcome, setWelcome] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  // Validar código de referido en tiempo real
+  useEffect(() => {
+    const val = referralInput.trim()
+    if (!val) {
+      setRecomendanteFound(null)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setValidatingRef(true)
+      try {
+        const orQueries = [`id.eq.${val}`]
+        if (!val.includes('-')) {
+          orQueries.push(`ci.eq.${val}`)
+        }
+        const { data: refClient } = await supabase
+          .from('clientes')
+          .select('id, nombre')
+          .or(orQueries.join(','))
+          .maybeSingle()
+
+        if (refClient) {
+          setRecomendanteFound({ id: refClient.id, nombre: refClient.nombre })
+        } else {
+          setRecomendanteFound(null)
+        }
+      } catch (_) {
+        setRecomendanteFound(null)
+      } finally {
+        setValidatingRef(false)
+      }
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [referralInput, supabase])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -65,20 +106,7 @@ function RegisterContent() {
         return
       }
 
-      let referidoPorId = null
-      let recomendanteNombre = ''
-      if (refCode) {
-        const { data: refData } = await supabase
-          .from('clientes')
-          .select('id, nombre')
-          .eq('referral_code', refCode)
-          .single()
-        
-        if (refData) {
-          referidoPorId = refData.id
-          recomendanteNombre = refData.nombre
-        }
-      }
+      const referidoPorId = recomendanteFound?.id || null
 
       // Intentar crear el registro en clientes — si el CI ya existe, saltar (autosync fusionará)
       const cleanCi = formData.ci?.trim() || null
@@ -131,9 +159,8 @@ function RegisterContent() {
       }
 
       if (referidoPorId) {
-        // Obtenemos la config del monto de bono si existe, o por defecto 10
-        const { data: config } = await supabase.from('configuraciones').select('valor').eq('llave', 'monto_bono_referido').single()
-        const montoBono = config ? parseFloat(config.valor) : 10
+        const { data: config } = await supabase.from('configuraciones').select('valor').eq('llave', 'monto_bono_referido').maybeSingle()
+        const montoBono = config ? (typeof config.valor === 'number' ? config.valor : parseFloat(config.valor) || 15) : 15
 
         await supabase.from('referrals').insert({
           cliente_recomendante_id: referidoPorId,
@@ -227,9 +254,14 @@ function RegisterContent() {
             Crea tu cuenta y reserva en segundos
           </p>
           
-          {refCode && (
-            <div className="bg-green-500/10 border border-green-500/20 text-green-400 px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mb-2">
-              <Gift size={16} /> Fuiste invitado por un amigo. ¡Regístrate ahora!
+          {(urlRefParam || recomendanteFound) && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mb-2">
+              <Gift size={16} />
+              <span>
+                {recomendanteFound
+                  ? `¡Invitación de ${recomendanteFound.nombre} aplicada!`
+                  : 'Fuiste invitado por un amigo. ¡Regístrate ahora!'}
+              </span>
             </div>
           )}
         </CardHeader>
@@ -277,6 +309,44 @@ function RegisterContent() {
               required
               minLength={6}
             />
+
+            {/* Campo de Código de Referido Manual / Automático */}
+            <div className="space-y-1.5 p-3.5 rounded-2xl bg-zinc-950/80 border border-white/10">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                  <Gift size={13} /> ¿Alguien te recomendó BarberSite?
+                </label>
+                <span className="text-[10px] text-zinc-500 font-bold uppercase">Opcional</span>
+              </div>
+              <Input
+                value={referralInput}
+                onChange={(e) => setReferralInput(e.target.value)}
+                placeholder="Código de referido, C.I. o ID de tu amigo..."
+                className="bg-zinc-900 border-white/10 text-xs h-10 text-white"
+              />
+              {validatingRef && (
+                <p className="text-[10px] text-zinc-400 animate-pulse">Verificando amigo...</p>
+              )}
+              {recomendanteFound && (
+                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+                  <p className="text-xs font-black text-emerald-400 flex items-center gap-1">
+                    ✓ Recomendado por: <span className="text-white">{recomendanteFound.nombre}</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setReferralInput(''); setRecomendanteFound(null) }}
+                    className="text-[10px] text-zinc-400 hover:text-red-400 font-bold"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              )}
+              {referralInput.trim() && !validatingRef && !recomendanteFound && (
+                <p className="text-[10px] text-amber-400/80">
+                  ⚠️ No encontramos ningún cliente con ese código o C.I. (Puedes dejarlo vacío si no tienes).
+                </p>
+              )}
+            </div>
 
             {error && (
               <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
