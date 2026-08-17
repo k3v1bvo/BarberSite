@@ -121,21 +121,23 @@ export default function AdminEquipoPage() {
 
       // Incluir también los barberos y coordinadores del sistema aún no configurados en equipo_home
       if (barberosData) {
+        let nextOrder = equipoData?.length || 0
         barberosData.forEach((b: any) => {
           if (!foundProfileIds.has(b.id) && (b.role === 'barbero' || b.role === 'coordinador')) {
-             processed.push({
-               id: 'virtual_' + b.id,
-               nombre: b.full_name || (b.role === 'coordinador' ? 'Coordinador' : 'Barbero'),
-               especialidad: b.role === 'coordinador' ? 'Coordinador del Local' : 'Especialista en Corte',
-               descripcion: 'Pendiente de configurar en el home',
-               imagen_url: b.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(b.full_name || 'B')}&background=f59e0b&color=000&size=256`,
-               redes_sociales: {},
-               sort_order: 999,
-               is_active: false,
-               profile_id: b.id,
-               is_configured: false,
-               created_at: new Date().toISOString()
-             })
+            nextOrder++
+            processed.push({
+              id: 'virtual_' + b.id,
+              nombre: b.full_name || (b.role === 'coordinador' ? 'Coordinador' : 'Barbero'),
+              especialidad: b.role === 'coordinador' ? 'Coordinador del Local' : 'Especialista en Corte',
+              descripcion: '',
+              imagen_url: b.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(b.full_name || 'B')}&background=f59e0b&color=000&size=256`,
+              redes_sociales: {},
+              sort_order: nextOrder,
+              is_active: false,
+              profile_id: b.id,
+              is_configured: false,
+              created_at: new Date().toISOString()
+            })
           }
         })
       }
@@ -232,15 +234,78 @@ export default function AdminEquipoPage() {
 
   const toggleActive = async (member: EquipoMember) => {
     if (member.is_configured === false) {
-      toastError('Debes editar y guardar al barbero antes de hacerlo visible')
-      return;
+      // Auto-insert into equipo_home directly!
+      const payload = {
+        nombre: member.nombre,
+        especialidad: member.especialidad,
+        descripcion: member.descripcion || 'Profesional en BarberSite',
+        imagen_url: member.imagen_url,
+        redes_sociales: member.redes_sociales || {},
+        sort_order: member.sort_order || 1,
+        is_active: true,
+        profile_id: member.profile_id || null,
+      }
+      const { error } = await supabase.from('equipo_home').insert(payload)
+      if (error) {
+        toastError('Error al activar miembro: ' + error.message)
+      } else {
+        toastSuccess('¡Miembro activado y visible en la web!')
+        loadData()
+      }
+      return
     }
     const { error } = await supabase.from('equipo_home').update({ is_active: !member.is_active, updated_at: new Date().toISOString() }).eq('id', member.id)
     if (error) {
       toastError('Error al cambiar estado')
     } else {
-      toastSuccess(member.is_active ? 'Ocultado del home' : 'Visible en el home')
+      toastSuccess(member.is_active ? 'Ocultado de la web' : 'Visible en la web')
       loadData()
+    }
+  }
+
+  const syncAllStaff = async () => {
+    try {
+      setSaving(true)
+      const { data: bList } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role, avatar_url')
+        .in('role', ['barbero', 'coordinador'])
+        .eq('is_active', true)
+        .order('full_name', { ascending: true })
+
+      if (!bList || bList.length === 0) {
+        toastError('No hay barberos o coordinadores registrados')
+        return
+      }
+
+      for (let i = 0; i < bList.length; i++) {
+        const b = bList[i]
+        const existing = members.find(m => m.profile_id === b.id && m.is_configured !== false)
+        if (existing) {
+          await supabase.from('equipo_home').update({
+            sort_order: i + 1,
+            is_active: true,
+            updated_at: new Date().toISOString()
+          }).eq('id', existing.id)
+        } else {
+          await supabase.from('equipo_home').insert({
+            nombre: b.full_name || 'Barbero',
+            especialidad: b.role === 'coordinador' ? 'Coordinador del Local' : 'Especialista en Corte',
+            descripcion: 'Profesional en BarberSite',
+            imagen_url: b.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(b.full_name || 'B')}&background=f59e0b&color=000&size=256`,
+            redes_sociales: {},
+            sort_order: i + 1,
+            is_active: true,
+            profile_id: b.id,
+          })
+        }
+      }
+      toastSuccess('¡Todo el equipo fue sincronizado, ordenado y activado!')
+      loadData()
+    } catch (e: any) {
+      toastError(e.message)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -311,10 +376,21 @@ export default function AdminEquipoPage() {
           </div>
         </div>
 
-        <Button variant="primary" size="lg" className="shadow-lg shadow-amber-500/20 font-black uppercase tracking-widest px-6 h-12" onClick={openCreate}>
-          <Plus className="w-5 h-5 mr-2 stroke-[3px]" />
-          Nuevo Miembro
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            className="border-amber-500/30 text-amber-400 bg-amber-500/10 hover:bg-amber-500 hover:text-black font-black uppercase tracking-wider text-xs h-12"
+            onClick={syncAllStaff}
+            disabled={saving}
+          >
+            ⚡ Activar y Ordenar Todo (1, 2, 3...)
+          </Button>
+
+          <Button variant="primary" size="lg" className="shadow-lg shadow-amber-500/20 font-black uppercase tracking-widest px-6 h-12" onClick={openCreate}>
+            <Plus className="w-5 h-5 mr-2 stroke-[3px]" />
+            Nuevo Miembro
+          </Button>
+        </div>
       </div>
 
       {/* Tabs & Search Bar */}
@@ -423,8 +499,12 @@ export default function AdminEquipoPage() {
                 <CardContent className="p-5 space-y-4">
                   <div>
                     <h3 className="text-lg font-black text-white uppercase tracking-tight line-clamp-1">{member.nombre}</h3>
-                    {member.descripcion && (
+                    {member.descripcion && member.descripcion !== 'Pendiente de configurar en el home' ? (
                       <p className="text-xs text-zinc-400 mt-1 line-clamp-2 italic font-normal">"{member.descripcion}"</p>
+                    ) : (
+                      <p className="text-[11px] text-zinc-500 mt-1 font-medium flex items-center gap-1">
+                        ✂️ Profesional de BarberSite
+                      </p>
                     )}
                   </div>
 
@@ -435,9 +515,9 @@ export default function AdminEquipoPage() {
                       className={`py-2 px-2 rounded-xl text-xs font-bold transition border flex items-center justify-center gap-1 ${
                         member.is_active
                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                          : 'bg-zinc-800/80 text-zinc-300 border-white/10 hover:bg-zinc-700'
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500 hover:text-black'
                       }`}
-                      title={member.is_active ? 'Ocultar del Home' : 'Mostrar en Web'}
+                      title={member.is_active ? 'Ocultar de la Web' : 'Hacer Visible en la Web'}
                     >
                       {member.is_active ? <EyeOff size={14} /> : <Eye size={14} />}
                       <span className="text-[10px] uppercase font-black">{member.is_active ? 'Ocultar' : 'Mostrar'}</span>
@@ -445,7 +525,7 @@ export default function AdminEquipoPage() {
 
                     <button
                       onClick={() => openEdit(member)}
-                      className="py-2 px-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/30 transition flex items-center justify-center gap-1"
+                      className="py-2 px-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-bold border border-white/10 transition flex items-center justify-center gap-1"
                     >
                       <Edit size={14} />
                       <span className="text-[10px] uppercase font-black">Editar</span>
@@ -461,10 +541,11 @@ export default function AdminEquipoPage() {
                       </button>
                     ) : (
                       <button
-                        disabled
-                        className="py-2 px-2 rounded-xl bg-zinc-800/40 text-zinc-600 text-xs font-bold border border-white/5 flex items-center justify-center gap-1 cursor-not-allowed"
+                        onClick={() => toggleActive(member)}
+                        className="py-2 px-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/20 flex items-center justify-center gap-1"
+                        title="Activar de inmediato"
                       >
-                        <span className="text-[10px] uppercase font-bold">Nuevo</span>
+                        <span className="text-[10px] uppercase font-bold">Activar</span>
                       </button>
                     )}
                   </div>
@@ -502,7 +583,7 @@ export default function AdminEquipoPage() {
                       )}
                     </div>
                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest text-center">
-                      Orden: #{member.sort_order}
+                      Posición: #{member.sort_order < 900 ? member.sort_order : members.indexOf(member) + 1}
                     </span>
                   </div>
                 </CardContent>
