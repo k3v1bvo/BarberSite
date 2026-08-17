@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       .eq('barbero_id', barbero_id)
       .gte('fecha_hora', inicioDia)
       .lte('fecha_hora', finDia)
-      .not('estado', 'eq', 'cancelada'),
+      .not('estado', 'in', '("cancelado","no_presento","comprobante_rechazado")'),
     adminSupabase
       .from('sistema_config')
       .select('valor')

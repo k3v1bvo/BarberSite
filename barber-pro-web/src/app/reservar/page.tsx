@@ -509,8 +509,8 @@ function ReservarContent() {
         .select('id')
         .eq('barbero_id', formData.barbero_id)
         .eq('fecha_hora', fechaHora)
-        .not('estado', 'eq', 'cancelada')
-        .single()
+        .not('estado', 'in', '("cancelado","no_presento","comprobante_rechazado")')
+        .maybeSingle()
 
       if (citaExistente) {
         throw new Error('Lo sentimos, este horario acaba de ser ocupado. Por favor selecciona otro.')

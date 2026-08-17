@@ -477,27 +477,42 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                         💰 Cobrar en POS
                       </Button>
                     </Link>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       {(userRole === 'admin' || userRole === 'coordinador') && (
-                        <Button variant="outline" size="sm" className="flex-1 h-10 font-black uppercase tracking-wider text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 border-amber-500/20 text-xs"
+                        <Button variant="outline" size="sm" className="h-10 font-black uppercase tracking-wider text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 border-amber-500/20 text-[10px]"
                           onClick={() => { setNewDate(getBoliviaDateKey(cita.fecha_hora)); setNewTime(getBoliviaTimeStr(cita.fecha_hora)); setShowReprogramar(true) }}>
                           Reprogramar
                         </Button>
                       )}
-                      <Button variant="danger" size="sm" className="flex-1 h-10 font-black uppercase tracking-wider text-xs" disabled={canceling}
+                      <Button variant="outline" size="sm" className="h-10 font-black uppercase tracking-wider text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 border-orange-500/30 text-[10px]" disabled={canceling}
                         onClick={async () => {
-                          if (!confirm('¿Marcar que el cliente no se presentó?')) return
+                          if (!confirm('¿Marcar que el cliente no se presentó a su cita? La hora quedará libre para otros clientes.')) return
                           setCanceling(true)
                           try {
                             const supabase = createClient()
                             const { error: err } = await supabase.from('citas').update({ estado: 'no_presento', updated_at: new Date().toISOString() }).eq('id', cita.id)
                             if (err) throw err
-                            success('Marcado como No Asistió')
+                            success('Marcado como No Asistió (Horario liberado)')
                             onUpdate ? onUpdate() : window.location.reload()
                             onClose()
                           } catch { error('Error al actualizar') } finally { setCanceling(false) }
                         }}>
                         {canceling ? '...' : 'No Asistió'}
+                      </Button>
+                      <Button variant="danger" size="sm" className="h-10 font-black uppercase tracking-wider text-[10px]" disabled={canceling}
+                        onClick={async () => {
+                          if (!confirm('¿Deseas cancelar esta cita? El horario quedará liberado inmediatamente.')) return
+                          setCanceling(true)
+                          try {
+                            const supabase = createClient()
+                            const { error: err } = await supabase.from('citas').update({ estado: 'cancelado', updated_at: new Date().toISOString() }).eq('id', cita.id)
+                            if (err) throw err
+                            success('Cita cancelada (Horario liberado)')
+                            onUpdate ? onUpdate() : window.location.reload()
+                            onClose()
+                          } catch { error('Error al cancelar') } finally { setCanceling(false) }
+                        }}>
+                        {canceling ? '...' : '❌ Cancelar'}
                       </Button>
                     </div>
                   </>
