@@ -151,6 +151,13 @@ export async function POST(request: NextRequest) {
           } catch(e) { console.error("Error enviando email de invitación:", e) }
        }
     }
+
+    // Resolver el CI real del cliente desde la BD (para que no quede '0000000' en transacciones)
+    let ciReal = ci || ''
+    if (finalClienteId && !ciReal) {
+      const { data: ciData } = await supabase.from('clientes').select('ci').eq('id', finalClienteId).single()
+      if (ciData?.ci) ciReal = ciData.ci
+    }
     
     // Asignar referidor si se pasó y no lo tiene aún
     if (finalClienteId && referido_por_id) {
@@ -364,7 +371,7 @@ export async function POST(request: NextRequest) {
           .insert({
             libro: 'VENTAS',
             fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora),
-            ci: ci || '0000000',
+            ci: ciReal || '0000000',
             nombre: nombre || 'Cliente en Caja',
             cuenta_codigo: '4.1.2',
             cuenta_detalle: item.nombre,
@@ -510,7 +517,7 @@ export async function POST(request: NextRequest) {
           .insert({
             libro: 'SERVICIOS',
             fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora),
-            ci: ci || '0000000',
+            ci: ciReal || '0000000',
             nombre: nombre || 'Cliente en Caja',
             cuenta_codigo: 'ING-001',
             cuenta_detalle: serv.nombre,

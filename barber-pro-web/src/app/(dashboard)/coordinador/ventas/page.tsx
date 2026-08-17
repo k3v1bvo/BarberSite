@@ -260,9 +260,15 @@ export default function VentasPage() {
     return 0
   })
 
-  const totalHoy = transactions.filter((t) => t.fecha === hoy && t.tipo_movimiento !== 'USO_TIENDA').reduce((s, t) => s + Number(t.costo), 0)
+  const totalHoy = transactions.filter((t) => t.fecha === hoy && t.tipo_movimiento !== 'USO_TIENDA').reduce((s, t) => {
+    const monto = Number(t.costo)
+    return s + (t.tipo_movimiento === 'EGRESO' ? -monto : monto)
+  }, 0)
   const totalTiendaHoy = transactions.filter((t) => t.fecha === hoy && t.tipo_movimiento === 'USO_TIENDA').reduce((s, t) => s + Number(t.costo), 0)
-  const totalGeneral = transactions.reduce((s, t) => s + Number(t.costo), 0)
+  const totalGeneral = transactions.reduce((s, t) => {
+    const monto = Number(t.costo)
+    return s + (t.tipo_movimiento === 'EGRESO' ? -monto : monto)
+  }, 0)
   const ventasCuentas = cuentas.filter((c) => c.codigo.startsWith('4.1'))
 
   if (loading) {
@@ -851,7 +857,7 @@ export default function VentasPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-right font-black text-sm text-green-400">+{formatCurrency(tx.costo)}</td>
+                      <td className={`px-3 py-2.5 text-right font-black text-sm ${tx.tipo_movimiento === 'EGRESO' ? 'text-red-400' : 'text-green-400'}`}>{tx.tipo_movimiento === 'EGRESO' ? '-' : '+'}{formatCurrency(tx.costo)}</td>
                     </tr>
                   ))
                 )}

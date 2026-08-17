@@ -1013,6 +1013,7 @@ export function CajaPOS() {
                       const dateObj = isTx ? (item.creado_en ? new Date(item.creado_en) : new Date(item.fecha)) : (item.updated_at ? new Date(item.updated_at) : new Date(item.fecha_hora))
                       const dateFormatted = !isNaN(dateObj.getTime()) ? dateObj.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) + ' · ' + dateObj.toLocaleDateString('es-BO', { day: '2-digit', month: 'short' }) : (item.fecha || '')
 
+                      const isEgreso = isTx && item.tipo_movimiento === 'EGRESO'
                       return (
                         <tr key={item.id || idx} className="hover:bg-zinc-800/40 transition">
                           <td className="py-3.5 pl-2 font-mono text-xs text-zinc-400">{dateFormatted}</td>
@@ -1039,8 +1040,8 @@ export function CajaPOS() {
                               {mp === 'efectivo' ? '💵 Efectivo' : mp === 'qr' ? '📱 QR' : '🔄 Mixto'}
                             </span>
                           </td>
-                          <td className="py-3.5 text-right pr-2 font-black text-emerald-400 text-sm">
-                            {formatCurrency(monto)}
+                          <td className={`py-3.5 text-right pr-2 font-black text-sm ${isEgreso ? 'text-red-400' : 'text-emerald-400'}`}>
+                            {isEgreso ? '-' : ''}{formatCurrency(monto)}
                           </td>
                         </tr>
                       )
