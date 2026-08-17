@@ -90,10 +90,15 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
     comprobante_rechazado: 'danger',
   }
 
+  const matchStandard = cita.notas?.match(/\[Comprobante\]:\s*([^\s\n\r]+)/i)
+  const matchBase64 = cita.notas?.match(/(data:image\/[a-zA-Z0-9+]+;base64,[^\s\n\r]+)/i)
+  const matchAnyUrl = cita.notas?.match(/(https?:\/\/[^\s\n\r]+\.(?:jpg|jpeg|png|webp|gif|svg)|https?:\/\/(?:i\.)?ibb\.co\/[^\s\n\r]+|https?:\/\/res\.cloudinary\.com\/[^\s\n\r]+)/i)
+  const effectiveComprobanteUrl = cita.comprobante_url || (matchStandard ? matchStandard[1].trim() : (matchBase64 ? matchBase64[1].trim() : (matchAnyUrl ? matchAnyUrl[1].trim() : undefined)))
+
   const downloadComprobante = async () => {
-    if (!cita.comprobante_url) return
+    if (!effectiveComprobanteUrl) return
     try {
-      const res = await fetch(cita.comprobante_url)
+      const res = await fetch(effectiveComprobanteUrl)
       const blob = await res.blob()
       const blobUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -103,14 +108,14 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
       document.body.removeChild(a)
       URL.revokeObjectURL(blobUrl)
     } catch {
-      window.open(cita.comprobante_url, '_blank')
+      window.open(effectiveComprobanteUrl, '_blank')
     }
   }
 
   return createPortal(
     <>
       {/* Lightbox pantalla completa */}
-      {lightboxOpen && cita.comprobante_url && (
+      {lightboxOpen && effectiveComprobanteUrl && (
         <div
           className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4"
           onClick={() => setLightboxOpen(false)}
@@ -122,7 +127,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
             <X className="w-6 h-6" />
           </button>
           <img
-            src={cita.comprobante_url}
+            src={effectiveComprobanteUrl}
             alt="Comprobante"
             className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
           />
@@ -326,7 +331,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
               })()}
 
               {/* Comprobante inline */}
-              {cita.comprobante_url && (
+              {effectiveComprobanteUrl && (
                 <div className="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950">
                   <div className="flex items-center justify-between px-3 py-2 bg-zinc-900 border-b border-zinc-800">
                     <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">📷 Comprobante</span>
@@ -348,7 +353,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                     </div>
                   </div>
                   <img
-                    src={cita.comprobante_url}
+                    src={effectiveComprobanteUrl}
                     alt="Comprobante de pago"
                     loading="eager"
                     className="w-full max-h-64 object-contain bg-zinc-950 cursor-pointer"
@@ -358,7 +363,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
               )}
 
               {/* Advertencia si no hay comprobante pero hay anticipo QR pendiente */}
-              {!cita.comprobante_url && cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 && cita.estado === 'pendiente_pago' && (
+              {!effectiveComprobanteUrl && cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 && cita.estado === 'pendiente_pago' && (
                 <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2.5">
                   <div className="flex items-start gap-2.5">
                     <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
