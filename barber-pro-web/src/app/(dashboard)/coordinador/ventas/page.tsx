@@ -857,7 +857,21 @@ export default function VentasPage() {
                           <span className="text-[10px] text-zinc-600 font-mono">{tx.cuenta_codigo}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-zinc-400 text-xs max-w-[180px] truncate">{tx.glosa}</td>
+                      <td className="px-3 py-2.5 text-zinc-400 text-xs max-w-[240px]">
+                        <div className="flex flex-col">
+                          <span className="truncate text-zinc-300 font-medium">{tx.glosa}</span>
+                          {tx.notas && (
+                            <span className={`text-[10px] truncate mt-0.5 ${String(tx.notas).includes('Desc') || String(tx.notas).includes('Precio original') ? 'text-amber-400 font-semibold' : 'text-zinc-500'}`} title={tx.notas}>
+                              {tx.notas}
+                            </span>
+                          )}
+                          {(String(tx.glosa || '').includes('Desc') || String(tx.notas || '').includes('Desc') || String(tx.notas || '').includes('Precio Especial')) && (
+                            <span className="inline-flex items-center gap-1 text-[8px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 w-fit mt-0.5">
+                              ⭐ Precio Especial / Desc.
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5">
                           <Badge 

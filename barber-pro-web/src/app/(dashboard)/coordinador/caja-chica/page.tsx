@@ -1235,11 +1235,20 @@ export default function CajaChicaPage() {
                         </td>
                         {/* Detalle / Glosa */}
                         <td className="px-3 py-2.5">
-                          <div className="flex flex-col max-w-[220px]">
+                          <div className="flex flex-col max-w-[240px]">
                             {tx.glosa && tx.glosa.split('\n').map((line: string, i: number) => (
                               <span key={i} className={`text-xs truncate ${i === 0 ? 'text-zinc-300 font-medium' : 'text-zinc-500'}`}>{tx.es_sancion && i === 0 ? '⚠ ' : ''}{line}</span>
                             ))}
-                            {tx.notas && <span className="text-[10px] text-amber-500/70 truncate mt-0.5" title={tx.notas}>{tx.notas}</span>}
+                            {tx.notas && (
+                              <span className={`text-[10px] truncate mt-0.5 ${String(tx.notas).includes('Desc') || String(tx.notas).includes('Precio original') ? 'text-amber-400 font-semibold' : 'text-amber-500/70'}`} title={tx.notas}>
+                                {tx.notas}
+                              </span>
+                            )}
+                            {(String(tx.glosa || '').includes('Desc') || String(tx.notas || '').includes('Desc') || String(tx.notas || '').includes('Precio Especial')) && (
+                              <span className="inline-flex items-center gap-1 text-[8px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 w-fit mt-1">
+                                ⭐ Precio Especial / Desc.
+                              </span>
+                            )}
                             {(tx.metodo_pago === 'qr' || tx.metodo_pago === 'mixto' || tx.metodo_pago === 'tarjeta' || tx.comprobante_url) && (
                               <div className="flex items-center gap-2 mt-1">
                                 {tx.comprobante_url ? (

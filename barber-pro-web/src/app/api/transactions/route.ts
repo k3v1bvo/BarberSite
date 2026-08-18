@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
           .select(`
             id,
             precio,
+            descuento,
             fecha_hora,
             barbero_id,
             cliente_id,
@@ -106,7 +107,12 @@ export async function GET(request: NextRequest) {
             
             const matchNeto = (c.notas as string | null)?.match(/Neto cobrado:\s*Bs\s*(\d+(?:\.\d+)?)/i)
             const matchDesc = (c.notas as string | null)?.match(/Desc:\s*-Bs\s*(\d+(?:\.\d+)?)/i)
-            const precioCita = matchNeto ? parseFloat(matchNeto[1]) : (matchDesc ? Math.max(0, Number(c.precio) - parseFloat(matchDesc[1])) : Number(c.precio || 0))
+            const descValue = Number((c as any).descuento || 0)
+            const precioCita = matchNeto 
+              ? parseFloat(matchNeto[1]) 
+              : (matchDesc 
+                  ? Math.max(0, Number(c.precio) - parseFloat(matchDesc[1])) 
+                  : (descValue > 0 ? Math.max(0, Number(c.precio || 0) - descValue) : Number(c.precio || 0)))
 
             const alreadyIn = finalData.some((t: any) => {
               if (t.cita_id && String(t.cita_id) === cIdStr) return true
@@ -144,7 +150,21 @@ export async function GET(request: NextRequest) {
                 realMetodo = 'qr'
               }
 
-              const notasFinales = c.notas ? c.notas : (anticipoQr > 0 ? `Anticipo QR: Bs ${anticipoQr} | Cobrado en caja (${mpRaw}): Bs ${resto}` : null)
+              const totalDesc = descValue > 0 ? descValue : (matchDesc ? parseFloat(matchDesc[1]) : (Number(c.precio || 0) > precioCita ? Number(c.precio || 0) - precioCita : 0))
+              let glosaFinal = `Atendido por ${barberoNombre} — Cita #${cIdShort}`
+              if (totalDesc > 0) {
+                glosaFinal += ` | ⭐ Desc. Especial: -Bs ${totalDesc}`
+              }
+
+              const notasParts: string[] = []
+              if (c.notas) notasParts.push(c.notas)
+              if (totalDesc > 0 && !c.notas?.includes('Desc')) {
+                notasParts.push(`⭐ Precio Especial / Desc: -Bs ${totalDesc} (Original: Bs ${c.precio || (precioCita + totalDesc)} → Neto: Bs ${precioCita})`)
+              }
+              if (anticipoQr > 0 && !c.notas?.includes('Anticipo')) {
+                notasParts.push(`Anticipo QR: Bs ${anticipoQr} | Cobrado en caja (${mpRaw}): Bs ${resto}`)
+              }
+              const notasFinales = notasParts.length > 0 ? notasParts.join(' | ') : null
 
               finalData.push({
                 id: `virtual-cita-${cIdStr}`,
@@ -154,7 +174,7 @@ export async function GET(request: NextRequest) {
                 nombre: clienteNombre,
                 cuenta_codigo: 'ING-001',
                 cuenta_detalle: `Servicio: ${servicioNombre}`,
-                glosa: `Atendido por ${barberoNombre} — Cita #${cIdShort}`,
+                glosa: glosaFinal,
                 costo: precioCita,
                 tipo_movimiento: 'INGRESO',
                 subcategoria: 'SERVICIO',
