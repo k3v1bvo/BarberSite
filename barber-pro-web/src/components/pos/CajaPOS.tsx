@@ -242,9 +242,18 @@ export function CajaPOS() {
           .from('transactions')
           .select('id, fecha, creado_en, cuenta_detalle, subcategoria, costo, monto_efectivo, monto_qr, metodo_pago, libro, tipo_movimiento, glosa, usuario_registro, nombre')
           .in('libro', ['SERVICIOS', 'VENTAS', 'CAJA_CHICA'])
+          .order('fecha', { ascending: false })
           .order('creado_en', { ascending: false })
-          .limit(50)
-        setUltimosMovimientos(ultimosTxData || [])
+          .limit(80)
+
+        // Filtrar contra-asientos bancarios internos de la migración para mostrar solo cobros reales y movimientos de caja
+        const cleanTxData = (ultimosTxData || []).filter((tx: any) => {
+          const isBankContra = tx.libro === 'CAJA_CHICA' 
+            && String(tx.glosa || '').toUpperCase().includes('PAGO POR QR') 
+            && String(tx.cuenta_detalle || '').toUpperCase().includes('BANCO GANADERO')
+          return !isBankContra
+        })
+        setUltimosMovimientos(cleanTxData)
 
         await fetchTurnosSincronizados()
       } catch (err) {
@@ -1086,11 +1095,11 @@ export function CajaPOS() {
                 <thead>
                   <tr className="border-b border-zinc-800 text-zinc-400 text-[11px] font-black uppercase tracking-wider">
                     <th className="pb-3 pl-2">Hora / Fecha</th>
-                    <th className="pb-3">Libro</th>
+                    <th className="pb-3">Libro / Tipo</th>
                     <th className="pb-3">Detalle / Cliente</th>
                     <th className="pb-3">Barbero / Empleado</th>
                     <th className="pb-3">Método Pago</th>
-                    <th className="pb-3 text-right pr-2">Total Cobrado</th>
+                    <th className="pb-3 text-right pr-2">Monto / Impacto</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/60">
@@ -1120,13 +1129,23 @@ export function CajaPOS() {
                         <tr key={item.id || idx} className="hover:bg-zinc-800/40 transition">
                           <td className="py-3.5 pl-2 font-mono text-xs text-zinc-400">{dateFormatted}</td>
                           <td className="py-3.5">
-                            <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider border ${
-                              libro === 'SERVICIOS' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                              libro === 'VENTAS' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                              'bg-zinc-800 text-zinc-300 border-zinc-700'
-                            }`}>
-                              {libro}
-                            </span>
+                            {isEgreso ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider border bg-red-500/15 text-red-400 border-red-500/30">
+                                🔴 Salida / Devolución
+                              </span>
+                            ) : libro === 'SERVICIOS' ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider border bg-amber-500/15 text-amber-400 border-amber-500/30">
+                                ✂️ Servicio
+                              </span>
+                            ) : libro === 'VENTAS' ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider border bg-blue-500/15 text-blue-400 border-blue-500/30">
+                                🛍️ Venta
+                              </span>
+                            ) : (
+                              <span className="text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider border bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                                🟢 Ingreso Caja
+                              </span>
+                            )}
                           </td>
                           <td className="py-3.5">
                             <p className="font-bold text-white text-xs">{nombreCliente}</p>
@@ -1142,8 +1161,12 @@ export function CajaPOS() {
                               {mp === 'efectivo' ? '💵 Efectivo' : mp === 'qr' ? '📱 QR' : '🔄 Mixto'}
                             </span>
                           </td>
-                          <td className={`py-3.5 text-right pr-2 font-black text-sm ${isEgreso ? 'text-red-400' : 'text-emerald-400'}`}>
-                            {isEgreso ? '-' : ''}{formatCurrency(monto)}
+                          <td className="py-3.5 text-right pr-2 font-mono font-black text-sm">
+                            {isEgreso ? (
+                              <span className="text-red-400">- {formatCurrency(Math.abs(monto))}</span>
+                            ) : (
+                              <span className="text-emerald-400">+ {formatCurrency(Math.abs(monto))}</span>
+                            )}
                           </td>
                         </tr>
                       )
