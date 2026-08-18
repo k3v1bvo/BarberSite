@@ -11,11 +11,13 @@ import { VincularRecomendanteWidget } from '@/components/cliente/VincularRecomen
 import { ReferralCardWidget } from '@/components/cliente/ReferralCardWidget'
 import { Input } from '@/components/ui/Input'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import { ModalPaseDigitalCita, CitaPaseDigital } from '@/components/cliente/ModalPaseDigitalCita'
+import { ModalDetallePromocion, PromocionDetalle } from '@/components/cliente/ModalDetallePromocion'
 import {
   Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
   Trophy, Zap, Shield, Crown, Flame, Users, UserPlus,
-  Edit3, Save, CreditCard, Upload
+  Edit3, Save, CreditCard, Upload, QrCode
 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 
@@ -92,6 +94,10 @@ export default function ClientePage() {
   const [savingBirthday, setSavingBirthday] = useState(false)
   const [bdayInput, setBdayInput] = useState('')
   const [carnetUrl, setCarnetUrl] = useState('')
+
+  // Interactive Modals
+  const [selectedCitaForPass, setSelectedCitaForPass] = useState<CitaPaseDigital | null>(null)
+  const [selectedPromoForDetail, setSelectedPromoForDetail] = useState<PromocionDetalle | null>(null)
 
   const router = useRouter()
   const supabase = createClient()
@@ -557,9 +563,16 @@ export default function ClientePage() {
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {promosHoyDeduplicadas.map((promo: any) => (
-                        <div key={`hoy-${promo.id}`} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/20 to-zinc-900 border-2 border-amber-500/50 p-4 shadow-lg shadow-amber-500/10">
+                        <div
+                          key={`hoy-${promo.id}`}
+                          onClick={() => setSelectedPromoForDetail(promo)}
+                          className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/20 to-zinc-900 border-2 border-amber-500/50 p-4 shadow-lg shadow-amber-500/10 cursor-pointer group hover:scale-[1.02] transition-all"
+                        >
                           <div className="absolute top-0 right-0 p-3 text-4xl opacity-20">{promo.icono ?? PROMO_ICONS[promo.tipo] ?? '🎁'}</div>
-                          <Badge variant="warning" className="mb-2 font-black text-[10px]">APLICA HOY</Badge>
+                          <div className="flex items-center justify-between mb-2">
+                            <Badge variant="warning" className="font-black text-[10px]">APLICA HOY</Badge>
+                            <span className="text-[10px] font-black uppercase text-amber-400 bg-black/40 px-2 py-0.5 rounded-lg border border-amber-500/30">🔍 Info</span>
+                          </div>
                           <p className="text-white font-black text-base">{promo.nombre}</p>
                           {promo.descripcion && <p className="text-zinc-300 text-xs mt-1 leading-relaxed">{promo.descripcion}</p>}
                           {promo.valor > 0 && (
@@ -589,15 +602,19 @@ export default function ClientePage() {
                 {/* General Base Promotions and Incentives */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {promocionesActivasDeduplicadas.map((promo: any) => (
-                    <div key={promo.id} className="relative overflow-hidden rounded-2xl bg-zinc-900 border border-zinc-800 p-4 hover:border-zinc-700 transition-all flex flex-col justify-between">
+                    <div
+                      key={promo.id}
+                      onClick={() => setSelectedPromoForDetail(promo)}
+                      className="relative overflow-hidden rounded-2xl bg-zinc-900 border border-zinc-800 p-4 hover:border-amber-500/40 hover:scale-[1.02] transition-all flex flex-col justify-between cursor-pointer group shadow-lg"
+                    >
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-2xl">{promo.icono ?? PROMO_ICONS[promo.tipo] ?? '🎁'}</span>
-                          <span className="text-[10px] uppercase font-black tracking-widest text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-md">
-                            {promo.tipo === '2x1' ? 'Martes' : promo.tipo === 'cumpleanos' ? 'Anual' : promo.tipo === 'referido' ? 'Referidos' : 'Especial'}
+                          <span className="text-[10px] uppercase font-black tracking-widest text-amber-400 bg-black/50 border border-amber-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+                            <span>🔍 Ver Info</span>
                           </span>
                         </div>
-                        <p className="text-white font-black text-sm">{promo.nombre}</p>
+                        <p className="text-white font-black text-sm group-hover:text-amber-400 transition-colors">{promo.nombre}</p>
                         {promo.descripcion && <p className="text-zinc-400 text-xs mt-1 leading-relaxed">{promo.descripcion}</p>}
                       </div>
                       <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
@@ -799,7 +816,7 @@ export default function ClientePage() {
             ) : (
               <div className="space-y-3">
                 {citasProximas.map(cita => (
-                  <Card key={cita.id} className="bg-zinc-900 border-white/5 group hover:border-amber-500/20 transition-all">
+                  <Card key={cita.id} className="bg-zinc-900 border-white/5 group hover:border-amber-500/30 transition-all shadow-lg">
                     <CardContent className="p-5">
                       <div className="flex justify-between items-start gap-4">
                         <div className="flex items-start gap-3 flex-1">
@@ -823,17 +840,29 @@ export default function ClientePage() {
                           <p className="text-amber-500 font-black text-sm">{formatCurrency(cita.precio)}</p>
                         </div>
                       </div>
+
+                      {/* Botón Destacado de Pase Digital con QR */}
+                      <div className="mt-3.5 pt-3 border-t border-white/5 flex items-center gap-2">
+                        <button
+                          onClick={() => setSelectedCitaForPass(cita as unknown as CitaPaseDigital)}
+                          className="flex-1 py-2 px-3 bg-gradient-to-r from-amber-500/20 to-orange-500/15 hover:from-amber-500 hover:to-amber-400 text-amber-400 hover:text-black font-black uppercase tracking-wider text-[11px] rounded-xl border border-amber-500/40 transition-all flex items-center justify-center gap-2 shadow-md"
+                        >
+                          <QrCode size={14} />
+                          <span>Pase VIP & Check-in QR</span>
+                        </button>
+                      </div>
+
                       {(cita.estado === 'pendiente' || cita.estado === 'confirmado') && (
-                        <div className="mt-3 flex gap-2">
+                        <div className="mt-2 flex gap-2">
                           <button
-                            className="flex-1 text-[11px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/10 hover:bg-amber-500 hover:text-white transition-all py-2.5 rounded-xl border border-amber-500/20 active:scale-95 shadow-sm shadow-amber-500/5"
+                            className="flex-1 text-[10px] font-black uppercase tracking-widest text-zinc-400 bg-white/5 hover:bg-white/10 hover:text-white transition-all py-2 rounded-xl border border-white/10 active:scale-95"
                             onClick={() => setReprogramarModal({ open: true, citaId: cita.id })}
                             disabled={cita.reprogramacion_estado === 'pendiente_aprobacion'}
                           >
                             Reprogramar
                           </button>
                           <button
-                            className="flex-1 text-[11px] font-black uppercase tracking-widest text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-all py-2.5 rounded-xl border border-red-500/20 active:scale-95 shadow-sm shadow-red-500/5"
+                            className="flex-1 text-[10px] font-black uppercase tracking-widest text-red-400 bg-red-500/10 hover:bg-red-500 hover:text-white transition-all py-2 rounded-xl border border-red-500/20 active:scale-95"
                             onClick={() => cancelarCita(cita.id)}
                           >
                             Cancelar
@@ -1181,6 +1210,32 @@ export default function ClientePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Pase Digital con Código QR */}
+      {selectedCitaForPass && (
+        <ModalPaseDigitalCita
+          cita={selectedCitaForPass}
+          clienteNombre={cardData?.profile?.full_name || 'Cliente VIP'}
+          clienteCi={cardData?.cliente?.ci}
+          onClose={() => setSelectedCitaForPass(null)}
+          onReprogramar={(citaId) => setReprogramarModal({ open: true, citaId })}
+          onCancelar={(citaId) => cancelarCita(citaId)}
+        />
+      )}
+
+      {/* Modal de Detalle de Promoción */}
+      {selectedPromoForDetail && (
+        <ModalDetallePromocion
+          promo={selectedPromoForDetail}
+          onClose={() => setSelectedPromoForDetail(null)}
+          onIrAReservar={() => router.push('/reservar')}
+          onIrAPerfil={() => {
+            setSelectedPromoForDetail(null)
+            setEditingBirthday(true)
+          }}
+          clienteReferralCode={cardData?.cliente?.referral_code}
+        />
       )}
 
     </div>

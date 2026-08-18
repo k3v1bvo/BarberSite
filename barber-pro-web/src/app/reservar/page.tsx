@@ -15,6 +15,7 @@ import { ImageUpload } from '@/components/ui/ImageUpload'
 import { CATEGORIAS_SERVICIOS } from '@/types'
 import { ServicioGalleryBanner } from '@/components/ui/ServicioGalleryBanner'
 import { ServicioDetailModal } from '@/components/ui/ServicioDetailModal'
+import { ModalDetallePromocion, PromocionDetalle } from '@/components/cliente/ModalDetallePromocion'
 import Link from 'next/link'
 import { useBrand } from '@/components/providers/BrandProvider'
 
@@ -45,6 +46,8 @@ interface Barbero {
   id: string
   full_name: string
   email: string
+  phone?: string | null
+  telefono?: string | null
   avatar_url: string | null
   qr_code_url?: string | null
 }
@@ -76,11 +79,13 @@ function ReservarContent() {
   const [referidoInfo, setReferidoInfo] = useState<{ id: string; nombre: string } | null>(null)
   const [promociones, setPromociones] = useState<any[]>([])
   const [promoSeleccionada, setPromoSeleccionada] = useState<string>('')
+  const [selectedPromoForModal, setSelectedPromoForModal] = useState<PromocionDetalle | null>(null)
   const [acompanante, setAcompanante] = useState({ nombre: '', email: '' })
   
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [createdCita, setCreatedCita] = useState<any | null>(null)
   const [user, setUser] = useState<UserProfile | null>(null)
   const [qrPago, setQrPago] = useState<string | null>(null)
   const [step, setStep] = useState(0) // starts at 0 for guests, loadData sets to 1 if logged in
@@ -695,6 +700,15 @@ function ReservarContent() {
         }
       }
 
+      setCreatedCita({
+        id: citaNueva.id,
+        fecha_hora: fechaHora,
+        precio: precioFinalTotal,
+        anticipo_pagado: anticipoCalculado,
+        tipo_reserva: tipoReserva,
+        servicios: servicio ? { nombre: servicio.nombre, duracion_minutos: servicio.duracion_minutos, precio: servicio.precio } : null,
+        profiles: barbero ? { full_name: barbero.full_name, phone: barbero.phone } : null,
+      })
       setSuccess(true)
     } catch (error: any) {
       console.error('Error completo:', error)
@@ -849,6 +863,106 @@ function ReservarContent() {
   const totalSteps = wizardSteps.length
   const currentStepIndex = wizardSteps.findIndex(s => s.s === step)
   const progressWidth = totalSteps > 1 ? (currentStepIndex / (totalSteps - 1)) * 100 : 0
+
+  if (success) {
+    const successFecha = formData.fecha && formData.hora ? `${formData.fecha}T${formData.hora}:00-04:00` : new Date().toISOString()
+    const successQrPayload = JSON.stringify({
+      reserva_id: createdCita?.id || 'BARBER_PRO_VIP',
+      cliente: formData.nombre,
+      ci: registerData.ci || 'N/A',
+      fecha_hora: successFecha,
+      servicio: servicios.find(s => s.id === formData.servicio_id)?.nombre || 'Servicio Barber Pro',
+      tipo: 'CHECKIN_BARBER_PRO'
+    })
+    const successQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(successQrPayload)}&bgcolor=ffffff&color=000000&margin=10`
+    
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black text-white py-12 px-4 flex items-center justify-center">
+        <div className="max-w-xl w-full bg-zinc-950 border border-amber-500/30 rounded-[2.5rem] shadow-[0_0_60px_rgba(245,158,11,0.2)] overflow-hidden animate-in zoom-in-95 duration-300">
+          
+          {/* Header Celebratorio */}
+          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-7 text-center text-black relative">
+            <div className="w-16 h-16 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center mx-auto mb-3 shadow-lg">
+              <CheckCircle size={36} className="text-black" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-black/70">BARBER PRO STUDIO</p>
+            <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-black mt-1">¡Reserva Confirmada!</h2>
+            <p className="text-black/80 font-bold text-xs mt-1">Tu turno ha quedado programado exitosamente</p>
+          </div>
+
+          {/* Ticket / Pase Digital */}
+          <div className="p-6 sm:p-8 space-y-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 relative overflow-hidden shadow-xl">
+              <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Pase Digital VIP</span>
+                <span className="font-mono text-xs font-bold text-amber-400">#{createdCita?.id ? createdCita.id.slice(0, 8).toUpperCase() : 'VIP-PASS'}</span>
+              </div>
+
+              <div className="py-4 border-b border-white/5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 block mb-1">Servicio</span>
+                <h3 className="text-lg font-black text-white flex items-center gap-2">
+                  <span>✂️</span>
+                  <span>{servicios.find(s => s.id === formData.servicio_id)?.nombre || 'Servicio Barber Pro'}</span>
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 py-4 border-b border-white/5">
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block mb-1">Fecha & Hora</span>
+                  <p className="text-sm font-black text-white">{formData.fecha}</p>
+                  <p className="text-amber-400 font-black text-base">{formData.hora} hrs</p>
+                </div>
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block mb-1">Especialista</span>
+                  <p className="text-sm font-black text-white">{barberos.find(b => b.id === formData.barbero_id)?.full_name || 'Especialista Barber Pro'}</p>
+                </div>
+              </div>
+
+              {/* QR Code de Check-in */}
+              <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block mb-1">Titular</span>
+                  <p className="text-base font-black text-white">{formData.nombre}</p>
+                  <p className="text-xs text-zinc-400 mt-1 font-medium leading-relaxed">
+                    Muestra este código en recepción al llegar para hacer check-in al instante.
+                  </p>
+                </div>
+                <div className="p-2 bg-white rounded-2xl shadow-xl shrink-0">
+                  <img src={successQrUrl} alt="QR Checkin" className="w-24 h-24 object-contain rounded-lg" />
+                </div>
+              </div>
+            </div>
+
+            {/* Acciones del Pase */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <a
+                href={successQrUrl}
+                download="Pase_VIP_BarberPro.png"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full h-12 bg-zinc-900 border border-zinc-800 hover:border-amber-500/50 hover:bg-amber-500/10 text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition"
+              >
+                <span>📥 Descargar Pase con QR</span>
+              </a>
+
+              <Link
+                href="/cliente"
+                className="w-full h-12 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-wider text-xs rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition"
+              >
+                <span>Ir a Mi Portal de Cliente →</span>
+              </Link>
+            </div>
+
+            <div className="text-center pt-2">
+              <Link href="/" className="text-xs font-bold text-zinc-500 hover:text-white uppercase tracking-wider transition">
+                ← Volver a la Página Principal
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div ref={wizardRef} className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black text-white pb-24 font-sans selection:bg-amber-500/30">
@@ -1165,9 +1279,22 @@ function ReservarContent() {
                           >
                             <div className="flex items-center justify-between gap-2 mb-1.5">
                               <span className="text-xl">{p.icono || '🎁'}</span>
-                              <Badge variant={isSelected ? 'warning' : 'default'} className="text-[9px] font-black uppercase tracking-wider">
-                                {p.tipo === 'cumpleanos' || p.tipo === 'servicio_gratis' ? '100% OFF' : p.tipo === '2x1' ? '2×1 Martes' : `Bs. ${p.valor || 10} OFF`}
-                              </Badge>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedPromoForModal(p)
+                                  }}
+                                  className="text-[9px] font-black uppercase text-amber-400 hover:text-white px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 transition hover:scale-105"
+                                  title="Ver más información y condiciones"
+                                >
+                                  🔍 Info
+                                </button>
+                                <Badge variant={isSelected ? 'warning' : 'default'} className="text-[9px] font-black uppercase tracking-wider">
+                                  {p.tipo === 'cumpleanos' || p.tipo === 'servicio_gratis' ? '100% OFF' : p.tipo === '2x1' ? '2×1 Martes' : `Bs. ${p.valor || 10} OFF`}
+                                </Badge>
+                              </div>
                             </div>
                             <p className="font-black text-xs text-white leading-tight mb-1">{cleanName}</p>
                             <p className="text-[10px] text-zinc-400 leading-tight">
@@ -1864,6 +1991,15 @@ function ReservarContent() {
           setTimeout(() => setStep(2), 250)
         }} 
       />
+
+      {/* Promocion Detail Modal */}
+      {selectedPromoForModal && (
+        <ModalDetallePromocion
+          promo={selectedPromoForModal}
+          onClose={() => setSelectedPromoForModal(null)}
+          onAplicarEnReserva={(promoId) => setPromoSeleccionada(promoId)}
+        />
+      )}
     </div>
   )
 }
