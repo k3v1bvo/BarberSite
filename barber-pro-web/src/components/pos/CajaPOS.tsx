@@ -223,7 +223,7 @@ export function CajaPOS() {
         // Fetch last 3 completed services
         const { data: ultimosData } = await supabase
           .from('citas')
-          .select('id, estado, fecha_hora, updated_at, metodo_pago, total, propinas, clientes(nombre), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
+          .select('id, estado, fecha_hora, updated_at, metodo_pago, precio, propinas, clientes(nombre), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
           .eq('estado', 'completado')
           .order('updated_at', { ascending: false })
           .limit(15)
@@ -774,7 +774,7 @@ export function CajaPOS() {
       // Refresh last completed services
       const { data: ultimosData } = await supabase
         .from('citas')
-        .select('id, estado, fecha_hora, updated_at, metodo_pago, total, propinas, clientes(nombre), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
+        .select('id, estado, fecha_hora, updated_at, metodo_pago, precio, propinas, clientes(nombre), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
         .eq('estado', 'completado')
         .order('updated_at', { ascending: false })
         .limit(15)
@@ -1125,7 +1125,7 @@ export function CajaPOS() {
                       const nombreCliente = isTx ? (item.nombre || 'Cliente') : (item.clientes?.nombre || 'Cliente')
                       const barberoNombre = isTx ? (item.usuario_registro || 'Barbero') : (item.profiles?.full_name || 'Barbero')
                       const detalle = isTx ? (item.cuenta_detalle || item.glosa || item.concepto || item.libro) : (item.servicios?.nombre || 'Servicio Barbería')
-                      const monto = isTx ? Number(item.costo || 0) : Number(item.total ?? item.servicios?.precio ?? 0)
+                      const monto = isTx ? Number(item.costo || 0) : Number(item.precio ?? item.servicios?.precio ?? 0)
                       const mp = (item.metodo_pago || 'efectivo').toLowerCase()
                       const libro = isTx ? item.libro : 'SERVICIOS'
                       

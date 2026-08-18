@@ -17,7 +17,7 @@ import {
   Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
   Trophy, Zap, Shield, Crown, Flame, Users, UserPlus,
-  Edit3, Save, CreditCard, Upload, QrCode
+  Edit3, Save, CreditCard, Upload, QrCode, Lock, KeyRound
 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 
@@ -99,6 +99,10 @@ export default function ClientePage() {
   const [selectedCitaForPass, setSelectedCitaForPass] = useState<CitaPaseDigital | null>(null)
   const [selectedPromoForDetail, setSelectedPromoForDetail] = useState<PromocionDetalle | null>(null)
 
+  // Cambiar contraseña
+  const [sendingPasswordReset, setSendingPasswordReset] = useState(false)
+  const [passwordResetSent, setPasswordResetSent] = useState(false)
+
   const router = useRouter()
   const supabase = createClient()
 
@@ -115,6 +119,29 @@ export default function ClientePage() {
       return () => clearInterval(interval)
     }
   }, [cardData?.esCumpleanos])
+
+  const handleSendPasswordReset = async () => {
+    const email = cardData?.profile?.email
+    if (!email) return toastError('No hay correo electrónico vinculado a tu cuenta')
+    setSendingPasswordReset(true)
+    try {
+      const res = await fetch('/api/admin/usuarios/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Error al solicitar cambio de contraseña')
+      }
+      setPasswordResetSent(true)
+      success('📧 Te enviamos un correo para cambiar tu contraseña. Revisa tu bandeja de entrada.')
+    } catch (err: any) {
+      toastError(err.message || 'Error al enviar correo de recuperación')
+    } finally {
+      setSendingPasswordReset(false)
+    }
+  }
 
   const loadData = async () => {
     try {
@@ -759,6 +786,40 @@ export default function ClientePage() {
               <VincularRecomendanteWidget onSuccess={loadData} />
             </div>
           )}
+
+          {/* ——— SECCIÓN DE SEGURIDAD: CAMBIAR CONTRASEÑA ——— */}
+          <div className="bg-zinc-900/80 border border-white/5 rounded-3xl p-5 sm:p-6 mt-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-violet-500/10 border border-violet-500/30 flex items-center justify-center text-violet-400">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Seguridad de la Cuenta</h3>
+                <p className="text-xs text-zinc-400">Actualiza tu contraseña para mayor seguridad</p>
+              </div>
+            </div>
+            {passwordResetSent ? (
+              <div className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl">
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-emerald-400">¡Correo Enviado!</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Revisa tu bandeja de entrada en <strong className="text-white">{cardData?.profile?.email}</strong> y sigue el enlace para crear tu nueva contraseña.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <Button
+                onClick={handleSendPasswordReset}
+                disabled={sendingPasswordReset}
+                variant="outline"
+                className="w-full h-12 bg-violet-500/10 border-violet-500/30 hover:bg-violet-500/20 text-violet-300 hover:text-violet-200 font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition-all"
+              >
+                <Lock className="w-4 h-4" />
+                {sendingPasswordReset ? 'Enviando...' : 'Cambiar Mi Contraseña'}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* ══════════ COLUMNA DERECHA: CITAS ══════════ */}

@@ -4,6 +4,13 @@ import { dispatchNotification, dispatchCitaReprogramada } from '@/lib/notificati
 import { calcularNivelFidelidad } from '@/lib/lealtad/calcular-nivel'
 import { calcularComisionBarbero } from '@/lib/comisiones/calcular'
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
+
+/** Genera una contraseña legible para enviar al cliente (ej: barber7392) */
+function generarPasswordCliente(): string {
+  const digits = crypto.randomInt(1000, 9999)
+  return `barber${digits}`
+}
 
 interface ProductoCarrito {
   id: string
@@ -82,19 +89,26 @@ export async function POST(request: NextRequest) {
         if (email && !exClientes[0].email) {
           await adminSupabase.from('clientes').update({ email }).eq('id', finalClienteId)
           clienteEmail = email
-          // Intentar invitar al usuario para cruzar datos y enviar notificación
+          // Crear cuenta de auth para que el cliente pueda iniciar sesión
           try {
-             await adminSupabase.auth.admin.inviteUserByEmail(email, {
-               data: { full_name: nombre }
-             })
-          } catch(e) { console.error("Error invitando usuario:", e) }
-          try {
-             await dispatchNotification(adminSupabase, {
-               event: 'invitacion_cliente',
-               payload: { clienteNombre: nombre },
-               userEmail: email
-             })
-          } catch(e) { console.error("Error enviando email de invitación:", e) }
+             const generatedPwd = generarPasswordCliente()
+             const { error: createErr } = await adminSupabase.auth.admin.createUser({
+                email,
+                password: generatedPwd,
+                email_confirm: true,
+                user_metadata: { full_name: nombre }
+              })
+             if (!createErr) {
+               // Enviar email con contraseña visible
+               try {
+                 await dispatchNotification(adminSupabase, {
+                   event: 'bienvenida_nuevo_usuario',
+                   payload: { nombre, email, password: generatedPwd },
+                   userEmail: email
+                 })
+               } catch(e) { console.error("Error enviando email de bienvenida:", e) }
+             }
+           } catch(e) { console.error("Error creando usuario:", e) }
         }
       } else {
         // Crear cliente nuevo
@@ -115,40 +129,53 @@ export async function POST(request: NextRequest) {
         if (clError) throw clError
         finalClienteId = newCliente.id
 
-        // Invitar si hay correo
+        // Crear cuenta de auth y enviar contraseña por correo
         if (email) {
           try {
-             await adminSupabase.auth.admin.inviteUserByEmail(email, {
-               data: { full_name: nombre }
-             })
-          } catch(e) { console.error("Error invitando nuevo usuario:", e) }
-          try {
-             await dispatchNotification(adminSupabase, {
-               event: 'invitacion_cliente',
-               payload: { clienteNombre: nombre },
-               userEmail: email
-             })
-          } catch(e) { console.error("Error enviando email de invitación:", e) }
+             const generatedPwd = generarPasswordCliente()
+             const { error: createErr } = await adminSupabase.auth.admin.createUser({
+                email,
+                password: generatedPwd,
+                email_confirm: true,
+                user_metadata: { full_name: nombre }
+              })
+             if (!createErr) {
+               try {
+                 await dispatchNotification(adminSupabase, {
+                   event: 'bienvenida_nuevo_usuario',
+                   payload: { nombre, email, password: generatedPwd },
+                   userEmail: email
+                 })
+               } catch(e) { console.error("Error enviando email de bienvenida:", e) }
+             }
+           } catch(e) { console.error("Error creando nuevo usuario:", e) }
         }
       }
     } else if (finalClienteId && email) {
       // Actualizar email si se seleccionó cliente existente
        const { data: exCliente } = await supabase.from('clientes').select('email, nombre').eq('id', finalClienteId).single()
        if (!exCliente?.email) {
-          await adminSupabase.from('clientes').update({ email }).eq('id', finalClienteId)
-          clienteEmail = email
-          try {
-             await adminSupabase.auth.admin.inviteUserByEmail(email, {
-               data: { full_name: nombre || exCliente?.nombre || 'Cliente' }
-             })
-          } catch(e) {}
-          try {
-             await dispatchNotification(adminSupabase, {
-               event: 'invitacion_cliente',
-               payload: { clienteNombre: nombre || exCliente?.nombre || 'Cliente' },
-               userEmail: email
-             })
-          } catch(e) { console.error("Error enviando email de invitación:", e) }
+           await adminSupabase.from('clientes').update({ email }).eq('id', finalClienteId)
+           clienteEmail = email
+           try {
+              const clienteNombre = nombre || exCliente?.nombre || 'Cliente'
+              const generatedPwd = generarPasswordCliente()
+              const { error: createErr } = await adminSupabase.auth.admin.createUser({
+                email,
+                password: generatedPwd,
+                email_confirm: true,
+                user_metadata: { full_name: clienteNombre }
+              })
+              if (!createErr) {
+                try {
+                  await dispatchNotification(adminSupabase, {
+                    event: 'bienvenida_nuevo_usuario',
+                    payload: { nombre: clienteNombre, email, password: generatedPwd },
+                    userEmail: email
+                  })
+                } catch(e) { console.error("Error enviando email de bienvenida:", e) }
+              }
+           } catch(e) { console.error("Error creando usuario existente:", e) }
        }
     }
 
@@ -268,8 +295,8 @@ export async function POST(request: NextRequest) {
         insertData.comision_barbero = comisionTotal
         insertData.comision_categoria = comisionCategoria
         insertData.comision_herramientas = comisionHerramientas
-        insertData.total = precioNetoServicio + totalProductos + (propinas || 0)
-        if (descuentoTotal > 0) insertData.descuento = descuentoTotal
+        // Nota: 'total' y 'descuento' no se guardan en la tabla citas (no existen como columnas).
+        // El total queda registrado en la transacción contable más abajo.
         if (comprobante_url) {
           insertData.notas = `${insertData.notas}\n[Comprobante]: ${comprobante_url}`
         }
@@ -310,8 +337,11 @@ export async function POST(request: NextRequest) {
 
       if (citaError) {
         if (citaError.message?.includes('comision_') || citaError.message?.includes('column') || (citaError as any).code === 'PGRST204') {
+          // Limpiar columnas que pueden no existir en la tabla citas
           delete insertData.comision_categoria
           delete insertData.comision_herramientas
+          delete insertData.total
+          delete insertData.descuento
           const retryRes = cita_id
             ? await supabase.from('citas').update(insertData).eq('id', cita_id).select('id').single()
             : await supabase.from('citas').insert(insertData).select('id').single()
