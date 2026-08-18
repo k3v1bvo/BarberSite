@@ -220,6 +220,30 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                 </div>
               </div>
 
+              {(() => {
+                const matchDesc = (cita.notas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i)
+                const matchOrig = (cita.notas || '').match(/Original:\s*Bs\s*([0-9.]+)/i)
+                const matchNeto = (cita.notas || '').match(/Neto(?:\s*cobrado)?:\s*Bs\s*([0-9.]+)/i)
+                const descMonto = (cita as any).descuento ? Number((cita as any).descuento) : (matchDesc ? parseFloat(matchDesc[1]) : 0)
+                const origMonto = matchOrig ? parseFloat(matchOrig[1]) : (descMonto > 0 ? (cita.precio + descMonto) : cita.precio)
+                const netoMonto = matchNeto ? parseFloat(matchNeto[1]) : (descMonto > 0 ? (origMonto - descMonto) : cita.precio)
+                if (descMonto <= 0) return null
+                return (
+                  <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/30 space-y-1.5 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase tracking-widest text-amber-400 font-black flex items-center gap-1.5">
+                        ⭐ Descuento Especial Aplicado
+                      </span>
+                      <span className="text-amber-400 font-mono font-black text-sm">-{formatCurrency(descMonto)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-zinc-400 pt-1 border-t border-white/10">
+                      <span>Precio Regular: <span className="line-through text-zinc-500">{formatCurrency(origMonto)}</span></span>
+                      <span className="text-white font-bold">Total Final: <span className="text-emerald-400 font-black">{formatCurrency(netoMonto)}</span></span>
+                    </div>
+                  </div>
+                )
+              })()}
+
               {showBarbero && (
                 <div className="flex items-center gap-3 p-3 bg-zinc-900/60 rounded-xl border border-zinc-800/50">
                   {cita.barbero_avatar_url ? (

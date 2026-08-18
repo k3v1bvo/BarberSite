@@ -1235,33 +1235,40 @@ export default function CajaChicaPage() {
                         </td>
                         {/* Detalle / Glosa */}
                         <td className="px-3 py-2.5">
-                          <div className="flex flex-col max-w-[240px]">
-                            {tx.glosa && tx.glosa.split('\n').map((line: string, i: number) => (
-                              <span key={i} className={`text-xs truncate ${i === 0 ? 'text-zinc-300 font-medium' : 'text-zinc-500'}`}>{tx.es_sancion && i === 0 ? '⚠ ' : ''}{line}</span>
-                            ))}
-                            {tx.notas && (
-                              <span className={`text-[10px] truncate mt-0.5 ${String(tx.notas).includes('Desc') || String(tx.notas).includes('Precio original') ? 'text-amber-400 font-semibold' : 'text-amber-500/70'}`} title={tx.notas}>
-                                {tx.notas}
-                              </span>
-                            )}
-                            {(String(tx.glosa || '').includes('Desc') || String(tx.notas || '').includes('Desc') || String(tx.notas || '').includes('Precio Especial')) && (
-                              <span className="inline-flex items-center gap-1 text-[8px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 w-fit mt-1">
-                                ⭐ Precio Especial / Desc.
-                              </span>
-                            )}
-                            {(tx.metodo_pago === 'qr' || tx.metodo_pago === 'mixto' || tx.metodo_pago === 'tarjeta' || tx.comprobante_url) && (
-                              <div className="flex items-center gap-2 mt-1">
-                                {tx.comprobante_url ? (
-                                  <a href={tx.comprobante_url} target="_blank" rel="noreferrer" className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 font-bold border border-emerald-500/30 flex items-center gap-1">
-                                    <ImageIcon className="w-2.5 h-2.5" /> Ver QR
-                                  </a>
-                                ) : null}
-                                <button type="button" onClick={() => setEditingComprobanteTx(tx)} className="px-2 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 font-bold border border-blue-500/30">
-                                  {tx.comprobante_url ? '📱 Cambiar QR' : '📄 + Subir Comprobante QR'}
-                                </button>
+                          {(() => {
+                            const matchDesc = (tx.notas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Desc.*:\s*-Bs\s*([0-9.]+)/i)
+                            const matchOrig = (tx.notas || '').match(/Original:\s*Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Original:\s*Bs\s*([0-9.]+)/i)
+                            const descMonto = (tx as any).descuento ? Number((tx as any).descuento) : (matchDesc ? parseFloat(matchDesc[1]) : 0)
+                            return (
+                              <div className="flex flex-col max-w-[240px]">
+                                {tx.glosa && tx.glosa.split('\n').map((line: string, i: number) => (
+                                  <span key={i} className={`text-xs truncate ${i === 0 ? 'text-zinc-300 font-medium' : 'text-zinc-500'}`}>{tx.es_sancion && i === 0 ? '⚠ ' : ''}{line}</span>
+                                ))}
+                                {tx.notas && (
+                                  <span className={`text-[10px] truncate mt-0.5 ${String(tx.notas).includes('Desc') || String(tx.notas).includes('Precio original') ? 'text-amber-400 font-semibold' : 'text-amber-500/70'}`} title={tx.notas}>
+                                    {tx.notas}
+                                  </span>
+                                )}
+                                {descMonto > 0 && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 w-fit mt-1 shadow-sm">
+                                    ⭐ Descuento Especial: -{formatCurrency(descMonto)}
+                                  </span>
+                                )}
+                                {(tx.metodo_pago === 'qr' || tx.metodo_pago === 'mixto' || tx.metodo_pago === 'tarjeta' || tx.comprobante_url) && (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    {tx.comprobante_url ? (
+                                      <a href={tx.comprobante_url} target="_blank" rel="noreferrer" className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 font-bold border border-emerald-500/30 flex items-center gap-1">
+                                        <ImageIcon className="w-2.5 h-2.5" /> Ver QR
+                                      </a>
+                                    ) : null}
+                                    <button type="button" onClick={() => setEditingComprobanteTx(tx)} className="px-2 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 font-bold border border-blue-500/30">
+                                      {tx.comprobante_url ? '📱 Cambiar QR' : '📄 + Subir Comprobante QR'}
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
+                            )
+                          })()}
                         </td>
                         {/* Método de pago */}
                         <td className="px-3 py-2.5">
@@ -1294,9 +1301,25 @@ export default function CajaChicaPage() {
                         </td>
                         {/* Monto Total */}
                         <td className="px-3 py-2.5 text-right">
-                          <span className={`font-black text-sm ${ingreso ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {ingreso ? '+' : '-'}{formatCurrency(tx.costo)}
-                          </span>
+                          {(() => {
+                            const matchDesc = (tx.notas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Desc.*:\s*-Bs\s*([0-9.]+)/i)
+                            const matchOrig = (tx.notas || '').match(/Original:\s*Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Original:\s*Bs\s*([0-9.]+)/i)
+                            const descMonto = (tx as any).descuento ? Number((tx as any).descuento) : (matchDesc ? parseFloat(matchDesc[1]) : 0)
+                            const origMonto = matchOrig ? parseFloat(matchOrig[1]) : (descMonto > 0 ? (Number(tx.costo) + descMonto) : Number(tx.costo))
+                            return (
+                              <div className="flex flex-col items-end">
+                                {descMonto > 0 && (
+                                  <div className="flex items-center gap-1 text-[10px] font-mono leading-none mb-0.5">
+                                    <span className="line-through text-zinc-500">{formatCurrency(origMonto)}</span>
+                                    <span className="text-amber-400 font-black">(-{formatCurrency(descMonto)})</span>
+                                  </div>
+                                )}
+                                <span className={`font-black text-sm font-mono ${ingreso ? 'text-emerald-400' : 'text-red-400'}`}>
+                                  {ingreso ? '+' : '-'}{formatCurrency(tx.costo)}
+                                </span>
+                              </div>
+                            )
+                          })()}
                         </td>
                         {/* Acciones */}
                         <td className="px-3 py-2.5 text-center">

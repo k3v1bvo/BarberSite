@@ -1158,6 +1158,16 @@ export function CajaPOS() {
                           <td className="py-3.5">
                             <p className="font-bold text-white text-xs">{nombreCliente}</p>
                             <p className="text-[11px] text-zinc-400 truncate max-w-xs">{detalle}</p>
+                            {(() => {
+                              const matchDesc = (item.notas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i) || (item.glosa || '').match(/Desc.*:\s*-Bs\s*([0-9.]+)/i)
+                              const descMonto = (item as any).descuento ? Number((item as any).descuento) : (matchDesc ? parseFloat(matchDesc[1]) : 0)
+                              if (descMonto <= 0) return null
+                              return (
+                                <span className="inline-flex items-center gap-1 text-[8px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 w-fit mt-0.5 shadow-sm">
+                                  ⭐ Desc. Especial: -{formatCurrency(descMonto)}
+                                </span>
+                              )
+                            })()}
                           </td>
                           <td className="py-3.5 text-xs font-semibold text-zinc-300">{barberoNombre}</td>
                           <td className="py-3.5">
@@ -1170,11 +1180,27 @@ export function CajaPOS() {
                             </span>
                           </td>
                           <td className="py-3.5 text-right pr-2 font-mono font-black text-sm">
-                            {isEgreso ? (
-                              <span className="text-red-400">- {formatCurrency(Math.abs(monto))}</span>
-                            ) : (
-                              <span className="text-emerald-400">+ {formatCurrency(Math.abs(monto))}</span>
-                            )}
+                            {(() => {
+                              const matchDesc = (item.notas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i) || (item.glosa || '').match(/Desc.*:\s*-Bs\s*([0-9.]+)/i)
+                              const matchOrig = (item.notas || '').match(/Original:\s*Bs\s*([0-9.]+)/i) || (item.glosa || '').match(/Original:\s*Bs\s*([0-9.]+)/i)
+                              const descMonto = (item as any).descuento ? Number((item as any).descuento) : (matchDesc ? parseFloat(matchDesc[1]) : 0)
+                              const origMonto = matchOrig ? parseFloat(matchOrig[1]) : (descMonto > 0 ? (Number(monto) + descMonto) : Number(monto))
+                              return (
+                                <div className="flex flex-col items-end">
+                                  {!isEgreso && descMonto > 0 && (
+                                    <div className="flex items-center gap-1 text-[10px] font-mono leading-none mb-0.5">
+                                      <span className="line-through text-zinc-500 font-normal">{formatCurrency(origMonto)}</span>
+                                      <span className="text-amber-400 font-black">(-{formatCurrency(descMonto)})</span>
+                                    </div>
+                                  )}
+                                  {isEgreso ? (
+                                    <span className="text-red-400">- {formatCurrency(Math.abs(monto))}</span>
+                                  ) : (
+                                    <span className="text-emerald-400">+ {formatCurrency(Math.abs(monto))}</span>
+                                  )}
+                                </div>
+                              )
+                            })()}
                           </td>
                         </tr>
                       )

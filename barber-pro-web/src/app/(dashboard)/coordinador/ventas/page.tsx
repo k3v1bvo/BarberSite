@@ -858,19 +858,25 @@ export default function VentasPage() {
                         </div>
                       </td>
                       <td className="px-3 py-2.5 text-zinc-400 text-xs max-w-[240px]">
-                        <div className="flex flex-col">
-                          <span className="truncate text-zinc-300 font-medium">{tx.glosa}</span>
-                          {tx.notas && (
-                            <span className={`text-[10px] truncate mt-0.5 ${String(tx.notas).includes('Desc') || String(tx.notas).includes('Precio original') ? 'text-amber-400 font-semibold' : 'text-zinc-500'}`} title={tx.notas}>
-                              {tx.notas}
-                            </span>
-                          )}
-                          {(String(tx.glosa || '').includes('Desc') || String(tx.notas || '').includes('Desc') || String(tx.notas || '').includes('Precio Especial')) && (
-                            <span className="inline-flex items-center gap-1 text-[8px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 w-fit mt-0.5">
-                              ⭐ Precio Especial / Desc.
-                            </span>
-                          )}
-                        </div>
+                        {(() => {
+                          const matchDesc = (tx.notas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Desc.*:\s*-Bs\s*([0-9.]+)/i)
+                          const descMonto = (tx as any).descuento ? Number((tx as any).descuento) : (matchDesc ? parseFloat(matchDesc[1]) : 0)
+                          return (
+                            <div className="flex flex-col">
+                              <span className="truncate text-zinc-300 font-medium">{tx.glosa}</span>
+                              {tx.notas && (
+                                <span className={`text-[10px] truncate mt-0.5 ${String(tx.notas).includes('Desc') || String(tx.notas).includes('Precio original') ? 'text-amber-400 font-semibold' : 'text-zinc-500'}`} title={tx.notas}>
+                                  {tx.notas}
+                                </span>
+                              )}
+                              {descMonto > 0 && (
+                                <span className="inline-flex items-center gap-1 text-[8px] font-black px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 w-fit mt-1 shadow-sm">
+                                  ⭐ Descuento Especial: -{formatCurrency(descMonto)}
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5">
@@ -885,7 +891,27 @@ export default function VentasPage() {
                           )}
                         </div>
                       </td>
-                      <td className={`px-3 py-2.5 text-right font-black text-sm ${tx.tipo_movimiento === 'EGRESO' ? 'text-red-400' : 'text-green-400'}`}>{tx.tipo_movimiento === 'EGRESO' ? '-' : '+'}{formatCurrency(tx.costo)}</td>
+                      <td className="px-3 py-2.5 text-right">
+                        {(() => {
+                          const matchDesc = (tx.notas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Desc.*:\s*-Bs\s*([0-9.]+)/i)
+                          const matchOrig = (tx.notas || '').match(/Original:\s*Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Original:\s*Bs\s*([0-9.]+)/i)
+                          const descMonto = (tx as any).descuento ? Number((tx as any).descuento) : (matchDesc ? parseFloat(matchDesc[1]) : 0)
+                          const origMonto = matchOrig ? parseFloat(matchOrig[1]) : (descMonto > 0 ? (Number(tx.costo) + descMonto) : Number(tx.costo))
+                          return (
+                            <div className="flex flex-col items-end">
+                              {descMonto > 0 && (
+                                <div className="flex items-center gap-1 text-[10px] font-mono leading-none mb-0.5">
+                                  <span className="line-through text-zinc-500">{formatCurrency(origMonto)}</span>
+                                  <span className="text-amber-400 font-black">(-{formatCurrency(descMonto)})</span>
+                                </div>
+                              )}
+                              <span className={`font-black text-sm font-mono ${tx.tipo_movimiento === 'EGRESO' ? 'text-red-400' : 'text-green-400'}`}>
+                                {tx.tipo_movimiento === 'EGRESO' ? '-' : '+'}{formatCurrency(tx.costo)}
+                              </span>
+                            </div>
+                          )
+                        })()}
+                      </td>
                       <td className="px-3 py-2.5 text-center">
                         <button
                           type="button"
