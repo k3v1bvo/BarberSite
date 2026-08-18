@@ -93,7 +93,7 @@ export default function BarberoPage() {
       const fetchCita = async () => {
         const { data: cita } = await supabase
           .from('citas')
-          .select('id, estado, precio, comision_barbero, fecha_hora, notas, clientes(nombre, telefono), servicios(nombre)')
+          .select('id, estado, precio, comision_barbero, fecha_hora, notas, clientes(nombre, telefono, ci), servicios(nombre)')
           .eq('id', citaId)
           .single()
           
@@ -102,7 +102,7 @@ export default function BarberoPage() {
             if (!cita.clientes) return undefined
             const raw = Array.isArray(cita.clientes) ? cita.clientes[0] : cita.clientes
             if (!raw) return undefined
-            return { nombre: raw.nombre, telefono: raw.telefono ?? null }
+            return { nombre: raw.nombre, telefono: raw.telefono ?? null, ci: raw.ci ?? null }
           }
           const getServicio = () => {
             if (!cita.servicios) return undefined
@@ -195,7 +195,7 @@ export default function BarberoPage() {
         .from('citas')
         .select(`
           id, estado, precio, comision_barbero, fecha_hora, notas,
-          clientes(nombre, telefono),
+          clientes(nombre, telefono, ci),
           servicios(nombre)
         `)
         .eq('barbero_id', user.id)
@@ -716,7 +716,14 @@ export default function BarberoPage() {
                             {cita.estado}
                           </Badge>
                         </div>
-                        <p className="text-lg sm:text-xl font-bold text-zinc-100">{cita.clientes?.nombre || 'Cliente'}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-lg sm:text-xl font-bold text-zinc-100">{cita.clientes?.nombre || 'Cliente'}</p>
+                          {(cita.clientes as any)?.ci && (
+                            <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                              CI: {(cita.clientes as any).ci}
+                            </span>
+                          )}
+                        </div>
                         {cita.clientes?.telefono && (
                           <p className="text-xs text-zinc-400 font-medium">📞 {cita.clientes.telefono}</p>
                         )}

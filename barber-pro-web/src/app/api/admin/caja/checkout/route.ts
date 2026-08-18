@@ -153,10 +153,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Resolver el CI real del cliente desde la BD (para que no quede '0000000' en transacciones)
-    let ciReal = ci || ''
+    let ciReal = (ci && ci !== '0000000' && ci !== '0') ? ci : ''
     if (finalClienteId && !ciReal) {
-      const { data: ciData } = await supabase.from('clientes').select('ci').eq('id', finalClienteId).single()
+      const { data: ciData } = await adminSupabase.from('clientes').select('ci').eq('id', finalClienteId).single()
       if (ciData?.ci) ciReal = ciData.ci
+    }
+    if (!ciReal && nombre && nombre !== 'Cliente General') {
+      const { data: ciByName } = await adminSupabase.from('clientes').select('ci').ilike('nombre', nombre.trim()).limit(1)
+      if (ciByName && ciByName.length > 0 && ciByName[0].ci) ciReal = ciByName[0].ci
     }
     
     // Asignar referidor si se pasó y no lo tiene aún
@@ -239,12 +243,19 @@ export async function POST(request: NextRequest) {
       // Total real a cobrar (servicio neto + productos + propinas - anticipo)
       const totalRealACobrar = Math.max(0, precioNetoServicio + totalProductos + (propinas || 0) - anticipoQr)
 
+      if (descuentoTotal > 0) {
+        if (descuentoManual > 0) {
+          finalNotas += `\n⭐ Precio Especial / Desc: -Bs ${descuentoManual}`
+        }
+        finalNotas += `\nPrecio original: Bs ${precioBase} → Neto cobrado: Bs ${precioNetoServicio}`
+      }
+
       const insertData: any = {
         cliente_id: finalClienteId,
         barbero_id,
         servicio_id,
         fecha_hora: inicio.toISOString(),
-        precio: precioBase,
+        precio: precioNetoServicio,
         duracion_real_minutos: serv.duracion_minutos || 30,
         estado: estado || 'en_proceso',
         notas: finalNotas,
@@ -371,7 +382,7 @@ export async function POST(request: NextRequest) {
           .insert({
             libro: 'VENTAS',
             fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora),
-            ci: ciReal || '0000000',
+            ci: ciReal || '—',
             nombre: nombre || 'Cliente en Caja',
             cuenta_codigo: '4.1.2',
             cuenta_detalle: item.nombre,
@@ -465,7 +476,8 @@ export async function POST(request: NextRequest) {
         const barberoNombre = barberoProfile?.full_name || 'Desconocido'
 
         // --- Calcular montos reales considerando anticipo (QR) ---
-        const restoPagar = Math.max(0, precioBase - descuentoTotal - anticipoQr)
+        const precioNetoServicio = Math.max(0, precioBase - descuentoTotal)
+        const restoPagar = Math.max(0, precioNetoServicio - anticipoQr)
         const metodoResto = metodo_pago || 'efectivo'
 
         let realEfectivo = 0
@@ -517,7 +529,7 @@ export async function POST(request: NextRequest) {
           .insert({
             libro: 'SERVICIOS',
             fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora),
-            ci: ciReal || '0000000',
+            ci: ciReal || '—',
             nombre: nombre || 'Cliente en Caja',
             cuenta_codigo: 'ING-001',
             cuenta_detalle: serv.nombre,

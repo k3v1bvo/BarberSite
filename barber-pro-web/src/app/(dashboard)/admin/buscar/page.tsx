@@ -78,7 +78,7 @@ export default function BuscarPage() {
         .from('citas')
         .select(`
           id, fecha_hora, precio, estado,
-          clientes (nombre),
+          clientes (nombre, ci, telefono),
           servicios (nombre),
           barberos:profiles (full_name)
         `)
@@ -217,7 +217,14 @@ export default function BuscarPage() {
                       <Scissors className="w-5 h-5 text-zinc-400" />
                     </div>
                     <div>
-                      <p className="font-bold text-white text-sm">{cliente?.nombre || 'Cliente'}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-white text-sm">{cliente?.nombre || 'Cliente'}</p>
+                        {cliente?.ci && (
+                          <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.2 rounded-full">
+                            CI: {cliente.ci}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-500 flex-wrap">
                         <span className="text-amber-500 font-medium">{servicio?.nombre}</span>
                         <span>·</span>

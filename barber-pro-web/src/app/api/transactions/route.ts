@@ -81,7 +81,8 @@ export async function GET(request: NextRequest) {
             cliente_id,
             metodo_pago,
             anticipo_monto,
-            clientes (nombre),
+            notas,
+            clientes (nombre, ci, telefono),
             servicios (nombre),
             barberos:profiles!barbero_id (full_name)
           `)
@@ -101,7 +102,11 @@ export async function GET(request: NextRequest) {
             const cIdShort = cIdStr.slice(0, 6)
             const fechaCita = c.fecha_hora ? c.fecha_hora.split('T')[0] : (fecha || getTodayBolivia())
             const clienteNombre = (c.clientes as any)?.nombre || 'Cliente'
-            const precioCita = Number(c.precio || 0)
+            const clienteCi = (c.clientes as any)?.ci || ''
+            
+            const matchNeto = (c.notas as string | null)?.match(/Neto cobrado:\s*Bs\s*(\d+(?:\.\d+)?)/i)
+            const matchDesc = (c.notas as string | null)?.match(/Desc:\s*-Bs\s*(\d+(?:\.\d+)?)/i)
+            const precioCita = matchNeto ? parseFloat(matchNeto[1]) : (matchDesc ? Math.max(0, Number(c.precio) - parseFloat(matchDesc[1])) : Number(c.precio || 0))
 
             const alreadyIn = finalData.some((t: any) => {
               if (t.cita_id && String(t.cita_id) === cIdStr) return true
@@ -115,12 +120,9 @@ export async function GET(request: NextRequest) {
             })
 
             if (!alreadyIn) {
-              const fechaCita = c.fecha_hora ? c.fecha_hora.split('T')[0] : (fecha || getTodayBolivia())
-              const clienteNombre = (c.clientes as any)?.nombre || 'Cliente'
               const barberoNombre = (c.barberos as any)?.full_name || 'Barbero'
               const servicioNombre = (c.servicios as any)?.nombre || 'Servicio de Barbería'
               const anticipoQr = Number(c.anticipo_monto || 0)
-              const precioCita = Number(c.precio || 0)
               const mpRaw = String(c.metodo_pago || 'efectivo').toLowerCase()
 
               let realEf = 0
@@ -142,11 +144,13 @@ export async function GET(request: NextRequest) {
                 realMetodo = 'qr'
               }
 
+              const notasFinales = c.notas ? c.notas : (anticipoQr > 0 ? `Anticipo QR: Bs ${anticipoQr} | Cobrado en caja (${mpRaw}): Bs ${resto}` : null)
+
               finalData.push({
                 id: `virtual-cita-${cIdStr}`,
                 libro: 'SERVICIOS',
                 fecha: fechaCita,
-                ci: '0000000',
+                ci: clienteCi || '—',
                 nombre: clienteNombre,
                 cuenta_codigo: 'ING-001',
                 cuenta_detalle: `Servicio: ${servicioNombre}`,
@@ -160,7 +164,7 @@ export async function GET(request: NextRequest) {
                 metodo_pago: realMetodo,
                 monto_efectivo: realEf,
                 monto_qr: realQr,
-                notas: anticipoQr > 0 ? `Anticipo QR: Bs ${anticipoQr} | Cobrado en caja (${mpRaw}): Bs ${resto}` : null,
+                notas: notasFinales,
                 usuario_registro: barberoNombre,
                 creado_en: c.fecha_hora || new Date().toISOString()
               })
@@ -202,7 +206,7 @@ export async function GET(request: NextRequest) {
                 id: `virtual-egreso-${e.id}`,
                 libro: mp === 'qr' || mp === 'tarjeta' ? 'BANCO' : 'CAJA_CHICA',
                 fecha: e.fecha,
-                ci: '0000000',
+                ci: e.ci || '—',
                 nombre: e.proveedor || 'Egreso General',
                 cuenta_codigo: e.cuenta_codigo || 'EGR-GEN',
                 cuenta_detalle: e.concepto,
@@ -233,7 +237,7 @@ export async function GET(request: NextRequest) {
             metodo_pago,
             creado_en,
             barbero_id,
-            barberos:profiles!barbero_id (full_name)
+            barberos:profiles!barbero_id (full_name, ci)
           `)
         const { data: comData, error: comErr } = await comisionesQuery
         if (!comErr && comData && comData.length > 0) {
@@ -247,6 +251,7 @@ export async function GET(request: NextRequest) {
             if (libro === 'CAJA_CHICA' && mp !== 'efectivo' && mp !== 'mixto') continue
 
             const barberoName = (com.barberos as any)?.full_name || 'Barbero'
+            const barberoCi = (com.barberos as any)?.ci || '—'
             const alreadyIn = finalData.some((t: any) =>
               (t.glosa && t.glosa.includes(com.id)) ||
               (t.subcategoria === 'COMISION_PAGO' && t.empleado_id === com.barbero_id && t.fecha === comFecha)
@@ -256,7 +261,7 @@ export async function GET(request: NextRequest) {
                 id: `virtual-comision-${com.id}`,
                 libro: mp === 'qr' || mp === 'tarjeta' ? 'BANCO' : 'CAJA_CHICA',
                 fecha: comFecha,
-                ci: '0000000',
+                ci: barberoCi,
                 nombre: `Pago Comisiones a ${barberoName}`,
                 cuenta_codigo: 'EGR-COM',
                 cuenta_detalle: 'Pago de Comisiones / Sueldos',
@@ -315,11 +320,36 @@ export async function POST(request: NextRequest) {
     }
 
     const cuentaCodigoFinal = body.cuenta_codigo || '000'
+
+    // Resolver CI real si no vino o es 0000000
+    let ciFinal = body.ci && body.ci !== '0000000' && body.ci !== '0' ? body.ci : ''
+    if (!ciFinal && body.cliente_id) {
+      const { data: cData } = await supabase.from('clientes').select('ci').eq('id', body.cliente_id).single()
+      if (cData?.ci) ciFinal = cData.ci
+    }
+    if (!ciFinal && body.nombre && body.nombre !== 'Sin nombre' && body.nombre !== 'Cliente General') {
+      const { data: cData } = await supabase.from('clientes').select('ci').ilike('nombre', body.nombre.trim()).limit(1)
+      if (cData && cData.length > 0 && cData[0].ci) ciFinal = cData[0].ci
+    }
+
+    // Auto-clasificar tipo de movimiento
+    let tipoMovFinal = body.tipo_movimiento
+    if (!tipoMovFinal) {
+      if (cuentaCodigoFinal.startsWith('4') || body.libro === 'VENTAS' || body.libro === 'SERVICIOS') {
+        tipoMovFinal = 'INGRESO'
+      } else {
+        tipoMovFinal = 'EGRESO'
+      }
+    }
+    if (cuentaCodigoFinal.startsWith('5') || cuentaCodigoFinal.startsWith('6') || (body.glosa && body.glosa.toLowerCase().includes('devolucion'))) {
+      tipoMovFinal = 'EGRESO'
+    }
+
     // Asegurar que la cuenta exista en plan_cuentas para evitar violación de foreign key (transactions_cuenta_codigo_fkey)
     await supabase.from('plan_cuentas').upsert({
       codigo: cuentaCodigoFinal,
       detalle: body.cuenta_codigo ? (body.cuenta_detalle || 'Movimiento Financiero') : 'Movimiento General / Varios',
-      tipo: body.tipo_movimiento === 'INGRESO' || body.tipo_movimiento === 'DEPOSITO' ? 'INGRESO' : 'EGRESO',
+      tipo: tipoMovFinal === 'INGRESO' || tipoMovFinal === 'DEPOSITO' ? 'INGRESO' : 'EGRESO',
       nivel: cuentaCodigoFinal.split('.').length || 1,
       es_sancion: !!body.es_sancion
     }, { onConflict: 'codigo', ignoreDuplicates: true })
@@ -329,13 +359,13 @@ export async function POST(request: NextRequest) {
       .insert({
         libro: body.libro,
         fecha: body.fecha || getTodayBolivia(),
-        ci: body.ci || '0000000',
+        ci: ciFinal || '—',
         nombre: body.nombre || 'Sin nombre',
         cuenta_codigo: cuentaCodigoFinal,
         cuenta_detalle: body.cuenta_detalle || 'Movimiento manual',
         glosa: body.glosa || '',
         costo: Number(body.costo) || 0,
-        tipo_movimiento: body.tipo_movimiento || 'EGRESO',
+        tipo_movimiento: tipoMovFinal,
         subcategoria: body.subcategoria || null,
         es_sancion: body.es_sancion || false,
         empleado_id: body.empleado_id || null,
@@ -356,13 +386,13 @@ export async function POST(request: NextRequest) {
           .insert({
             libro: body.libro,
             fecha: body.fecha || getTodayBolivia(),
-            ci: body.ci || '0000000',
+            ci: ciFinal || '—',
             nombre: body.nombre || 'Sin nombre',
             cuenta_codigo: cuentaCodigoFinal,
             cuenta_detalle: body.cuenta_detalle || 'Movimiento manual',
             glosa: body.glosa || '',
             costo: Number(body.costo) || 0,
-            tipo_movimiento: body.tipo_movimiento || 'EGRESO',
+            tipo_movimiento: tipoMovFinal,
             es_sancion: body.es_sancion || false,
             empleado_id: body.empleado_id || null,
             cliente_id: body.cliente_id || null,

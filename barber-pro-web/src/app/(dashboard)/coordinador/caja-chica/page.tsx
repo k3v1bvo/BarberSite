@@ -1217,7 +1217,14 @@ export default function CajaChicaPage() {
                         {/* Nombre / A quién */}
                         <td className="px-3 py-2.5">
                           <div className="flex flex-col">
-                            <span className="text-zinc-300 text-xs font-medium truncate max-w-[140px]">{tx.nombre || '—'}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-zinc-300 text-xs font-medium truncate max-w-[140px]">{tx.nombre || '—'}</span>
+                              {tx.ci && tx.ci !== '0000000' && tx.ci !== '0' && tx.ci !== '—' && (
+                                <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-1 py-0.2 rounded">
+                                  {tx.ci}
+                                </span>
+                              )}
+                            </div>
                             {tx.usuario_registro && tx.usuario_registro !== tx.nombre && (
                               <span className="text-[9px] text-zinc-600">por {tx.usuario_registro}</span>
                             )}

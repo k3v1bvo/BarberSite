@@ -189,20 +189,24 @@ export default function VentasPage() {
       }
     }
 
+    const isEgreso = realCuentaCodigo.startsWith('5') || realCuentaCodigo.startsWith('6') || (form.glosa && (form.glosa.toLowerCase().includes('devolucion') || form.glosa.toLowerCase().includes('cambio')))
+    const tipoMovFinal = isEgreso ? 'EGRESO' : 'INGRESO'
+    const libroFinal = isEgreso ? (form.metodo_pago === 'qr' || form.metodo_pago === 'tarjeta' ? 'BANCO' : 'CAJA_CHICA') : 'VENTAS'
+
     const res = await fetch('/api/transactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        libro: 'VENTAS',
-        ci: form.ci || '0000000',
-        nombre: form.nombre || 'Cliente General',
+        libro: libroFinal,
+        ci: form.ci && form.ci !== '0000000' ? form.ci : '',
+        nombre: form.nombre || (isEgreso ? 'Egreso / Devolución' : 'Cliente General'),
         cuenta_codigo: realCuentaCodigo,
         cuenta_detalle: realCuentaDetalle,
         producto_id: productoId,
         glosa: form.glosa,
         costo: parseFloat(form.costo),
-        tipo_movimiento: 'INGRESO',
-        subcategoria: form.cuenta_codigo.startsWith('srv-') ? 'SERVICIO' : form.cuenta_codigo.startsWith('prd-') ? 'PRODUCTO' : 'VENTA',
+        tipo_movimiento: tipoMovFinal,
+        subcategoria: isEgreso ? 'GASTO_GENERAL' : (form.cuenta_codigo.startsWith('srv-') ? 'SERVICIO' : form.cuenta_codigo.startsWith('prd-') ? 'PRODUCTO' : 'VENTA'),
         empleado_id: form.barbero_id || null,
         metodo_pago: form.metodo_pago,
         monto_efectivo: form.metodo_pago === 'efectivo' ? parseFloat(form.costo) : form.metodo_pago === 'mixto' ? parseFloat(form.mixto_efectivo || '0') : 0,
@@ -835,7 +839,13 @@ export default function VentasPage() {
                   sorted.map((tx) => (
                     <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-3 py-2.5 text-zinc-500 whitespace-nowrap text-xs font-mono">{tx.fecha}</td>
-                      <td className="px-3 py-2.5 text-zinc-400 font-mono text-[11px]">{tx.ci || '—'}</td>
+                      <td className="px-3 py-2.5 font-mono text-[11px]">
+                        {tx.ci && tx.ci !== '0000000' && tx.ci !== '0' && tx.ci !== '—' ? (
+                          <span className="text-emerald-400 font-bold">{tx.ci}</span>
+                        ) : (
+                          <span className="text-zinc-600">—</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 text-white font-semibold text-xs">{tx.nombre}</td>
                       <td className="px-3 py-2.5">
                         <div className="flex flex-col">

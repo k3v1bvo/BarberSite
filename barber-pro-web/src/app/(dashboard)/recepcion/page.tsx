@@ -135,8 +135,19 @@ export default async function RecepcionPage(props: { searchParams: Promise<{ dat
                             {cita.estado}
                           </Badge>
                         </div>
-                        <p className="text-zinc-200 text-lg font-bold">{cita.cliente?.nombre}</p>
-                        <p className="text-sm text-zinc-500 font-medium">{cita.cliente?.telefono}</p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <p className="text-zinc-200 text-lg font-bold">{cita.cliente?.nombre}</p>
+                          {cita.cliente?.ci ? (
+                            <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                              CI: {cita.cliente.ci}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium text-zinc-500 bg-zinc-800/50 border border-zinc-700 px-2 py-0.5 rounded-full">
+                              Sin CI
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-zinc-400 font-medium">{cita.cliente?.telefono && `📞 ${cita.cliente.telefono}`}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-black text-amber-500">{formatCurrency(cita.precio)}</p>
@@ -227,7 +238,9 @@ export default async function RecepcionPage(props: { searchParams: Promise<{ dat
                   <select name="cliente_id" className="w-full h-12 rounded-xl bg-zinc-950 border border-white/10 px-4 text-sm text-white focus:border-amber-500/50 outline-none transition-all" required>
                     <option value="">Seleccionar...</option>
                     {clientes?.map((cliente) => (
-                      <option key={cliente.id} value={cliente.id}>{cliente.nombre}</option>
+                      <option key={cliente.id} value={cliente.id}>
+                        {cliente.nombre} {cliente.ci ? `(CI: ${cliente.ci})` : ''} {cliente.telefono ? `- Tel: ${cliente.telefono}` : ''}
+                      </option>
                     ))}
                   </select>
                 </div>

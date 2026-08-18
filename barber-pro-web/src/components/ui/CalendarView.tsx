@@ -138,7 +138,14 @@ export function CalendarView({
           </div>
         )}
       </div>
-      <div className="truncate font-semibold text-[11px]">👤 {cita.cliente_nombre}</div>
+      <div className="truncate font-semibold text-[11px] flex items-center justify-between gap-1">
+        <span className="truncate">👤 {cita.cliente_nombre}</span>
+        {cita.cliente_ci && (
+          <span className="shrink-0 text-[9px] px-1 py-0.2 rounded bg-black/40 text-emerald-400 font-bold border border-emerald-500/30">
+            CI {cita.cliente_ci}
+          </span>
+        )}
+      </div>
       {!compact && mode === 'general' && (
         <div className="flex items-center gap-1.5 truncate opacity-90 text-[10px] bg-black/40 px-1.5 py-0.5 rounded mt-1 border border-white/10">
           {cita.barbero_avatar_url ? (
@@ -340,8 +347,13 @@ export function CalendarView({
                           </div>
                         )}
 
-                        <div className="truncate font-bold text-[11px] leading-tight text-white/90">
-                          👤 {dayCita.cliente_nombre}
+                        <div className="truncate font-bold text-[11px] leading-tight text-white/90 flex items-center justify-between gap-1">
+                          <span className="truncate">👤 {dayCita.cliente_nombre}</span>
+                          {dayCita.cliente_ci && (
+                            <span className="shrink-0 text-[9px] px-1 py-0.2 rounded bg-black/50 text-emerald-400 font-bold border border-emerald-500/30">
+                              CI {dayCita.cliente_ci}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center justify-between gap-1 text-[9px] opacity-90 font-medium pt-0.5 border-t border-white/5">
                           <span className="truncate">💈 {dayCita.servicio_nombre}</span>
@@ -448,8 +460,17 @@ export function CalendarView({
                               )
                             )}
                             <div>
-                              <div className="font-extrabold text-base text-white flex items-center gap-2">
-                                👤 {cita.cliente_nombre}
+                              <div className="font-extrabold text-base text-white flex items-center gap-2 flex-wrap">
+                                <span>👤 {cita.cliente_nombre}</span>
+                                {cita.cliente_ci ? (
+                                  <span className="text-[11px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                                    CI: {cita.cliente_ci}
+                                  </span>
+                                ) : (
+                                  <span className="text-[11px] font-medium text-zinc-500 bg-zinc-800/50 border border-zinc-700 px-2 py-0.5 rounded-full">
+                                    Sin CI
+                                  </span>
+                                )}
                               </div>
                               <div className="text-sm font-medium text-zinc-300 mt-0.5 flex items-center gap-1.5">
                                 💈 {cita.servicio_nombre}

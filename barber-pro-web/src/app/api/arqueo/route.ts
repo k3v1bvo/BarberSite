@@ -65,10 +65,16 @@ export async function GET(request: NextRequest) {
 
     const { data: citasDia } = await supabase
       .from('citas')
-      .select('id, precio, anticipo_monto, metodo_pago, barbero_id, cliente_id, comision_pagada, comision_barbero')
+      .select('id, precio, anticipo_monto, metodo_pago, barbero_id, cliente_id, comision_pagada, comision_barbero, notas')
       .gte('fecha_hora', `${fecha}T00:00:00`)
       .lte('fecha_hora', `${fecha}T23:59:59`)
       .eq('estado', 'completado')
+
+    const getCitaNeto = (c: any) => {
+      const matchNeto = (c.notas as string | null)?.match(/Neto cobrado:\s*Bs\s*(\d+(?:\.\d+)?)/i)
+      const matchDesc = (c.notas as string | null)?.match(/Desc:\s*-Bs\s*(\d+(?:\.\d+)?)/i)
+      return matchNeto ? parseFloat(matchNeto[1]) : (matchDesc ? Math.max(0, Number(c.precio) - parseFloat(matchDesc[1])) : Number(c.precio || 0))
+    }
 
     const comisionesPendientes = (citasDia || []).filter(c => c.comision_pagada === false && Number(c.comision_barbero || 0) > 0)
     const comisiones_pendientes_count = comisionesPendientes.length
@@ -143,11 +149,11 @@ export async function GET(request: NextRequest) {
       } else if (isEgreso) {
         resumen.total_efectivo -= mEfectivo
         resumen.total_qr -= mQr
-        if (t.metodo_pago === 'tarjeta') resumen.total_tarjeta -= costo
+        if (t.metodo_pago === 'tarjeta') resumen.total_tarjeta += costo
       }
     })
 
-    const citasMonto = (citasDia || []).reduce((acc, c) => acc + Number(c.precio || 0), 0)
+    const citasMonto = (citasDia || []).reduce((acc, c) => acc + getCitaNeto(c), 0)
     if (resumen.servicios < citasMonto) {
       const diff = citasMonto - resumen.servicios
       resumen.servicios = citasMonto
@@ -156,7 +162,7 @@ export async function GET(request: NextRequest) {
       let citasQrBanco = 0
       let citasEfectivo = 0
       ;(citasDia || []).forEach(c => {
-        const total = Number(c.precio || 0)
+        const total = getCitaNeto(c)
         const anticipo = Number(c.anticipo_monto || 0)
         const saldo = Math.max(0, total - anticipo)
         const mp = String(c.metodo_pago || 'efectivo').toLowerCase()

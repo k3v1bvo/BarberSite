@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import { User, Scissors, DollarSign, Search, CheckCircle, Check, Clock, Package, Plus, Minus, X, Store, Gift, UserPlus, Edit3, Save, Star, Tag, QrCode, AlertTriangle, Calendar, Zap, CreditCard, History, ShoppingBag } from 'lucide-react'
 import { formatCurrency, toTitleCase } from '@/lib/utils'
+import { getBusinessDateString } from '@/lib/asistencia/helpers'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { CATEGORIAS_SERVICIOS } from '@/types'
 import { ClienteHistorialModal } from '@/components/pos/ClienteHistorialModal'
@@ -152,6 +153,7 @@ export function CajaPOS() {
 
   // Turno rotation & agenda
   const [barberoTurno, setBarberoTurno] = useState<string | null>(null)
+  const [turnosPosicionMap, setTurnosPosicionMap] = useState<Map<string, { posicion: number; esProximo: boolean }>>(new Map())
   const [modoReserva, setModoReserva] = useState(false)
   const [reservaFecha, setReservaFecha] = useState('')
   const [reservaHora, setReservaHora] = useState('')
@@ -244,38 +246,7 @@ export function CajaPOS() {
           .limit(50)
         setUltimosMovimientos(ultimosTxData || [])
 
-        // Calculate barbero rotation (who has the least recent completed appointment today)
-        const { data: citasHoy } = await supabase
-          .from('citas')
-          .select('barbero_id, updated_at')
-          .gte('fecha_hora', `${hoy}T00:00:00`)
-          .lte('fecha_hora', `${hoy}T23:59:59`)
-          .eq('estado', 'completado')
-          .order('updated_at', { ascending: false })
-
-        const barberIds = (resBarberos.data || []).map((b: any) => b.id)
-        if (citasHoy && citasHoy.length > 0) {
-          // Find the barber who hasn't had a client yet, or the one whose last completed cita is the oldest
-          const lastServed = new Map<string, string>()
-          for (const c of citasHoy) {
-            if (!lastServed.has(c.barbero_id)) lastServed.set(c.barbero_id, c.updated_at)
-          }
-          // Barber with no clients today goes first
-          const sinClientes = barberIds.filter((id: string) => !lastServed.has(id))
-          if (sinClientes.length > 0) {
-            setBarberoTurno(sinClientes[0])
-          } else {
-            // Oldest last-served barber goes next
-            let oldest: string | null = null
-            let oldestTime = ''
-            lastServed.forEach((time, id) => {
-              if (!oldest || time < oldestTime) { oldest = id; oldestTime = time }
-            })
-            setBarberoTurno(oldest)
-          }
-        } else if (barberIds.length > 0) {
-          setBarberoTurno(barberIds[0])
-        }
+        await fetchTurnosSincronizados()
       } catch (err) {
         toastError('Error al cargar datos iniciales.')
       } finally {
@@ -283,7 +254,138 @@ export function CajaPOS() {
       }
     }
     loadData()
-  }, [])
+
+    const interval = setInterval(fetchTurnosSincronizados, 30000)
+    const channel = supabase
+      .channel('pos_turnos_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'config_turnos', filter: 'id=eq.turno_offset' }, () => {
+        fetchTurnosSincronizados()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'asistencias' }, () => {
+        fetchTurnosSincronizados()
+      })
+      .subscribe()
+
+    return () => {
+      clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
+  }, [supabase])
+
+  const fetchTurnosSincronizados = useCallback(async () => {
+    try {
+      const hoy = getBusinessDateString()
+
+      let rotationOffset = 0
+      const { data: configTurno } = await supabase
+        .from('config_turnos')
+        .select('*')
+        .eq('id', 'turno_offset')
+        .maybeSingle()
+
+      if (configTurno && configTurno.fecha === hoy) {
+        rotationOffset = configTurno.rotation_offset || 0
+      }
+
+      const { data: asistencias } = await supabase
+        .from('asistencias')
+        .select(`
+          id,
+          hora_entrada,
+          profile_id,
+          profiles (
+            full_name,
+            avatar_url,
+            role
+          )
+        `)
+        .eq('fecha', hoy)
+        .not('hora_entrada', 'is', null)
+        .order('hora_entrada', { ascending: true })
+
+      if (!asistencias || asistencias.length === 0) {
+        setBarberoTurno(null)
+        setTurnosPosicionMap(new Map())
+        return
+      }
+
+      const getNormalizedNameKey = (name: string): string => {
+        if (!name) return ''
+        const clean = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+        const parts = clean.split(/\s+/).filter(Boolean)
+        return parts.length >= 2 ? `${parts[0]} ${parts[1]}` : parts[0] || clean
+      }
+
+      const seenProfileIds = new Set<string>()
+      const seenNameKeys = new Set<string>()
+      const asistenciasUnicas = asistencias.filter((item: any) => {
+        const p = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+        if (p?.role && p.role !== 'barbero') return false
+        const nameKey = getNormalizedNameKey(p?.full_name || '')
+        if (seenProfileIds.has(item.profile_id)) return false
+        if (nameKey && seenNameKeys.has(nameKey)) return false
+        seenProfileIds.add(item.profile_id)
+        if (nameKey) seenNameKeys.add(nameKey)
+        return true
+      })
+
+      const { data: citasHoy } = await supabase
+        .from('citas')
+        .select('barbero_id, updated_at')
+        .gte('fecha_hora', `${hoy}T00:00:00`)
+        .lte('fecha_hora', `${hoy}T23:59:59`)
+        .eq('estado', 'completado')
+        .order('updated_at', { ascending: false })
+
+      const lastServedMap = new Map<string, string>()
+      if (citasHoy) {
+        for (const c of citasHoy) {
+          if (!lastServedMap.has(c.barbero_id)) {
+            lastServedMap.set(c.barbero_id, c.updated_at)
+          }
+        }
+      }
+
+      const mapeados = asistenciasUnicas.map((item: any) => ({
+        profile_id: item.profile_id,
+        hora_entrada: item.hora_entrada,
+        lastServedTime: lastServedMap.get(item.profile_id) || null,
+      }))
+
+      mapeados.sort((a, b) => {
+        if (!a.lastServedTime && !b.lastServedTime) {
+          return a.hora_entrada.localeCompare(b.hora_entrada)
+        }
+        if (!a.lastServedTime) return -1
+        if (!b.lastServedTime) return 1
+        return a.lastServedTime.localeCompare(b.lastServedTime)
+      })
+
+      const turnosOrdenados = [...mapeados]
+      if (turnosOrdenados.length > 0 && rotationOffset > 0) {
+        const shift = rotationOffset % turnosOrdenados.length
+        const movidos = turnosOrdenados.splice(0, shift)
+        turnosOrdenados.push(...movidos)
+      }
+
+      const map = new Map<string, { posicion: number; esProximo: boolean }>()
+      turnosOrdenados.forEach((item, idx) => {
+        map.set(item.profile_id, {
+          posicion: idx + 1,
+          esProximo: idx === 0
+        })
+      })
+
+      setTurnosPosicionMap(map)
+      if (turnosOrdenados.length > 0) {
+        setBarberoTurno(turnosOrdenados[0].profile_id)
+      } else {
+        setBarberoTurno(null)
+      }
+    } catch (err) {
+      console.error('Error fetching turnos sincronizados en POS:', err)
+    }
+  }, [supabase])
 
   useEffect(() => {
     if (modoReserva && formData.barbero_id && reservaFecha) {
@@ -1112,9 +1214,19 @@ export function CajaPOS() {
                         setCitaSeleccionadaFechaHora(cita.fecha_hora || null)
                       }}
                     >
-                      <div className="flex justify-between items-start mb-1.5 pr-6">
+                      <div className="flex justify-between items-start mb-1 pr-6">
                         <p className="font-bold text-white truncate text-xs">{cita.clientes?.nombre || 'Sin nombre'}</p>
                         <Badge variant={cita.estado === 'en_proceso' ? 'info' : 'warning'} className="text-[9px] uppercase px-1.5 py-0.2">{cita.estado.replace('_', ' ')}</Badge>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-zinc-400 mb-1">
+                        {cita.clientes?.ci ? (
+                          <span className="font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.2 rounded text-[9px]">
+                            CI: {cita.clientes.ci}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-500 text-[9px]">Sin CI</span>
+                        )}
+                        {cita.clientes?.telefono && <span>· Cel: {cita.clientes.telefono}</span>}
                       </div>
                       <p className="text-xs text-amber-400 font-semibold truncate mb-1">{cita.servicios?.nombre || 'Servicio Barbería'}</p>
                       <div className="flex items-center justify-between text-[10px] text-zinc-400 mt-2 pt-1.5 border-t border-zinc-800">
@@ -2068,33 +2180,44 @@ export function CajaPOS() {
                     if (!servicio?.barberos_excluidos?.length) return true
                     return !servicio.barberos_excluidos.includes(b.id)
                   })
-                  .map((b) => (
-                  <div
-                    key={b.id}
-                    onClick={() => setFormData({ ...formData, barbero_id: b.id })}
-                    className={`relative flex flex-col items-center gap-2 p-3 border rounded-xl cursor-pointer transition ${
-                      formData.barbero_id === b.id
-                        ? 'border-amber-400 bg-amber-500/10'
-                        : barberoTurno === b.id
-                          ? 'border-emerald-500/50 bg-emerald-500/5 hover:border-amber-400/40'
-                          : 'border-white/10 hover:border-amber-400/40 bg-black/20'
-                    }`}
-                  >
-                    {barberoTurno === b.id && (
-                      <div className="absolute -top-2.5 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.3)]">
-                        Próximo Turno
+                  .map((b) => {
+                    const turnoInfo = turnosPosicionMap.get(b.id)
+                    const esProximo = turnoInfo?.esProximo || barberoTurno === b.id
+                    const posicion = turnoInfo?.posicion
+
+                    return (
+                      <div
+                        key={b.id}
+                        onClick={() => setFormData({ ...formData, barbero_id: b.id })}
+                        className={`relative flex flex-col items-center gap-2 p-3 border rounded-xl cursor-pointer transition ${
+                          formData.barbero_id === b.id
+                            ? 'border-amber-400 bg-amber-500/10 ring-2 ring-amber-400/50 shadow-md'
+                            : esProximo
+                              ? 'border-emerald-500/60 bg-emerald-500/10 hover:border-emerald-400'
+                              : 'border-white/10 hover:border-amber-400/40 bg-black/20'
+                        }`}
+                      >
+                        {esProximo ? (
+                          <div className="absolute -top-2.5 bg-emerald-600 text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-[0_0_12px_rgba(16,185,129,0.5)] animate-pulse flex items-center gap-1">
+                            <span>⭐ Próximo Turno</span>
+                            {posicion && <span>(#{posicion})</span>}
+                          </div>
+                        ) : posicion ? (
+                          <div className="absolute -top-2 bg-zinc-800 border border-zinc-700 text-zinc-300 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-full">
+                            Turno #{posicion}
+                          </div>
+                        ) : null}
+                        <div className={`w-12 h-12 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0 ${esProximo && formData.barbero_id !== b.id ? 'ring-2 ring-emerald-500' : ''}`}>
+                          {b.avatar_url ? (
+                            <img src={b.avatar_url} alt={b.full_name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-lg font-bold">{b.full_name.charAt(0)}</span>
+                          )}
+                        </div>
+                        <h3 className="font-semibold text-xs text-center line-clamp-1">{b.full_name}</h3>
                       </div>
-                    )}
-                    <div className={`w-12 h-12 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0 ${barberoTurno === b.id && formData.barbero_id !== b.id ? 'ring-2 ring-emerald-500/50' : ''}`}>
-                      {b.avatar_url ? (
-                        <img src={b.avatar_url} alt={b.full_name} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-lg font-bold">{b.full_name.charAt(0)}</span>
-                      )}
-                    </div>
-                    <h3 className="font-semibold text-xs text-center line-clamp-1">{b.full_name}</h3>
-                  </div>
-                ))}
+                    )
+                  })}
               </div>
 
               {/* MODO RESERVA (AGENDA) */}
