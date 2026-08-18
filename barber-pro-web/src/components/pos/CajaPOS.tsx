@@ -782,11 +782,19 @@ export function CajaPOS() {
 
       const { data: ultimosTxData } = await supabase
         .from('transactions')
-        .select('id, fecha, created_at, concepto, subcategoria, costo, monto_efectivo, monto_qr, metodo_pago, libro, tipo_movimiento, glosa, usuario_registro, nombre')
+        .select('id, fecha, creado_en, cuenta_detalle, subcategoria, costo, monto_efectivo, monto_qr, metodo_pago, libro, tipo_movimiento, glosa, usuario_registro, nombre')
         .in('libro', ['SERVICIOS', 'VENTAS', 'CAJA_CHICA'])
-        .order('created_at', { ascending: false })
-        .limit(30)
-      setUltimosMovimientos(ultimosTxData || [])
+        .order('fecha', { ascending: false })
+        .order('creado_en', { ascending: false })
+        .limit(60)
+
+      const cleanTxData = (ultimosTxData || []).filter((tx: any) => {
+        const isBankContra = tx.libro === 'CAJA_CHICA' 
+          && String(tx.glosa || '').toUpperCase().includes('PAGO POR QR') 
+          && String(tx.cuenta_detalle || '').toUpperCase().includes('BANCO GANADERO')
+        return !isBankContra
+      })
+      setUltimosMovimientos(cleanTxData)
       
       setFormData({
         cita_id: '', cliente_id: '', nombre: '', email: '', telefono: '', ci: '',
