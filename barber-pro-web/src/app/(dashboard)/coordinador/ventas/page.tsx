@@ -5,9 +5,10 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency, getTodayBolivia, exportToCSV } from '@/lib/utils'
-import { Receipt, Plus, X, Store, Filter, ArrowUpDown, ArrowUp, ArrowDown, Search, Wallet, ShoppingBag, Image as ImageIcon, User, Sparkles, CheckCircle2, DollarSign, QrCode, CreditCard, Scissors, Package, Layers, AlertCircle, Printer, Download } from 'lucide-react'
+import { Receipt, Plus, X, Store, Filter, ArrowUpDown, ArrowUp, ArrowDown, Search, Wallet, ShoppingBag, Image as ImageIcon, User, Sparkles, CheckCircle2, DollarSign, QrCode, CreditCard, Scissors, Package, Layers, AlertCircle, Printer, Download, Edit3 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import { ModalEditarTransaccion } from '@/components/pos/ModalEditarTransaccion'
 import Link from 'next/link'
 
 import { createClient } from '@/lib/supabase/client'
@@ -18,6 +19,7 @@ interface Transaction {
   cuenta_codigo: string; cuenta_detalle: string; glosa: string
   costo: number; tipo_movimiento: string; metodo_pago: string | null
   creado_en: string; notas: string | null; comprobante_url?: string | null
+  monto_efectivo?: number; monto_qr?: number
 }
 interface Servicio { id: string; nombre: string; precio: number }
 interface Producto { id: string; nombre: string; precio_venta: number }
@@ -37,6 +39,7 @@ export default function VentasPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [txToEdit, setTxToEdit] = useState<Transaction | null>(null)
   const [filtroLibro, setFiltroLibro] = useState<'HOY' | 'ESTE_AÑO' | 'VENTAS' | 'SERVICIOS' | 'USO_TIENDA' | 'TODOS'>('HOY')
   const [buscandoCi, setBuscandoCi] = useState(false)
   const [cumpleanosMsg, setCumpleanosMsg] = useState<string | null>(null)
@@ -824,11 +827,12 @@ export default function VentasPage() {
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-right cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('costo')}>
                     Monto <SortIcon col="costo" />
                   </th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {sorted.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-16 text-center text-zinc-600">
+                  <tr><td colSpan={8} className="px-4 py-16 text-center text-zinc-600">
                     <div className="flex flex-col items-center gap-2">
                       <Receipt className="w-8 h-8 text-zinc-700" />
                       <p className="font-bold">Sin ventas registradas</p>
@@ -837,7 +841,7 @@ export default function VentasPage() {
                   </td></tr>
                 ) : (
                   sorted.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
+                    <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors group">
                       <td className="px-3 py-2.5 text-zinc-500 whitespace-nowrap text-xs font-mono">{tx.fecha}</td>
                       <td className="px-3 py-2.5 font-mono text-[11px]">
                         {tx.ci && tx.ci !== '0000000' && tx.ci !== '0' && tx.ci !== '—' ? (
@@ -868,6 +872,17 @@ export default function VentasPage() {
                         </div>
                       </td>
                       <td className={`px-3 py-2.5 text-right font-black text-sm ${tx.tipo_movimiento === 'EGRESO' ? 'text-red-400' : 'text-green-400'}`}>{tx.tipo_movimiento === 'EGRESO' ? '-' : '+'}{formatCurrency(tx.costo)}</td>
+                      <td className="px-3 py-2.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setTxToEdit(tx)}
+                          className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-amber-500 hover:text-black text-zinc-400 text-[11px] font-bold transition flex items-center gap-1 mx-auto"
+                          title="Editar este registro"
+                        >
+                          <Edit3 size={12} />
+                          <span>Editar</span>
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -876,6 +891,14 @@ export default function VentasPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal para editar cualquier registro contable */}
+      <ModalEditarTransaccion
+        transaction={txToEdit}
+        isOpen={!!txToEdit}
+        onClose={() => setTxToEdit(null)}
+        onSuccess={loadData}
+      />
     </div>
   )
 }

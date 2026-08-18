@@ -421,7 +421,7 @@ export async function PATCH(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, full_name')
       .eq('id', user.id)
       .single()
 
@@ -430,53 +430,54 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { id, comprobante_url } = body
+    const { id, comprobante_url, costo, nombre, ci, cuenta_codigo, cuenta_detalle, glosa, metodo_pago, monto_efectivo, monto_qr, tipo_movimiento, fecha, notas } = body
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
     if (id.startsWith('virtual-cita-')) {
       const citaId = id.replace('virtual-cita-', '')
       const { data: cita } = await supabase
         .from('citas')
-        .select('notas, cliente_id, barbero_id, servicio_id, precio, fecha_hora, metodo_pago, anticipo_monto, clientes(nombre), servicios(nombre), profiles!barbero_id(full_name)')
+        .select('notas, cliente_id, barbero_id, servicio_id, precio, fecha_hora, metodo_pago, anticipo_monto, clientes(nombre, ci), servicios(nombre), profiles!barbero_id(full_name)')
         .eq('id', citaId)
         .single()
 
       if (cita) {
         let currentNotas = cita.notas || ''
-        if (!currentNotas.includes('[Comprobante]:')) {
-          currentNotas += `\n[Comprobante]: ${comprobante_url}`
-        } else {
-          currentNotas = currentNotas.replace(/\[Comprobante\]: .*/, `[Comprobante]: ${comprobante_url}`)
+        if (comprobante_url) {
+          if (!currentNotas.includes('[Comprobante]:')) {
+            currentNotas += `\n[Comprobante]: ${comprobante_url}`
+          } else {
+            currentNotas = currentNotas.replace(/\[Comprobante\]: .*/, `[Comprobante]: ${comprobante_url}`)
+          }
+          await supabase.from('citas').update({ notas: currentNotas }).eq('id', citaId)
         }
-        await supabase.from('citas').update({ notas: currentNotas }).eq('id', citaId)
 
-        const clienteNombre = (cita.clientes as any)?.nombre || 'Cliente'
+        const clienteNombre = nombre || (cita.clientes as any)?.nombre || 'Cliente'
+        const clienteCi = ci || (cita.clientes as any)?.ci || '—'
         const barberoNombre = (cita.profiles as any)?.full_name || 'Barbero'
         const servicioNombre = (cita.servicios as any)?.nombre || 'Servicio'
-        const precioCita = Number(cita.precio || 0)
+        const precioCita = costo !== undefined ? Number(costo) : Number(cita.precio || 0)
         const anticipoQr = Number(cita.anticipo_monto || 0)
-        const mpRaw = String(cita.metodo_pago || 'qr').toLowerCase()
+        const mpRaw = String(metodo_pago || cita.metodo_pago || 'qr').toLowerCase()
         const resto = Math.max(0, precioCita - anticipoQr)
 
-        let realEf = 0
-        let realQr = anticipoQr
+        let realEf = monto_efectivo !== undefined ? Number(monto_efectivo) : (mpRaw === 'efectivo' ? resto : 0)
+        let realQr = monto_qr !== undefined ? Number(monto_qr) : (anticipoQr + (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpRaw) ? resto : 0))
         let realMetodo = mpRaw
-        if (mpRaw === 'efectivo') realEf = resto
-        else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpRaw)) realQr += resto
 
         if (anticipoQr > 0 && realEf > 0) realMetodo = 'mixto'
         else if (anticipoQr > 0 && realEf === 0) realMetodo = 'qr'
 
         const { data: txNueva } = await supabase.from('transactions').insert({
           libro: 'SERVICIOS',
-          fecha: cita.fecha_hora ? cita.fecha_hora.split('T')[0] : getTodayBolivia(),
-          ci: '0000000',
+          fecha: fecha || (cita.fecha_hora ? cita.fecha_hora.split('T')[0] : getTodayBolivia()),
+          ci: clienteCi,
           nombre: clienteNombre,
-          cuenta_codigo: 'ING-001',
-          cuenta_detalle: `Servicio: ${servicioNombre}`,
-          glosa: `Atendido por ${barberoNombre} — Cita #${citaId.slice(0, 6)}`,
+          cuenta_codigo: cuenta_codigo || 'ING-001',
+          cuenta_detalle: cuenta_detalle || `Servicio: ${servicioNombre}`,
+          glosa: glosa || `Atendido por ${barberoNombre} — Cita #${citaId.slice(0, 6)}`,
           costo: precioCita,
-          tipo_movimiento: 'INGRESO',
+          tipo_movimiento: tipo_movimiento || 'INGRESO',
           subcategoria: 'SERVICIO',
           es_sancion: false,
           empleado_id: cita.barbero_id,
@@ -485,24 +486,75 @@ export async function PATCH(request: NextRequest) {
           metodo_pago: realMetodo,
           monto_efectivo: realEf,
           monto_qr: realQr,
-          comprobante_url: comprobante_url,
-          notas: anticipoQr > 0 ? `Anticipo QR: Bs ${anticipoQr} | Cobrado (${mpRaw}): Bs ${resto}` : null,
-          usuario_registro: profile?.role || 'Sistema',
+          comprobante_url: comprobante_url || null,
+          notas: notas || (anticipoQr > 0 ? `Anticipo QR: Bs ${anticipoQr} | Cobrado (${mpRaw}): Bs ${resto}` : null),
+          usuario_registro: profile?.full_name || 'Coordinador',
         }).select().single()
 
         return NextResponse.json({ success: true, data: txNueva })
       }
     }
 
+    const updatePayload: any = {}
+    if (comprobante_url !== undefined) updatePayload.comprobante_url = comprobante_url
+    if (costo !== undefined) updatePayload.costo = Number(costo)
+    if (nombre !== undefined) updatePayload.nombre = nombre
+    if (ci !== undefined) updatePayload.ci = ci
+    if (cuenta_codigo !== undefined) updatePayload.cuenta_codigo = cuenta_codigo
+    if (cuenta_detalle !== undefined) updatePayload.cuenta_detalle = cuenta_detalle
+    if (glosa !== undefined) updatePayload.glosa = glosa
+    if (metodo_pago !== undefined) updatePayload.metodo_pago = metodo_pago
+    if (monto_efectivo !== undefined) updatePayload.monto_efectivo = Number(monto_efectivo)
+    if (monto_qr !== undefined) updatePayload.monto_qr = Number(monto_qr)
+    if (tipo_movimiento !== undefined) updatePayload.tipo_movimiento = tipo_movimiento
+    if (fecha !== undefined) updatePayload.fecha = fecha
+    if (notas !== undefined) updatePayload.notas = notas
+
     const { data, error } = await supabase
       .from('transactions')
-      .update({ comprobante_url })
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single()
 
     if (error) throw error
     return NextResponse.json({ success: true, data })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role !== 'admin' && profile?.role !== 'coordinador') {
+      return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+
+    if (id.startsWith('virtual-cita-')) {
+      return NextResponse.json({ error: 'No se puede eliminar una cita directamente desde transacciones. Cancelarla en citas.' }, { status: 400 })
+    }
+
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+    return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

@@ -8,7 +8,8 @@ import { PasswordInput } from '@/components/ui/PasswordInput'
 import { Card, CardContent } from '@/components/ui/Card'
 import { formatCurrency, toTitleCase, toSentenceCase } from '@/lib/utils'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Calendar, User, Scissors, CheckCircle, Package, Plus, Minus, X, Info, AlertTriangle, Clock, UserPlus, Gift, Shield, Smartphone, Mail, IdCard, ArrowLeft, Home } from 'lucide-react'
+import { Calendar, User, Scissors, CheckCircle, Package, Plus, Minus, X, Info, AlertTriangle, Clock, UserPlus, Gift, Shield, Smartphone, Mail, IdCard, ArrowLeft, Home, Sparkles } from 'lucide-react'
+import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { CATEGORIAS_SERVICIOS } from '@/types'
@@ -560,8 +561,9 @@ function ReservarContent() {
       }
 
       if (promoElegida) {
-        if (promoElegida.tipo === 'descuento_fijo') precioServicioFinal = Math.max(0, precioServicioFinal - promoElegida.valor)
-        if (promoElegida.tipo === 'descuento_porcentaje') precioServicioFinal = precioServicioFinal * (1 - (promoElegida.valor / 100))
+        if (promoElegida.tipo === 'descuento_fijo') precioServicioFinal = Math.max(0, precioServicioFinal - (promoElegida.valor || 10))
+        else if (promoElegida.tipo === 'descuento_porcentaje' || promoElegida.tipo === '2x1') precioServicioFinal = precioServicioFinal * (1 - ((promoElegida.valor || 50) / 100))
+        else if (promoElegida.tipo === 'cumpleanos' || promoElegida.tipo === 'servicio_gratis') precioServicioFinal = 0
         
         let infoPromo = `[PROMO: ${promoElegida.nombre}]`
         if (promoElegida.tipo === '2x1') {
@@ -798,17 +800,36 @@ function ReservarContent() {
   }
 
   const servicioSeleccionado = servicios.find(s => s.id === formData.servicio_id)
-  let precioServicio = servicioSeleccionado?.precio || 0
+  let precioServicioOriginal = servicioSeleccionado?.precio || 0
+  let precioServicio = precioServicioOriginal
+
   if (lealtadInfo && servicioSeleccionado) {
     precioServicio = precioServicio * (1 - lealtadInfo.descuento)
   }
+
+  const promoElegida = promociones.find(p => p.id === promoSeleccionada)
+  let montoDescuentoPromo = 0
+  if (promoElegida && servicioSeleccionado) {
+    if (promoElegida.tipo === 'descuento_fijo') {
+      montoDescuentoPromo = Math.min(precioServicio, Number(promoElegida.valor || 10))
+      precioServicio = Math.max(0, precioServicio - montoDescuentoPromo)
+    } else if (promoElegida.tipo === 'descuento_porcentaje' || promoElegida.tipo === '2x1') {
+      const pct = Number(promoElegida.valor || 50)
+      montoDescuentoPromo = (precioServicio * pct) / 100
+      precioServicio = Math.max(0, precioServicio - montoDescuentoPromo)
+    } else if (promoElegida.tipo === 'cumpleanos' || promoElegida.tipo === 'servicio_gratis') {
+      montoDescuentoPromo = precioServicio
+      precioServicio = 0
+    }
+  }
+
   const totalProductos = carrito.reduce((s, i) => s + (i.producto.precio_venta * i.cantidad), 0)
   const descuentoCruzado = (formData.servicio_id && carrito.length > 0) ? 10 : 0
   const totalReserva = Math.max(0, precioServicio + totalProductos - descuentoCruzado)
   let anticipo = 20
-  if (tipoReserva === 'adelanto_20') anticipo = 20
+  if (tipoReserva === 'adelanto_20') anticipo = Math.min(20, totalReserva)
   else if (tipoReserva === 'pago_total') anticipo = totalReserva
-  else if (tipoReserva === 'sin_adelanto') anticipo = 0
+  else if (tipoReserva === 'sin_adelanto' || totalReserva === 0) anticipo = 0
 
   const missingFields = []
   if (!formData.servicio_id && carrito.length === 0) missingFields.push('Servicio o Producto')
@@ -1108,7 +1129,90 @@ function ReservarContent() {
           {step === 1 && (
             <Card className="bg-zinc-900/80 backdrop-blur-xl border-zinc-800/80 shadow-2xl rounded-3xl overflow-hidden">
               <CardContent className="p-6 md:p-8">
-                <h2 className="text-3xl font-black mb-6 text-center tracking-tight">Selecciona tu <span className="text-amber-500">Servicio</span></h2>
+                <h2 className="text-3xl font-black mb-4 text-center tracking-tight">Selecciona tu <span className="text-amber-500">Servicio</span></h2>
+
+                {/* PROMOCIONES ESPECIALES EN LA PARTE SUPERIOR */}
+                {promociones.length > 0 && (
+                  <div className="mb-8 p-5 bg-gradient-to-b from-black/60 to-zinc-950/80 border border-amber-500/20 rounded-2xl">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <h3 className="text-xs uppercase tracking-[0.2em] font-black text-amber-400 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Promociones & Descuentos Disponibles
+                      </h3>
+                      {promoSeleccionada && (
+                        <button
+                          type="button"
+                          onClick={() => setPromoSeleccionada('')}
+                          className="text-[10px] font-bold text-zinc-500 hover:text-white uppercase tracking-wider"
+                        >
+                          ✕ Quitar Promo
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {promociones.map(p => {
+                        const cleanName = p.nombre.replace(new RegExp(`^${p.icono}\\s*`, 'u'), '').trim()
+                        const isSelected = promoSeleccionada === p.id
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => setPromoSeleccionada(isSelected ? '' : p.id)}
+                            className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between text-left ${
+                              isSelected
+                                ? 'bg-amber-500/15 border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.25)] scale-[1.02]'
+                                : 'bg-black/40 border-zinc-800/80 hover:border-amber-500/40 text-zinc-300 hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span className="text-xl">{p.icono || '🎁'}</span>
+                              <Badge variant={isSelected ? 'warning' : 'default'} className="text-[9px] font-black uppercase tracking-wider">
+                                {p.tipo === 'cumpleanos' || p.tipo === 'servicio_gratis' ? '100% OFF' : p.tipo === '2x1' ? '2×1 Martes' : `Bs. ${p.valor || 10} OFF`}
+                              </Badge>
+                            </div>
+                            <p className="font-black text-xs text-white leading-tight mb-1">{cleanName}</p>
+                            <p className="text-[10px] text-zinc-400 leading-tight">
+                              {p.descripcion || (p.tipo === 'cumpleanos' ? 'Corte especial en tu semana de cumpleaños' : p.tipo === '2x1' ? 'Paga 1 corte y ven con tu acompañante' : 'Descuento especial por recomendación')}
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Banner Informativo si se seleccionó una promo */}
+                    {promoElegida && (
+                      <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl animate-in fade-in duration-300">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{promoElegida.icono || '🎉'}</span>
+                          <div>
+                            <p className="text-xs font-black text-amber-400 uppercase tracking-wide">
+                              ¡{promoElegida.nombre} activada!
+                            </p>
+                            <p className="text-[11px] text-zinc-300">
+                              {promoElegida.tipo === 'cumpleanos' || promoElegida.tipo === 'servicio_gratis'
+                                ? 'Tu servicio tendrá 100% de descuento (presenta tu carnet de identidad al llegar al local).'
+                                : promoElegida.tipo === '2x1'
+                                ? 'Aplica para 2 personas los martes. Ingresa los datos de tu acompañante a continuación.'
+                                : `Se descontarán Bs. ${promoElegida.valor || 10} automáticamente en tu total.`}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Datos del acompañante para 2x1 */}
+                        {promoElegida.tipo === '2x1' && (
+                          <div className="mt-3 pt-3 border-t border-amber-500/20 space-y-2">
+                            <label className="text-[10px] font-black uppercase text-amber-400 tracking-wider block">Nombre de tu acompañante *</label>
+                            <Input
+                              placeholder="Nombre y Apellido del acompañante"
+                              value={acompanante.nombre}
+                              onChange={(e) => setAcompanante({ ...acompanante, nombre: e.target.value })}
+                              className="bg-black/70 border-amber-500/30 text-xs h-10"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 {/* Pestañas / Filtros de Categorías */}
                 <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
@@ -1214,7 +1318,24 @@ function ReservarContent() {
                             </p>
                           )}
                           <div className="flex items-center justify-between gap-2 pt-2 border-t border-zinc-800/50">
-                            <span className="text-amber-400 font-black text-xl tracking-tight">{formatCurrency(s.precio)}</span>
+                            <div className="flex items-center gap-2">
+                              {promoElegida ? (
+                                <div className="flex items-baseline gap-1.5">
+                                  <span className="text-xs text-zinc-500 line-through font-bold">{formatCurrency(s.precio)}</span>
+                                  <span className="text-emerald-400 font-black text-xl tracking-tight">
+                                    {formatCurrency(
+                                      promoElegida.tipo === 'cumpleanos' || promoElegida.tipo === 'servicio_gratis'
+                                        ? 0
+                                        : promoElegida.tipo === '2x1' || promoElegida.tipo === 'descuento_porcentaje'
+                                        ? s.precio * (1 - (promoElegida.valor || 50) / 100)
+                                        : Math.max(0, s.precio - (promoElegida.valor || 10))
+                                    )}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-amber-400 font-black text-xl tracking-tight">{formatCurrency(s.precio)}</span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"
@@ -1234,53 +1355,6 @@ function ReservarContent() {
                   })}
                 </div>
 
-                {/* PROMOCIONES PUBLICAS */}
-                {promociones.length > 0 && (
-                  <div className="mt-10 pt-8 border-t border-zinc-800/50">
-                    <h2 className="text-xs md:text-sm uppercase tracking-[0.2em] font-black mb-5 text-center text-zinc-500">
-                      Promociones Especiales (Opcional)
-                    </h2>
-                    <div className="flex flex-wrap justify-center gap-3">
-                      <button
-                        onClick={() => setPromoSeleccionada('')}
-                        className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                          !promoSeleccionada ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'bg-black/50 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
-                        }`}
-                      >
-                        Sin promo
-                      </button>
-                      {promociones.map(p => {
-                        const cleanName = p.nombre.replace(new RegExp(`^${p.icono}\\s*`, 'u'), '').trim()
-                        return (
-                          <button
-                            key={p.id}
-                            onClick={() => setPromoSeleccionada(p.id === promoSeleccionada ? '' : p.id)}
-                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
-                              promoSeleccionada === p.id ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'bg-black/50 border border-zinc-800 text-amber-500/80 hover:border-amber-500/50 hover:text-amber-400'
-                            }`}
-                          >
-                            <span>{p.icono}</span>
-                            <span>{cleanName}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                    {promociones.find(p => p.id === promoSeleccionada)?.tipo === '2x1' && (
-                      <div className="mt-6 max-w-lg mx-auto p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl animate-in fade-in zoom-in-95 duration-300">
-                        <h4 className="text-amber-500 font-black text-sm uppercase tracking-widest mb-3 flex items-center gap-2">
-                          <UserPlus className="w-4 h-4" />
-                          Datos de tu Acompañante 2x1
-                        </h4>
-                        <p className="text-xs text-amber-500/80 mb-4 font-medium leading-relaxed">Tu acompañante debe venir contigo en el mismo horario.</p>
-                        <div className="space-y-4">
-                          <Input placeholder="Nombre completo *" value={acompanante.nombre} onChange={(e) => setAcompanante({ ...acompanante, nombre: e.target.value })} className="bg-black/60 border-amber-500/20 text-sm h-12" />
-                          <Input placeholder="Correo electrónico (Opcional)" type="email" value={acompanante.email} onChange={(e) => setAcompanante({ ...acompanante, email: e.target.value })} className="bg-black/60 border-amber-500/20 text-sm h-12" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
                 <div className="mt-10 flex justify-center">
                   <Button variant="ghost" onClick={() => setStep(4)} className="text-zinc-500 hover:text-white text-xs uppercase tracking-[0.2em] font-bold py-6 hover:bg-white/5 rounded-xl">
                     Saltar a la tienda (Solo Comprar)
@@ -1691,6 +1765,21 @@ function ReservarContent() {
                         </div>
                       )}
 
+                      {/* Descuento Promoción Especial */}
+                      {promoElegida && servicioSeleccionado && (
+                        <div className="flex justify-between items-center text-sm bg-gradient-to-r from-amber-500/20 to-orange-500/10 p-4 rounded-2xl border border-amber-500/40 mt-3 shadow-inner">
+                          <div className="flex flex-col">
+                            <span className="text-amber-400 font-black text-xs uppercase tracking-wider flex items-center gap-1.5">
+                              <span>{promoElegida.icono || '🎉'}</span> {promoElegida.nombre}
+                            </span>
+                            {promoElegida.tipo === '2x1' && acompanante.nombre && (
+                              <span className="text-[10px] text-zinc-400">Acompañante: {acompanante.nombre}</span>
+                            )}
+                          </div>
+                          <span className="font-black text-emerald-400 text-lg">-{formatCurrency(montoDescuentoPromo)}</span>
+                        </div>
+                      )}
+
                       {/* Productos */}
                       {carrito.length > 0 && (
                         <div className="pt-5 border-t border-white/5 mt-5">
@@ -1723,31 +1812,13 @@ function ReservarContent() {
                       <div className="relative z-10">
                         <div className="flex justify-between items-end mb-4 pb-4 border-b border-zinc-800/80">
                           <span className="text-zinc-500 font-black uppercase tracking-[0.2em] text-xs">Total Reserva</span>
-                          {(() => {
-                            let calcPrecioServicio = servicioSeleccionado?.precio || 0
-                            if (lealtadInfo && servicioSeleccionado) calcPrecioServicio = calcPrecioServicio * (1 - lealtadInfo.descuento)
-                            const calcTotalProductos = carrito.reduce((s, i) => s + (i.producto.precio_venta * i.cantidad), 0)
-                            const calcDescuentoCruzado = (formData.servicio_id && carrito.length > 0) ? 10 : 0
-                            const calcTotal = Math.max(0, calcPrecioServicio + calcTotalProductos - calcDescuentoCruzado)
-                            return <span className="font-black text-2xl text-white leading-none">{formatCurrency(calcTotal)}</span>
-                          })()}
+                          <span className="font-black text-2xl text-white leading-none">{formatCurrency(totalReserva)}</span>
                         </div>
                         <div className="flex justify-between items-center mt-2">
                           <span className="text-amber-500 font-black text-sm uppercase tracking-widest">
                             {tipoReserva === 'pago_total' ? 'A Pagar Hoy (100% QR)' : tipoReserva === 'sin_adelanto' ? 'A Pagar Hoy (QR)' : 'A Pagar Hoy (Adelanto)'}
                           </span>
-                          {(() => {
-                            let calcPrecioServicio = servicioSeleccionado?.precio || 0
-                            if (lealtadInfo && servicioSeleccionado) calcPrecioServicio = calcPrecioServicio * (1 - lealtadInfo.descuento)
-                            const calcTotalProductos = carrito.reduce((s, i) => s + (i.producto.precio_venta * i.cantidad), 0)
-                            const calcDescuentoCruzado = (formData.servicio_id && carrito.length > 0) ? 10 : 0
-                            const calcTotal = Math.max(0, calcPrecioServicio + calcTotalProductos - calcDescuentoCruzado)
-                            let calcAnticipo = 20
-                            if (tipoReserva === 'adelanto_20') calcAnticipo = 20
-                            else if (tipoReserva === 'pago_total') calcAnticipo = calcTotal
-                            else if (tipoReserva === 'sin_adelanto') calcAnticipo = 0
-                            return <span className="font-black text-4xl text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.3)]">{formatCurrency(calcAnticipo)}</span>
-                          })()}
+                          <span className="font-black text-4xl text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.3)]">{formatCurrency(anticipo)}</span>
                         </div>
                         <p className="text-[10px] text-zinc-500 mt-4 text-center uppercase tracking-widest font-bold">
                           {tipoReserva === 'sin_adelanto'

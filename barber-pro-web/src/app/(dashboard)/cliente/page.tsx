@@ -9,10 +9,13 @@ import { formatCurrency, cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { VincularRecomendanteWidget } from '@/components/cliente/VincularRecomendanteWidget'
 import { ReferralCardWidget } from '@/components/cliente/ReferralCardWidget'
+import { Input } from '@/components/ui/Input'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 import {
   Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
-  Trophy, Zap, Shield, Crown, Flame, Users, UserPlus
+  Trophy, Zap, Shield, Crown, Flame, Users, UserPlus,
+  Edit3, Save, CreditCard, Upload
 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 
@@ -84,6 +87,12 @@ export default function ClientePage() {
   const [reprogramarData, setReprogramarData] = useState({ fecha: '', hora: '' })
   const [submittingReprogramar, setSubmittingReprogramar] = useState(false)
 
+  // Cumpleaños edit & Carnet upload
+  const [editingBirthday, setEditingBirthday] = useState(false)
+  const [savingBirthday, setSavingBirthday] = useState(false)
+  const [bdayInput, setBdayInput] = useState('')
+  const [carnetUrl, setCarnetUrl] = useState('')
+
   const router = useRouter()
   const supabase = createClient()
 
@@ -114,7 +123,13 @@ export default function ClientePage() {
           .order('fecha_hora', { ascending: true })
       ])
 
-      if (cardRes.ok) setCardData(await cardRes.json())
+      if (cardRes.ok) {
+        const cData = await cardRes.json()
+        setCardData(cData)
+        if (cData?.cliente?.cumpleanos) {
+          setBdayInput(cData.cliente.cumpleanos.split('T')[0])
+        }
+      }
 
       const ahoraMs = Date.now()
       const citas = (citasRes.data as unknown as Cita[]) ?? []
@@ -122,6 +137,29 @@ export default function ClientePage() {
       setCitasPasadas(citas.filter(c => new Date(c.fecha_hora).getTime() < ahoraMs || c.estado === 'cancelado').reverse().slice(0, 8))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveBirthday = async () => {
+    if (!bdayInput) return toastError('Por favor selecciona una fecha válida')
+    if (!cardData?.cliente?.id) return
+    setSavingBirthday(true)
+    try {
+      const { error } = await supabase
+        .from('clientes')
+        .update({
+          cumpleanos: bdayInput,
+        })
+        .eq('id', cardData.cliente.id)
+
+      if (error) throw error
+      success('¡Fecha de cumpleaños actualizada con éxito! 🎂')
+      setEditingBirthday(false)
+      loadData()
+    } catch (e: any) {
+      toastError(e.message || 'Error al guardar fecha')
+    } finally {
+      setSavingBirthday(false)
     }
   }
 
@@ -586,6 +624,100 @@ export default function ClientePage() {
               </div>
             )
           })()}
+
+          {/* ——— WIDGET CUMPLEAÑOS Y VALIDACIÓN DE CARNET ——— */}
+          <div className="bg-zinc-900 border border-amber-500/30 rounded-3xl p-6 sm:p-7 shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-xl">
+                  🎂
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Mi Cumpleaños & Regalo Especial</h3>
+                  <p className="text-xs text-zinc-400">Recibe 100% de descuento / corte de cortesía en tu semana de cumpleaños</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingBirthday(!editingBirthday)}
+                className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-amber-500 hover:text-black text-xs font-bold text-zinc-300 transition flex items-center gap-1"
+              >
+                <Edit3 size={13} />
+                <span>{editingBirthday ? 'Cerrar' : 'Editar'}</span>
+              </button>
+            </div>
+
+            {/* Fecha actual guardada */}
+            <div className="p-4 bg-black/40 border border-white/5 rounded-2xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-amber-500 shrink-0" />
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Fecha Registrada</p>
+                  <p className="text-sm font-black text-white">
+                    {cardData?.cliente?.cumpleanos 
+                      ? new Date(cardData.cliente.cumpleanos + 'T12:00:00').toLocaleDateString('es-BO', { day: 'numeric', month: 'long' })
+                      : 'No registrada aún (Haz click en Editar)'}
+                  </p>
+                </div>
+              </div>
+              {cardData?.cliente?.ci && (
+                <span className="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-full">
+                  CI: {cardData.cliente.ci} ✓
+                </span>
+              )}
+            </div>
+
+            {/* Formulario de edición si se activa */}
+            {editingBirthday && (
+              <div className="p-4 bg-zinc-950/80 border border-amber-500/30 rounded-2xl space-y-4 animate-in fade-in duration-200">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-amber-400 tracking-wider block mb-1">
+                    Selecciona tu fecha de nacimiento
+                  </label>
+                  <Input
+                    type="date"
+                    value={bdayInput}
+                    onChange={(e) => setBdayInput(e.target.value)}
+                    className="bg-black/60 border-zinc-800 text-sm h-11 text-white font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <ImageUpload
+                    label="Foto de tu Carnet de Identidad (CI) para Validación"
+                    defaultImage={carnetUrl || undefined}
+                    onUploadSuccess={(url) => {
+                      setCarnetUrl(url)
+                      success('Foto de carnet subida exitosamente')
+                    }}
+                    onUploadError={(err) => toastError(err)}
+                  />
+                  <p className="text-[10px] text-zinc-500 leading-tight">
+                    🔒 Tu documento solo se utilizará para comprobar tu fecha de nacimiento y habilitar tu descuento de cumpleaños.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setEditingBirthday(false)}
+                    className="border-zinc-800 text-xs"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={savingBirthday}
+                    onClick={handleSaveBirthday}
+                    className="bg-amber-500 hover:bg-amber-400 text-black font-black text-xs px-5 shadow-lg shadow-amber-500/20"
+                  >
+                    {savingBirthday ? 'Guardando...' : 'Guardar Fecha'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* ——— WIDGET PROGRAMA DE REFERIDOS CON WHATSAPP Y BILLETERA ——— */}
           {cliente && (

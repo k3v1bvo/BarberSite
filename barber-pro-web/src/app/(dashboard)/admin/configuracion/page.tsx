@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useToast } from '@/components/ui/Toast'
-import { QrCode, Save, ArrowLeft, Image as ImageIcon, Info, Sparkles, Tag } from 'lucide-react'
+import { QrCode, Save, ArrowLeft, Image as ImageIcon, Info, Sparkles, Tag, Gift } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { isValidImageUrl } from '@/lib/validators'
 import { ImageUpload } from '@/components/ui/ImageUpload'
@@ -41,6 +41,7 @@ export default function AdminConfiguracionPage() {
   const [initialHeroConfig, setInitialHeroConfig] = useState(defaultHero)
   const [aboutUsConfig, setAboutUsConfig] = useState(defaultAboutUs)
   const [initialAboutUsConfig, setInitialAboutUsConfig] = useState(defaultAboutUs)
+  const [montoBonoReferido, setMontoBonoReferido] = useState('10')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const { error: toastError, success: toastSuccess, toast: toastInfo } = useToast()
@@ -53,13 +54,19 @@ export default function AdminConfiguracionPage() {
         const { data, error } = await supabase
           .from('configuraciones')
           .select('llave, valor')
-          .in('llave', ['qr_pago', 'hero_bg_image', 'about_us_config', 'brand_config'])
+          .in('llave', ['qr_pago', 'hero_bg_image', 'about_us_config', 'brand_config', 'monto_bono_referido'])
 
         if (data) {
           const brandData = data.find(c => c.llave === 'brand_config')
           const qrConfig = data.find(c => c.llave === 'qr_pago')
           const heroConfigData = data.find(c => c.llave === 'hero_bg_image')
           const aboutConfig = data.find(c => c.llave === 'about_us_config')
+          const refConfig = data.find(c => c.llave === 'monto_bono_referido')
+
+          if (refConfig && refConfig.valor) {
+            const val = typeof refConfig.valor === 'object' ? (refConfig.valor as any).monto : refConfig.valor
+            if (val !== undefined && val !== null) setMontoBonoReferido(String(val))
+          }
 
           if (brandData && brandData.valor) {
             const mergedBrand = { ...defaultBrandConfig, ...(brandData.valor as any) }
@@ -203,6 +210,32 @@ export default function AdminConfiguracionPage() {
     }
   }
 
+  const handleSaveReferido = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const val = parseFloat(montoBonoReferido)
+    if (isNaN(val) || val < 0) {
+      return toastError('Ingresa un monto de bono válido.')
+    }
+
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from('configuraciones')
+        .upsert({
+          llave: 'monto_bono_referido',
+          valor: { monto: val },
+          descripcion: 'Monto de bono por referido en Bolivianos (Bs.)'
+        }, { onConflict: 'llave' })
+
+      if (error) throw error
+      toastSuccess(`Monto de bono por referido actualizado a Bs. ${val} correctamente ✅`)
+    } catch (err: any) {
+      toastError(err.message || 'Error al guardar configuración de referidos')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-96">
@@ -298,6 +331,53 @@ export default function AdminConfiguracionPage() {
               >
                 <Save className="w-4 h-4 mr-2" />
                 {saving ? 'Guardando...' : 'Guardar Identidad de Marca'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* PROGRAMA DE REFERIDOS - MONTO DE BONO */}
+      <Card className="bg-zinc-900 border-white/5 shadow-xl">
+        <CardHeader className="border-b border-white/5 bg-zinc-900/50 p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400">
+              <Gift className="w-6 h-6" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-black uppercase text-white">Programa de Referidos (Monto de Bono)</CardTitle>
+              <p className="text-sm text-zinc-400">Configura la recompensa que recibe un cliente cuando su invitado realiza su primer servicio.</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <form onSubmit={handleSaveReferido} className="space-y-6">
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Monto de Recompensa en Bolivianos (Bs.)</label>
+              <div className="relative mt-1">
+                <Input
+                  type="number"
+                  step="any"
+                  min="0"
+                  className="bg-zinc-950 border-white/10 text-emerald-400 font-bold text-lg h-12 rounded-xl focus:border-emerald-500 pl-10"
+                  value={montoBonoReferido}
+                  onChange={(e) => setMontoBonoReferido(e.target.value)}
+                />
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 font-bold text-sm">Bs.</span>
+              </div>
+              <p className="text-xs text-zinc-400 font-medium mt-2 ml-1">
+                Actualmente configurado en <strong className="text-emerald-400">Bs. {montoBonoReferido}</strong>. Puedes ajustarlo en cualquier momento aquí sin necesidad de código.
+              </p>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-white/5">
+              <Button
+                type="submit"
+                disabled={saving}
+                className="bg-emerald-500 hover:bg-emerald-400 text-black font-black px-8 py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/20"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {saving ? 'Guardando...' : 'Guardar Monto de Bono'}
               </Button>
             </div>
           </form>

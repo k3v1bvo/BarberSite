@@ -63,7 +63,8 @@ export default function ReferidosPage() {
       if (refRes.ok) setReferrals(await refRes.json())
       if (clientesRes.data) setClientes(clientesRes.data as Cliente[])
       if (configRes.data?.valor) {
-        const val = typeof configRes.data.valor === 'number' ? configRes.data.valor.toString() : configRes.data.valor
+        const raw = configRes.data.valor
+        const val = typeof raw === 'object' ? String((raw as any).monto || '10') : String(raw)
         setMontoBonoConfig(val)
         setForm(f => ({ ...f, monto_bono: val }))
       }
@@ -138,7 +139,11 @@ export default function ReferidosPage() {
     try {
       await supabase
         .from('configuraciones')
-        .upsert({ llave: 'monto_bono_referido', valor: parseFloat(montoBonoConfig) })
+        .upsert({
+          llave: 'monto_bono_referido',
+          valor: { monto: parseFloat(montoBonoConfig) },
+          descripcion: 'Monto de bono por referido en Bolivianos (Bs.)'
+        }, { onConflict: 'llave' })
       alert('Monto de bono actualizado exitosamente')
     } finally {
       setSavingConfig(false)

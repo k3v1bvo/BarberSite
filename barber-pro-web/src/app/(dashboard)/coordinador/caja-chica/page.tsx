@@ -6,9 +6,10 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency, getTodayBolivia, exportToCSV } from '@/lib/utils'
-import { Wallet, Plus, X, User, Building, Image as ImageIcon, ArrowUpCircle, ArrowDownCircle, Search, TrendingUp, TrendingDown, Scale, ShoppingCart, Receipt, ArrowUpDown, ArrowUp, ArrowDown, Printer, Download } from 'lucide-react'
+import { Wallet, Plus, X, User, Building, Image as ImageIcon, ArrowUpCircle, ArrowDownCircle, Search, TrendingUp, TrendingDown, Scale, ShoppingCart, Receipt, ArrowUpDown, ArrowUp, ArrowDown, Printer, Download, Edit3 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import { ModalEditarTransaccion } from '@/components/pos/ModalEditarTransaccion'
 import Link from 'next/link'
 
 interface PlanCuenta {
@@ -61,6 +62,7 @@ export default function CajaChicaPage() {
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'INGRESO' | 'EGRESO'>('todos')
   const [sortKey, setSortKey] = useState<'fecha' | 'nombre' | 'cuenta_detalle' | 'costo' | 'metodo_pago'>('fecha')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [txToEdit, setTxToEdit] = useState<any>(null)
 
   // Crear nueva categoría
   const [showNewCategoria, setShowNewCategoria] = useState(false)
@@ -1154,11 +1156,12 @@ export default function CajaChicaPage() {
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-right w-[95px]">Efectivo</th>
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-right w-[95px]">QR / Banco</th>
                   <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-right w-[95px] cursor-pointer hover:text-white transition-colors select-none" onClick={() => handleSort('costo')}>Total <SortIcon col="costo" /></th>
+                  <th className="px-3 py-3 text-[9px] font-black uppercase tracking-widest text-zinc-500 text-center w-[70px]">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {txFiltradas.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-16 text-center text-zinc-600">
+                  <tr><td colSpan={11} className="px-4 py-16 text-center text-zinc-600">
                     <div className="flex flex-col items-center gap-3">
                       <Wallet className="w-10 h-10 text-zinc-800" />
                       <p className="font-bold text-white">Sin movimientos en efectivo</p>
@@ -1286,6 +1289,18 @@ export default function CajaChicaPage() {
                             {ingreso ? '+' : '-'}{formatCurrency(tx.costo)}
                           </span>
                         </td>
+                        {/* Acciones */}
+                        <td className="px-3 py-2.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setTxToEdit(tx)}
+                            className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-amber-500 hover:text-black text-zinc-400 text-[11px] font-bold transition flex items-center gap-1 mx-auto"
+                            title="Editar este movimiento"
+                          >
+                            <Edit3 size={12} />
+                            <span>Editar</span>
+                          </button>
+                        </td>
                       </tr>
                     )
                   })
@@ -1295,6 +1310,14 @@ export default function CajaChicaPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal para editar cualquier registro contable */}
+      <ModalEditarTransaccion
+        transaction={txToEdit}
+        isOpen={!!txToEdit}
+        onClose={() => setTxToEdit(null)}
+        onSuccess={loadData}
+      />
 
       {/* Modal para adjuntar o editar comprobante */}
       {editingComprobanteTx && (

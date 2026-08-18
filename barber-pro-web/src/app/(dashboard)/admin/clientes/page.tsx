@@ -13,7 +13,7 @@ import {
   Users, Search, TrendingUp, DollarSign, Calendar,
   Star, Crown, X, ChevronRight, Phone, Mail,
   CreditCard, Package, Scissors, ArrowUpRight,
-  ArrowDownRight, Clock, CheckCircle, ShoppingBag, UserPlus
+  ArrowDownRight, Clock, CheckCircle, ShoppingBag, UserPlus, Edit3, Save
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
@@ -130,6 +130,65 @@ export default function ClientesAdminPage() {
     ci: '',
     monto_bono: '20'
   })
+
+  // Editar Cliente Modal
+  const [showEditClienteModal, setShowEditClienteModal] = useState(false)
+  const [savingCliente, setSavingCliente] = useState(false)
+  const [editClienteForm, setEditClienteForm] = useState({
+    nombre: '',
+    ci: '',
+    telefono: '',
+    email: '',
+    cumpleanos: '',
+    codigo_tarjeta: '',
+  })
+
+  const abrirEditarCliente = (c: Cliente) => {
+    setEditClienteForm({
+      nombre: c.nombre || '',
+      ci: c.ci || '',
+      telefono: c.telefono || '',
+      email: c.email || '',
+      cumpleanos: c.cumpleanos ? c.cumpleanos.split('T')[0] : '',
+      codigo_tarjeta: c.codigo_tarjeta || '',
+    })
+    setShowEditClienteModal(true)
+  }
+
+  const handleGuardarCliente = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!clienteSeleccionado) return
+    if (!editClienteForm.nombre.trim()) {
+      return toastError('El nombre no puede estar vacío')
+    }
+
+    setSavingCliente(true)
+    try {
+      const { error } = await supabase
+        .from('clientes')
+        .update({
+          nombre: editClienteForm.nombre.trim(),
+          ci: editClienteForm.ci.trim() || null,
+          telefono: editClienteForm.telefono.trim() || null,
+          email: editClienteForm.email.trim() || null,
+          cumpleanos: editClienteForm.cumpleanos.trim() || null,
+          codigo_tarjeta: editClienteForm.codigo_tarjeta.trim() || null,
+        })
+        .eq('id', clienteSeleccionado.id)
+
+      if (error) throw error
+
+      toastSuccess('Datos del cliente actualizados correctamente ✅')
+      setShowEditClienteModal(false)
+      loadClientes()
+      const { data: updatedClient } = await supabase.from('clientes').select('*').eq('id', clienteSeleccionado.id).single()
+      if (updatedClient) setClienteSeleccionado(updatedClient)
+    } catch (err: any) {
+      toastError(err.message || 'Error al guardar cambios')
+    } finally {
+      setSavingCliente(false)
+    }
+  }
 
   const handleSyncClienteManualmente = async (cliente: Cliente) => {
     setSyncingClient(true)
@@ -650,20 +709,29 @@ export default function ClientesAdminPage() {
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
+                      onClick={() => abrirEditarCliente(clienteSeleccionado)}
+                      className="bg-zinc-800 hover:bg-amber-500 hover:text-black text-zinc-300 font-bold h-8 text-xs border border-white/10"
+                      title="Editar nombre, CI, teléfono, cumpleaños y datos"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      size="sm"
                       variant="outline"
                       disabled={syncingClient}
                       onClick={() => handleSyncClienteManualmente(clienteSeleccionado)}
                       className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 font-bold h-8 text-xs"
                       title="Buscar y sincronizar citas o consumos anteriores por CI/Correo"
                     >
-                      {syncingClient ? 'Sincronizando...' : '⚡ Forzar Sync por CI'}
+                      {syncingClient ? 'Sincronizando...' : '⚡ Sync CI'}
                     </Button>
                     <Button 
                       size="sm" 
                       onClick={() => setShowReferralModal(true)}
                       className="bg-amber-500 hover:bg-amber-600 text-black font-bold h-8 text-xs"
                     >
-                      <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                      <UserPlus className="w-3.5 h-3.5 mr-1" />
                       Referido
                     </Button>
                     <button
@@ -882,6 +950,103 @@ export default function ClientesAdminPage() {
         </div>
       </div>
     )}
+
+      {/* MODAL EDITAR CLIENTE */}
+      {showEditClienteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-lg p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Edit3 size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Editar Perfil del Cliente</h3>
+                  <p className="text-xs text-zinc-400">Actualiza CI, fecha de cumpleaños y contacto</p>
+                </div>
+              </div>
+              <button onClick={() => setShowEditClienteModal(false)} className="text-zinc-500 hover:text-white p-1">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleGuardarCliente} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Nombre Completo *</label>
+                <Input
+                  required
+                  value={editClienteForm.nombre}
+                  onChange={e => setEditClienteForm({ ...editClienteForm, nombre: e.target.value })}
+                  className="bg-black/60 border-zinc-800 text-sm h-11 text-white font-bold"
+                  placeholder="Nombre y apellido"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Carnet de Identidad (CI)</label>
+                  <Input
+                    value={editClienteForm.ci}
+                    onChange={e => setEditClienteForm({ ...editClienteForm, ci: e.target.value })}
+                    className="bg-black/60 border-zinc-800 text-sm h-11 font-mono text-emerald-400 font-bold"
+                    placeholder="Ej: 5194847"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">🎂 Fecha de Cumpleaños</label>
+                  <Input
+                    type="date"
+                    value={editClienteForm.cumpleanos}
+                    onChange={e => setEditClienteForm({ ...editClienteForm, cumpleanos: e.target.value })}
+                    className="bg-black/60 border-amber-500/40 text-sm h-11 text-amber-400 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Teléfono / WhatsApp</label>
+                  <Input
+                    value={editClienteForm.telefono}
+                    onChange={e => setEditClienteForm({ ...editClienteForm, telefono: e.target.value })}
+                    className="bg-black/60 border-zinc-800 text-sm h-11"
+                    placeholder="Ej: 78912345"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Correo Electrónico</label>
+                  <Input
+                    type="email"
+                    value={editClienteForm.email}
+                    onChange={e => setEditClienteForm({ ...editClienteForm, email: e.target.value })}
+                    className="bg-black/60 border-zinc-800 text-sm h-11"
+                    placeholder="correo@ejemplo.com"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Código de Tarjeta / Socio</label>
+                <Input
+                  value={editClienteForm.codigo_tarjeta}
+                  onChange={e => setEditClienteForm({ ...editClienteForm, codigo_tarjeta: e.target.value })}
+                  className="bg-black/60 border-zinc-800 text-sm h-10 font-mono text-zinc-400"
+                  placeholder="Ej: CARD-9821"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-white/10 mt-6">
+                <Button type="button" variant="outline" onClick={() => setShowEditClienteModal(false)} className="border-zinc-800 text-xs">
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={savingCliente} className="bg-amber-500 hover:bg-amber-400 text-black font-black text-xs px-5 shadow-lg shadow-amber-500/20">
+                  {savingCliente ? 'Guardando...' : 'Guardar Cambios'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   )
