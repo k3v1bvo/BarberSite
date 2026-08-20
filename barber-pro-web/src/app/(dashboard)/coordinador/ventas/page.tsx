@@ -859,14 +859,18 @@ export default function VentasPage() {
                       </td>
                       <td className="px-3 py-2.5 text-zinc-400 text-xs max-w-[240px]">
                         {(() => {
-                          const matchDesc = (tx.notas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Desc.*:\s*-Bs\s*([0-9.]+)/i)
+                          const cleanNotas = (tx.notas || '')
+                            .replace(/\n?\[Comprobante\]:\s*data:[^\s]+/gi, '')
+                            .replace(/\[Comprobante\]:\s*data:[^\s]+/gi, '')
+                            .trim()
+                          const matchDesc = (cleanNotas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Desc.*:\s*-Bs\s*([0-9.]+)/i)
                           const descMonto = (tx as any).descuento ? Number((tx as any).descuento) : (matchDesc ? parseFloat(matchDesc[1]) : 0)
                           return (
                             <div className="flex flex-col">
                               <span className="truncate text-zinc-300 font-medium">{tx.glosa}</span>
-                              {tx.notas && (
-                                <span className={`text-[10px] truncate mt-0.5 ${String(tx.notas).includes('Desc') || String(tx.notas).includes('Precio original') ? 'text-amber-400 font-semibold' : 'text-zinc-500'}`} title={tx.notas}>
-                                  {tx.notas}
+                              {cleanNotas && (
+                                <span className={`text-[10px] truncate mt-0.5 ${String(cleanNotas).includes('Desc') || String(cleanNotas).includes('Precio original') ? 'text-amber-400 font-semibold' : 'text-zinc-500'}`} title={cleanNotas}>
+                                  {cleanNotas}
                                 </span>
                               )}
                               {descMonto > 0 && (

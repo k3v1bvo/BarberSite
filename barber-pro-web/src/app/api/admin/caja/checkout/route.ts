@@ -337,7 +337,7 @@ export async function POST(request: NextRequest) {
         insertData.comision_herramientas = comisionHerramientas
         // Nota: 'total' y 'descuento' no se guardan en la tabla citas (no existen como columnas).
         // El total queda registrado en la transacción contable más abajo.
-        if (comprobante_url) {
+        if (comprobante_url && !comprobante_url.startsWith('data:')) {
           insertData.notas = `${insertData.notas}\n[Comprobante]: ${comprobante_url}`
         }
       }
@@ -659,30 +659,51 @@ export async function POST(request: NextRequest) {
 
         // IMPORTANTE: costo debe ser el precio NETO (después de descuentos)
         // para que el resumen de caja chica refleje lo realmente cobrado
-        await adminSupabase
-          .from('transactions')
-          .insert({
-            libro: 'SERVICIOS',
-            fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora),
-            ci: ciReal || '—',
-            nombre: nombre || 'Cliente en Caja',
-            cuenta_codigo: 'ING-001',
-            cuenta_detalle: serv.nombre,
-            glosa: glosaFinal,
-            costo: precioNetoServicio,
-            tipo_movimiento: 'INGRESO',
-            subcategoria: 'SERVICIO',
-            es_sancion: false,
-            empleado_id: barbero_id,
-            cliente_id: finalClienteId,
-            cita_id: citaId || null,
-            metodo_pago: realMetodo,
-            monto_efectivo: realEfectivo,
-            monto_qr: realQr,
-            notas: notasFinales,
-            comprobante_url: comprobante_url || null,
-            usuario_registro: profile.full_name || 'Coordinador',
-          })
+        const txData = {
+          libro: 'SERVICIOS' as const,
+          fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora),
+          ci: ciReal || '—',
+          nombre: nombre || 'Cliente en Caja',
+          cuenta_codigo: 'ING-001',
+          cuenta_detalle: serv.nombre,
+          glosa: glosaFinal,
+          costo: precioNetoServicio,
+          tipo_movimiento: 'INGRESO' as const,
+          subcategoria: 'SERVICIO',
+          es_sancion: false,
+          empleado_id: barbero_id,
+          cliente_id: finalClienteId,
+          cita_id: citaId || null,
+          metodo_pago: realMetodo,
+          monto_efectivo: realEfectivo,
+          monto_qr: realQr,
+          notas: notasFinales,
+          comprobante_url: comprobante_url || null,
+          usuario_registro: profile.full_name || 'Coordinador',
+        }
+
+        if (citaId) {
+          const { data: existingTx } = await adminSupabase
+            .from('transactions')
+            .select('id')
+            .eq('cita_id', citaId)
+            .maybeSingle()
+
+          if (existingTx?.id) {
+            await adminSupabase
+              .from('transactions')
+              .update(txData)
+              .eq('id', existingTx.id)
+          } else {
+            await adminSupabase
+              .from('transactions')
+              .insert(txData)
+          }
+        } else {
+          await adminSupabase
+            .from('transactions')
+            .insert(txData)
+        }
       }
         
       // Despachar notificacion de cobro / cita completada

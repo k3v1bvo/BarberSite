@@ -1236,17 +1236,21 @@ export default function CajaChicaPage() {
                         {/* Detalle / Glosa */}
                         <td className="px-3 py-2.5">
                           {(() => {
-                            const matchDesc = (tx.notas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Desc.*:\s*-Bs\s*([0-9.]+)/i)
-                            const matchOrig = (tx.notas || '').match(/Original:\s*Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Original:\s*Bs\s*([0-9.]+)/i)
+                            const cleanNotas = (tx.notas || '')
+                              .replace(/\n?\[Comprobante\]:\s*data:[^\s]+/gi, '')
+                              .replace(/\[Comprobante\]:\s*data:[^\s]+/gi, '')
+                              .trim()
+                            const matchDesc = (cleanNotas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Desc.*:\s*-Bs\s*([0-9.]+)/i)
+                            const matchOrig = (cleanNotas || '').match(/Original:\s*Bs\s*([0-9.]+)/i) || (tx.glosa || '').match(/Original:\s*Bs\s*([0-9.]+)/i)
                             const descMonto = (tx as any).descuento ? Number((tx as any).descuento) : (matchDesc ? parseFloat(matchDesc[1]) : 0)
                             return (
                               <div className="flex flex-col max-w-[240px]">
                                 {tx.glosa && tx.glosa.split('\n').map((line: string, i: number) => (
                                   <span key={i} className={`text-xs truncate ${i === 0 ? 'text-zinc-300 font-medium' : 'text-zinc-500'}`}>{tx.es_sancion && i === 0 ? '⚠ ' : ''}{line}</span>
                                 ))}
-                                {tx.notas && (
-                                  <span className={`text-[10px] truncate mt-0.5 ${String(tx.notas).includes('Desc') || String(tx.notas).includes('Precio original') ? 'text-amber-400 font-semibold' : 'text-amber-500/70'}`} title={tx.notas}>
-                                    {tx.notas}
+                                {cleanNotas && (
+                                  <span className={`text-[10px] truncate mt-0.5 ${String(cleanNotas).includes('Desc') || String(cleanNotas).includes('Precio original') ? 'text-amber-400 font-semibold' : 'text-amber-500/70'}`} title={cleanNotas}>
+                                    {cleanNotas}
                                   </span>
                                 )}
                                 {descMonto > 0 && (

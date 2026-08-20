@@ -727,6 +727,8 @@ export function CajaPOS() {
   const totalProductos = carrito.reduce((sum, item) => sum + (precioItemCarrito(item) * item.cantidad), 0)
 
   const handleFinalizar = async (estado: string = 'completado') => {
+    if (submitting) return
+
     if (!formData.servicio_id && carrito.length === 0) {
       toastError('Debes seleccionar un servicio o agregar productos')
       return
@@ -736,12 +738,13 @@ export function CajaPOS() {
       return
     }
 
-    setSubmitting(true)
-
     const promoActiva = promociones.find(p => p.id === promoSeleccionada)
     if (promoActiva?.tipo === '2x1' && !acompanante.nombre.trim()) {
-      return toastError('Debe ingresar el nombre del acompañante para la promoción 2x1')
+      toastError('Debe ingresar el nombre del acompañante para la promoción 2x1')
+      return
     }
+
+    setSubmitting(true)
 
     try {
       const res = await fetch('/api/admin/caja/checkout', {
@@ -858,11 +861,11 @@ export function CajaPOS() {
     ? promoActiva.tipo === 'descuento_porcentaje' || (promoActiva.tipo === 'cumpleanos' && promoActiva.valor > 0 && promoActiva.valor <= 100)
       ? (subtotalServicio * promoActiva.valor) / 100
       : promoActiva.tipo === 'descuento_fijo' || promoActiva.tipo === 'referido' || (promoActiva.tipo === 'cumpleanos' && promoActiva.valor > 100)
-        ? promoActiva.valor
-        : promoActiva.tipo === 'servicio_gratis' || (promoActiva.tipo === '2x1' && pareja2x1PendienteData) || (promoActiva.tipo === 'cumpleanos' && promoActiva.valor === 0)
+        ? Math.min(promoActiva.valor, subtotalServicio)
+        : promoActiva.tipo === 'servicio_gratis' || (promoActiva.tipo === '2x1' && pareja2x1PendienteData)
           ? subtotalServicio
           : 0
-    : (pareja2x1PendienteData ? subtotalServicio : 0)
+    : 0
   const totalBonoReferido = aplicarReferido
     ? referralBonuses.reduce((s, r) => s + Number(r.monto_bono || 10), 0)
     : 0
