@@ -7,7 +7,7 @@ import crypto from 'crypto'
 
 function generarPasswordCliente(): string {
   const digits = crypto.randomInt(1000, 9999)
-  return `barber${digits}`
+  return `barbersite${digits}`
 }
 
 export async function POST(request: Request) {

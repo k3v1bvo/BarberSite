@@ -528,8 +528,8 @@ export function buildEmail(
             { label: 'Correo de Usuario', value: String(data.email) },
             { label: 'Contraseña Inicial', value: String(data.password) },
           ])}
-          <p style="margin-top:16px;color:#a1a1aa;font-size:13px;">
-            🔒 <strong>Seguridad:</strong> Por tu tranquilidad, puedes cambiar esta contraseña en cualquier momento ingresando a tu perfil web en la sección de seguridad.
+          <p style="margin-top:16px;padding:12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;color:#fcd34d;font-size:13px;line-height:1.5;">
+            🔒 <strong>Contraseña Provisional:</strong> Esta es tu clave de primer acceso asignada por el sistema. Por tu seguridad, te recomendamos cambiarla ingresando a tu perfil web en la sección de seguridad.
           </p>
           ${cta(`${SITE}/login`, 'Iniciar Sesión en la Web')}`,
           'Tus credenciales de acceso a la plataforma'

@@ -6,10 +6,10 @@ import { calcularComisionBarbero } from '@/lib/comisiones/calcular'
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 
-/** Genera una contraseña legible para enviar al cliente (ej: barber7392) */
+/** Genera una contraseña legible para enviar al cliente (ej: barbersite4829) */
 function generarPasswordCliente(): string {
   const digits = crypto.randomInt(1000, 9999)
-  return `barber${digits}`
+  return `barbersite${digits}`
 }
 
 interface ProductoCarrito {
