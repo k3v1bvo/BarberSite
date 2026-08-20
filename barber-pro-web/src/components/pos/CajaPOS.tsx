@@ -613,16 +613,30 @@ export function CajaPOS() {
     if (!formData.cliente_id) return
     setSavingCliente(true)
     try {
-      await supabase.from('clientes').update({
+      const { error } = await supabase.from('clientes').update({
         nombre: formData.nombre,
         ci: formData.ci || null,
         telefono: formData.telefono || null,
         email: formData.email || null,
       }).eq('id', formData.cliente_id)
-      toastSuccess('Cliente actualizado')
+
+      if (error) throw error
+
+      setClientes(prev => prev.map(c => c.id === formData.cliente_id ? {
+        ...c,
+        nombre: formData.nombre,
+        ci: formData.ci || null,
+        telefono: formData.telefono || null,
+        email: formData.email || null
+      } : c))
+
+      toastSuccess('Datos del cliente actualizados correctamente')
       setEditingCliente(false)
-    } catch { toastError('Error al actualizar') }
-    setSavingCliente(false)
+    } catch (err: any) {
+      toastError(err.message || 'Error al actualizar')
+    } finally {
+      setSavingCliente(false)
+    }
   }
 
   const handleSelectCliente = (cliente: Cliente) => {
@@ -650,9 +664,8 @@ export function CajaPOS() {
     
     setFormData(prev => ({ 
       ...prev, 
-      cliente_id: '', 
       nombre: val,
-      ...(val === '' ? { email: '', telefono: '', ci: '' } : {})
+      ...(val === '' ? { cliente_id: '', email: '', telefono: '', ci: '' } : {})
     }))
   }
 
@@ -664,7 +677,6 @@ export function CajaPOS() {
     
     setFormData(prev => ({ 
       ...prev, 
-      cliente_id: '', 
       ci: val
     }))
   }
@@ -1524,7 +1536,7 @@ export function CajaPOS() {
                 <div className="space-y-1 relative">
                   <Input 
                     label="Carnet / CI / Cód. Tarjeta" 
-                    value={formData.ci || searchCi} 
+                    value={formData.ci} 
                     onChange={handleCiSearchChange} 
                     onFocus={() => setShowCiDropdown(true)}
                     onBlur={() => setTimeout(() => setShowCiDropdown(false), 250)}

@@ -294,6 +294,12 @@ export async function dispatchNotification(
                 }
               : undefined
           )
+        } else if (p.clienteEmail) {
+          await sendNotificationEmail(p.clienteEmail, 'solicitud_resena', {
+            nombre: p.clienteNombre,
+            barbero: p.barberoNombre,
+            link: `${SITE}/cliente`,
+          })
         }
         break
       }
@@ -802,10 +808,11 @@ export async function dispatchNotification(
       }
 
       case 'bienvenida_nuevo_usuario': {
-        if (input.userEmail) {
-          await sendNotificationEmail(input.userEmail, 'bienvenida_nuevo_usuario', {
+        const targetEmail = (input.userEmail || (p.email as string) || '').trim()
+        if (targetEmail && targetEmail.includes('@')) {
+          await sendNotificationEmail(targetEmail, 'bienvenida_nuevo_usuario', {
             nombre: p.nombre as string,
-            email: p.email as string,
+            email: targetEmail,
             password: p.password as string,
           })
         }

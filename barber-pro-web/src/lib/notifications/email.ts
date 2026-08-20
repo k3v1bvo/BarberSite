@@ -106,7 +106,7 @@ export async function sendAdminEmail(
   templateKind: string,
   data: EmailTemplateInput
 ): Promise<{ ok: boolean; error?: string }> {
-  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL
+  const adminEmail = (process.env.ADMIN_NOTIFICATION_EMAIL || process.env.SMTP_USER || 'barbersiteadmin@gmail.com').toLowerCase().trim()
   if (!adminEmail) return { ok: false, error: 'ADMIN_NOTIFICATION_EMAIL no definido' }
   return sendNotificationEmail(adminEmail, templateKind, data)
 }

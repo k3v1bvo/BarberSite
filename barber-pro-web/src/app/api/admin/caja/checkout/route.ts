@@ -68,58 +68,57 @@ export async function POST(request: NextRequest) {
     }
 
     let finalClienteId = cliente_id
-    let clienteEmail = email
+    let clienteEmail = email ? email.trim() : null
+    let clienteNombre = nombre ? nombre.trim() : ''
+    let clienteTelefono = telefono ? telefono.trim() : null
+    let clienteCi = (ci && String(ci).trim() !== '0000000' && String(ci).trim() !== '0' && String(ci).trim() !== '') ? String(ci).trim() : null
     let isNewClient = false
+    let authUserId: string | null = null
 
-    // 1. GESTIÓN DEL CLIENTE
-    if (!finalClienteId && nombre) {
-      // Buscar cliente por nombre o email
-      let query = supabase.from('clientes').select('id, email, total_visitas, total_gastado')
-      if (email) {
-        query = query.or(`email.eq."${email}",nombre.ilike."${nombre}"`)
-      } else {
-        query = query.eq('nombre', nombre)
+    // 1. GESTIÓN DEL CLIENTE Y PERSISTENCIA DE CI
+    if (!finalClienteId && clienteNombre) {
+      // Buscar cliente existente por CI, Email o Nombre
+      const orClauses: string[] = []
+      if (clienteCi) orClauses.push(`ci.eq."${clienteCi}"`)
+      if (clienteEmail) orClauses.push(`email.eq."${clienteEmail}"`)
+      if (clienteNombre) orClauses.push(`nombre.ilike."${clienteNombre}"`)
+
+      let exClientes: any[] | null = null
+      if (orClauses.length > 0) {
+        const { data } = await adminSupabase
+          .from('clientes')
+          .select('id, nombre, email, telefono, ci, total_visitas, total_gastado')
+          .or(orClauses.join(','))
+          .limit(5)
+        exClientes = data
       }
-
-      const { data: exClientes } = await query
 
       if (exClientes && exClientes.length > 0) {
         finalClienteId = exClientes[0].id
-        // Actualizar el correo si se proporcionó uno nuevo y antes no tenía
-        if (email && !exClientes[0].email) {
-          await adminSupabase.from('clientes').update({ email }).eq('id', finalClienteId)
-          clienteEmail = email
-          // Crear cuenta de auth para que el cliente pueda iniciar sesión
-          try {
-             const generatedPwd = generarPasswordCliente()
-             const { error: createErr } = await adminSupabase.auth.admin.createUser({
-                email,
-                password: generatedPwd,
-                email_confirm: true,
-                user_metadata: { full_name: nombre }
-              })
-             if (!createErr) {
-               // Enviar email con contraseña visible
-               try {
-                 await dispatchNotification(adminSupabase, {
-                   event: 'bienvenida_nuevo_usuario',
-                   payload: { nombre, email, password: generatedPwd },
-                   userEmail: email
-                 })
-               } catch(e) { console.error("Error enviando email de bienvenida:", e) }
-             }
-           } catch(e) { console.error("Error creando usuario:", e) }
+        // Actualizar datos del cliente (CI, teléfono, email, nombre) en la tabla clientes
+        const updates: any = {}
+        if (clienteCi && exClientes[0].ci !== clienteCi) updates.ci = clienteCi
+        if (clienteTelefono && exClientes[0].telefono !== clienteTelefono) updates.telefono = clienteTelefono
+        if (clienteEmail && exClientes[0].email !== clienteEmail) updates.email = clienteEmail
+        if (!exClientes[0].nombre && clienteNombre) updates.nombre = clienteNombre
+
+        if (Object.keys(updates).length > 0) {
+          await adminSupabase.from('clientes').update(updates).eq('id', finalClienteId)
         }
+
+        if (!clienteEmail && exClientes[0].email) clienteEmail = exClientes[0].email
+        if (!clienteCi && exClientes[0].ci) clienteCi = exClientes[0].ci
+        if (!clienteTelefono && exClientes[0].telefono) clienteTelefono = exClientes[0].telefono
       } else {
         // Crear cliente nuevo
         isNewClient = true
         const { data: newCliente, error: clError } = await adminSupabase
           .from('clientes')
           .insert({
-            nombre: nombre,
-            email: email || null,
-            telefono: telefono || null,
-            ci: ci || null,
+            nombre: clienteNombre,
+            email: clienteEmail || null,
+            telefono: clienteTelefono || null,
+            ci: clienteCi || null,
             total_visitas: 0,
             total_gastado: 0
           })
@@ -128,65 +127,102 @@ export async function POST(request: NextRequest) {
 
         if (clError) throw clError
         finalClienteId = newCliente.id
-
-        // Crear cuenta de auth y enviar contraseña por correo
-        if (email) {
-          try {
-             const generatedPwd = generarPasswordCliente()
-             const { error: createErr } = await adminSupabase.auth.admin.createUser({
-                email,
-                password: generatedPwd,
-                email_confirm: true,
-                user_metadata: { full_name: nombre }
-              })
-             if (!createErr) {
-               try {
-                 await dispatchNotification(adminSupabase, {
-                   event: 'bienvenida_nuevo_usuario',
-                   payload: { nombre, email, password: generatedPwd },
-                   userEmail: email
-                 })
-               } catch(e) { console.error("Error enviando email de bienvenida:", e) }
-             }
-           } catch(e) { console.error("Error creando nuevo usuario:", e) }
-        }
       }
-    } else if (finalClienteId && email) {
-      // Actualizar email si se seleccionó cliente existente
-       const { data: exCliente } = await supabase.from('clientes').select('email, nombre').eq('id', finalClienteId).single()
-       if (!exCliente?.email) {
-           await adminSupabase.from('clientes').update({ email }).eq('id', finalClienteId)
-           clienteEmail = email
-           try {
-              const clienteNombre = nombre || exCliente?.nombre || 'Cliente'
-              const generatedPwd = generarPasswordCliente()
-              const { error: createErr } = await adminSupabase.auth.admin.createUser({
-                email,
-                password: generatedPwd,
-                email_confirm: true,
-                user_metadata: { full_name: clienteNombre }
-              })
-              if (!createErr) {
-                try {
-                  await dispatchNotification(adminSupabase, {
-                    event: 'bienvenida_nuevo_usuario',
-                    payload: { nombre: clienteNombre, email, password: generatedPwd },
-                    userEmail: email
-                  })
-                } catch(e) { console.error("Error enviando email de bienvenida:", e) }
+    } else if (finalClienteId) {
+      // Si ya venía un cliente_id seleccionado, actualizar los campos proporcionados en clientes
+      const { data: exCliente } = await adminSupabase
+        .from('clientes')
+        .select('id, nombre, email, telefono, ci')
+        .eq('id', finalClienteId)
+        .single()
+
+      if (exCliente) {
+        const updates: any = {}
+        if (clienteCi && exCliente.ci !== clienteCi) updates.ci = clienteCi
+        if (clienteTelefono && exCliente.telefono !== clienteTelefono) updates.telefono = clienteTelefono
+        if (clienteEmail && exCliente.email !== clienteEmail) updates.email = clienteEmail
+        if (clienteNombre && exCliente.nombre !== clienteNombre) updates.nombre = clienteNombre
+
+        if (Object.keys(updates).length > 0) {
+          await adminSupabase.from('clientes').update(updates).eq('id', finalClienteId)
+        }
+
+        if (!clienteEmail && exCliente.email) clienteEmail = exCliente.email
+        if (!clienteCi && exCliente.ci) clienteCi = exCliente.ci
+        if (!clienteTelefono && exCliente.telefono) clienteTelefono = exCliente.telefono
+      }
+    }
+
+    // Gestionar cuenta Auth del usuario y envío de credenciales por email + alerta sistema
+    if (clienteEmail) {
+      try {
+        const generatedPwd = generarPasswordCliente()
+        const { data: authData, error: createErr } = await adminSupabase.auth.admin.createUser({
+          email: clienteEmail,
+          password: generatedPwd,
+          email_confirm: true,
+          user_metadata: { full_name: clienteNombre || 'Cliente' }
+        })
+
+        if (!createErr && authData?.user) {
+          authUserId = authData.user.id
+          // Actualizar perfil con CI, teléfono y rol cliente
+          await adminSupabase.from('profiles').update({
+            full_name: clienteNombre || 'Cliente',
+            phone: clienteTelefono || null,
+            ci: clienteCi || null,
+            role: 'cliente'
+          }).eq('id', authUserId)
+
+          // Despachar correo de bienvenida y notificaciones al sistema
+          try {
+            await dispatchNotification(adminSupabase, {
+              event: 'bienvenida_nuevo_usuario',
+              userEmail: clienteEmail,
+              payload: {
+                nombre: clienteNombre || 'Cliente',
+                email: clienteEmail,
+                password: generatedPwd
               }
-           } catch(e) { console.error("Error creando usuario existente:", e) }
-       }
+            })
+          } catch(e) { console.error("Error enviando bienvenida de nuevo usuario:", e) }
+        } else {
+          // El usuario ya existe en auth. Sincronizar perfiles
+          const { data: existingProf } = await adminSupabase.from('profiles').select('id, full_name, phone, ci').eq('email', clienteEmail).maybeSingle()
+          if (existingProf?.id) {
+            authUserId = existingProf.id
+            const profUpdates: any = {}
+            if (clienteCi && !existingProf.ci) profUpdates.ci = clienteCi
+            if (clienteTelefono && !existingProf.phone) profUpdates.phone = clienteTelefono
+            if (clienteNombre && !existingProf.full_name) profUpdates.full_name = clienteNombre
+            if (Object.keys(profUpdates).length > 0) {
+              await adminSupabase.from('profiles').update(profUpdates).eq('id', authUserId)
+            }
+          }
+        }
+      } catch(e) { console.error("Error gestionando cuenta Auth del cliente:", e) }
+    } else if (isNewClient) {
+      // Cliente nuevo creado en POS sin correo: Notificar a Admin y Coordinador por sistema web
+      try {
+        await dispatchNotification(adminSupabase, {
+          event: 'bienvenida_nuevo_usuario',
+          payload: {
+            nombre: clienteNombre || 'Cliente en Caja',
+            email: clienteCi ? `CI: ${clienteCi}` : 'Registrado en POS',
+            password: ''
+          }
+        })
+      } catch(e) { console.error("Error notificando nuevo cliente en POS:", e) }
     }
 
     // Resolver el CI real del cliente desde la BD (para que no quede '0000000' en transacciones)
-    let ciReal = (ci && ci !== '0000000' && ci !== '0') ? ci : ''
+    let ciReal = clienteCi || ''
     if (finalClienteId && !ciReal) {
       const { data: ciData } = await adminSupabase.from('clientes').select('ci').eq('id', finalClienteId).single()
       if (ciData?.ci) ciReal = ciData.ci
     }
-    if (!ciReal && nombre && nombre !== 'Cliente General') {
-      const { data: ciByName } = await adminSupabase.from('clientes').select('ci').ilike('nombre', nombre.trim()).limit(1)
+    if (!ciReal && clienteNombre && clienteNombre !== 'Cliente General') {
+      const { data: ciByName } = await adminSupabase.from('clientes').select('ci').ilike('nombre', clienteNombre.trim()).limit(1)
       if (ciByName && ciByName.length > 0 && ciByName[0].ci) ciReal = ciByName[0].ci
     }
     
@@ -246,6 +282,9 @@ export async function POST(request: NextRequest) {
     // 3. Crear la cita (si hay servicio)
     const ahora = new Date()
     let citaId: string | null = null
+    let wasRescheduled = false
+    let oldFechaHora = ''
+    let citaFechaHoraFinal: string = ahora.toISOString()
 
     if (servicio_id && serv) {
       // Determine the datetime to use
@@ -287,6 +326,7 @@ export async function POST(request: NextRequest) {
         estado: estado || 'en_proceso',
         notas: finalNotas,
       }
+      citaFechaHoraFinal = insertData.fecha_hora
 
       if (estado === 'completado') {
         insertData.updated_at = ahora.toISOString()
@@ -303,8 +343,6 @@ export async function POST(request: NextRequest) {
       }
 
       let citaNueva, citaError
-      let wasRescheduled = false
-      let oldFechaHora = ''
       
       if (cita_id) {
         if (!reserva_fecha || !reserva_hora) {
@@ -358,7 +396,74 @@ export async function POST(request: NextRequest) {
       // No se crea cita, solo se registra la transacción contable abajo
     }
 
-    // 3.1. Enviar notificación 2x1 si hay acompañante con correo
+    // 3.1. Notificación de Nueva Reserva / Turno si no es completada inmediata
+    const esReservaOPendiente = (reserva_fecha && reserva_hora) || estado !== 'completado'
+    if (servicio_id && serv && citaId && esReservaOPendiente && !wasRescheduled) {
+      try {
+        const fh = (reserva_fecha && reserva_hora)
+          ? new Date(`${reserva_fecha}T${reserva_hora}:00-04:00`)
+          : ahora
+
+        const { data: barberoRow } = await adminSupabase.from('profiles').select('full_name, email').eq('id', barbero_id).single()
+        let finalBarberoEmail = barberoRow?.email
+        if (!finalBarberoEmail && adminSupabase?.auth?.admin) {
+          try {
+            const { data: authUser } = await adminSupabase.auth.admin.getUserById(barbero_id)
+            if (authUser?.user?.email) {
+              finalBarberoEmail = authUser.user.email
+              await adminSupabase.from('profiles').update({ email: authUser.user.email }).eq('id', barbero_id)
+            }
+          } catch (_) {}
+        }
+
+        const precioNetoServicio = Math.max(0, precioBase - descuentoTotal)
+        await dispatchNotification(adminSupabase, {
+          event: 'reserva_nueva',
+          payload: {
+            citaId,
+            barberoId: barbero_id,
+            barberoNombre: barberoRow?.full_name || 'Barbero',
+            barberoEmail: finalBarberoEmail,
+            clienteNombre: clienteNombre || 'Cliente',
+            clienteEmail: clienteEmail || undefined,
+            servicioNombre: serv.nombre,
+            fecha: fh.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' }),
+            hora: fh.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false }),
+            metodoPago: metodo_pago ? (metodo_pago === 'efectivo' ? 'Efectivo en Caja' : metodo_pago === 'qr' ? 'Pago QR' : metodo_pago) : 'Pago en el local',
+            monto: precioNetoServicio,
+          },
+        })
+      } catch (e) {
+        console.error('Error enviando notificación de nueva reserva desde POS:', e)
+      }
+    }
+
+    // 3.2. Notificación de Reprogramación si cambió el horario
+    if (servicio_id && serv && citaId && wasRescheduled) {
+      try {
+        const { data: barberoRow } = await adminSupabase.from('profiles').select('full_name').eq('id', barbero_id).single()
+        const dNueva = new Date(citaFechaHoraFinal)
+        const dVieja = oldFechaHora ? new Date(oldFechaHora) : null
+
+        await dispatchNotification(adminSupabase, {
+          event: 'reserva_reprogramada',
+          payload: {
+            citaId,
+            barberoId: barbero_id,
+            barberoNombre: barberoRow?.full_name || 'Barbero',
+            clienteNombre: clienteNombre || 'Cliente',
+            clienteEmail: clienteEmail || undefined,
+            servicioNombre: serv.nombre,
+            fecha: dNueva.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' }),
+            hora: dNueva.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false }),
+            fechaAnterior: dVieja ? dVieja.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' }) : 'Horario anterior',
+            horaAnterior: dVieja ? dVieja.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false }) : '',
+          }
+        })
+      } catch (e) { console.error('Error dispatching reprogramacion notification:', e) }
+    }
+
+    // 3.3. Enviar notificación 2x1 si hay acompañante con correo
     if (acompanante_2x1?.email && citaId && estado !== 'completado') {
       try {
         const d = ahora
@@ -371,7 +476,7 @@ export async function POST(request: NextRequest) {
             citaId,
             acompananteNombre: acompanante_2x1.nombre,
             acompananteEmail: acompanante_2x1.email,
-            clienteNombre: nombre || 'Un amigo',
+            clienteNombre: clienteNombre || 'Un amigo',
             fecha: fechaFormat,
             hora: horaFormat
           }
@@ -580,31 +685,32 @@ export async function POST(request: NextRequest) {
           })
       }
         
-      // Despachar notificacion
+      // Despachar notificacion de cobro / cita completada
       if (citaId) {
-        let clienteDataForNotif = null
-        if (finalClienteId) {
-          const { data } = await supabase.from('clientes').select('user_id, email, full_name').eq('id', finalClienteId).single()
-          clienteDataForNotif = data
-        }
-        
         let finalBarberoNombre = 'Tu Barbero'
         if (barbero_id) {
-          const { data: bData } = await supabase.from('profiles').select('full_name').eq('id', barbero_id).single()
+          const { data: bData } = await adminSupabase.from('profiles').select('full_name').eq('id', barbero_id).single()
           if (bData?.full_name) finalBarberoNombre = bData.full_name
         }
         
-        const db = getNotificationDbClient(supabase)
+        let clientUserIdForNotif = authUserId
+        if (!clientUserIdForNotif && clienteEmail) {
+          const { data: cProf } = await adminSupabase.from('profiles').select('id').eq('email', clienteEmail).maybeSingle()
+          if (cProf?.id) clientUserIdForNotif = cProf.id
+        }
+
+        const precioNetoServicio = Math.max(0, precioBase - descuentoTotal)
+        const db = getNotificationDbClient(adminSupabase)
         await dispatchNotification(db, {
           event: 'cita_completada',
           payload: { 
             citaId, 
             barberoId: barbero_id, 
             barberoNombre: finalBarberoNombre,
-            monto: precioBase + totalProductos,
-            clienteId: clienteDataForNotif?.user_id || undefined,
-            clienteEmail: clienteDataForNotif?.email || undefined,
-            clienteNombre: clienteDataForNotif?.full_name || undefined
+            monto: precioNetoServicio + totalProductos,
+            clienteId: clientUserIdForNotif || undefined,
+            clienteEmail: clienteEmail || undefined,
+            clienteNombre: clienteNombre || 'Cliente'
           },
         })
       }
