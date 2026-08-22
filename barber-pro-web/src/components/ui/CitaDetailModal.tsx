@@ -34,6 +34,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
   const [slotsDisponibles, setSlotsDisponibles] = useState<string[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [manualTimeMode, setManualTimeMode] = useState(false)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [reprogramming, setReprogramming] = useState(false)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [responding, setResponding] = useState(false)
@@ -803,7 +804,10 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                     variant="outline" 
                     size="sm" 
                     className="flex-1 font-bold text-xs uppercase h-11" 
-                    onClick={() => setShowReprogramar(false)}
+                    onClick={() => {
+                      setShowReprogramar(false)
+                      setShowConfirmModal(false)
+                    }}
                   >
                     Cancelar
                   </Button>
@@ -812,34 +816,111 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                     size="sm" 
                     className="flex-1 font-black text-xs uppercase h-11 bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20" 
                     disabled={reprogramming || !newDate || !newTime}
-                    onClick={async () => {
-                      setReprogramming(true)
-                      try {
-                        const res = await fetch(`/api/citas/${cita.id}/reprogramar`, { 
-                          method: 'POST', 
-                          headers: { 'Content-Type': 'application/json' }, 
-                          body: JSON.stringify({ 
-                            newDate, 
-                            newTime, 
-                            newBarberoId: newBarberoId || undefined,
-                            newServicioId: newServicioId || undefined,
-                            durationMinutes: newDuration || cita.duracion_minutos || 30 
-                          }) 
-                        })
-                        const data = await res.json().catch(() => ({}))
-                        if (!res.ok) throw new Error(data.error || 'No se pudo reprogramar la cita')
-                        success('¡Cita modificada y reprogramada con éxito!')
-                        onUpdate ? onUpdate() : window.location.reload()
-                        onClose()
-                      } catch (err: any) { 
-                        error(err.message || 'No se pudo reprogramar') 
-                      } finally { 
-                        setReprogramming(false) 
-                      }
-                    }}>
-                    {reprogramming ? 'Guardando...' : 'Confirmar Cambios'}
+                    onClick={() => setShowConfirmModal(true)}
+                  >
+                    Confirmar Cambios...
                   </Button>
                 </div>
+
+                {/* Modal / Diálogo de Verificación Final */}
+                {showConfirmModal && (
+                  <div className="fixed inset-0 z-[250] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
+                    <div className="bg-zinc-950 border border-amber-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl shrink-0">
+                          ⚠️
+                        </div>
+                        <div>
+                          <h3 className="text-base font-black uppercase text-white tracking-tight">¿Confirmar Modificación?</h3>
+                          <p className="text-xs text-zinc-400">Verifica los cambios para la cita de <strong className="text-white">{cita.cliente_nombre}</strong></p>
+                        </div>
+                      </div>
+
+                      <div className="bg-zinc-900/80 rounded-2xl p-4 border border-white/5 space-y-2.5 text-xs">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-amber-400">Resumen de la Operación:</p>
+                        
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <span className="text-zinc-400 font-bold flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-amber-400" /> Barbero:</span>
+                          <span className="font-bold text-white text-right">
+                            {barberosList.find(b => b.id === newBarberoId)?.full_name || cita.barbero_nombre}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <span className="text-zinc-400 font-bold flex items-center gap-1.5"><Scissors className="w-3.5 h-3.5 text-amber-400" /> Servicio:</span>
+                          <span className="font-bold text-white text-right">
+                            {serviciosList.find(s => s.id === newServicioId)?.nombre || cita.servicio_nombre}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <span className="text-zinc-400 font-bold flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-amber-400" /> Nueva Fecha:</span>
+                          <span className="font-mono font-bold text-amber-300">
+                            {newDate}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-zinc-400 font-bold flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-amber-400" /> Nueva Hora:</span>
+                          <span className="font-mono font-black text-amber-400 text-sm">
+                            {newTime}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-zinc-400 leading-relaxed bg-amber-500/5 p-3 rounded-xl border border-amber-500/20">
+                        🔔 Se reubicará el turno en la agenda y se enviarán las notificaciones pertinentes.
+                      </p>
+
+                      <div className="flex gap-3 pt-1">
+                        <Button
+                          variant="outline"
+                          size="md"
+                          className="flex-1 font-bold text-xs uppercase h-11"
+                          onClick={() => setShowConfirmModal(false)}
+                          disabled={reprogramming}
+                        >
+                          ⬅️ Volver a Editar
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="md"
+                          className="flex-1 font-black text-xs uppercase h-11 bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20"
+                          disabled={reprogramming}
+                          onClick={async () => {
+                            setReprogramming(true)
+                            try {
+                              const res = await fetch(`/api/citas/${cita.id}/reprogramar`, { 
+                                method: 'POST', 
+                                headers: { 'Content-Type': 'application/json' }, 
+                                body: JSON.stringify({ 
+                                  newDate, 
+                                  newTime, 
+                                  newBarberoId: newBarberoId || undefined,
+                                  newServicioId: newServicioId || undefined,
+                                  durationMinutes: newDuration || cita.duracion_minutos || 30 
+                                }) 
+                              })
+                              const data = await res.json().catch(() => ({}))
+                              if (!res.ok) throw new Error(data.error || 'No se pudo reprogramar la cita')
+                              success('¡Cita modificada y reprogramada con éxito!')
+                              setShowConfirmModal(false)
+                              setShowReprogramar(false)
+                              onUpdate ? onUpdate() : window.location.reload()
+                              onClose()
+                            } catch (err: any) { 
+                              error(err.message || 'No se pudo reprogramar') 
+                            } finally { 
+                              setReprogramming(false) 
+                            }
+                          }}
+                        >
+                          {reprogramming ? 'Guardando...' : '✅ Sí, Guardar'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
