@@ -501,7 +501,9 @@ export default function CajaChicaPage() {
     if (sortKey === 'fecha') {
       const diff = dir * a.fecha.localeCompare(b.fecha)
       if (diff !== 0) return diff
-      return dir * ((a.id || '').localeCompare(b.id || ''))
+      const timeA = a.creado_en || ''
+      const timeB = b.creado_en || ''
+      return dir * timeA.localeCompare(timeB)
     }
     if (sortKey === 'nombre') return dir * ((a.nombre || '').localeCompare(b.nombre || ''))
     if (sortKey === 'cuenta_detalle') return dir * ((a.cuenta_detalle || '').localeCompare(b.cuenta_detalle || ''))
