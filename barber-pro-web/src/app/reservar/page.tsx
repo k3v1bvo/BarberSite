@@ -118,6 +118,8 @@ function ReservarContent() {
   const [loadingDisponibilidad, setLoadingDisponibilidad] = useState(false)
   const [lealtadInfo, setLealtadInfo] = useState<{descuento: number, mensaje: string} | null>(null)
   const [tiempoMinimoReserva, setTiempoMinimoReserva] = useState(60) // minutos
+  const [asistenciasHoy, setAsistenciasHoy] = useState<any[]>([])
+  const [permisosHoy, setPermisosHoy] = useState<any[]>([])
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -337,19 +339,26 @@ function ReservarContent() {
         setStep(preServicio ? 2 : 1)
       }
 
-      const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo, resBarberoServicios] = await Promise.all([
+      const hoyLocal = new Date()
+      const hoyStr = new Date(hoyLocal.getTime() - (hoyLocal.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
+
+      const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo, resBarberoServicios, resAsistencias, resPermisos] = await Promise.all([
         supabase.from('servicios').select('*').eq('is_active', true).order('orden', { ascending: true }),
         supabase.from('profiles').select('id, full_name, email, avatar_url, qr_code_url').eq('role', 'barbero').eq('is_active', true),
         supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url').eq('is_active', true).gt('stock_actual', 0).order('orden', { ascending: true }),
         supabase.from('configuraciones').select('valor').eq('llave', 'qr_pago').maybeSingle(),
         supabase.from('promociones').select('*').eq('activa', true),
         supabase.from('configuraciones').select('valor').eq('llave', 'tiempo_minimo_reserva').maybeSingle(),
-        supabase.from('comision_barbero_servicios').select('barbero_id, servicio_id')
+        supabase.from('comision_barbero_servicios').select('barbero_id, servicio_id'),
+        supabase.from('asistencias').select('profile_id, estado, hora_entrada, hora_salida').eq('fecha', hoyStr),
+        supabase.from('solicitudes_permisos').select('barbero_id, estado, fecha, fecha_fin, tipo_permiso').eq('estado', 'aprobado').lte('fecha', hoyStr)
       ])
 
       setServicios(resServicios.data || [])
       setBarberos(resBarberos.data || [])
       setProductos(resProductos.data || [])
+      setAsistenciasHoy(resAsistencias.data || [])
+      setPermisosHoy(resPermisos.data || [])
       if (resBarberoServicios.data) {
         setBarberoServicios(resBarberoServicios.data)
       }
@@ -512,6 +521,36 @@ function ReservarContent() {
       }
 
       if (!clienteId) throw new Error('No se encontró el ID del cliente')
+
+      // Validar si el barbero cuenta con un permiso aprobado para esa fecha
+      const { data: permisoConflict } = await supabase
+        .from('solicitudes_permisos')
+        .select('id, motivo, tipo_permiso')
+        .eq('barbero_id', formData.barbero_id)
+        .eq('estado', 'aprobado')
+        .lte('fecha', formData.fecha)
+        .gte('fecha_fin', formData.fecha)
+        .maybeSingle()
+
+      if (permisoConflict) {
+        throw new Error('El barbero seleccionado cuenta con un permiso aprobado en esta fecha. Por favor elige a otro especialista u otra fecha.')
+      }
+
+      // Si es reserva para hoy, validar que el barbero esté activo en el local
+      const hoyLocalCheck = new Date()
+      const hoyStrCheck = new Date(hoyLocalCheck.getTime() - (hoyLocalCheck.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
+      if (formData.fecha === hoyStrCheck) {
+        const { data: asisCheck } = await supabase
+          .from('asistencias')
+          .select('estado, hora_entrada, hora_salida')
+          .eq('profile_id', formData.barbero_id)
+          .eq('fecha', formData.fecha)
+          .maybeSingle()
+
+        if (asisCheck?.estado === 'permiso' || asisCheck?.estado === 'falta' || asisCheck?.hora_salida) {
+          throw new Error('El barbero no se encuentra atendiendo en el local el día de hoy. Por favor selecciona a otro especialista disponible.')
+        }
+      }
 
       const fechaHora = `${formData.fecha}T${formData.hora}:00-04:00`
 
@@ -1522,33 +1561,55 @@ function ReservarContent() {
                       if (!servicio?.barberos_excluidos?.length) return true
                       return !servicio.barberos_excluidos.includes(b.id)
                     })
-                    .map((b) => (
-                    <div
-                      key={b.id}
-                      onClick={() => {
-                        setFormData({ ...formData, barbero_id: b.id, fecha: '', hora: '' })
-                        setTimeout(() => setStep(3), 250)
-                      }}
-                      className={`flex flex-col items-center gap-4 p-6 border-2 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1 ${
-                        formData.barbero_id === b.id
-                          ? 'border-amber-500 bg-amber-500/10 scale-105 shadow-[0_0_25px_rgba(245,158,11,0.2)]'
-                          : 'border-zinc-800 hover:border-amber-500/40 bg-black/50 hover:bg-zinc-800/80'
-                      }`}
-                    >
-                      <div className="w-24 h-24 rounded-full overflow-hidden bg-zinc-950 border-4 border-zinc-800 relative group-hover:border-amber-500/50 transition-colors">
-                        {formData.barbero_id === b.id && <div className="absolute inset-0 border-4 border-amber-500 rounded-full z-10" />}
-                        {b.avatar_url ? (
-                          <img src={b.avatar_url} alt={b.full_name} className="w-full h-full object-cover relative z-0" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-4xl font-black bg-zinc-900 text-zinc-600 relative z-0">{b.full_name.charAt(0)}</div>
-                        )}
-                      </div>
-                      <div className="text-center">
-                        <h3 className="font-black text-base text-white group-hover:text-amber-400 transition-colors">{toTitleCase(b.full_name)}</h3>
-                        <span className="inline-block mt-2 text-[10px] uppercase tracking-[0.2em] text-amber-500 font-bold bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">Especialista</span>
-                      </div>
-                    </div>
-                  ))}
+                    .map((b) => {
+                      const asisHoy = asistenciasHoy.find(a => a.profile_id === b.id)
+                      const tienePermisoHoy = permisosHoy.some(p => p.barbero_id === b.id && p.fecha <= hoy && (p.fecha_fin ? p.fecha_fin >= hoy : p.fecha === hoy))
+                      const estaPresenteHoy = asisHoy?.hora_entrada && !asisHoy?.hora_salida && asisHoy?.estado !== 'permiso' && asisHoy?.estado !== 'falta'
+
+                      return (
+                        <div
+                          key={b.id}
+                          onClick={() => {
+                            setFormData({ ...formData, barbero_id: b.id, fecha: '', hora: '' })
+                            setTimeout(() => setStep(3), 250)
+                          }}
+                          className={`flex flex-col items-center gap-4 p-6 border-2 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1 ${
+                            formData.barbero_id === b.id
+                              ? 'border-amber-500 bg-amber-500/10 scale-105 shadow-[0_0_25px_rgba(245,158,11,0.2)]'
+                              : 'border-zinc-800 hover:border-amber-500/40 bg-black/50 hover:bg-zinc-800/80'
+                          }`}
+                        >
+                          <div className="w-24 h-24 rounded-full overflow-hidden bg-zinc-950 border-4 border-zinc-800 relative group-hover:border-amber-500/50 transition-colors">
+                            {formData.barbero_id === b.id && <div className="absolute inset-0 border-4 border-amber-500 rounded-full z-10" />}
+                            {b.avatar_url ? (
+                              <img src={b.avatar_url} alt={b.full_name} className="w-full h-full object-cover relative z-0" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-4xl font-black bg-zinc-900 text-zinc-600 relative z-0">{b.full_name.charAt(0)}</div>
+                            )}
+                          </div>
+                          <div className="text-center">
+                            <h3 className="font-black text-base text-white group-hover:text-amber-400 transition-colors">{toTitleCase(b.full_name)}</h3>
+                            {tienePermisoHoy || asisHoy?.estado === 'permiso' ? (
+                              <span className="inline-block mt-2 text-[9px] uppercase tracking-wider text-amber-300 font-bold bg-amber-500/20 px-2.5 py-1 rounded-full border border-amber-500/40">
+                                🟡 Permiso Hoy
+                              </span>
+                            ) : asisHoy?.estado === 'falta' ? (
+                              <span className="inline-block mt-2 text-[9px] uppercase tracking-wider text-red-400 font-bold bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/30">
+                                🔴 Ausente Hoy
+                              </span>
+                            ) : estaPresenteHoy ? (
+                              <span className="inline-flex items-center gap-1 mt-2 text-[9px] uppercase tracking-wider text-emerald-400 font-black bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Atendiendo Hoy
+                              </span>
+                            ) : (
+                              <span className="inline-block mt-2 text-[10px] uppercase tracking-[0.2em] text-amber-500 font-bold bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
+                                Especialista
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
                 </div>
                 <div className="mt-10 flex justify-between items-center border-t border-zinc-800/50 pt-6">
                   <Button variant="ghost" onClick={() => setStep(1)} className="text-zinc-400 hover:text-white uppercase tracking-widest font-bold text-xs">

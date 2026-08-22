@@ -21,8 +21,8 @@ export async function GET(request: Request) {
   const dBolivia = new Date(`${fecha}T12:00:00-04:00`)
   const diaSemana = dBolivia.getDay()
 
-  // 2. Consultar horario semanal, tiempo mínimo de reserva, bloqueos, citas, feriados y domingos rotativos
-  const [horarioRes, configRes, bloqueosRes, citasRes, feriadosRes, domingosRes] = await Promise.all([
+  // 2. Consultar horario semanal, tiempo mínimo de reserva, bloqueos, citas, feriados, domingos, permisos y asistencia
+  const [horarioRes, configRes, bloqueosRes, citasRes, feriadosRes, domingosRes, permisosRes, asistenciaRes] = await Promise.all([
     supabase
       .from('barbero_horario_semanal')
       .select('hora_inicio, hora_fin, activo')
@@ -57,6 +57,18 @@ export async function GET(request: Request) {
       .select('valor')
       .eq('clave', 'domingos_rotativos_config')
       .maybeSingle(),
+    adminSupabase
+      .from('solicitudes_permisos')
+      .select('fecha, fecha_fin, hora_inicio, hora_fin, tipo_permiso, estado, motivo')
+      .eq('barbero_id', barbero_id)
+      .eq('estado', 'aprobado')
+      .lte('fecha', fecha),
+    adminSupabase
+      .from('asistencias')
+      .select('id, hora_entrada, hora_salida, estado, notas')
+      .eq('profile_id', barbero_id)
+      .eq('fecha', fecha)
+      .maybeSingle()
   ])
 
   const horario = horarioRes.data
@@ -95,7 +107,6 @@ export async function GET(request: Request) {
       const estaHabilitado = domingoCoincidente.barberos_habilitados?.includes(barbero_id)
       if (estaHabilitado) {
         disponible = true
-        // Usar horario de domingo si está configurado en semanal, sino 09:00 a 16:00
         hora_inicio = horario?.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
         hora_fin = horario?.hora_fin ? horario.hora_fin.slice(0, 5) : '16:00'
       } else {
@@ -103,7 +114,6 @@ export async function GET(request: Request) {
         motivo = 'El barbero no atiende este domingo.'
       }
     } else {
-      // Si no está registrado en el lote de domingos rotativos, revisar horario semanal individual
       if (horario && horario.activo) {
         disponible = true
         hora_inicio = horario.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
@@ -125,6 +135,76 @@ export async function GET(request: Request) {
     }
   }
 
+  // Prioridad 4: Evaluación de Permisos Aprobados (solicitudes_permisos)
+  let permisosList = permisosRes.data || []
+  if (!permisosList.length) {
+    // Fallback configuraciones si aplica
+    try {
+      const { data: cfgPerm } = await adminSupabase.from('configuraciones').select('valor').eq('llave', 'solicitudes_permisos_data').maybeSingle()
+      if (cfgPerm?.valor) {
+        const rawList = typeof cfgPerm.valor === 'string' ? JSON.parse(cfgPerm.valor) : cfgPerm.valor
+        permisosList = Array.isArray(rawList) ? rawList.filter((p: any) => p.barbero_id === barbero_id && p.estado === 'aprobado') : []
+      }
+    } catch (_) {}
+  }
+
+  const permisoAprobado = permisosList.find((p: any) => {
+    const fInicio = p.fecha
+    const fFin = p.fecha_fin || p.fecha
+    return fInicio <= fecha && fFin >= fecha
+  })
+
+  // Extraer las horas ocupadas con su duración (citas, bloqueos parciales y permisos por horas)
+  const ocupados: Array<{ hora: string; duracion: number }> = []
+
+  if (permisoAprobado && disponible) {
+    if (permisoAprobado.tipo_permiso === 'horas' && permisoAprobado.hora_inicio && permisoAprobado.hora_fin) {
+      const [h1, m1] = permisoAprobado.hora_inicio.slice(0, 5).split(':').map(Number)
+      const [h2, m2] = permisoAprobado.hora_fin.slice(0, 5).split(':').map(Number)
+      const durMin = Math.max(15, (h2 * 60 + m2) - (h1 * 60 + m1))
+      ocupados.push({
+        hora: permisoAprobado.hora_inicio.slice(0, 5),
+        duracion: durMin
+      })
+    } else {
+      disponible = false
+      motivo = `El barbero cuenta con un permiso aprobado en esta fecha (${permisoAprobado.motivo || 'Permiso Justificado'}).`
+    }
+  }
+
+  // Prioridad 5: Evaluación de Asistencia en Tiempo Real si es HOY
+  const nowBolivia = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/La_Paz' }))
+  const hoyBolivia = `${nowBolivia.getFullYear()}-${String(nowBolivia.getMonth() + 1).padStart(2, '0')}-${String(nowBolivia.getDate()).padStart(2, '0')}`
+  const esHoy = fecha === hoyBolivia
+  const currentMinutes = nowBolivia.getHours() * 60 + nowBolivia.getMinutes()
+  const [hIni] = hora_inicio.split(':').map(Number)
+  const startMinutes = (hIni || 9) * 60
+
+  if (esHoy && disponible) {
+    const asis = asistenciaRes.data
+    if (asis) {
+      if (asis.estado === 'permiso') {
+        disponible = false
+        motivo = 'El barbero cuenta con permiso aprobado el día de hoy.'
+      } else if (asis.estado === 'falta') {
+        disponible = false
+        motivo = 'El barbero no asistió el día de hoy (falta registrada).'
+      } else if (asis.hora_salida) {
+        disponible = false
+        motivo = 'El barbero ya finalizó su jornada laboral de hoy.'
+      } else if (!asis.hora_entrada && currentMinutes >= (startMinutes + 30)) {
+        disponible = false
+        motivo = 'El barbero no se encuentra presente en el local el día de hoy (sin asistencia registrada).'
+      }
+    } else {
+      // Si no existe registro de asistencia y ya pasaron 30 min del inicio de la jornada
+      if (currentMinutes >= (startMinutes + 30)) {
+        disponible = false
+        motivo = 'El barbero no se encuentra presente en el local el día de hoy (sin marcación de entrada).'
+      }
+    }
+  }
+
   // Verificar bloqueos de todo el día o día libre/vacación completa
   const bloqueos = bloqueosRes.data || []
   const bloqueoTodoDia = bloqueos.find(b => b.todo_el_dia || b.tipo === 'vacacion' || b.tipo === 'dia_libre')
@@ -132,9 +212,6 @@ export async function GET(request: Request) {
     disponible = false
     motivo = bloqueoTodoDia.tipo === 'vacacion' ? 'El barbero está de vacaciones en esta fecha.' : 'Día libre o bloqueo programado para el barbero.'
   }
-
-  // Extraer las horas ocupadas con su duración (citas y bloqueos parciales como almuerzo)
-  const ocupados: Array<{ hora: string; duracion: number }> = []
 
   if (citasRes.data) {
     citasRes.data.forEach(cita => {
