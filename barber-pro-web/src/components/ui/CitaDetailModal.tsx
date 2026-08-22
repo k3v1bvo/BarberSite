@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { Badge } from './Badge'
 import { Button } from './Button'
 import { formatCurrency } from '@/lib/utils'
-import { X, Phone, User, Scissors, Clock, Download, Maximize2, AlertCircle, MessageCircle, ShoppingBag, Gift, Tag } from 'lucide-react'
+import { X, Phone, User, Scissors, Clock, Download, Maximize2, AlertCircle, MessageCircle, ShoppingBag, Gift, Tag, Calendar, Check, Loader2, Sparkles, RefreshCw, SlidersHorizontal, ArrowRight } from 'lucide-react'
 import type { AgendaCita } from '@/lib/agenda/types'
 import Link from 'next/link'
 import { useToast } from './Toast'
@@ -26,6 +26,14 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
   const [showReprogramar, setShowReprogramar] = useState(false)
   const [newDate, setNewDate] = useState('')
   const [newTime, setNewTime] = useState('')
+  const [newBarberoId, setNewBarberoId] = useState('')
+  const [newServicioId, setNewServicioId] = useState('')
+  const [newDuration, setNewDuration] = useState<number>(30)
+  const [barberosList, setBarberosList] = useState<{ id: string; full_name: string; avatar_url?: string | null }[]>([])
+  const [serviciosList, setServiciosList] = useState<{ id: string; nombre: string; precio: number; duracion_minutos: number }[]>([])
+  const [slotsDisponibles, setSlotsDisponibles] = useState<string[]>([])
+  const [loadingSlots, setLoadingSlots] = useState(false)
+  const [manualTimeMode, setManualTimeMode] = useState(false)
   const [reprogramming, setReprogramming] = useState(false)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [responding, setResponding] = useState(false)
@@ -46,6 +54,67 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
     }
     fetchRole()
   }, [])
+
+  // Cargar lista de barberos y servicios al abrir la modal de reprogramación
+  useEffect(() => {
+    if (!showReprogramar) return
+    const fetchOptions = async () => {
+      const supabase = createClient()
+      const [barbRes, servRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .in('role', ['barbero', 'coordinador'])
+          .eq('is_active', true)
+          .order('full_name'),
+        supabase
+          .from('servicios')
+          .select('id, nombre, precio, duracion_minutos')
+          .eq('is_active', true)
+          .order('nombre')
+      ])
+
+      if (barbRes.data) {
+        setBarberosList(barbRes.data)
+      }
+      if (servRes.data) {
+        setServiciosList(servRes.data)
+        const matched = servRes.data.find(s => 
+          s.id === (cita as any)?.servicio_id || 
+          s.nombre.trim().toLowerCase() === (cita?.servicio_nombre || '').trim().toLowerCase()
+        )
+        if (matched) {
+          setNewServicioId(matched.id)
+          setNewDuration(matched.duracion_minutos)
+        }
+      }
+    }
+    fetchOptions()
+  }, [showReprogramar, cita])
+
+  // Cargar slots libres en tiempo real cuando cambia el barbero o la fecha
+  useEffect(() => {
+    if (!showReprogramar || !newBarberoId || !newDate) return
+    const fetchDisponibilidad = async () => {
+      setLoadingSlots(true)
+      try {
+        const res = await fetch(`/api/citas/disponibilidad?barbero_id=${newBarberoId}&fecha=${newDate}`)
+        const json = await res.json()
+        if (json.slotsDisponibles && Array.isArray(json.slotsDisponibles)) {
+          const slots = json.slotsDisponibles.map((s: any) => typeof s === 'string' ? s : (s.hora || s.time))
+          setSlotsDisponibles(slots)
+        } else {
+          setSlotsDisponibles([])
+        }
+      } catch (e) {
+        console.error('Error fetching disponibilidad:', e)
+        setSlotsDisponibles([])
+      } finally {
+        setLoadingSlots(false)
+      }
+    }
+    fetchDisponibilidad()
+  }, [showReprogramar, newBarberoId, newDate])
 
   useEffect(() => {
     if (!cita?.id) {
@@ -491,36 +560,275 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
               </div>
             )}
 
-            {/* Form reprogramar */}
+            {/* Formulario Integral de Modificación y Reprogramación */}
             {showReprogramar ? (
-              <div className="bg-zinc-950 p-4 rounded-xl border border-white/10 space-y-3">
-                <p className="text-xs font-black uppercase text-amber-500 tracking-widest">Reprogramar Cita</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-1 block">Fecha</label>
-                    <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
-                      className="w-full h-10 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white focus:border-amber-500/50 outline-none" />
+              <div className="bg-zinc-950 p-5 rounded-2xl border border-amber-500/30 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black uppercase text-white tracking-wider">Modificar & Reprogramar Cita</p>
+                      <p className="text-[10px] text-zinc-400">Ajusta barbero, servicio o el horario del cliente</p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-1 block">Hora</label>
-                    <input type="time" value={newTime} onChange={e => setNewTime(e.target.value)}
-                      className="w-full h-10 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white focus:border-amber-500/50 outline-none" />
-                  </div>
+                  <button 
+                    onClick={() => setShowReprogramar(false)}
+                    className="text-zinc-500 hover:text-white p-1 rounded-lg hover:bg-white/5 transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <div className="flex gap-2 pt-1">
-                  <Button variant="outline" size="sm" className="flex-1 font-bold text-xs uppercase" onClick={() => setShowReprogramar(false)}>Cancelar</Button>
-                  <Button variant="primary" size="sm" className="flex-1 font-black text-xs uppercase" disabled={reprogramming || !newDate || !newTime}
+
+                <div className="space-y-3.5">
+                  {/* 1. Barbero Asignado */}
+                  {(userRole === 'admin' || userRole === 'coordinador') ? (
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5 mb-1.5">
+                        <User className="w-3.5 h-3.5 text-amber-400" /> Barbero Asignado
+                      </label>
+                      <select
+                        value={newBarberoId}
+                        onChange={(e) => setNewBarberoId(e.target.value)}
+                        className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white font-bold focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                      >
+                        {barberosList.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            💈 {b.full_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="bg-zinc-900/60 p-3 rounded-xl border border-white/5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-amber-400" />
+                        <div>
+                          <p className="text-[10px] text-zinc-500 font-bold uppercase">Barbero</p>
+                          <p className="text-xs font-bold text-white">{cita.barbero_nombre}</p>
+                        </div>
+                      </div>
+                      <Badge variant="info" className="text-[9px]">Tu Agenda</Badge>
+                    </div>
+                  )}
+
+                  {/* 2. Servicio Solicitado */}
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5 mb-1.5">
+                      <Scissors className="w-3.5 h-3.5 text-amber-400" /> Servicio
+                    </label>
+                    <select
+                      value={newServicioId}
+                      onChange={(e) => {
+                        const sId = e.target.value
+                        setNewServicioId(sId)
+                        const serv = serviciosList.find(s => s.id === sId)
+                        if (serv) setNewDuration(serv.duracion_minutos)
+                      }}
+                      className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white font-bold focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                    >
+                      {serviciosList.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.nombre} · {s.duracion_minutos} min · {formatCurrency(s.precio)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 3. Fecha */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-amber-400" /> Fecha
+                      </label>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setNewDate(getBoliviaDateKey(new Date().toISOString()))}
+                          className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 text-amber-400 border border-white/5"
+                        >
+                          Hoy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const tom = new Date()
+                            tom.setDate(tom.getDate() + 1)
+                            setNewDate(getBoliviaDateKey(tom.toISOString()))
+                          }}
+                          className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-white/5"
+                        >
+                          Mañana
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="date"
+                      value={newDate}
+                      onChange={(e) => setNewDate(e.target.value)}
+                      className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white font-bold focus:border-amber-500 outline-none"
+                    />
+                  </div>
+
+                  {/* 4. Horarios Disponibles / Manual */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-400" /> Hora Seleccionada
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setManualTimeMode(!manualTimeMode)}
+                        className="text-[9px] font-bold text-zinc-400 hover:text-amber-400 flex items-center gap-1 underline"
+                      >
+                        <SlidersHorizontal className="w-3 h-3" />
+                        {manualTimeMode ? 'Ver Horarios Libres' : 'Ingreso Manual'}
+                      </button>
+                    </div>
+
+                    {manualTimeMode ? (
+                      <input
+                        type="time"
+                        value={newTime}
+                        onChange={(e) => setNewTime(e.target.value)}
+                        className="w-full h-11 bg-zinc-900 border border-white/10 rounded-xl px-3 text-sm text-white font-bold focus:border-amber-500 outline-none"
+                      />
+                    ) : (
+                      <div className="space-y-2">
+                        {loadingSlots ? (
+                          <div className="flex items-center justify-center gap-2 py-4 bg-zinc-900/60 rounded-xl border border-white/5">
+                            <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                            <span className="text-xs text-zinc-400 font-medium">Consultando horarios libres...</span>
+                          </div>
+                        ) : slotsDisponibles.length > 0 ? (
+                          <div className="max-h-36 overflow-y-auto pr-1 grid grid-cols-4 gap-1.5 bg-zinc-900/40 p-2 rounded-xl border border-white/5">
+                            {slotsDisponibles.map((slot) => {
+                              const isSelected = newTime === slot
+                              return (
+                                <button
+                                  key={slot}
+                                  type="button"
+                                  onClick={() => setNewTime(slot)}
+                                  className={`py-2 px-1 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 ${
+                                    isSelected
+                                      ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-[1.02]'
+                                      : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-white/5 hover:border-white/20'
+                                  }`}
+                                >
+                                  {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                  {slot}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-3 bg-zinc-900/60 rounded-xl border border-white/5 text-zinc-400 text-xs">
+                            <p>No se encontraron slots automáticos para este día.</p>
+                            <button
+                              type="button"
+                              onClick={() => setManualTimeMode(true)}
+                              className="text-amber-400 font-bold underline mt-1 text-[11px]"
+                            >
+                              Ingresar hora manualmente
+                            </button>
+                          </div>
+                        )}
+                        {newTime && (
+                          <p className="text-[11px] text-zinc-400 flex items-center justify-between px-1">
+                            <span>Hora fijada:</span>
+                            <span className="font-black text-amber-400">{newTime}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Resumen de Cambios en Vivo */}
+                  {(() => {
+                    const originalBarbero = cita.barbero_nombre
+                    const originalServicio = cita.servicio_nombre
+                    const originalFecha = getBoliviaDateKey(cita.fecha_hora)
+                    const originalHora = getBoliviaTimeStr(cita.fecha_hora)
+                    
+                    const nuevoBarbero = barberosList.find(b => b.id === newBarberoId)?.full_name || originalBarbero
+                    const nuevoServicio = serviciosList.find(s => s.id === newServicioId)?.nombre || originalServicio
+
+                    const barberoCambio = newBarberoId && newBarberoId !== cita.barbero_id
+                    const servicioCambio = newServicioId && nuevoServicio !== originalServicio
+                    const horarioCambio = newDate !== originalFecha || newTime !== originalHora
+
+                    if (!barberoCambio && !servicioCambio && !horarioCambio) return null
+
+                    return (
+                      <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 space-y-1.5 text-xs">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-amber-400">Resumen de Cambios:</p>
+                        {barberoCambio && (
+                          <div className="flex items-center justify-between text-zinc-300">
+                            <span className="text-zinc-500 font-bold">Barbero:</span>
+                            <span className="font-bold flex items-center gap-1">
+                              <span className="line-through text-zinc-500">{originalBarbero}</span>
+                              <ArrowRight className="w-3 h-3 text-amber-400" />
+                              <span className="text-amber-300">{nuevoBarbero}</span>
+                            </span>
+                          </div>
+                        )}
+                        {servicioCambio && (
+                          <div className="flex items-center justify-between text-zinc-300">
+                            <span className="text-zinc-500 font-bold">Servicio:</span>
+                            <span className="font-bold flex items-center gap-1">
+                              <span className="line-through text-zinc-500">{originalServicio}</span>
+                              <ArrowRight className="w-3 h-3 text-amber-400" />
+                              <span className="text-amber-300">{nuevoServicio}</span>
+                            </span>
+                          </div>
+                        )}
+                        {horarioCambio && (
+                          <div className="flex items-center justify-between text-zinc-300">
+                            <span className="text-zinc-500 font-bold">Horario:</span>
+                            <span className="font-bold flex items-center gap-1">
+                              <span className="line-through text-zinc-500">{originalFecha} {originalHora}</span>
+                              <ArrowRight className="w-3 h-3 text-amber-400" />
+                              <span className="text-amber-300">{newDate} {newTime}</span>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </div>
+
+                <div className="flex gap-2 pt-2 border-t border-white/10">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1 font-bold text-xs uppercase h-11" 
+                    onClick={() => setShowReprogramar(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    variant="primary" 
+                    size="sm" 
+                    className="flex-1 font-black text-xs uppercase h-11 bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20" 
+                    disabled={reprogramming || !newDate || !newTime}
                     onClick={async () => {
                       setReprogramming(true)
                       try {
                         const res = await fetch(`/api/citas/${cita.id}/reprogramar`, { 
                           method: 'POST', 
                           headers: { 'Content-Type': 'application/json' }, 
-                          body: JSON.stringify({ newDate, newTime, durationMinutes: cita.duracion_minutos || 30 }) 
+                          body: JSON.stringify({ 
+                            newDate, 
+                            newTime, 
+                            newBarberoId: newBarberoId || undefined,
+                            newServicioId: newServicioId || undefined,
+                            durationMinutes: newDuration || cita.duracion_minutos || 30 
+                          }) 
                         })
                         const data = await res.json().catch(() => ({}))
-                        if (!res.ok) throw new Error(data.error || 'No se pudo reprogramar')
-                        success('Cita reprogramada con éxito')
+                        if (!res.ok) throw new Error(data.error || 'No se pudo reprogramar la cita')
+                        success('¡Cita modificada y reprogramada con éxito!')
                         onUpdate ? onUpdate() : window.location.reload()
                         onClose()
                       } catch (err: any) { 
@@ -529,7 +837,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                         setReprogramming(false) 
                       }
                     }}>
-                    {reprogramming ? 'Guardando...' : 'Confirmar'}
+                    {reprogramming ? 'Guardando...' : 'Confirmar Cambios'}
                   </Button>
                 </div>
               </div>
@@ -544,8 +852,18 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                     </Link>
                     <div className="grid grid-cols-3 gap-2">
                       {(userRole === 'admin' || userRole === 'coordinador') && (
-                        <Button variant="outline" size="sm" className="h-11 font-black uppercase tracking-wider text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border-amber-500/30 text-xs"
-                          onClick={() => { setNewDate(getBoliviaDateKey(cita.fecha_hora)); setNewTime(getBoliviaTimeStr(cita.fecha_hora)); setShowReprogramar(true) }}>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-11 font-black uppercase tracking-wider text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border-amber-500/30 text-xs"
+                          onClick={() => {
+                            setNewDate(getBoliviaDateKey(cita.fecha_hora))
+                            setNewTime(getBoliviaTimeStr(cita.fecha_hora))
+                            setNewBarberoId(cita.barbero_id || '')
+                            setNewDuration(cita.duracion_minutos || 30)
+                            setShowReprogramar(true)
+                          }}
+                        >
                           📅 Reprogramar
                         </Button>
                       )}

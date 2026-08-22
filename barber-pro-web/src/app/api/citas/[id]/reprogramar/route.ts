@@ -32,7 +32,7 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { newDate, newTime, durationMinutes } = body
+    const { newDate, newTime, durationMinutes, newBarberoId, newServicioId, notas } = body
 
     if (!newDate || !newTime) {
       return NextResponse.json({ error: 'Faltan datos de fecha u hora' }, { status: 400 })
@@ -40,7 +40,7 @@ export async function POST(
 
     const { data: oldCita, error: findError } = await adminSupabase
       .from('citas')
-      .select('id, fecha_hora, barbero_id, estado, duracion_real_minutos')
+      .select('id, fecha_hora, barbero_id, servicio_id, precio, estado, duracion_real_minutos, notas, anticipo_monto')
       .eq('id', id)
       .maybeSingle()
 
@@ -71,11 +71,44 @@ export async function POST(
       updatePayload.duracion_real_minutos = Number(durationMinutes)
     }
 
+    // Si es admin o coordinador y cambió el barbero
+    if (newBarberoId && (role === 'admin' || role === 'coordinador')) {
+      updatePayload.barbero_id = newBarberoId
+    }
+
+    // Si cambió el servicio
+    if (newServicioId && (role === 'admin' || role === 'coordinador' || role === 'barbero')) {
+      const { data: serv } = await adminSupabase
+        .from('servicios')
+        .select('id, nombre, precio, duracion_minutos')
+        .eq('id', newServicioId)
+        .maybeSingle()
+
+      if (serv) {
+        updatePayload.servicio_id = serv.id
+        // Si el precio original no era 100% gratis por regalo, actualizar precio
+        if (oldCita.precio > 0 || !oldCita.notas?.includes('GRATIS')) {
+          updatePayload.precio = serv.precio
+        }
+        if (!durationMinutes) {
+          updatePayload.duracion_real_minutos = serv.duracion_minutos
+        }
+      }
+    }
+
+    if (notas !== undefined) {
+      updatePayload.notas = notas
+    }
+
     const { data: updated, error: updateError } = await adminSupabase
       .from('citas')
       .update(updatePayload)
       .eq('id', id)
-      .select()
+      .select(`
+        *,
+        barbero:profiles!citas_barbero_id_fkey(id, full_name, email, avatar_url),
+        servicio:servicios!citas_servicio_id_fkey(id, nombre, precio, duracion_minutos)
+      `)
       .single()
 
     if (updateError) {
