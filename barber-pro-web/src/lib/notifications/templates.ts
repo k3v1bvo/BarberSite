@@ -261,18 +261,66 @@ export function buildEmail(
 
     case 'reserva_reprogramada':
       return {
-        subject: '🔄 Cita reprogramada',
+        subject: `🔄 Cita reprogramada: ${data.servicio || 'Servicio'} · ${data.fecha} ${data.hora}`,
         html: layout(
-          `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">Cambio de horario</h2>
-          <p>Tu cita fue reprogramada.</p>
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Hola ${nombre}!</h2>
+          <p>Tu cita en <strong>${BRAND}</strong> ha sido reprogramada o actualizada exitosamente.</p>
           ${detailBox([
-            { label: 'Antes', value: `${data.fechaAnterior || '—'} ${data.horaAnterior || ''}`.trim() },
-            { label: 'Nuevo', value: `${data.fecha || '—'} ${data.hora || ''}`.trim() },
             { label: 'Servicio', value: data.servicio || '—' },
-            { label: 'Barbero', value: data.barbero || '—' },
+            { label: 'Especialista / Barbero', value: data.barbero || '—' },
+            { label: 'Horario Anterior', value: `${data.fechaAnterior || '—'} ${data.horaAnterior || ''}`.trim() },
+            { label: 'Nuevo Horario Confirmado', value: `✨ ${data.fecha || '—'} a las ${data.hora || ''} hrs` },
           ])}
-          ${cta(`${SITE}/cliente`, 'Ver mis citas')}`,
-          'Tu cita cambió de fecha u hora'
+          <p style="color:#a1a1aa;font-size:13px;">Te esperamos en nuestro local. Recuerda estar 5 minutos antes.</p>
+          ${cta(`${SITE}/cliente`, 'Ver Mis Citas')}`,
+          'Tu cita ha sido actualizada con éxito'
+        ),
+      }
+
+    case 'reserva_reprogramada_barbero':
+      return {
+        subject: `🔄 Cita modificada/reprogramada: ${nombre} (${data.fecha} ${data.hora})`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">Actualización en tu Agenda</h2>
+          <p>La cita de tu cliente <strong>${nombre}</strong> ha sido reprogramada o reasignada a tu turno.</p>
+          ${detailBox([
+            { label: 'Cliente', value: nombre },
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Horario Anterior', value: `${data.fechaAnterior || '—'} ${data.horaAnterior || ''}`.trim() },
+            { label: 'Nuevo Horario', value: `🗓️ ${data.fecha || '—'} a las ${data.hora || ''} hrs` },
+          ])}
+          ${cta(`${SITE}/agenda`, 'Abrir Mi Agenda')}`,
+          'Una cita en tu agenda ha sido modificada'
+        ),
+      }
+
+    case 'reserva_reasignada_barbero_anterior':
+      return {
+        subject: `ℹ️ Cita reasignada a otro barbero: ${nombre}`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">Cita Reasignada</h2>
+          <p>La cita del cliente <strong>${nombre}</strong> (originalmente programada para ${data.fechaAnterior || ''} ${data.horaAnterior || ''}) ha sido transferida al especialista <strong>${data.nuevoBarbero || 'otro compañero'}</strong> por administración/coordinación.</p>
+          <p style="color:#a1a1aa;font-size:13px;">Ese espacio en tu agenda ha quedado libre para nuevos clientes o reservas.</p>
+          ${cta(`${SITE}/agenda`, 'Ver Mi Agenda')}`,
+          'Una cita fue transferida a otro barbero'
+        ),
+      }
+
+    case 'reserva_reprogramada_admin':
+      return {
+        subject: `🔄 Cita Modificada en Agenda: ${nombre} (${data.fecha} ${data.hora})`,
+        html: layout(
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">Modificación de Reserva</h2>
+          <p>Se ha realizado un cambio en la cita del cliente <strong>${nombre}</strong>.</p>
+          ${detailBox([
+            { label: 'Cliente', value: nombre },
+            { label: 'Especialista Asignado', value: data.barbero || '—' },
+            { label: 'Servicio', value: data.servicio || '—' },
+            { label: 'Horario Anterior', value: `${data.fechaAnterior || '—'} ${data.horaAnterior || ''}`.trim() },
+            { label: 'Nuevo Horario', value: `🗓️ ${data.fecha || '—'} a las ${data.hora || ''} hrs` },
+          ])}
+          ${cta(`${SITE}/agenda`, 'Abrir Agenda General')}`,
+          'Cambio de cita registrado en el sistema'
         ),
       }
 

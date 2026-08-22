@@ -214,27 +214,111 @@ export async function dispatchNotification(
       }
 
       case 'reserva_reprogramada': {
-        const msg = `${p.clienteNombre}: ${p.fechaAnterior} ${p.horaAnterior} → ${p.fecha} ${p.hora}`
+        const msg = `${p.clienteNombre || 'Cliente'}: ${p.fechaAnterior || ''} ${p.horaAnterior || ''} → ${p.fecha || ''} ${p.hora || ''}${p.servicioNombre ? ` · ${p.servicioNombre}` : ''}${p.barberoNombre ? ` · ${p.barberoNombre}` : ''}`
+        const meta = { cita_id: p.citaId, barbero_id: p.barberoId }
 
+        // 1. Notificar al Barbero Asignado (Actual / Nuevo)
         if (p.barberoId) {
-          await notifyUser(db, p.barberoId, event, {
-            titulo: '🔄 Cita reprogramada',
+          await notifyUser(
+            db,
+            p.barberoId,
+            event,
+            {
+              titulo: '🔄 Cita modificada / reprogramada',
+              mensaje: msg,
+              tipo: 'info',
+              categoria: event,
+              link: agendaLink(p.barberoId),
+              metadata: meta,
+            },
+            p.barberoEmail
+              ? {
+                  to: p.barberoEmail,
+                  template: 'reserva_reprogramada_barbero',
+                  data: {
+                    nombre: p.clienteNombre,
+                    servicio: p.servicioNombre,
+                    fecha: p.fecha,
+                    hora: p.hora,
+                    fechaAnterior: p.fechaAnterior,
+                    horaAnterior: p.horaAnterior,
+                  },
+                }
+              : undefined
+          )
+        }
+
+        // 2. Si el barbero fue reasignado, notificar al Barbero Anterior
+        if (p.barberoIdAnterior && p.barberoIdAnterior !== p.barberoId) {
+          const antId = String(p.barberoIdAnterior)
+          const { data: bAnt } = await db.from('profiles').select('email, full_name').eq('id', antId).maybeSingle()
+          await notifyUser(
+            db,
+            antId,
+            event,
+            {
+              titulo: 'ℹ️ Cita transferida a otro barbero',
+              mensaje: `La cita de ${p.clienteNombre} (${p.fechaAnterior} ${p.horaAnterior}) fue reasignada a ${p.barberoNombre || 'otro especialista'}.`,
+              tipo: 'info',
+              categoria: event,
+              link: agendaLink(antId),
+              metadata: meta,
+            },
+            bAnt?.email
+              ? {
+                  to: bAnt.email,
+                  template: 'reserva_reasignada_barbero_anterior',
+                  data: {
+                    nombre: p.clienteNombre,
+                    servicio: p.servicioNombre,
+                    nuevoBarbero: p.barberoNombre,
+                    fechaAnterior: p.fechaAnterior,
+                    horaAnterior: p.horaAnterior,
+                    fecha: p.fecha,
+                    hora: p.hora,
+                  },
+                }
+              : undefined
+          )
+        }
+
+        // 3. Notificar a Admin
+        await notifyRole(
+          db,
+          'admin',
+          {
+            titulo: '🔄 Cita modificada en agenda',
             mensaje: msg,
             tipo: 'info',
             categoria: event,
-            link: agendaLink(p.barberoId),
-            metadata: { cita_id: p.citaId },
-          })
-        }
+            link: '/agenda' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
+            metadata: meta,
+          },
+          {
+            template: 'reserva_reprogramada_admin',
+            data: {
+              nombre: p.clienteNombre,
+              servicio: p.servicioNombre,
+              barbero: p.barberoNombre,
+              fecha: p.fecha,
+              hora: p.hora,
+              fechaAnterior: p.fechaAnterior,
+              horaAnterior: p.horaAnterior,
+            },
+          }
+        )
 
-        await notifyRole(db, 'admin', {
-          titulo: '🔄 Reprogramación',
+        // 4. Notificar a Coordinador
+        await notifyRole(db, 'coordinador', {
+          titulo: '🔄 Cita modificada en agenda',
           mensaje: msg,
           tipo: 'info',
           categoria: event,
-          link: '/agenda',
+          link: '/agenda' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
+          metadata: meta,
         })
 
+        // 5. Enviar Correo al Cliente
         if (p.clienteEmail) {
           await sendNotificationEmail(p.clienteEmail, 'reserva_reprogramada', {
             nombre: p.clienteNombre,
@@ -1102,7 +1186,9 @@ export async function dispatchCitaReprogramada(
   db: SupabaseClient,
   citaId: string,
   fechaHoraAnterior: string,
-  fechaHoraNueva: string
+  fechaHoraNueva: string,
+  barberoIdAnterior?: string,
+  barberoIdNuevo?: string
 ): Promise<void> {
   const { data: cita } = await db
     .from('citas')
@@ -1112,10 +1198,12 @@ export async function dispatchCitaReprogramada(
 
   if (!cita) return
 
+  const targetBarberoId = barberoIdNuevo || cita.barbero_id
+
   const { data: barberoProfile } = await db
     .from('profiles')
-    .select('full_name')
-    .eq('id', cita.barbero_id)
+    .select('full_name, email')
+    .eq('id', targetBarberoId)
     .maybeSingle()
 
   const prev = new Date(fechaHoraAnterior)
@@ -1130,10 +1218,12 @@ export async function dispatchCitaReprogramada(
     event: 'reserva_reprogramada',
     payload: {
       citaId,
-      barberoId: cita.barbero_id,
+      barberoId: targetBarberoId,
+      barberoIdAnterior: (barberoIdAnterior && barberoIdAnterior !== targetBarberoId) ? barberoIdAnterior : undefined,
       clienteNombre: cliente?.nombre || 'Cliente',
       clienteEmail: cliente?.email ?? undefined,
       barberoNombre: barbero?.full_name || 'Tu barbero',
+      barberoEmail: barbero?.email ?? undefined,
       servicioNombre: servicio?.nombre || 'Cita de barbería',
       fecha: next.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' }),
       hora: next.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false }),

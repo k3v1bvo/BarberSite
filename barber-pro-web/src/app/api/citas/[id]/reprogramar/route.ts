@@ -116,10 +116,12 @@ export async function POST(
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
-    if (oldCita?.fecha_hora && oldCita.fecha_hora !== fechaHora) {
+    const huboCambios = (oldCita?.fecha_hora !== fechaHora) || (oldCita?.barbero_id !== updated.barbero_id) || (oldCita?.servicio_id !== updated.servicio_id)
+
+    if (huboCambios) {
       try {
         const adminDb = getNotificationDbClient(supabase)
-        await dispatchCitaReprogramada(adminDb, id, oldCita.fecha_hora, fechaHora)
+        await dispatchCitaReprogramada(adminDb, id, oldCita.fecha_hora, fechaHora, oldCita.barbero_id, updated.barbero_id)
       } catch (notifErr) {
         console.error('Error enviando notificación de reprogramación:', notifErr)
       }

@@ -32,6 +32,7 @@ export interface NotificationPayload {
   citaId?: string
   pedidoId?: string
   barberoId?: string
+  barberoIdAnterior?: string
   clienteId?: string
   clienteNombre?: string
   clienteEmail?: string
