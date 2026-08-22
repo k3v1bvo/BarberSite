@@ -146,19 +146,38 @@ export async function PATCH(
       const notaAsistencia = `PERMISO JUSTIFICADO [${tipoLabel}] (Aprobado por ${revisorNombre}): ${solicitud.motivo || ''} ${solicitud.comprobante_url ? `[PDF](${solicitud.comprobante_url})` : ''}`.trim()
 
       // Registrar o actualizar en asistencias
-      const { error: asisErr } = await adminDb
+      const { data: existingAsis } = await adminDb
         .from('asistencias')
-        .upsert({
-          profile_id: barberoId,
-          fecha: solicitud.fecha,
-          estado: 'permiso',
-          notas: notaAsistencia,
-          selfie_url: solicitud.comprobante_url || null,
-          editado_admin: true,
-        }, { onConflict: 'profile_id,fecha' })
+        .select('id')
+        .eq('profile_id', barberoId)
+        .eq('fecha', solicitud.fecha)
+        .maybeSingle()
 
-      if (asisErr) {
-        console.warn('Advertencia al insertar permiso en asistencias:', asisErr)
+      if (existingAsis?.id) {
+        await adminDb
+          .from('asistencias')
+          .update({
+            estado: 'permiso',
+            notas: notaAsistencia,
+            selfie_url: solicitud.comprobante_url || null,
+            editado_admin: true,
+          })
+          .eq('id', existingAsis.id)
+      } else {
+        await adminDb
+          .from('asistencias')
+          .insert({
+            profile_id: barberoId,
+            fecha: solicitud.fecha,
+            hora_entrada: `${solicitud.fecha}T09:00:00-04:00`,
+            hora_salida: `${solicitud.fecha}T21:00:00-04:00`,
+            horas_trabajadas: 0,
+            estado: 'permiso',
+            notas: notaAsistencia,
+            selfie_url: solicitud.comprobante_url || null,
+            editado_admin: true,
+            cierre_automatico: false,
+          })
       }
 
       // Eliminar sanciones si existían para esa fecha

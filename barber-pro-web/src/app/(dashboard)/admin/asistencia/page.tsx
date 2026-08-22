@@ -870,14 +870,26 @@ export default function AsistenciaAdminPage() {
                 ✕
               </button>
 
-              {/* FOTO GRANDE DEL BARBERO */}
+              {/* FOTO GRANDE DEL BARBERO O DOCUMENTO PDF */}
               <div className="relative w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-4">
                 {selectedAsistenciaForModal.selfie_url ? (
-                  <img 
-                    src={selectedAsistenciaForModal.selfie_url} 
-                    alt="Foto Perfil / Marcación" 
-                    className="w-full h-full rounded-3xl object-cover border-4 border-amber-500/50 shadow-2xl shadow-amber-500/20" 
-                  />
+                  selectedAsistenciaForModal.selfie_url.toLowerCase().includes('.pdf') ? (
+                    <a
+                      href={selectedAsistenciaForModal.selfie_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full h-full rounded-3xl bg-indigo-500/20 border-4 border-indigo-500/50 flex flex-col items-center justify-center p-3 text-center shadow-2xl hover:bg-indigo-500/30 transition group"
+                    >
+                      <FileText className="w-10 h-10 text-indigo-400 mb-1 group-hover:scale-110 transition-transform" />
+                      <span className="text-[10px] font-black uppercase tracking-wider text-white">Ver Documento PDF ↗</span>
+                    </a>
+                  ) : (
+                    <img 
+                      src={selectedAsistenciaForModal.selfie_url} 
+                      alt="Foto Perfil / Marcación" 
+                      className="w-full h-full rounded-3xl object-cover border-4 border-amber-500/50 shadow-2xl shadow-amber-500/20" 
+                    />
+                  )
                 ) : selectedAsistenciaForModal.profiles?.avatar_url ? (
                   <img 
                     src={selectedAsistenciaForModal.profiles.avatar_url} 

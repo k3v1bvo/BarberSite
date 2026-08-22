@@ -214,20 +214,30 @@ export default function AdminConfiguracionPage() {
     e.preventDefault()
     const val = parseFloat(montoBonoReferido)
     if (isNaN(val) || val < 0) {
-      return toastError('Ingresa un monto de bono válido.')
+      return toastError('Ingresa un monto de bono válido mayor o igual a 0.')
     }
 
     setSaving(true)
     try {
-      const { error } = await supabase
-        .from('configuraciones')
-        .upsert({
-          llave: 'monto_bono_referido',
-          valor: { monto: val },
-          descripcion: 'Monto de bono por referido en Bolivianos (Bs.)'
-        }, { onConflict: 'llave' })
+      const res = await fetch('/api/referidos/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ monto: val })
+      })
 
-      if (error) throw error
+      if (!res.ok) {
+        // Fallback directo a Supabase
+        const { error } = await supabase
+          .from('configuraciones')
+          .upsert({
+            llave: 'monto_bono_referido',
+            valor: { monto: val },
+            descripcion: 'Monto de bono por referido en Bolivianos (Bs.)'
+          }, { onConflict: 'llave' })
+
+        if (error) throw error
+      }
+
       toastSuccess(`Monto de bono por referido actualizado a Bs. ${val} correctamente ✅`)
     } catch (err: any) {
       toastError(err.message || 'Error al guardar configuración de referidos')

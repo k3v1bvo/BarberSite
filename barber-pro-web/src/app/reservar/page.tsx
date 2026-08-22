@@ -269,10 +269,12 @@ function ReservarContent() {
 
         if (referidoInfo?.id) {
           try {
+            const { data: confRef } = await supabase.from('configuraciones').select('valor').eq('llave', 'monto_bono_referido').maybeSingle()
+            const montoBonoVal = confRef?.valor ? (typeof confRef.valor === 'object' ? Number((confRef.valor as any).monto) || 10 : Number(confRef.valor) || 10) : 10
             await supabase.from('referrals').insert({
               cliente_recomendante_id: referidoInfo.id,
               cliente_recomendado_id: authData.user.id,
-              monto_bono: 15,
+              monto_bono: montoBonoVal,
               bono_otorgado: false,
             })
           } catch (_) {}
@@ -446,7 +448,8 @@ function ReservarContent() {
       toastError('Por favor completa todos tus datos personales.')
       return
     }
-    if (tipoReserva !== 'sin_adelanto' && totalReserva > 0 && !formData.comprobante_url) {
+    const esGratis = totalReserva === 0
+    if (!esGratis && tipoReserva !== 'sin_adelanto' && !formData.comprobante_url) {
       toastError('⚠️ Para confirmar tu reserva con QR, es OBLIGATORIO adjuntar la captura de tu comprobante de pago.')
       return
     }
@@ -495,10 +498,12 @@ function ReservarContent() {
 
           if (referidoInfo?.id && clienteId) {
             try {
+              const { data: confRef } = await supabase.from('configuraciones').select('valor').eq('llave', 'monto_bono_referido').maybeSingle()
+              const montoBonoVal = confRef?.valor ? (typeof confRef.valor === 'object' ? Number((confRef.valor as any).monto) || 10 : Number(confRef.valor) || 10) : 10
               await supabase.from('referrals').insert({
                 cliente_recomendante_id: referidoInfo.id,
                 cliente_recomendado_id: clienteId,
-                monto_bono: 15,
+                monto_bono: montoBonoVal,
                 bono_otorgado: false,
               })
             } catch (_) {}
@@ -586,15 +591,23 @@ function ReservarContent() {
         notasFinales = notasFinales ? `${notasFinales}\n${promoCruzada}` : promoCruzada
       }
 
-      let anticipoCalculado = 20
-      if (tipoReserva === 'adelanto_20') anticipoCalculado = 20
-      else if (tipoReserva === 'pago_total') anticipoCalculado = precioFinalTotal
-      else if (tipoReserva === 'sin_adelanto') anticipoCalculado = 0
+      const esGratis = precioFinalTotal === 0
+      let anticipoCalculado = 0
+      let tipoReservaEfectivo = 'sin_adelanto'
+
+      if (!esGratis) {
+        if (tipoReserva === 'adelanto_20') anticipoCalculado = Math.min(20, precioFinalTotal)
+        else if (tipoReserva === 'pago_total') anticipoCalculado = precioFinalTotal
+        else if (tipoReserva === 'sin_adelanto') anticipoCalculado = 0
+        tipoReservaEfectivo = tipoReserva
+      }
 
       let notaReserva = ''
-      if (tipoReserva === 'sin_adelanto') {
+      if (esGratis) {
+        notaReserva = '[Reserva]: Servicio Gratuito (10mo corte / beneficio 100% descuento)'
+      } else if (tipoReservaEfectivo === 'sin_adelanto') {
         notaReserva = '[Reserva]: Sin adelanto (Pago en local. Debe estar 5 min antes)'
-      } else if (tipoReserva === 'pago_total') {
+      } else if (tipoReservaEfectivo === 'pago_total') {
         notaReserva = `[Reserva QR]: Pago Completo por QR (Bs ${precioFinalTotal})`
       } else {
         notaReserva = `[Reserva QR]: Adelanto de Bs ${anticipoCalculado} por Reserva`
@@ -610,7 +623,7 @@ function ReservarContent() {
         fecha_hora: fechaHora,
         precio: precioFinalTotal,
         duracion_real_minutos: servicio?.duracion_minutos || 30,
-        estado: tipoReserva === 'sin_adelanto' ? 'confirmado' : 'pendiente_pago',
+        estado: (esGratis || tipoReservaEfectivo === 'sin_adelanto') ? 'confirmado' : 'pendiente_pago',
         notas: formData.comprobante_url ? `${notasFinales}\n[Comprobante]: ${formData.comprobante_url}` : notasFinales,
         anticipo_monto: anticipoCalculado,
       }
@@ -1710,6 +1723,18 @@ function ReservarContent() {
                       </div>
                     </div>
 
+                    {/* BENEFICIO SERVICIO GRATIS (totalReserva === 0) */}
+                    {totalReserva === 0 && (
+                      <div className="mt-8 p-6 bg-emerald-500/10 border border-emerald-500/30 rounded-3xl space-y-2">
+                        <p className="text-sm font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                          🎉 ¡Servicio 100% Gratuito!
+                        </p>
+                        <p className="text-xs text-zinc-300">
+                          Tu reserva tiene un beneficio especial o 10mo corte que cubre el 100% del servicio. No requieres realizar adelantos ni adjuntar comprobante QR. Tu cita quedará confirmada al instante.
+                        </p>
+                      </div>
+                    )}
+
                     {/* SELECCIÓN DE OPCIÓN DE PAGO DE RESERVA */}
                     {totalReserva > 0 && (
                       <div className="mt-8 space-y-3">
@@ -1833,12 +1858,25 @@ function ReservarContent() {
                             </div>
                           )
                         })()}
-                        <ImageUpload
-                          label="Captura del Comprobante (Obligatorio)"
-                          defaultImage={formData.comprobante_url || undefined}
-                          onUploadSuccess={(url) => setFormData({ ...formData, comprobante_url: url })}
-                          onUploadError={(err) => toastError(err)}
-                        />
+                        <div className="space-y-3">
+                          <ImageUpload
+                            label="Captura del Comprobante (Obligatorio para Confirmar)"
+                            defaultImage={formData.comprobante_url || undefined}
+                            onUploadSuccess={(url) => setFormData({ ...formData, comprobante_url: url })}
+                            onUploadError={(err) => toastError(err)}
+                          />
+                          {formData.comprobante_url ? (
+                            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs font-bold text-emerald-400">
+                              <CheckCircle className="w-4 h-4 shrink-0" />
+                              <span>✓ Comprobante adjuntado correctamente</span>
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-2 text-xs font-bold text-amber-400">
+                              <AlertTriangle className="w-4 h-4 shrink-0" />
+                              <span>Sube la captura de tu pago QR para habilitar la confirmación</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                     

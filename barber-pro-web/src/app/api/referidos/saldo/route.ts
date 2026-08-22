@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       .reduce((sum, r) => sum + (Number(r.monto_bono) || 0), 0)
 
     // 4. Monto de bono configurado por defecto
-    let montoBonoConfig = 15
+    let montoBonoConfig = 10
     try {
       const { data: conf } = await supabase
         .from('configuraciones')
@@ -56,7 +56,14 @@ export async function GET(req: NextRequest) {
         .eq('llave', 'monto_bono_referido')
         .maybeSingle()
       if (conf?.valor) {
-        montoBonoConfig = typeof conf.valor === 'number' ? conf.valor : Number(conf.valor) || 15
+        const raw = conf.valor
+        if (typeof raw === 'number') {
+          montoBonoConfig = raw
+        } else if (typeof raw === 'object' && raw !== null && (raw as any).monto !== undefined) {
+          montoBonoConfig = Number((raw as any).monto) || 10
+        } else {
+          montoBonoConfig = Number(raw) || 10
+        }
       }
     } catch (_) {}
 

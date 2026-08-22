@@ -210,12 +210,16 @@ export function CajaPOS() {
           setTiempoMinimoReserva(Number(resTiempo.data.valor.minutos))
         }
 
-        const hoy = new Date().toISOString().split('T')[0]
+        const hoy = getBusinessDateString()
+        const inicioDia = `${hoy}T00:00:00-04:00`
+        const finDia = `${hoy}T23:59:59-04:00`
         
         const { data: citasPendientesData } = await supabase
           .from('citas')
           .select('id, cliente_id, barbero_id, servicio_id, estado, fecha_hora, notas, anticipo_monto, clientes(nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado, codigo_tarjeta), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
           .in('estado', ['en_proceso', 'pendiente', 'pendiente_pago', 'confirmado'])
+          .gte('fecha_hora', inicioDia)
+          .lte('fecha_hora', finDia)
           .order('fecha_hora', { ascending: true })
 
         setCitasPendientes(citasPendientesData || [])
@@ -778,11 +782,15 @@ export function CajaPOS() {
       toastSuccess(`Cita registrada como ${estado === 'completado' ? 'Completada y Cobrada' : 'En Proceso'}`)
       
       // Refresh pending appointments
-      const hoy = new Date().toISOString().split('T')[0]
+      const hoy = getBusinessDateString()
+      const inicioDia = `${hoy}T00:00:00-04:00`
+      const finDia = `${hoy}T23:59:59-04:00`
       const { data: citasPendientesData } = await supabase
         .from('citas')
         .select('id, cliente_id, barbero_id, servicio_id, estado, fecha_hora, notas, clientes(nombre, email, telefono, ci, nivel_fidelidad, total_visitas, total_gastado, codigo_tarjeta), profiles!citas_barbero_id_fkey(full_name), servicios(nombre, precio)')
         .in('estado', ['en_proceso', 'pendiente', 'pendiente_pago', 'confirmado'])
+        .gte('fecha_hora', inicioDia)
+        .lte('fecha_hora', finDia)
         .order('fecha_hora', { ascending: true })
       setCitasPendientes(citasPendientesData || [])
 

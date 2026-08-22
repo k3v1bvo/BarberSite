@@ -420,8 +420,26 @@ export default function ClientesAdminPage() {
         .limit(30),
     ])
 
+    const rawTx = (txRes.data || []) as Transaccion[]
+    // 1. Filtrar contra-asientos bancarios internos de la migración
+    const filteredTx = rawTx.filter(tx => {
+      const isBankContra = tx.libro === 'CAJA_CHICA' 
+        && String(tx.glosa || '').toUpperCase().includes('PAGO POR QR') 
+        && (String(tx.cuenta_detalle || '').toUpperCase().includes('BANCO') || String(tx.glosa || '').toUpperCase().includes('BANCO GANADERO'))
+      return !isBankContra
+    })
+
+    // 2. Deduplicar registros duplicados con la misma fecha, costo y concepto
+    const seenTx = new Set<string>()
+    const cleanTransactions = filteredTx.filter(tx => {
+      const key = `${tx.fecha}_${tx.costo}_${(tx.cuenta_detalle || tx.glosa || '').trim().toLowerCase()}_${tx.metodo_pago}_${tx.libro}`
+      if (seenTx.has(key)) return false
+      seenTx.add(key)
+      return true
+    })
+
     setCitas((citasRes.data || []) as any)
-    setTransacciones((txRes.data || []) as Transaccion[])
+    setTransacciones(cleanTransactions)
     setLoadingDetalle(false)
   }
 

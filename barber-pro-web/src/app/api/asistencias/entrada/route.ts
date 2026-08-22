@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       // Body vacío es válido (retrocompatibilidad)
     }
 
-    // Validar geolocalización si está configurada
+    // Validar geolocalización si está configurada en el negocio
     const { data: ubicacionConfig } = await supabase
       .from('configuraciones')
       .select('valor')
@@ -84,13 +84,20 @@ export async function POST(request: NextRequest) {
 
     const ubicacion = ubicacionConfig?.valor as { lat?: number; lng?: number; radio_metros?: number; activa?: boolean } | null
 
-    if (ubicacion?.activa && lat != null && lng != null) {
+    if (ubicacion?.activa) {
+      if (lat == null || lng == null) {
+        return NextResponse.json(
+          { error: 'Debes activar tu ubicación (GPS) para verificar que estás dentro del local.' },
+          { status: 403 }
+        )
+      }
+
       const distancia = haversineDistance(lat, lng, ubicacion.lat!, ubicacion.lng!)
       const radioMax = ubicacion.radio_metros ?? 200
 
       if (distancia > radioMax) {
         return NextResponse.json(
-          { error: `Estás fuera del rango permitido (${Math.round(distancia)}m). Debes estar a menos de ${radioMax}m de la barbería.` },
+          { error: `Estás fuera del rango permitido (${Math.round(distancia)}m). Debes estar a menos de ${radioMax}m de la barbería para marcar entrada.` },
           { status: 403 }
         )
       }
@@ -112,9 +119,9 @@ export async function POST(request: NextRequest) {
         .single()
     ])
 
-    const requiereFoto = configRes.data?.valor?.requiere_foto ?? false
+    const requiereFoto = configRes.data?.valor?.requiere_foto ?? true
     if (requiereFoto && !selfie_url) {
-      return NextResponse.json({ error: 'La foto/selfie de entrada es obligatoria según la configuración del local.' }, { status: 400 })
+      return NextResponse.json({ error: 'La foto/selfie en vivo tomada por cámara es obligatoria para marcar entrada.' }, { status: 400 })
     }
 
     const toleranciaMinutos = configRes.data?.valor?.tolerancia_minutos ?? 15

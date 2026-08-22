@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
 import { UserPlus, Gift, Check, Search, Users, Settings2, Trophy, Crown, Flame, Star, Sparkles, Scissors, DollarSign } from 'lucide-react'
 import { formatCurrency, cn } from '@/lib/utils'
+import { useToast } from '@/components/ui/Toast'
 
 interface Cliente {
   id: string
@@ -29,6 +30,7 @@ interface Referral {
 
 export default function ReferidosPage() {
   const supabase = createClient()
+  const { success: toastSuccess, error: toastError } = useToast()
   const [activeTab, setActiveTab] = useState<'embajadores' | 'frecuentes' | 'registros'>('embajadores')
   const [periodo, setPeriodo] = useState<'mes' | 'historico'>('mes')
 
@@ -44,13 +46,13 @@ export default function ReferidosPage() {
   const [searchRecomendante, setSearchRecomendante] = useState('')
   const [searchRecomendado, setSearchRecomendado] = useState('')
   
-  const [montoBonoConfig, setMontoBonoConfig] = useState('15')
+  const [montoBonoConfig, setMontoBonoConfig] = useState('10')
   const [savingConfig, setSavingConfig] = useState(false)
 
   const [form, setForm] = useState({
     cliente_recomendante_id: '',
     cliente_recomendado_id: '',
-    monto_bono: '15',
+    monto_bono: '10',
   })
 
   const loadData = useCallback(async () => {
@@ -135,16 +137,31 @@ export default function ReferidosPage() {
   }
 
   const handleSaveConfig = async () => {
+    const val = parseFloat(montoBonoConfig)
+    if (isNaN(val) || val < 0) {
+      return toastError('Ingresa un monto de bono válido mayor o igual a 0.')
+    }
     setSavingConfig(true)
     try {
-      await supabase
-        .from('configuraciones')
-        .upsert({
-          llave: 'monto_bono_referido',
-          valor: { monto: parseFloat(montoBonoConfig) },
-          descripcion: 'Monto de bono por referido en Bolivianos (Bs.)'
-        }, { onConflict: 'llave' })
-      alert('Monto de bono actualizado exitosamente')
+      const res = await fetch('/api/referidos/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ monto: val })
+      })
+      if (!res.ok) {
+        const { error } = await supabase
+          .from('configuraciones')
+          .upsert({
+            llave: 'monto_bono_referido',
+            valor: { monto: val },
+            descripcion: 'Monto de bono por referido en Bolivianos (Bs.)'
+          }, { onConflict: 'llave' })
+        if (error) throw error
+      }
+      toastSuccess(`Monto de bono actualizado a Bs. ${val} exitosamente ✅`)
+      setForm(f => ({ ...f, monto_bono: String(val) }))
+    } catch (err: any) {
+      toastError(err.message || 'Error al actualizar configuración')
     } finally {
       setSavingConfig(false)
     }

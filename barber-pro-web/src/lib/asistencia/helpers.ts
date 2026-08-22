@@ -65,16 +65,25 @@ export function getAutoCloseTimestamp(fecha: string): string {
 }
 
 export function computeEstadoFromRecord(record: {
-  hora_entrada: string
-  hora_salida: string | null
+  hora_entrada?: string | null
+  hora_salida?: string | null
   estado?: string | null
   cierre_automatico?: boolean | null
 }): AsistenciaEstado {
+  if (record.estado === 'permiso') {
+    return 'permiso'
+  }
   if (record.estado === 'finalizado' || record.hora_salida) {
     return 'finalizado'
   }
   if (record.cierre_automatico) {
     return 'finalizado'
+  }
+  if (record.estado === 'ausente') {
+    return 'ausente'
+  }
+  if (!record.hora_entrada) {
+    return 'ausente'
   }
   const entrada = new Date(record.hora_entrada)
   const localEntrada = new Date(entrada.getTime() - 4 * 60 * 60 * 1000)
@@ -96,6 +105,8 @@ export function estadoLabel(estado: AsistenciaEstado): string {
       return 'Finalizado'
     case 'ausente':
       return 'Ausente'
+    case 'permiso':
+      return 'Permiso Justificado'
     default:
       return estado
   }
@@ -111,6 +122,8 @@ export function estadoBadgeVariant(estado: AsistenciaEstado): 'success' | 'warni
       return 'info'
     case 'ausente':
       return 'danger'
+    case 'permiso':
+      return 'info'
     default:
       return 'info'
   }

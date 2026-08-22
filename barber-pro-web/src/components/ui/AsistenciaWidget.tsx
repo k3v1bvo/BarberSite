@@ -29,6 +29,10 @@ interface AsistenciaRecord {
   editado_admin?: boolean
   estado?: string
   en_almuerzo?: boolean
+  notas?: string | null
+  selfie_url?: string | null
+  lat?: number | null
+  lng?: number | null
 }
 
 export function AsistenciaWidget() {
@@ -54,10 +58,12 @@ export function AsistenciaWidget() {
   const [showSelfiePrompt, setShowSelfiePrompt] = useState(false)
   const [showPermisoModal, setShowPermisoModal] = useState(false)
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null)
-  const [selfieLinkInput, setSelfieLinkInput] = useState('')
   const [requiereFotoConfig, setRequiereFotoConfig] = useState(true)
   const [uploadingSelfie, setUploadingSelfie] = useState(false)
-  const selfieInputRef = useRef<HTMLInputElement>(null)
+  const nativeCameraInputRef = useRef<HTMLInputElement>(null)
+
+  // Permiso de hoy
+  const [permisoHoy, setPermisoHoy] = useState<{ id: string; tipo_permiso: string; motivo: string; estado: string; notas?: string } | null>(null)
 
   // Congelar scroll de fondo y enviar pantalla hasta arriba al abrir modal de selfie
   useEffect(() => {
@@ -81,6 +87,7 @@ export function AsistenciaWidget() {
   // Geolocalización
   const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [ubicacionNegocio, setUbicacionNegocio] = useState<{ lat?: number; lng?: number; radio_metros?: number; activa?: boolean } | null>(null)
 
   const supabase = createClient()
 
@@ -137,6 +144,40 @@ export function AsistenciaWidget() {
 
       if (asisConfig?.valor?.requiere_foto !== undefined) {
         setRequiereFotoConfig(Boolean(asisConfig.valor.requiere_foto))
+      }
+
+      // Leer configuración de ubicación del negocio
+      const { data: ubiConfig } = await supabase
+        .from('configuraciones')
+        .select('valor')
+        .eq('llave', 'ubicacion_negocio')
+        .maybeSingle()
+
+      if (ubiConfig?.valor) {
+        setUbicacionNegocio(ubiConfig.valor)
+      }
+
+      // Verificar si tiene permiso solicitado o aprobado para hoy
+      const { data: solPermiso } = await supabase
+        .from('solicitudes_permisos')
+        .select('*')
+        .eq('barbero_id', user.id)
+        .eq('fecha', hoy)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (solPermiso) {
+        setPermisoHoy(solPermiso)
+      } else if (data?.estado === 'permiso') {
+        setPermisoHoy({
+          id: data.id,
+          tipo_permiso: 'jornada_completa',
+          motivo: data.notas || 'Permiso Justificado registrado por administración',
+          estado: 'aprobado'
+        })
+      } else {
+        setPermisoHoy(null)
       }
 
       if (data) {
@@ -271,6 +312,7 @@ export function AsistenciaWidget() {
   const getLocation = (): Promise<{ lat: number; lng: number } | null> => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
+        setGeoStatus('error')
         resolve(null)
         return
       }
@@ -284,7 +326,7 @@ export function AsistenciaWidget() {
         },
         () => {
           setGeoStatus('error')
-          resolve(null) // Permitir marcar sin ubicación
+          resolve(null)
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       )
@@ -304,6 +346,12 @@ export function AsistenciaWidget() {
     const loc = await getLocation()
     setCoords(loc)
 
+    // Validar si el negocio exige GPS
+    if (ubicacionNegocio?.activa && !loc) {
+      toastError('⚠️ Debes habilitar y conceder permisos de Ubicación (GPS) en tu dispositivo para verificar que estás en el local.')
+      return
+    }
+
     // 2. Si requiere foto, mostrar modal e iniciar cámara en vivo. Si no, registrar.
     if (requiereFotoConfig) {
       setShowSelfiePrompt(true)
@@ -311,9 +359,10 @@ export function AsistenciaWidget() {
         startCamera()
       }, 200)
     } else {
-      await submitEntrada(null)
+      await submitEntrada(null, loc)
     }
   }
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
@@ -342,7 +391,26 @@ export function AsistenciaWidget() {
       }
     } catch (e: any) {
       console.error('Error abriendo cámara en vivo:', e)
-      setCameraError('No se pudo acceder a la cámara frontal. Habilita los permisos de cámara en tu celular/navegador.')
+      setCameraError('No se pudo abrir la cámara en vivo del navegador. Puedes usar el botón de Cámara Directa abajo.')
+    }
+  }
+
+  const handleNativeCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    stopCamera()
+    setUploadingSelfie(true)
+    try {
+      const url = await uploadImageToImgBB(file)
+      setSelfieUrl(url)
+      setShowSelfiePrompt(false)
+      await submitEntrada(url, coords)
+    } catch (err: any) {
+      toastError(err.message || 'Error al subir la foto de la cámara')
+      startCamera()
+    } finally {
+      setUploadingSelfie(false)
+      if (e.target) e.target.value = ''
     }
   }
 
@@ -368,7 +436,7 @@ export function AsistenciaWidget() {
         const url = await uploadImageToImgBB(file)
         setSelfieUrl(url)
         setShowSelfiePrompt(false)
-        await submitEntrada(url)
+        await submitEntrada(url, coords)
       } catch (err: any) {
         toastError(err.message || 'Error al subir la selfie')
         startCamera()
@@ -380,23 +448,24 @@ export function AsistenciaWidget() {
 
   const skipSelfie = async () => {
     if (requiereFotoConfig) {
-      toastError('La selfie en vivo es obligatoria para marcar entrada según la regla del local.')
+      toastError('La foto/selfie en vivo tomada por cámara es obligatoria para marcar asistencia.')
       return
     }
     stopCamera()
     setShowSelfiePrompt(false)
-    await submitEntrada(null)
+    await submitEntrada(null, coords)
   }
 
-  const submitEntrada = async (selfie: string | null) => {
+  const submitEntrada = async (selfie: string | null, customCoords?: { lat: number; lng: number } | null) => {
+    const activeCoords = customCoords !== undefined ? customCoords : coords
     setSubmitting(true)
     try {
       const res = await fetch('/api/asistencias/entrada', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          lat: coords?.lat ?? null,
-          lng: coords?.lng ?? null,
+          lat: activeCoords?.lat ?? null,
+          lng: activeCoords?.lng ?? null,
           selfie_url: selfie,
         }),
       })
@@ -609,8 +678,34 @@ export function AsistenciaWidget() {
             </span>
           </div>
 
+          {/* ── ESTADO: PERMISO REGISTRADO O APROBADO HOY ── */}
+          {(estado === 'permiso' || permisoHoy) && (
+            <div className="rounded-2xl bg-indigo-500/10 border border-indigo-500/30 p-4 space-y-2.5 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                  <FileText className="w-4 h-4" /> Permiso {permisoHoy?.estado === 'aprobado' || estado === 'permiso' ? 'Aprobado' : 'Pendiente'}
+                </span>
+                <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full font-mono ${
+                  permisoHoy?.estado === 'aprobado' || estado === 'permiso'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                }`}>
+                  {permisoHoy?.estado === 'aprobado' || estado === 'permiso' ? 'Justificado' : 'En Revisión'}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-300 leading-relaxed font-medium">
+                {permisoHoy?.motivo || asistencia?.notas || 'Permiso laboral registrado para el día de hoy.'}
+              </p>
+              <p className="text-[11px] text-zinc-400 font-bold border-t border-white/5 pt-2">
+                {permisoHoy?.estado === 'aprobado' || estado === 'permiso'
+                  ? '✓ Tu turno de hoy está justificado por la administración. No se te aplicarán sanciones por inasistencia.'
+                  : '⏳ Tu solicitud de permiso ha sido enviada y está a la espera de aprobación de administración.'}
+              </p>
+            </div>
+          )}
+
           {/* ── ESTADO: AUSENTE (NO HA MARCADO ENTRADA) ── */}
-          {estado === 'ausente' && (
+          {estado === 'ausente' && !permisoHoy && (
             <div>
               <p className="text-zinc-400 text-xs mb-4">Aún no has marcado tu entrada hoy.</p>
               <Button
@@ -628,7 +723,9 @@ export function AsistenciaWidget() {
               </Button>
               {geoStatus === 'error' && (
                 <p className="text-yellow-400/80 text-[10px] mt-2 text-center font-medium">
-                  ⚠️ No se pudo obtener tu ubicación. Se registrará sin GPS.
+                  {ubicacionNegocio?.activa 
+                    ? '⚠️ Ubicación requerida. Habilita los permisos de GPS en tu dispositivo para marcar.' 
+                    : '⚠️ No se pudo obtener tu ubicación GPS.'}
                 </p>
               )}
               {isAfterAutoCloseHour() && (
@@ -789,7 +886,7 @@ export function AsistenciaWidget() {
           <div className="bg-zinc-950 border-2 border-amber-500/40 rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-sm w-full space-y-4 shadow-2xl mt-0 mb-12">
             <div className="flex items-center justify-between border-b border-white/5 pb-3">
               <h3 className="text-white font-black uppercase tracking-widest text-sm flex items-center gap-2">
-                <Camera className="w-5 h-5 text-amber-500" /> Selfie en Vivo
+                <Camera className="w-5 h-5 text-amber-500" /> Foto en Vivo por Cámara
               </h3>
               <button onClick={skipSelfie} className="p-1.5 hover:bg-white/10 rounded-xl text-zinc-400 hover:text-white transition-colors border border-white/5">
                 <X className="w-5 h-5" />
@@ -797,58 +894,73 @@ export function AsistenciaWidget() {
             </div>
 
             <p className="text-zinc-400 text-xs leading-relaxed">
-              Posiciona tu rostro frente a la cámara y presiona el botón para registrar tu entrada en vivo.
+              Toma una foto en tiempo real con la cámara frontal para validar tu asistencia en el local.
             </p>
 
             <canvas ref={canvasRef} className="hidden" />
 
+            {/* Input nativo de cámara (capture="user") */}
+            <input
+              ref={nativeCameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="user"
+              className="hidden"
+              onChange={handleNativeCameraCapture}
+            />
+
             {uploadingSelfie ? (
               <div className="flex flex-col items-center py-10">
                 <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-3" />
-                <p className="text-zinc-300 text-xs font-bold uppercase tracking-widest">Subiendo y registrando selfie...</p>
+                <p className="text-zinc-300 text-xs font-bold uppercase tracking-widest">Subiendo y registrando foto...</p>
               </div>
             ) : (
               <div className="space-y-4 pt-1">
                 {cameraError ? (
-                  <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-center space-y-2">
-                    <AlertTriangle className="w-6 h-6 text-red-400 mx-auto" />
-                    <p className="text-xs text-red-300 font-bold">{cameraError}</p>
-                    <Button onClick={startCamera} size="sm" variant="outline" className="text-xs border-red-500/30 text-red-400">
-                      Reintentar Cámara
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center space-y-3">
+                    <Camera className="w-6 h-6 text-amber-400 mx-auto" />
+                    <p className="text-xs text-zinc-300 font-medium">{cameraError}</p>
+                    <Button
+                      onClick={() => nativeCameraInputRef.current?.click()}
+                      className="w-full bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-widest text-xs h-11"
+                    >
+                      📸 Abrir Cámara Frontal
                     </Button>
                   </div>
                 ) : (
-                  <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black h-56 shadow-inner">
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover -scale-x-100"
-                    />
-                    {!cameraActive && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/80">
-                        <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
-                      </div>
-                    )}
+                  <div className="space-y-3">
+                    <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black h-56 shadow-inner">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover -scale-x-100"
+                      />
+                      {!cameraActive && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/80">
+                          <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
+                        </div>
+                      )}
+                    </div>
+
+                    <Button
+                      onClick={takeLiveSnapshot}
+                      disabled={!cameraActive || uploadingSelfie}
+                      className="w-full h-12 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-widest shadow-lg shadow-amber-500/20 text-xs"
+                    >
+                      <Camera className="w-4 h-4 mr-2" /> 📸 Tomar Foto Ahora
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => nativeCameraInputRef.current?.click()}
+                      className="w-full border-zinc-800 text-zinc-400 hover:text-white text-xs font-bold"
+                    >
+                      📷 Usar Cámara de tu Celular
+                    </Button>
                   </div>
-                )}
-
-                <Button
-                  onClick={takeLiveSnapshot}
-                  disabled={!cameraActive || uploadingSelfie}
-                  className="w-full h-12 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-widest shadow-lg shadow-amber-500/20 text-xs"
-                >
-                  <Camera className="w-4 h-4 mr-2" /> 📸 Tomar Selfie Ahora
-                </Button>
-
-                {!requiereFotoConfig && (
-                  <button
-                    onClick={skipSelfie}
-                    className="w-full text-center text-zinc-500 hover:text-zinc-300 text-xs font-bold uppercase tracking-widest transition-colors py-1"
-                  >
-                    Omitir y marcar sin foto
-                  </button>
                 )}
               </div>
             )}

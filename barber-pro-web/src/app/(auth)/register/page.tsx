@@ -160,7 +160,17 @@ function RegisterContent() {
 
       if (referidoPorId) {
         const { data: config } = await supabase.from('configuraciones').select('valor').eq('llave', 'monto_bono_referido').maybeSingle()
-        const montoBono = config ? (typeof config.valor === 'number' ? config.valor : parseFloat(config.valor) || 15) : 15
+        let montoBono = 10
+        if (config?.valor) {
+          const raw = config.valor
+          if (typeof raw === 'number') {
+            montoBono = raw
+          } else if (typeof raw === 'object' && raw !== null && (raw as any).monto !== undefined) {
+            montoBono = Number((raw as any).monto) || 10
+          } else {
+            montoBono = Number(raw) || 10
+          }
+        }
 
         await supabase.from('referrals').insert({
           cliente_recomendante_id: referidoPorId,

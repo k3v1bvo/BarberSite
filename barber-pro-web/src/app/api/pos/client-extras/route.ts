@@ -174,11 +174,25 @@ export async function GET(request: NextRequest) {
     if (orFilters.length > 0) {
       const { data: txs } = await supabase
         .from('transactions')
-        .select('id, fecha, creado_en, glosa, costo, metodo_pago, libro, tipo_movimiento, usuario_registro, nombre')
+        .select('id, fecha, creado_en, glosa, cuenta_detalle, costo, metodo_pago, libro, tipo_movimiento, usuario_registro, nombre')
         .or(orFilters.join(','))
         .order('creado_en', { ascending: false })
-        .limit(10)
-      transaccionesCaja = txs || []
+        .limit(25)
+      
+      const cleanTx = (txs || []).filter((tx: any) => {
+        const isBankContra = tx.libro === 'CAJA_CHICA' 
+          && String(tx.glosa || '').toUpperCase().includes('PAGO POR QR') 
+          && (String(tx.cuenta_detalle || '').toUpperCase().includes('BANCO') || String(tx.nombre || '').toUpperCase().includes('BANCO') || String(tx.glosa || '').toUpperCase().includes('BANCO GANADERO'))
+        return !isBankContra
+      })
+
+      const seen = new Set<string>()
+      transaccionesCaja = cleanTx.filter((tx: any) => {
+        const key = `${tx.fecha}_${tx.costo}_${(tx.cuenta_detalle || tx.glosa || '').trim().toLowerCase()}_${tx.metodo_pago}_${tx.libro}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      }).slice(0, 10)
     }
 
     return NextResponse.json({

@@ -1,25 +1,21 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Card, CardContent } from '@/components/ui/Card'
 import { useToast } from '@/components/ui/Toast'
 import {
   X,
-  User,
-  Phone,
-  CreditCard,
-  Mail,
   Scissors,
-  Calendar,
-  Clock,
   Plus,
   Search,
   UserCheck,
   CheckCircle2,
-  AlertCircle
+  Clock,
+  Calendar,
+  AlertCircle,
+  Loader2
 } from 'lucide-react'
 
 interface Servicio {
@@ -41,6 +37,12 @@ interface Cliente {
   telefono?: string | null
   ci?: string | null
   email?: string | null
+}
+
+interface TimeSlot {
+  hora: string
+  disponible: boolean
+  motivo?: string
 }
 
 interface ModalCrearCitaManualProps {
@@ -66,6 +68,7 @@ export function ModalCrearCitaManual({
   const [servicios, setServicios] = useState<Servicio[]>([])
   const [barberos, setBarberos] = useState<Barbero[]>([])
   const [searchCliente, setSearchCliente] = useState('')
+  const [searchingClientes, setSearchingClientes] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -81,18 +84,24 @@ export function ModalCrearCitaManual({
   const [horaCita, setHoraCita] = useState('10:00')
   const [notas, setNotas] = useState('')
 
+  // Disponibilidad de Horarios
+  const [slots, setSlots] = useState<TimeSlot[]>([])
+  const [loadingSlots, setLoadingSlots] = useState(false)
+  const [barberoDisponibleDia, setBarberoDisponibleDia] = useState(true)
+  const [motivoNoDisponible, setMotivoNoDisponible] = useState('')
+  const [mostrarHoraPersonalizada, setMostrarHoraPersonalizada] = useState(false)
+
+  // Carga inicial de Servicios y Barberos
   useEffect(() => {
     if (!isOpen) return
     const loadResources = async () => {
       setLoadingData(true)
       try {
-        const [clRes, servRes, barbRes] = await Promise.all([
-          supabase.from('clientes').select('id, nombre, telefono, ci, email').order('nombre').limit(200),
+        const [servRes, barbRes] = await Promise.all([
           supabase.from('servicios').select('id, nombre, precio, duracion_minutos').eq('is_active', true).order('nombre'),
           supabase.from('profiles').select('id, full_name, avatar_url').in('role', ['barbero', 'admin', 'coordinador']).eq('is_active', true).order('full_name')
         ])
 
-        if (clRes.data) setClientes(clRes.data)
         if (servRes.data) {
           setServicios(servRes.data)
           if (servRes.data.length > 0 && !servicioId) setServicioId(servRes.data[0].id)
@@ -110,17 +119,119 @@ export function ModalCrearCitaManual({
       }
     }
     loadResources()
-  }, [isOpen, defaultBarberoId, defaultDate, supabase])
+  }, [isOpen, defaultBarberoId, supabase])
+
+  // Buscador Global de Clientes en Vivo con Debounce
+  useEffect(() => {
+    if (!isOpen || modoCliente !== 'existente') return
+
+    const timer = setTimeout(async () => {
+      setSearchingClientes(true)
+      try {
+        let query = supabase.from('clientes').select('id, nombre, telefono, ci, email')
+        const q = searchCliente.trim()
+        if (q) {
+          query = query.or(`nombre.ilike.%${q}%,telefono.ilike.%${q}%,ci.ilike.%${q}%,email.ilike.%${q}%`).order('nombre')
+        } else {
+          query = query.order('created_at', { ascending: false }).limit(20)
+        }
+
+        const { data } = await query.limit(50)
+        setClientes(data || [])
+      } catch (err) {
+        console.error('Error buscando clientes:', err)
+      } finally {
+        setSearchingClientes(false)
+      }
+    }, 250)
+
+    return () => clearTimeout(timer)
+  }, [searchCliente, isOpen, modoCliente, supabase])
+
+  // Cargar Horarios Disponibles según perfil del Barbero y Fecha
+  const fetchDisponibilidad = useCallback(async () => {
+    if (!barberoId || !fechaCita) return
+    setLoadingSlots(true)
+    try {
+      const res = await fetch(`/api/citas/disponibilidad?barbero_id=${barberoId}&fecha=${fechaCita}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al obtener disponibilidad')
+
+      if (!data.disponible) {
+        setBarberoDisponibleDia(false)
+        setMotivoNoDisponible(data.motivo || 'El barbero no atiende en esta fecha')
+        setSlots([])
+        return
+      }
+
+      setBarberoDisponibleDia(true)
+      setMotivoNoDisponible('')
+
+      const horaInicioStr = data.hora_inicio || '09:00'
+      const horaFinStr = data.hora_fin || '20:00'
+      const ocupados: Array<{ hora: string; duracion: number }> = data.ocupados || []
+
+      // Convertir hora HH:MM a minutos desde medianoche
+      const toMinutes = (hStr: string) => {
+        const [h, m] = hStr.split(':').map(Number)
+        return h * 60 + (m || 0)
+      }
+
+      // Convertir minutos a HH:MM
+      const toTimeString = (mins: number) => {
+        const h = Math.floor(mins / 60).toString().padStart(2, '0')
+        const m = (mins % 60).toString().padStart(2, '0')
+        return `${h}:${m}`
+      }
+
+      const inicioMins = toMinutes(horaInicioStr)
+      const finMins = toMinutes(horaFinStr)
+      const duracionServicio = 30
+
+      const generatedSlots: TimeSlot[] = []
+
+      for (let time = inicioMins; time < finMins; time += 30) {
+        const slotHoraStr = toTimeString(time)
+        const slotEnd = time + duracionServicio
+
+        // Verificar colisión con citas o bloqueos ocupados
+        const estaOcupado = ocupados.some(oc => {
+          const ocStart = toMinutes(oc.hora)
+          const ocEnd = ocStart + (oc.duracion || 30)
+          return (time < ocEnd && slotEnd > ocStart)
+        })
+
+        generatedSlots.push({
+          hora: slotHoraStr,
+          disponible: !estaOcupado,
+          motivo: estaOcupado ? 'Horario ocupado' : undefined
+        })
+      }
+
+      setSlots(generatedSlots)
+
+      // Si la hora seleccionada no está disponible o no existe, preseleccionar la primera libre
+      const horaActualValida = generatedSlots.some(s => s.hora === horaCita && s.disponible)
+      if (!horaActualValida) {
+        const primerLibre = generatedSlots.find(s => s.disponible)
+        if (primerLibre) {
+          setHoraCita(primerLibre.hora)
+        }
+      }
+    } catch (err) {
+      console.error('Error calculando disponibilidad:', err)
+    } finally {
+      setLoadingSlots(false)
+    }
+  }, [barberoId, fechaCita, horaCita])
+
+  useEffect(() => {
+    if (isOpen && barberoId && fechaCita) {
+      fetchDisponibilidad()
+    }
+  }, [isOpen, barberoId, fechaCita, fetchDisponibilidad])
 
   if (!isOpen) return null
-
-  const clientesFiltrados = clientes.filter(c => {
-    if (!searchCliente) return true
-    const q = searchCliente.toLowerCase()
-    return (c.nombre || '').toLowerCase().includes(q) ||
-           (c.telefono || '').includes(q) ||
-           (c.ci || '').includes(q)
-  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -166,7 +277,7 @@ export function ModalCrearCitaManual({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-white/10 bg-zinc-950">
           <div className="flex items-center gap-3">
@@ -177,7 +288,7 @@ export function ModalCrearCitaManual({
               <h2 className="text-lg font-black text-white uppercase tracking-tight">
                 Agendar Cita Manual <span className="text-amber-500">(Sin Correo Obligatorio)</span>
               </h2>
-              <p className="text-xs text-zinc-400">Para clientes presenciales o que no usan correo electrónico.</p>
+              <p className="text-xs text-zinc-400">Horarios en tiempo real según disponibilidad del barbero.</p>
             </div>
           </div>
           <button
@@ -216,7 +327,7 @@ export function ModalCrearCitaManual({
                     : 'bg-zinc-950 border-white/10 text-zinc-400 hover:text-white'
                 }`}
               >
-                <UserCheck className="w-4 h-4" /> Buscar Cliente Existente
+                <UserCheck className="w-4 h-4" /> Buscar Cliente Global
               </button>
             </div>
 
@@ -279,24 +390,36 @@ export function ModalCrearCitaManual({
               </div>
             )}
 
-            {/* SELECCIÓN CLIENTE EXISTENTE */}
+            {/* SELECCIÓN CLIENTE EXISTENTE CON BUSCADOR GLOBAL */}
             {modoCliente === 'existente' && (
               <div className="p-4 bg-zinc-950 border border-white/5 rounded-xl space-y-3">
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-3 text-zinc-500" />
                   <Input
-                    placeholder="Buscar por nombre, teléfono o CI..."
+                    placeholder="Buscar cliente por Nombre, CI, Teléfono o Email..."
                     value={searchCliente}
                     onChange={e => setSearchCliente(e.target.value)}
                     className="bg-zinc-900 border-zinc-800 text-xs text-white pl-9"
+                    autoFocus
                   />
+                  {searchingClientes && (
+                    <div className="absolute right-3 top-3">
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                    </div>
+                  )}
                 </div>
 
-                <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
-                  {clientesFiltrados.length === 0 ? (
-                    <p className="text-xs text-zinc-500 py-3 text-center">No se encontraron clientes.</p>
+                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                  {searchingClientes ? (
+                    <div className="py-6 text-center text-xs text-zinc-500 flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-500" /> Buscando en la base de datos de clientes...
+                    </div>
+                  ) : clientes.length === 0 ? (
+                    <p className="text-xs text-zinc-500 py-3 text-center">
+                      {searchCliente ? `No se encontraron clientes para "${searchCliente}"` : 'No hay clientes recientes.'}
+                    </p>
                   ) : (
-                    clientesFiltrados.map(c => {
+                    clientes.map(c => {
                       const isSel = clienteId === c.id
                       return (
                         <div
@@ -304,17 +427,19 @@ export function ModalCrearCitaManual({
                           onClick={() => setClienteId(c.id)}
                           className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition-all ${
                             isSel
-                              ? 'bg-amber-500/10 border-amber-500/50 text-amber-300 font-bold'
+                              ? 'bg-amber-500/15 border-amber-500 text-amber-300 font-bold shadow-md shadow-amber-500/10'
                               : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700 text-zinc-300'
                           }`}
                         >
                           <div>
-                            <p className="font-bold">{c.nombre}</p>
-                            <p className="text-[10px] text-zinc-500">
-                              {c.telefono ? `Tel: ${c.telefono}` : ''} {c.ci ? `· CI: ${c.ci}` : ''} {c.email ? `· ${c.email}` : '(Sin correo)'}
-                            </p>
+                            <p className="font-bold text-white text-sm">{c.nombre}</p>
+                            <div className="flex flex-wrap gap-2 text-[10px] text-zinc-400 mt-0.5">
+                              {c.ci && <span className="bg-zinc-800 px-1.5 py-0.5 rounded font-mono text-zinc-300">CI: {c.ci}</span>}
+                              {c.telefono && <span>📞 {c.telefono}</span>}
+                              {c.email && <span className="text-zinc-500">✉️ {c.email}</span>}
+                            </div>
                           </div>
-                          {isSel && <CheckCircle2 className="w-4 h-4 text-amber-500" />}
+                          {isSel && <CheckCircle2 className="w-5 h-5 text-amber-500 shrink-0" />}
                         </div>
                       )
                     })
@@ -370,33 +495,99 @@ export function ModalCrearCitaManual({
               </div>
             </div>
 
-            {/* Fecha y Hora */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block mb-1">
+            {/* Fecha y Selector de Horarios Disponibles */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
                   Fecha de la Cita <span className="text-rose-500">*</span>
                 </label>
-                <Input
-                  type="date"
-                  value={fechaCita}
-                  onChange={e => setFechaCita(e.target.value)}
-                  className="bg-zinc-950 border-zinc-800 text-xs font-bold text-white"
-                  required
-                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarHoraPersonalizada(!mostrarHoraPersonalizada)}
+                  className="text-[10px] font-bold text-amber-400 hover:underline"
+                >
+                  {mostrarHoraPersonalizada ? '← Ver Horarios Disponibles' : '✏️ Ingresar Hora Manual'}
+                </button>
               </div>
 
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block mb-1">
-                  Hora de Atenciones <span className="text-rose-500">*</span>
-                </label>
-                <Input
-                  type="time"
-                  value={horaCita}
-                  onChange={e => setHoraCita(e.target.value)}
-                  className="bg-zinc-950 border-zinc-800 text-xs font-bold text-white"
-                  required
-                />
-              </div>
+              <Input
+                type="date"
+                value={fechaCita}
+                onChange={e => setFechaCita(e.target.value)}
+                className="bg-zinc-950 border-zinc-800 text-xs font-bold text-white"
+                required
+              />
+
+              {/* CHIPS DE HORARIOS DISPONIBLES */}
+              {!mostrarHoraPersonalizada && (
+                <div className="p-4 bg-zinc-950 border border-white/5 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-500 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" /> Horarios según Perfil y Turnos:
+                    </span>
+                    {loadingSlots && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />}
+                  </div>
+
+                  {!barberoDisponibleDia ? (
+                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-xs text-red-400 font-bold">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{motivoNoDisponible || 'El barbero no tiene disponibilidad en esta fecha.'}</span>
+                    </div>
+                  ) : loadingSlots ? (
+                    <div className="py-6 text-center text-xs text-zinc-500">Cargando disponibilidad...</div>
+                  ) : slots.length === 0 ? (
+                    <div className="py-4 text-center text-xs text-zinc-500">No hay horarios configurados para este día.</div>
+                  ) : (
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-1">
+                      {slots.map(slot => {
+                        const isSelected = horaCita === slot.hora
+                        return (
+                          <button
+                            key={slot.hora}
+                            type="button"
+                            disabled={!slot.disponible}
+                            onClick={() => setHoraCita(slot.hora)}
+                            className={`py-2 px-1 rounded-xl text-xs font-bold transition-all text-center ${
+                              isSelected
+                                ? 'bg-amber-500 text-black font-black shadow-lg shadow-amber-500/30 scale-105 ring-2 ring-amber-300'
+                                : slot.disponible
+                                ? 'bg-zinc-900 border border-zinc-800 text-zinc-200 hover:border-amber-500/50 hover:bg-zinc-800'
+                                : 'bg-zinc-950/40 border border-zinc-900 text-zinc-700 cursor-not-allowed line-through'
+                            }`}
+                            title={slot.disponible ? 'Disponible' : slot.motivo || 'Ocupado'}
+                          >
+                            {slot.hora}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-1 border-t border-white/5">
+                    <span>Hora seleccionada: <strong className="text-amber-400 font-mono text-xs">{horaCita}</strong></span>
+                    <span className="flex items-center gap-2">
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span> Libre
+                      <span className="inline-block w-2 h-2 rounded-full bg-zinc-700"></span> Ocupado
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* INPUT MANUAL DE HORA PERSONALIZADA */}
+              {mostrarHoraPersonalizada && (
+                <div className="p-4 bg-zinc-950 border border-white/5 rounded-xl space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                    Hora Exacta de Atención <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    type="time"
+                    value={horaCita}
+                    onChange={e => setHoraCita(e.target.value)}
+                    className="bg-zinc-900 border-zinc-800 text-xs font-bold text-white"
+                    required
+                  />
+                </div>
+              )}
             </div>
 
             <div>

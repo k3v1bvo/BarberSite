@@ -8,7 +8,7 @@ export const AUTO_CLOSE_HOUR = 22 // 10:00 PM
 export const LATE_CHECKIN_HOUR = 9
 export const LATE_CHECKIN_MINUTE = 15
 
-export type AsistenciaEstado = 'presente' | 'atrasado' | 'ausente' | 'finalizado'
+export type AsistenciaEstado = 'presente' | 'atrasado' | 'ausente' | 'finalizado' | 'permiso'
 
 /** Duración por defecto de la pausa de almuerzo (minutos) */
 export const DEFAULT_LUNCH_DURATION = 60

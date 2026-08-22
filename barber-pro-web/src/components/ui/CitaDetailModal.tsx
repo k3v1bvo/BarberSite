@@ -164,61 +164,91 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
 
           {/* Contenido scrollable */}
           <div className="flex-1 overflow-y-auto">
-            {/* Info rápida (chips) */}
-            <div className="px-5 pt-4 pb-3 flex flex-wrap gap-2">
-              <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1.5">
-                <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="text-white font-black text-xs truncate max-w-[140px]">{cita.cliente_nombre}</span>
+            {/* Tarjeta Destacada del Cliente */}
+            <div className="p-5 pb-3">
+              <div className="p-4 bg-gradient-to-br from-zinc-900 to-zinc-950 border border-white/10 rounded-2xl shadow-xl space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-lg shrink-0 shadow-inner">
+                      {cita.cliente_nombre?.charAt(0)?.toUpperCase() || 'C'}
+                    </div>
+                    <div>
+                      <p className="text-base font-black text-white leading-tight">{cita.cliente_nombre}</p>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        {cita.cliente_ci ? (
+                          <span className="text-[11px] font-mono font-bold bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-md border border-white/5">
+                            CI: {cita.cliente_ci}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-zinc-500 font-bold">Sin CI registrado</span>
+                        )}
+                        {cita.cliente_email && (
+                          <span className="text-[11px] text-zinc-400 truncate max-w-[200px]">
+                            ✉️ {cita.cliente_email}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge variant={estadoVariant[cita.estado] || 'default'} className="uppercase text-[10px] font-black py-1 px-3 rounded-full shrink-0 shadow-md">
+                    {cita.estado.replace('_', ' ')}
+                  </Badge>
+                </div>
+
+                {/* Contacto Directo Teléfono + WhatsApp */}
+                {cita.cliente_telefono && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                    <a
+                      href={`tel:${cita.cliente_telefono}`}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold transition border border-white/5"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{cita.cliente_telefono}</span>
+                    </a>
+                    <a
+                      href={`https://wa.me/591${cita.cliente_telefono.replace(/\D/g, '')}?text=${encodeURIComponent(
+                        `Hola ${cita.cliente_nombre}, te saludamos de BarberSite 💈. Respecto a tu cita agendada para el ${getBoliviaDateTimeStr(cita.fecha_hora)} con ${cita.barbero_nombre}:`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-xl text-xs font-bold transition border border-emerald-500/30 shadow-sm"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>WhatsApp</span>
+                    </a>
+                  </div>
+                )}
               </div>
-              {cita.cliente_ci && (
-                <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1.5">
-                  <span className="text-[10px] font-black text-zinc-500 uppercase">CI:</span>
-                  <span className="text-zinc-300 font-bold text-xs">{cita.cliente_ci}</span>
-                </div>
-              )}
-              {cita.cliente_telefono && (
-                <div className="flex items-center gap-1.5">
-                  <a
-                    href={`tel:${cita.cliente_telefono}`}
-                    className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1.5 hover:border-amber-500/50 transition"
-                  >
-                    <Phone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="text-amber-400 font-bold text-xs">{cita.cliente_telefono}</span>
-                  </a>
-                  <a
-                    href={`https://wa.me/591${cita.cliente_telefono.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full px-2.5 py-1.5 text-xs font-bold hover:bg-emerald-500/20 transition"
-                    title="Chatear por WhatsApp"
-                  >
-                    <MessageCircle className="w-3 h-3" />
-                  </a>
-                </div>
-              )}
-              {cita.cliente_email && (
-                <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1.5">
-                  <span className="text-zinc-400 text-xs truncate max-w-[160px]">{cita.cliente_email}</span>
-                </div>
-              )}
-              <Badge variant={estadoVariant[cita.estado] || 'default'} className="uppercase text-[10px] font-black py-1 px-3 rounded-full">
-                {cita.estado.replace('_', ' ')}
-              </Badge>
             </div>
 
-            {/* Detalles */}
+            {/* Detalles de la Cita y Servicio */}
             <div className="px-5 pb-3 space-y-2.5 text-sm">
-              <div className="flex items-center gap-3 p-3 bg-zinc-900/60 rounded-xl border border-zinc-800/50">
-                <Scissors className="w-4 h-4 text-amber-400 shrink-0" />
+              <div className="flex items-center gap-3 p-3.5 bg-zinc-900/80 rounded-xl border border-zinc-800">
+                <div className="p-2 bg-amber-500/10 rounded-lg text-amber-400 shrink-0">
+                  <Scissors className="w-5 h-5" />
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Servicio</p>
-                  <p className="text-white font-black truncate">{cita.servicio_nombre}</p>
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Servicio Seleccionado</p>
+                  <p className="text-white font-black text-sm truncate">{cita.servicio_nombre}</p>
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-amber-400 font-black text-base">{formatCurrency(cita.precio)}</p>
                   <p className="text-zinc-500 text-[10px] flex items-center gap-0.5 justify-end"><Clock className="w-3 h-3" />{cita.duracion_minutos} min</p>
                 </div>
               </div>
+
+              {/* Si el servicio es gratis por beneficio */}
+              {cita.precio === 0 && (
+                <div className="p-3.5 bg-gradient-to-r from-amber-500/15 to-emerald-500/15 rounded-xl border border-amber-500/40 space-y-1 shadow-md">
+                  <div className="flex items-center gap-2 text-amber-400 font-black text-xs uppercase tracking-wider">
+                    <Gift className="w-4 h-4 text-amber-400" />
+                    <span>Beneficio Especial: Servicio 100% Gratuito</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-300 leading-relaxed">
+                    Esta cita aplica un premio o promoción de fidelidad (Bs. 0,00). No requiere cobro en caja ni comprobante QR.
+                  </p>
+                </div>
+              )}
 
               {(() => {
                 const matchDesc = (cita.notas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i)
@@ -254,33 +284,35 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                     </div>
                   )}
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Barbero</p>
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Barbero Asignado</p>
                     <p className="text-amber-400 font-black text-sm">{cita.barbero_nombre}</p>
                   </div>
                 </div>
               )}
 
               {/* Desglose Financiero y Tipo de Reserva */}
-              {cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 ? (
-                <div className="p-3 bg-amber-500/5 rounded-xl border border-amber-500/20 space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-zinc-400 font-bold uppercase tracking-widest">
-                      {cita.anticipo_monto >= cita.precio ? 'Pago Total por QR' : 'Anticipo por QR'}
-                    </span>
-                    <span className="text-amber-400 font-black">{formatCurrency(cita.anticipo_monto)}</span>
-                  </div>
-                  {cita.precio > cita.anticipo_monto && (
-                    <div className="flex justify-between items-center text-xs pt-1.5 border-t border-white/5">
-                      <span className="text-zinc-400 font-bold">Saldo restante a cobrar en local:</span>
-                      <span className="text-white font-black text-sm">{formatCurrency(cita.precio - cita.anticipo_monto)}</span>
+              {cita.precio > 0 && (
+                cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 ? (
+                  <div className="p-3 bg-amber-500/5 rounded-xl border border-amber-500/20 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-400 font-bold uppercase tracking-widest">
+                        {cita.anticipo_monto >= cita.precio ? 'Pago Total por QR' : 'Anticipo por QR'}
+                      </span>
+                      <span className="text-amber-400 font-black">{formatCurrency(cita.anticipo_monto)}</span>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex justify-between items-center px-3 py-2.5 bg-red-500/5 rounded-xl border border-red-500/20">
-                  <span className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Tipo de Reserva</span>
-                  <span className="text-red-400 font-black text-xs">Sin Adelanto · Paga 100% en Local ({formatCurrency(cita.precio)})</span>
-                </div>
+                    {cita.precio > cita.anticipo_monto && (
+                      <div className="flex justify-between items-center text-xs pt-1.5 border-t border-white/5">
+                        <span className="text-zinc-400 font-bold">Saldo restante a cobrar en local:</span>
+                        <span className="text-white font-black text-sm">{formatCurrency(cita.precio - cita.anticipo_monto)}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center px-3 py-2.5 bg-red-500/5 rounded-xl border border-red-500/20">
+                    <span className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Tipo de Reserva</span>
+                    <span className="text-red-400 font-black text-xs">Sin Adelanto · Paga 100% en Local ({formatCurrency(cita.precio)})</span>
+                  </div>
+                )
               )}
 
               {/* Productos Reservados */}
@@ -481,12 +513,21 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                     onClick={async () => {
                       setReprogramming(true)
                       try {
-                        const res = await fetch(`/api/citas/${cita.id}/reprogramar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ newDate, newTime, durationMinutes: cita.duracion_minutos }) })
-                        if (!res.ok) throw new Error()
-                        success('Cita reprogramada')
+                        const res = await fetch(`/api/citas/${cita.id}/reprogramar`, { 
+                          method: 'POST', 
+                          headers: { 'Content-Type': 'application/json' }, 
+                          body: JSON.stringify({ newDate, newTime, durationMinutes: cita.duracion_minutos || 30 }) 
+                        })
+                        const data = await res.json().catch(() => ({}))
+                        if (!res.ok) throw new Error(data.error || 'No se pudo reprogramar')
+                        success('Cita reprogramada con éxito')
                         onUpdate ? onUpdate() : window.location.reload()
                         onClose()
-                      } catch { error('No se pudo reprogramar') } finally { setReprogramming(false) }
+                      } catch (err: any) { 
+                        error(err.message || 'No se pudo reprogramar') 
+                      } finally { 
+                        setReprogramming(false) 
+                      }
                     }}>
                     {reprogramming ? 'Guardando...' : 'Confirmar'}
                   </Button>

@@ -43,7 +43,7 @@ export function ReferralCardWidget({ clienteId, clienteNombre, ci }: Props) {
 
   const referralLink = `https://barber-site-livid.vercel.app/reservar?ref=${clienteId}`
   const referralCode = ci || clienteId.slice(0, 8).toUpperCase()
-  const montoBono = data?.monto_bono_default || 15
+  const montoBono = data?.monto_bono_default || 10
 
   const shareText = `💈 ¡Hola! Te recomiendo cortarte en BarberSite. Agenda tu cita en línea desde este enlace y te atenderán con la mejor calidad: ${referralLink}`
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`
