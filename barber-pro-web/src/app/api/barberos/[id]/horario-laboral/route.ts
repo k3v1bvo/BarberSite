@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
 import { NextRequest, NextResponse } from 'next/server'
@@ -67,14 +67,18 @@ export async function PUT(
       .eq('id', user.id)
       .single()
 
-    if (profile?.role !== 'admin' && profile?.role !== 'coordinador' && user.id !== barberoId) {
+    const isAdminOrCoord = profile?.role === 'admin' || profile?.role === 'coordinador'
+    if (!isAdminOrCoord && user.id !== barberoId) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
     const { horario } = await request.json()
 
+    // Usar adminClient para bypasear RLS cuando es admin/coordinador
+    const dbWrite = isAdminOrCoord ? await createServerAdminClient() : supabase
+
     for (const row of horario) {
-      await supabase.from('barbero_horario_semanal').upsert(
+      const { error: upsertErr } = await dbWrite.from('barbero_horario_semanal').upsert(
         {
           barbero_id: barberoId,
           dia_semana: row.dia_semana,
@@ -84,6 +88,9 @@ export async function PUT(
         },
         { onConflict: 'barbero_id,dia_semana' }
       )
+      if (upsertErr) {
+        console.error(`[horario-laboral] Error upsert dia ${row.dia_semana}:`, upsertErr.message)
+      }
     }
 
     const db = getNotificationDbClient(supabase)
@@ -94,6 +101,7 @@ export async function PUT(
 
     return NextResponse.json({ ok: true })
   } catch (err) {
+    console.error('[horario-laboral] Error interno:', err)
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
 }

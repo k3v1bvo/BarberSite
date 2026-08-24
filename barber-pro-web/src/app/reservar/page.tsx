@@ -81,6 +81,8 @@ function ReservarContent() {
   const [promoSeleccionada, setPromoSeleccionada] = useState<string>('')
   const [selectedPromoForModal, setSelectedPromoForModal] = useState<PromocionDetalle | null>(null)
   const [acompanante, setAcompanante] = useState({ nombre: '', email: '' })
+  const [modo2x1, setModo2x1] = useState<'acompanante' | 'servicio_extra'>('acompanante')
+  const [servicioExtra2x1, setServicioExtra2x1] = useState('')
   
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -153,6 +155,14 @@ function ReservarContent() {
       // Si NO está logueado, loadData deja step 0 para que se registre primero.
     }
   }, [searchParams])
+
+  // Forzar pago total cuando se selecciona la promo 2x1
+  useEffect(() => {
+    const promo = promociones.find(p => p.id === promoSeleccionada)
+    if (promo?.tipo === '2x1') {
+      setTipoReserva('pago_total')
+    }
+  }, [promoSeleccionada, promociones])
 
   useEffect(() => {
     if (formData.barbero_id && formData.fecha) {
@@ -572,9 +582,14 @@ function ReservarContent() {
 
       const promoElegida = promociones.find(p => p.id === promoSeleccionada)
       if (promoElegida?.tipo === '2x1') {
-        if (!acompanante.nombre.trim()) {
+        if (modo2x1 === 'acompanante' && !acompanante.nombre.trim()) {
           setSubmitting(false)
           toastError('Debe ingresar el nombre del acompañante para la promoción 2x1.')
+          return
+        }
+        if (modo2x1 === 'servicio_extra' && !servicioExtra2x1) {
+          setSubmitting(false)
+          toastError('Debe seleccionar un servicio extra para la promoción 2x1.')
           return
         }
 
@@ -616,7 +631,12 @@ function ReservarContent() {
         
         let infoPromo = `[PROMO: ${promoElegida.nombre}]`
         if (promoElegida.tipo === '2x1') {
-          infoPromo += ` Acompañante: ${acompanante.nombre}${acompanante.email ? ` (${acompanante.email})` : ''}`
+          if (modo2x1 === 'acompanante') {
+            infoPromo += ` Acompañante: ${acompanante.nombre}${acompanante.email ? ` (${acompanante.email})` : ''}`
+          } else {
+            const extraServ = servicios.find(s => s.id === servicioExtra2x1)
+            infoPromo += ` Servicio Extra 2×1: ${extraServ?.nombre || servicioExtra2x1}`
+          }
         }
         notasFinales = notasFinales ? `${notasFinales}\n${infoPromo}` : infoPromo
       }
@@ -1297,97 +1317,157 @@ function ReservarContent() {
               <CardContent className="p-6 md:p-8">
                 <h2 className="text-3xl font-black mb-4 text-center tracking-tight">Selecciona tu <span className="text-amber-500">Servicio</span></h2>
 
-                {/* PROMOCIONES ESPECIALES EN LA PARTE SUPERIOR */}
+                {/* PROMOCIONES — Compactas */}
                 {promociones.length > 0 && (
-                  <div className="mb-8 p-5 bg-gradient-to-b from-black/60 to-zinc-950/80 border border-amber-500/20 rounded-2xl">
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <h3 className="text-xs uppercase tracking-[0.2em] font-black text-amber-400 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Promociones & Descuentos Disponibles
+                  <div className="mb-6 p-3 bg-gradient-to-b from-black/60 to-zinc-950/80 border border-amber-500/20 rounded-2xl">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <h3 className="text-[10px] uppercase tracking-[0.15em] font-black text-amber-400 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-500" /> Promos Disponibles
                       </h3>
                       {promoSeleccionada && (
                         <button
                           type="button"
-                          onClick={() => setPromoSeleccionada('')}
-                          className="text-[10px] font-bold text-zinc-500 hover:text-white uppercase tracking-wider"
+                          onClick={() => { setPromoSeleccionada(''); setModo2x1('acompanante'); setServicioExtra2x1(''); setAcompanante({ nombre: '', email: '' }) }}
+                          className="text-[9px] font-bold text-zinc-500 hover:text-white uppercase tracking-wider"
                         >
-                          ✕ Quitar Promo
+                          ✕ Quitar
                         </button>
                       )}
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="flex flex-wrap gap-2">
                       {promociones.map(p => {
                         const cleanName = p.nombre.replace(new RegExp(`^${p.icono}\\s*`, 'u'), '').trim()
                         const isSelected = promoSeleccionada === p.id
+                        const is2x1 = p.tipo === '2x1'
                         return (
                           <div
                             key={p.id}
-                            onClick={() => setPromoSeleccionada(isSelected ? '' : p.id)}
-                            className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between text-left ${
+                            onClick={() => {
+                              if (is2x1) {
+                                setPromoSeleccionada(isSelected ? '' : p.id)
+                                if (!isSelected) setModo2x1('acompanante')
+                              } else {
+                                setPromoSeleccionada(isSelected ? '' : p.id)
+                              }
+                            }}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer transition-all text-left ${
                               isSelected
-                                ? 'bg-amber-500/15 border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.25)] scale-[1.02]'
-                                : 'bg-black/40 border-zinc-800/80 hover:border-amber-500/40 text-zinc-300 hover:text-white'
+                                ? 'bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                                : 'bg-black/40 border-zinc-800/80 hover:border-amber-500/40'
                             }`}
                           >
-                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <span className="text-xl">{p.icono || '🎁'}</span>
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setSelectedPromoForModal(p)
-                                  }}
-                                  className="text-[9px] font-black uppercase text-amber-400 hover:text-white px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 transition hover:scale-105"
-                                  title="Ver más información y condiciones"
-                                >
-                                  🔍 Info
-                                </button>
-                                <Badge variant={isSelected ? 'warning' : 'default'} className="text-[9px] font-black uppercase tracking-wider">
-                                  {p.tipo === 'cumpleanos' || p.tipo === 'servicio_gratis' ? '100% OFF' : p.tipo === '2x1' ? '2×1 Martes' : `Bs. ${p.valor || 10} OFF`}
-                                </Badge>
-                              </div>
+                            <span className="text-sm flex-shrink-0">{p.icono || '🎁'}</span>
+                            <div className="min-w-0">
+                              <p className="font-black text-[11px] text-white leading-tight truncate">{cleanName}</p>
+                              <p className="text-[9px] text-zinc-500 leading-tight">
+                                {is2x1 ? '2×1 Martes' : p.tipo === 'cumpleanos' || p.tipo === 'servicio_gratis' ? '100% OFF' : `Bs. ${p.valor || 10} OFF`}
+                              </p>
                             </div>
-                            <p className="font-black text-xs text-white leading-tight mb-1">{cleanName}</p>
-                            <p className="text-[10px] text-zinc-400 leading-tight">
-                              {p.descripcion || (p.tipo === 'cumpleanos' ? 'Corte especial en tu semana de cumpleaños' : p.tipo === '2x1' ? 'Paga 1 corte y ven con tu acompañante' : 'Descuento especial por recomendación')}
-                            </p>
+                            {is2x1 && !isSelected && (
+                              <span className="text-[8px] font-black uppercase bg-amber-500 text-black px-2 py-0.5 rounded-md flex-shrink-0">Reservar</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setSelectedPromoForModal(p) }}
+                              className="text-[8px] font-black text-amber-400 hover:text-white px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 transition flex-shrink-0"
+                            >
+                              Info
+                            </button>
                           </div>
                         )
                       })}
                     </div>
 
-                    {/* Banner Informativo si se seleccionó una promo */}
-                    {promoElegida && (
-                      <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl animate-in fade-in duration-300">
+                    {/* Panel expandido del 2x1 */}
+                    {promoElegida?.tipo === '2x1' && (
+                      <div className="mt-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl animate-in fade-in duration-300 space-y-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-base">{promoElegida.icono || '🎉'}</span>
+                          <span className="text-sm">{promoElegida.icono || '✂️'}</span>
+                          <p className="text-[11px] font-black text-amber-400 uppercase tracking-wide">
+                            ¡2×1 Activado! — Elige una opción:
+                          </p>
+                        </div>
+
+                        {/* Tabs de modo */}
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setModo2x1('acompanante')}
+                            className={`flex-1 py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                              modo2x1 === 'acompanante'
+                                ? 'bg-amber-500 text-black border-amber-500 shadow-lg shadow-amber-500/20'
+                                : 'bg-black/50 text-zinc-400 border-zinc-700 hover:border-amber-500/50 hover:text-white'
+                            }`}
+                          >
+                            👤 Acompañante
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setModo2x1('servicio_extra')}
+                            className={`flex-1 py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                              modo2x1 === 'servicio_extra'
+                                ? 'bg-amber-500 text-black border-amber-500 shadow-lg shadow-amber-500/20'
+                                : 'bg-black/50 text-zinc-400 border-zinc-700 hover:border-amber-500/50 hover:text-white'
+                            }`}
+                          >
+                            ✂️ Servicio Extra
+                          </button>
+                        </div>
+
+                        {/* Contenido según modo */}
+                        {modo2x1 === 'acompanante' ? (
+                          <div className="space-y-2 pt-1">
+                            <p className="text-[10px] text-zinc-400">Ingresa el nombre de la persona que te acompañará. Ambos recibirán el servicio pagando solo 1.</p>
+                            <label className="text-[9px] font-black uppercase text-amber-400 tracking-wider block">Nombre del Acompañante *</label>
+                            <Input
+                              placeholder="Nombre y Apellido"
+                              value={acompanante.nombre}
+                              onChange={(e) => setAcompanante({ ...acompanante, nombre: e.target.value })}
+                              className="bg-black/70 border-amber-500/30 text-xs h-9"
+                            />
+                          </div>
+                        ) : (
+                          <div className="space-y-2 pt-1">
+                            <p className="text-[10px] text-zinc-400">Selecciona un servicio adicional que quieras incluir en tu 2×1 (no combos).</p>
+                            <label className="text-[9px] font-black uppercase text-amber-400 tracking-wider block">Servicio Extra *</label>
+                            <select
+                              value={servicioExtra2x1}
+                              onChange={(e) => setServicioExtra2x1(e.target.value)}
+                              className="w-full bg-black/70 border border-amber-500/30 rounded-xl px-3 py-2 text-white text-xs font-bold outline-none focus:border-amber-500"
+                            >
+                              <option value="">— Seleccionar Servicio —</option>
+                              {servicios.filter(s => !(s as any).es_combo && !s.nombre?.toLowerCase().includes('combo')).map(s => (
+                                <option key={s.id} value={s.id}>{s.nombre} · Bs. {Number(s.precio).toFixed(0)}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div className="pt-2 border-t border-amber-500/20">
+                          <p className="text-[9px] text-amber-300 font-bold flex items-center gap-1">
+                            ⚠️ El 2×1 requiere pago completo del servicio por QR para confirmar la reserva.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Banner para promos que NO son 2x1 */}
+                    {promoElegida && promoElegida.tipo !== '2x1' && (
+                      <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl animate-in fade-in duration-300">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{promoElegida.icono || '🎉'}</span>
                           <div>
-                            <p className="text-xs font-black text-amber-400 uppercase tracking-wide">
+                            <p className="text-[11px] font-black text-amber-400 uppercase tracking-wide">
                               ¡{promoElegida.nombre} activada!
                             </p>
-                            <p className="text-[11px] text-zinc-300">
+                            <p className="text-[10px] text-zinc-300">
                               {promoElegida.tipo === 'cumpleanos' || promoElegida.tipo === 'servicio_gratis'
-                                ? 'Tu servicio tendrá 100% de descuento (presenta tu carnet de identidad al llegar al local).'
-                                : promoElegida.tipo === '2x1'
-                                ? 'Aplica para 2 personas los martes. Ingresa los datos de tu acompañante a continuación.'
+                                ? 'Tu servicio tendrá 100% de descuento (presenta tu CI al llegar).'
                                 : `Se descontarán Bs. ${promoElegida.valor || 10} automáticamente en tu total.`}
                             </p>
                           </div>
                         </div>
-
-                        {/* Datos del acompañante para 2x1 */}
-                        {promoElegida.tipo === '2x1' && (
-                          <div className="mt-3 pt-3 border-t border-amber-500/20 space-y-2">
-                            <label className="text-[10px] font-black uppercase text-amber-400 tracking-wider block">Nombre de tu acompañante *</label>
-                            <Input
-                              placeholder="Nombre y Apellido del acompañante"
-                              value={acompanante.nombre}
-                              onChange={(e) => setAcompanante({ ...acompanante, nombre: e.target.value })}
-                              className="bg-black/70 border-amber-500/30 text-xs h-10"
-                            />
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -1802,15 +1882,20 @@ function ReservarContent() {
                         <label className="text-xs font-black uppercase tracking-widest text-amber-500 block">
                           💳 Elige cómo confirmar tu reserva:
                         </label>
+                        {promoElegida?.tipo === '2x1' && (
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl mb-2">
+                            <p className="text-[10px] font-bold text-amber-300">⚠️ La promoción 2×1 requiere pago completo del servicio por QR. La opción "Pagar en Local" no está disponible.</p>
+                          </div>
+                        )}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <button
                             type="button"
-                            onClick={() => setTipoReserva('adelanto_20')}
-                            className={`p-4 rounded-2xl border text-left transition-all ${tipoReserva === 'adelanto_20' ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_20px_rgba(245,158,11,0.15)]' : 'border-zinc-800 bg-zinc-950 hover:border-amber-500/30'}`}
+                            onClick={() => { if (promoElegida?.tipo !== '2x1') setTipoReserva('adelanto_20') }}
+                            className={`p-4 rounded-2xl border text-left transition-all ${promoElegida?.tipo === '2x1' ? 'opacity-40 cursor-not-allowed border-zinc-800 bg-zinc-950' : tipoReserva === 'adelanto_20' ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_20px_rgba(245,158,11,0.15)]' : 'border-zinc-800 bg-zinc-950 hover:border-amber-500/30'}`}
                           >
                             <div className="flex justify-between items-center mb-1">
                               <span className="font-black text-sm text-white">Adelanto Bs 20 (QR)</span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-black font-black">RECOMENDADO</span>
+                              {promoElegida?.tipo !== '2x1' && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-black font-black">RECOMENDADO</span>}
                             </div>
                             <p className="text-xs text-zinc-400">Tolerancia de 5 min (ni más ni menos). Cita asegurada.</p>
                           </button>
@@ -1822,18 +1907,19 @@ function ReservarContent() {
                           >
                             <div className="flex justify-between items-center mb-1">
                               <span className="font-black text-sm text-emerald-400">Pagar Total 100% (QR)</span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500 text-black font-black">COMPLETO</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500 text-black font-black">{promoElegida?.tipo === '2x1' ? 'OBLIGATORIO 2×1' : 'COMPLETO'}</span>
                             </div>
                             <p className="text-xs text-zinc-400">Tolerancia de 10 min en total. Cita 100% pagada y asegurada.</p>
                           </button>
 
                           <button
                             type="button"
-                            onClick={() => setTipoReserva('sin_adelanto')}
-                            className={`p-4 rounded-2xl border text-left transition-all ${tipoReserva === 'sin_adelanto' ? 'border-red-500 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'border-zinc-800 bg-zinc-950 hover:border-red-500/30'}`}
+                            onClick={() => { if (promoElegida?.tipo !== '2x1') setTipoReserva('sin_adelanto') }}
+                            className={`p-4 rounded-2xl border text-left transition-all ${promoElegida?.tipo === '2x1' ? 'opacity-40 cursor-not-allowed border-zinc-800 bg-zinc-950' : tipoReserva === 'sin_adelanto' ? 'border-red-500 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'border-zinc-800 bg-zinc-950 hover:border-red-500/30'}`}
                           >
                             <div className="flex justify-between items-center mb-1">
                               <span className="font-black text-sm text-red-400">Pagar en Local (Bs 0 QR)</span>
+                              {promoElegida?.tipo === '2x1' && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/30 text-red-300 font-black">NO DISPONIBLE</span>}
                             </div>
                             <p className="text-xs text-zinc-400">Estar 5 minutos antes de tu cita o el turno se pasa a otro cliente.</p>
                           </button>

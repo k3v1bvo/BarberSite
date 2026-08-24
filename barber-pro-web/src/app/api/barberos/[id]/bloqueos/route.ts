@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
@@ -53,10 +53,8 @@ export async function POST(
       .eq('id', user.id)
       .single()
 
-    const canEdit =
-      profile?.role === 'admin' ||
-      profile?.role === 'coordinador' ||
-      user.id === barberoId
+    const isAdminOrCoord = profile?.role === 'admin' || profile?.role === 'coordinador'
+    const canEdit = isAdminOrCoord || user.id === barberoId
 
     if (!canEdit) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
@@ -65,7 +63,10 @@ export async function POST(
     const body = await request.json()
     const { fecha_inicio, fecha_fin, tipo, motivo, todo_el_dia } = body
 
-    const { data, error } = await supabase
+    // Usar adminClient para bypasear RLS cuando es admin/coordinador
+    const dbWrite = isAdminOrCoord ? await createServerAdminClient() : supabase
+
+    const { data, error } = await dbWrite
       .from('barbero_bloqueos')
       .insert({
         barbero_id: barberoId,
@@ -99,12 +100,21 @@ export async function DELETE(
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const isAdminOrCoord = profile?.role === 'admin' || profile?.role === 'coordinador'
+
     const bloqueoId = request.nextUrl.searchParams.get('bloqueo_id')
     if (!bloqueoId) {
       return NextResponse.json({ error: 'bloqueo_id requerido' }, { status: 400 })
     }
 
-    const { error } = await supabase.from('barbero_bloqueos').delete().eq('id', bloqueoId)
+    const dbWrite = isAdminOrCoord ? await createServerAdminClient() : supabase
+    const { error } = await dbWrite.from('barbero_bloqueos').delete().eq('id', bloqueoId)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
