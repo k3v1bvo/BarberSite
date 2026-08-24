@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       .select('id, cliente_id, fecha_hora, notas, descuento, clientes(nombre, telefono, email)')
       .gte('fecha_hora', `${hoyStr}T00:00:00`)
       .lte('fecha_hora', `${hoyStr}T23:59:59`)
-      .ilike('notas', '%[PROMO 2x1]%')
+      .or('notas.ilike.%2x1%,notas.ilike.%2×1%')
 
     if (citasHoy && citasHoy.length > 0) {
       for (const c of citasHoy) {
