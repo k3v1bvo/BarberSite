@@ -31,6 +31,20 @@ interface Servicio {
   imagenes?: string[] | null
   categoria?: string
 }
+
+// Servicios válidos para el 2x1 (solo corte y barba, NO combos)
+function esServicio2x1Valido(servicio: Servicio | undefined): boolean {
+  if (!servicio) return false
+  const nombre = servicio.nombre.toLowerCase().trim()
+  return (
+    nombre.includes('corte de cabello') ||
+    nombre.includes('corte cabello') ||
+    nombre.includes('arreglo de barba') ||
+    nombre.includes('arreglo barba') ||
+    nombre === 'corte' ||
+    nombre === 'barba'
+  ) && !nombre.includes('combo')
+}
 interface Producto {
   id: string
   nombre: string
@@ -163,6 +177,20 @@ function ReservarContent() {
       setTipoReserva('pago_total')
     }
   }, [promoSeleccionada, promociones])
+
+  // Auto-deseleccionar 2x1 si el servicio cambia a uno no válido
+  useEffect(() => {
+    const promo = promociones.find(p => p.id === promoSeleccionada)
+    if (promo?.tipo === '2x1') {
+      const serv = servicios.find(s => s.id === formData.servicio_id)
+      if (serv && !esServicio2x1Valido(serv)) {
+        setPromoSeleccionada('')
+        setModo2x1('acompanante')
+        setServicioExtra2x1('')
+        setAcompanante({ nombre: '', email: '' })
+      }
+    }
+  }, [formData.servicio_id, promoSeleccionada, promociones, servicios])
 
   useEffect(() => {
     if (formData.barbero_id && formData.fecha) {
@@ -626,7 +654,11 @@ function ReservarContent() {
 
       if (promoElegida) {
         if (promoElegida.tipo === 'descuento_fijo') precioServicioFinal = Math.max(0, precioServicioFinal - (promoElegida.valor || 10))
-        else if (promoElegida.tipo === 'descuento_porcentaje' || promoElegida.tipo === '2x1') precioServicioFinal = precioServicioFinal * (1 - ((promoElegida.valor || 50) / 100))
+        else if (promoElegida.tipo === '2x1') {
+          // 2x1: El titular paga el 100% de su servicio. El acompañante entra GRATIS en Caja POS.
+          // NO se aplica descuento al precio del titular.
+        }
+        else if (promoElegida.tipo === 'descuento_porcentaje') precioServicioFinal = precioServicioFinal * (1 - ((promoElegida.valor || 50) / 100))
         else if (promoElegida.tipo === 'cumpleanos' || promoElegida.tipo === 'servicio_gratis') precioServicioFinal = 0
         
         let infoPromo = `[PROMO: ${promoElegida.nombre}]`
@@ -896,10 +928,17 @@ function ReservarContent() {
   const promoElegida = promociones.find(p => p.id === promoSeleccionada)
   let montoDescuentoPromo = 0
   if (promoElegida && servicioSeleccionado) {
+    // REGLA CRÍTICA: el 2x1 solo aplica a Corte de Cabello y Arreglo de Barba
+    const promo2x1Valida = promoElegida.tipo !== '2x1' || esServicio2x1Valido(servicioSeleccionado)
+    
     if (promoElegida.tipo === 'descuento_fijo') {
       montoDescuentoPromo = Math.min(precioServicio, Number(promoElegida.valor || 10))
       precioServicio = Math.max(0, precioServicio - montoDescuentoPromo)
-    } else if (promoElegida.tipo === 'descuento_porcentaje' || promoElegida.tipo === '2x1') {
+    } else if (promoElegida.tipo === '2x1' && promo2x1Valida) {
+      // 2x1: NO se descuenta el precio al titular. Paga el 100% de su servicio.
+      // El beneficio es que su acompañante entra GRATIS (Bs 0) en la Caja POS.
+      montoDescuentoPromo = 0
+    } else if (promoElegida.tipo === 'descuento_porcentaje') {
       const pct = Number(promoElegida.valor || 50)
       montoDescuentoPromo = (precioServicio * pct) / 100
       precioServicio = Math.max(0, precioServicio - montoDescuentoPromo)
@@ -1340,10 +1379,13 @@ function ReservarContent() {
                         const cleanName = p.nombre.replace(new RegExp(`^${p.icono}\\s*`, 'u'), '').trim()
                         const isSelected = promoSeleccionada === p.id
                         const is2x1 = p.tipo === '2x1'
+                        const servActual = servicios.find(s => s.id === formData.servicio_id)
+                        const is2x1Disabled = is2x1 && servActual && !esServicio2x1Valido(servActual)
                         return (
                           <div
                             key={p.id}
                             onClick={() => {
+                              if (is2x1Disabled) return // No permitir seleccionar 2x1 en servicios no válidos
                               if (is2x1) {
                                 setPromoSeleccionada(isSelected ? '' : p.id)
                                 if (!isSelected) setModo2x1('acompanante')
@@ -1351,17 +1393,19 @@ function ReservarContent() {
                                 setPromoSeleccionada(isSelected ? '' : p.id)
                               }
                             }}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer transition-all text-left ${
-                              isSelected
-                                ? 'bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
-                                : 'bg-black/40 border-zinc-800/80 hover:border-amber-500/40'
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left ${
+                              is2x1Disabled
+                                ? 'opacity-40 cursor-not-allowed bg-black/20 border-zinc-800/50'
+                                : isSelected
+                                  ? 'bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)] cursor-pointer'
+                                  : 'bg-black/40 border-zinc-800/80 hover:border-amber-500/40 cursor-pointer'
                             }`}
                           >
                             <span className="text-sm flex-shrink-0">{p.icono || '🎁'}</span>
                             <div className="min-w-0">
                               <p className="font-black text-[11px] text-white leading-tight truncate">{cleanName}</p>
                               <p className="text-[9px] text-zinc-500 leading-tight">
-                                {is2x1 ? '2×1 Martes' : p.tipo === 'cumpleanos' || p.tipo === 'servicio_gratis' ? '100% OFF' : `Bs. ${p.valor || 10} OFF`}
+                                {is2x1 ? (is2x1Disabled ? 'Solo Corte / Barba' : '2×1 Martes') : p.tipo === 'cumpleanos' || p.tipo === 'servicio_gratis' ? '100% OFF' : `Bs. ${p.valor || 10} OFF`}
                               </p>
                             </div>
                             {is2x1 && !isSelected && (
