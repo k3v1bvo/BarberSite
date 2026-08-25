@@ -621,28 +621,22 @@ function ReservarContent() {
           return
         }
 
-        // 1. Validar restricción de servicios autorizados para la promo
-        if (promoElegida.servicio_id) {
-          const allowedList = promoElegida.servicio_id.split(',').filter(Boolean)
-          if (allowedList.length > 0 && formData.servicio_id && !allowedList.includes(formData.servicio_id)) {
+        // Validar que la fecha seleccionada sea un martes
+        if (formData.fecha) {
+          const [year, month, day] = formData.fecha.split('-').map(Number)
+          const fechaObj = new Date(year, month - 1, day)
+          if (fechaObj.getDay() !== 2) {
             setSubmitting(false)
-            toastError('La promoción 2×1 solo aplica para servicios específicos (ej: Corte de cabello, Arreglo de barba).')
+            toastError('La promoción 2×1 solo es válida los días martes.')
             return
           }
         }
 
-        // 2. Restricción de horario Martes de 08:00 a 17:00 para 2x1 web
-        if (formData.fecha && formData.hora) {
-          const [year, month, day] = formData.fecha.split('-').map(Number)
-          const fechaObj = new Date(year, month - 1, day)
-          const diaSemana = fechaObj.getDay() // 2 = Martes
-          const horaNum = parseInt(formData.hora.split(':')[0], 10)
-          
-          if (diaSemana === 2 && horaNum >= 8 && horaNum < 17) {
-            setSubmitting(false)
-            toastError('Los martes de 08:00 a 17:00 solo se agendan servicios individuales en web. El beneficio 2×1 se valida directamente al venir juntos en el local.')
-            return
-          }
+        // Validar que el servicio sea válido para 2x1
+        if (!esServicio2x1Valido(servicio)) {
+          setSubmitting(false)
+          toastError('La promoción 2×1 solo aplica para Corte de Cabello o Arreglo de Barba.')
+          return
         }
       }
 
@@ -1357,7 +1351,7 @@ function ReservarContent() {
                 <h2 className="text-3xl font-black mb-4 text-center tracking-tight">Selecciona tu <span className="text-amber-500">Servicio</span></h2>
 
                 {/* PROMOCIONES — Compactas */}
-                {promociones.length > 0 && (
+                {promociones.filter(p => p.tipo === '2x1').length > 0 && (
                   <div className="mb-6 p-3 bg-gradient-to-b from-black/60 to-zinc-950/80 border border-amber-500/20 rounded-2xl">
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <h3 className="text-[10px] uppercase tracking-[0.15em] font-black text-amber-400 flex items-center gap-1">
@@ -1375,7 +1369,7 @@ function ReservarContent() {
                     </div>
                     
                     <div className="flex flex-wrap gap-2">
-                      {promociones.map(p => {
+                      {promociones.filter(p => p.tipo === '2x1').map(p => {
                         const cleanName = p.nombre.replace(new RegExp(`^${p.icono}\\s*`, 'u'), '').trim()
                         const isSelected = promoSeleccionada === p.id
                         const is2x1 = p.tipo === '2x1'
@@ -1552,12 +1546,22 @@ function ReservarContent() {
                 </div>
 
                 {/* Renderizado de Servicios (Filtro Todos o por Categoría) */}
+                {promoElegida?.tipo === '2x1' && (
+                  <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-2">
+                    <span className="text-lg">✂️</span>
+                    <p className="text-xs font-bold text-amber-300">
+                      Promo 2×1 activa — Solo se muestran <strong className="text-white">Corte de Cabello</strong> y <strong className="text-white">Arreglo de Barba</strong>. Elige uno y paga el 100% por QR. Tu acompañante entra gratis.
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {(filterCategoria === 'todos'
                     ? servicios
                     : servicios.filter(s => (s.categoria || 'Cortes') === filterCategoria)
                   )
                   .filter(s => {
+                    // Si el 2x1 está seleccionado, solo mostrar servicios válidos
+                    if (promoElegida?.tipo === '2x1' && !esServicio2x1Valido(s)) return false
                     if (!formData.barbero_id) return true
                     const tieneConfigComisiones = barberoServicios.some(bs => bs.barbero_id === formData.barbero_id)
                     if (tieneConfigComisiones) {
