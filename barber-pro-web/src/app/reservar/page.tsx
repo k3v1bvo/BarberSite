@@ -627,12 +627,22 @@ function ReservarContent() {
           const fechaObj = new Date(year, month - 1, day)
           if (fechaObj.getDay() !== 2) {
             setSubmitting(false)
-            toastError('La promoción 2×1 solo es válida los días martes.')
+            toastError('La promoción 2×1 solo es válida para citas los días martes.')
             return
           }
         }
 
-        // Validar que el servicio sea válido para 2x1
+        // Validar que el horario esté entre las 08:00 y las 17:00 (8 AM a 5 PM)
+        if (formData.hora) {
+          const horaNum = parseInt(formData.hora.split(':')[0], 10)
+          if (horaNum < 8 || horaNum >= 17) {
+            setSubmitting(false)
+            toastError('La promoción 2×1 solo aplica para citas agendadas entre las 08:00 y las 17:00 (5:00 PM). A partir de las 18:00 aplica tarifa regular sin 2×1.')
+            return
+          }
+        }
+
+        // Validar que el servicio sea válido para 2x1 (Corte o Barba)
         if (!esServicio2x1Valido(servicio)) {
           setSubmitting(false)
           toastError('La promoción 2×1 solo aplica para Corte de Cabello o Arreglo de Barba.')
@@ -1775,9 +1785,16 @@ function ReservarContent() {
                           {loadingDisponibilidad && <span className="text-amber-500 text-xs animate-pulse bg-amber-500/10 px-2 py-1 rounded-full ml-2">Cargando...</span>}
                         </label>
                         {disponibleAgenda && (
-                          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs font-black text-amber-400 shadow-md">
-                            🕒 Horario de atención este día: {rangoHorario.inicio} a {rangoHorario.fin}
-                          </span>
+                          <div className="flex flex-wrap items-center justify-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs font-black text-amber-400 shadow-md">
+                              🕒 Horario de atención: {rangoHorario.inicio} a {rangoHorario.fin}
+                            </span>
+                            {promoElegida?.tipo === '2x1' && (
+                              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-xs font-black text-amber-300 shadow-md">
+                                ✂️ Promo 2×1: Válida de 08:00 a 17:00
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                       {!disponibleAgenda ? (
@@ -1791,21 +1808,37 @@ function ReservarContent() {
                             const estaOcupado = checkDisponibilidad(hora)
                             if (estaOcupado) return null;
                             
+                            const horaNum = parseInt(hora.split(':')[0], 10)
+                            const es2x1HoraValida = horaNum >= 8 && horaNum < 17
+                            const is2x1DisabledSlot = promoElegida?.tipo === '2x1' && !es2x1HoraValida
+
                             return (
                               <button
                                 key={hora}
                                 type="button"
                                 onClick={() => {
+                                  if (is2x1DisabledSlot) {
+                                    toastError(`La promo 2×1 solo aplica de 08:00 a 17:00. Para reservar a las ${hora}, desactiva la promo 2×1 en el paso 1.`)
+                                    return
+                                  }
                                   setFormData({ ...formData, hora })
                                   setTimeout(() => setStep(4), 300)
                                 }}
-                                className={`py-3.5 rounded-xl text-sm font-black transition-all duration-200 ${
+                                className={`py-3 rounded-xl text-sm font-black transition-all duration-200 flex flex-col items-center justify-center ${
                                   formData.hora === hora
                                     ? 'bg-amber-500 text-black scale-105 shadow-[0_0_20px_rgba(245,158,11,0.4)] ring-2 ring-amber-400'
-                                    : 'bg-zinc-900 hover:bg-amber-500/10 hover:text-amber-400 text-zinc-300 border-2 border-zinc-800 hover:border-amber-500/30'
+                                    : is2x1DisabledSlot
+                                      ? 'bg-zinc-900/40 text-zinc-600 border border-zinc-800/40 hover:border-zinc-700 cursor-not-allowed opacity-60'
+                                      : 'bg-zinc-900 hover:bg-amber-500/10 hover:text-amber-400 text-zinc-300 border-2 border-zinc-800 hover:border-amber-500/30'
                                 }`}
                               >
-                                {hora}
+                                <span>{hora}</span>
+                                {promoElegida?.tipo === '2x1' && es2x1HoraValida && (
+                                  <span className="text-[8px] font-black text-amber-400 uppercase tracking-wider">2×1</span>
+                                )}
+                                {promoElegida?.tipo === '2x1' && !es2x1HoraValida && (
+                                  <span className="text-[8px] font-medium text-zinc-600">Sin 2×1</span>
+                                )}
                               </button>
                             )
                           })}
