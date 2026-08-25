@@ -632,12 +632,12 @@ function ReservarContent() {
           }
         }
 
-        // Validar que el horario esté entre las 08:00 y las 17:00 (8 AM a 5 PM)
+        // Validar que el horario esté entre las 08:00 y las 17:59 (8 AM a 5:30 PM)
         if (formData.hora) {
           const horaNum = parseInt(formData.hora.split(':')[0], 10)
-          if (horaNum < 8 || horaNum >= 17) {
+          if (horaNum < 8 || horaNum >= 18) {
             setSubmitting(false)
-            toastError('La promoción 2×1 solo aplica para citas agendadas entre las 08:00 y las 17:00 (5:00 PM). A partir de las 18:00 aplica tarifa regular sin 2×1.')
+            toastError('La promoción 2×1 solo aplica para citas agendadas de 08:00 a 17:30 (5:30 PM). A partir de las 18:00 (6:00 PM) aplica tarifa regular sin 2×1.')
             return
           }
         }
@@ -1809,7 +1809,7 @@ function ReservarContent() {
                             if (estaOcupado) return null;
                             
                             const horaNum = parseInt(hora.split(':')[0], 10)
-                            const es2x1HoraValida = horaNum >= 8 && horaNum < 17
+                            const es2x1HoraValida = horaNum >= 8 && horaNum < 18
                             const is2x1DisabledSlot = promoElegida?.tipo === '2x1' && !es2x1HoraValida
 
                             return (
@@ -1818,7 +1818,7 @@ function ReservarContent() {
                                 type="button"
                                 onClick={() => {
                                   if (is2x1DisabledSlot) {
-                                    toastError(`La promo 2×1 solo aplica de 08:00 a 17:00. Para reservar a las ${hora}, desactiva la promo 2×1 en el paso 1.`)
+                                    toastError(`La promo 2×1 solo aplica de 08:00 a 17:30. Para reservar a las ${hora}, desactiva la promo 2×1 en el paso 1.`)
                                     return
                                   }
                                   setFormData({ ...formData, hora })
