@@ -8,12 +8,13 @@ import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
-import { ArrowLeft, Plus, Save, Trash2, Gift, Users, Search, Edit, Flame, Cake, ToggleLeft, ToggleRight, X, UserPlus, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Plus, Save, Trash2, Gift, Users, Search, Edit, Flame, Cake, ToggleLeft, ToggleRight, X, UserPlus, CheckCircle2, Clock } from 'lucide-react'
 import { labelTipoRecompensa } from '@/lib/lealtad/helpers'
 import type { LealtadMeta, TipoRecompensa } from '@/types'
 
 const TIPOS: TipoRecompensa[] = ['porcentaje', 'monto_fijo', 'servicio_gratis', 'producto_gratis']
 const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+const DIAS_SEMANA_COMPLETO = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 const TIPOS_PROMO = [
   { value: '2x1', label: '✂️ 2×1' },
   { value: 'cumpleanos', label: '🎂 Cumpleañero' },
@@ -70,6 +71,16 @@ export default function AdminLealtadPage() {
   const [promoForm, setPromoForm] = useState(emptyPromo)
   const [savingPromo, setSavingPromo] = useState(false)
 
+  // Configuración Horario y Reglas 2x1
+  const [config2x1, setConfig2x1] = useState({
+    activa: true,
+    dia_semana: 2,
+    hora_inicio: '08:00',
+    hora_fin: '17:30',
+  })
+  const [showConfig2x1Modal, setShowConfig2x1Modal] = useState(false)
+  const [saving2x1, setSaving2x1] = useState(false)
+
   // Cliente Edit State
   const [showClienteModal, setShowClienteModal] = useState(false)
   const [editingCliente, setEditingCliente] = useState<any | null>(null)
@@ -106,6 +117,17 @@ export default function AdminLealtadPage() {
       setPromociones(proms)
       setVerifs(vJson.verificaciones ?? [])
       setReferidos(rJson ?? [])
+
+      // Cargar configuración de horario 2x1 desde configuraciones
+      const { data: c2x1 } = await supabase
+        .from('configuraciones')
+        .select('valor')
+        .eq('llave', 'promo_2x1_config')
+        .maybeSingle()
+      if (c2x1?.valor) {
+        const parsed = typeof c2x1.valor === 'string' ? JSON.parse(c2x1.valor) : c2x1.valor
+        setConfig2x1(prev => ({ ...prev, ...parsed }))
+      }
     } finally {
       setLoading(false)
     }
@@ -707,28 +729,54 @@ export default function AdminLealtadPage() {
                       <h4 className="font-black text-white text-base uppercase">2×1 de los Martes</h4>
                       <p className="text-zinc-400 text-xs mt-1 leading-relaxed">Pagan 1 y entran 2. Al seleccionar al agendar en la web, pide al cliente el nombre y carnet de su acompañante.</p>
                       {p && (
-                        <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-bold">
-                          <span>⚡ Conectado a /reservar</span>
+                        <div className="mt-3 space-y-2">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-bold">
+                            <span>⚡ Conectado a /reservar</span>
+                          </div>
+
+                          <div className="bg-black/40 p-2.5 rounded-xl border border-white/5 space-y-1.5 text-xs">
+                            <div className="flex justify-between items-center text-zinc-400">
+                              <span>📅 Día de promo:</span>
+                              <span className="font-black text-white">{DIAS_SEMANA_COMPLETO[config2x1.dia_semana] || 'Martes'}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-zinc-400">
+                              <span>⏰ Horario 2×1:</span>
+                              <span className="font-black text-amber-400">{config2x1.hora_inicio} a {config2x1.hora_fin}</span>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
-                    <div className="pt-3 border-t border-white/5 flex items-center justify-between gap-2">
-                      {p ? (
-                        <>
-                          <button onClick={() => togglePromo(p)} className={`text-xs font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all ${p.activa ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20' : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'}`}>
-                            {p.activa ? <ToggleRight className="text-emerald-400 w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-                            <span>{p.activa ? '🟢 En Línea (Pausar)' : '🟠 Pausada (Activar)'}</span>
-                          </button>
-                          <div className="flex gap-1">
-                            <Button variant="outline" size="sm" onClick={() => openEditPromo(p)} title="Editar"><Edit className="w-3.5 h-3.5" /></Button>
-                            <Button variant="outline" size="sm" onClick={() => deletePromo(p.id)} title="Eliminar"><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
-                          </div>
-                        </>
-                      ) : (
-                        <Button variant="primary" size="sm" className="w-full text-xs font-black bg-amber-500 hover:bg-amber-400 text-black" onClick={() => activarPromoBase('2x1')} disabled={savingPromo}>
-                          ⚡ Activar 2×1
-                        </Button>
-                      )}
+                    <div className="pt-3 border-t border-white/5 space-y-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowConfig2x1Modal(true)}
+                        className="w-full text-xs font-black bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500 hover:text-black flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        ⚙️ Cambiar Horario del 2×1
+                      </Button>
+
+                      <div className="flex items-center justify-between gap-2">
+                        {p ? (
+                          <>
+                            <button onClick={() => togglePromo(p)} className={`text-xs font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all ${p.activa ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20' : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'}`}>
+                              {p.activa ? <ToggleRight className="text-emerald-400 w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                              <span>{p.activa ? '🟢 En Línea' : '🟠 Pausada'}</span>
+                            </button>
+                            <div className="flex gap-1">
+                              <Button variant="outline" size="sm" onClick={() => openEditPromo(p)} title="Editar"><Edit className="w-3.5 h-3.5" /></Button>
+                              <Button variant="outline" size="sm" onClick={() => deletePromo(p.id)} title="Eliminar"><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                            </div>
+                          </>
+                        ) : (
+                          <Button variant="primary" size="sm" className="w-full text-xs font-black bg-amber-500 hover:bg-amber-400 text-black" onClick={() => activarPromoBase('2x1')} disabled={savingPromo}>
+                            ⚡ Activar 2×1
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )
@@ -1303,6 +1351,135 @@ export default function AdminLealtadPage() {
                 <Button type="button" variant="outline" className="flex-1" onClick={() => setShowClienteModal(false)}>Cancelar</Button>
                 <Button type="submit" variant="primary" className="flex-1" disabled={savingCliente}>
                   {savingCliente ? 'Guardando...' : 'Guardar Cambios'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL DE CONFIGURACIÓN DE HORARIO Y DÍAS 2X1 ══ */}
+      {showConfig2x1Modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowConfig2x1Modal(false)}>
+          <div className="w-full max-w-lg bg-zinc-900 border border-amber-500/30 rounded-3xl p-6 shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center text-xl">
+                  ✂️
+                </div>
+                <div>
+                  <h3 className="text-lg font-black uppercase text-white tracking-tight">Horario y Reglas del 2×1</h3>
+                  <p className="text-xs text-zinc-400">Define qué día y en qué rango de horas aplica el 2×1 en la web</p>
+                </div>
+              </div>
+              <button onClick={() => setShowConfig2x1Modal(false)} className="p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                setSaving2x1(true)
+                try {
+                  const { error } = await supabase.from('configuraciones').upsert({
+                    llave: 'promo_2x1_config',
+                    valor: config2x1,
+                    descripcion: 'Horarios y reglas de la promoción 2x1'
+                  }, { onConflict: 'llave' })
+                  if (error) throw error
+                  success('¡Horario y reglas del 2×1 guardadas correctamente!')
+                  setShowConfig2x1Modal(false)
+                } catch (err: any) {
+                  toastError(err.message || 'Error al guardar horario 2x1')
+                } finally {
+                  setSaving2x1(false)
+                }
+              }}
+              className="space-y-5"
+            >
+              {/* Día de la semana */}
+              <div>
+                <label className="block text-xs font-black text-zinc-300 uppercase tracking-wider mb-2">
+                  1. Día de la Semana para el 2×1
+                </label>
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+                  {DIAS_SEMANA_COMPLETO.map((dia, idx) => {
+                    const isSelected = config2x1.dia_semana === idx
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setConfig2x1({ ...config2x1, dia_semana: idx })}
+                        className={`py-2.5 px-1 rounded-xl text-xs font-black transition-all text-center ${
+                          isSelected
+                            ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/30 ring-2 ring-amber-400'
+                            : 'bg-zinc-950 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-white/5'
+                        }`}
+                      >
+                        {dia.slice(0, 3)}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[11px] text-amber-400/90 mt-2 font-semibold">
+                  Día seleccionado: <strong>{DIAS_SEMANA_COMPLETO[config2x1.dia_semana]}</strong>
+                </p>
+              </div>
+
+              {/* Rango de Horarios */}
+              <div>
+                <label className="block text-xs font-black text-zinc-300 uppercase tracking-wider mb-2">
+                  2. Horario en que Aplica el 2×1
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-zinc-950 p-3.5 rounded-2xl border border-white/10">
+                    <label className="block text-[10px] font-black uppercase text-zinc-400 mb-1">
+                      Hora de Inicio
+                    </label>
+                    <input
+                      type="time"
+                      value={config2x1.hora_inicio}
+                      onChange={e => setConfig2x1({ ...config2x1, hora_inicio: e.target.value })}
+                      required
+                      className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-base font-bold outline-none focus:border-amber-500 [color-scheme:dark]"
+                    />
+                    <span className="text-[10px] text-zinc-500 mt-1 block">Ej: 08:00 AM</span>
+                  </div>
+
+                  <div className="bg-zinc-950 p-3.5 rounded-2xl border border-white/10">
+                    <label className="block text-[10px] font-black uppercase text-zinc-400 mb-1">
+                      Hora de Fin
+                    </label>
+                    <input
+                      type="time"
+                      value={config2x1.hora_fin}
+                      onChange={e => setConfig2x1({ ...config2x1, hora_fin: e.target.value })}
+                      required
+                      className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-base font-bold outline-none focus:border-amber-500 [color-scheme:dark]"
+                    />
+                    <span className="text-[10px] text-zinc-500 mt-1 block">Ej: 17:30 (5:30 PM)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Resumen explicativo */}
+              <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs space-y-1 text-zinc-300">
+                <p className="font-bold text-amber-300">ℹ️ Regla activa en el sistema:</p>
+                <p>
+                  • Las citas reservadas los <strong>{DIAS_SEMANA_COMPLETO[config2x1.dia_semana]}s</strong> entre las <strong>{config2x1.hora_inicio}</strong> y las <strong>{config2x1.hora_fin}</strong> tendrán habilitada la promoción 2×1.
+                </p>
+                <p>
+                  • Las citas agendadas fuera de este rango pagarán la <strong>tarifa regular individual</strong>.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowConfig2x1Modal(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="primary" className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-black" disabled={saving2x1}>
+                  {saving2x1 ? 'Guardando...' : '💾 Guardar Horario 2×1'}
                 </Button>
               </div>
             </form>

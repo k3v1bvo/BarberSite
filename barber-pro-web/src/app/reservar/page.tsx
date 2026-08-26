@@ -97,6 +97,12 @@ function ReservarContent() {
   const [acompanante, setAcompanante] = useState({ nombre: '', email: '' })
   const [modo2x1, setModo2x1] = useState<'acompanante' | 'servicio_extra'>('acompanante')
   const [servicioExtra2x1, setServicioExtra2x1] = useState('')
+  const [config2x1, setConfig2x1] = useState({
+    activa: true,
+    dia_semana: 2,
+    hora_inicio: '08:00',
+    hora_fin: '17:30',
+  })
   
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -380,7 +386,7 @@ function ReservarContent() {
       const hoyLocal = new Date()
       const hoyStr = new Date(hoyLocal.getTime() - (hoyLocal.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
 
-      const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo, resBarberoServicios, resAsistencias, resPermisos] = await Promise.all([
+      const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo, resBarberoServicios, resAsistencias, resPermisos, config2x1Res] = await Promise.all([
         supabase.from('servicios').select('*').eq('is_active', true).order('orden', { ascending: true }),
         supabase.from('profiles').select('id, full_name, email, avatar_url, qr_code_url').eq('role', 'barbero').eq('is_active', true),
         supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url').eq('is_active', true).gt('stock_actual', 0).order('orden', { ascending: true }),
@@ -389,7 +395,8 @@ function ReservarContent() {
         supabase.from('configuraciones').select('valor').eq('llave', 'tiempo_minimo_reserva').maybeSingle(),
         supabase.from('comision_barbero_servicios').select('barbero_id, servicio_id'),
         supabase.from('asistencias').select('profile_id, estado, hora_entrada, hora_salida').eq('fecha', hoyStr),
-        supabase.from('solicitudes_permisos').select('barbero_id, estado, fecha, fecha_fin, tipo_permiso').eq('estado', 'aprobado').lte('fecha', hoyStr)
+        supabase.from('solicitudes_permisos').select('barbero_id, estado, fecha, fecha_fin, tipo_permiso').eq('estado', 'aprobado').lte('fecha', hoyStr),
+        supabase.from('configuraciones').select('valor').eq('llave', 'promo_2x1_config').maybeSingle()
       ])
 
       setServicios(resServicios.data || [])
@@ -412,6 +419,10 @@ function ReservarContent() {
         setQrPago(configQr.data.valor.url)
       } else if (typeof configQr.data?.valor === 'string') {
         setQrPago(configQr.data.valor)
+      }
+      if (config2x1Res.data?.valor) {
+        const parsed = typeof config2x1Res.data.valor === 'string' ? JSON.parse(config2x1Res.data.valor) : config2x1Res.data.valor
+        setConfig2x1(prev => ({ ...prev, ...parsed }))
       }
 
       // Capturar recomendante desde ?ref=...
@@ -621,23 +632,31 @@ function ReservarContent() {
           return
         }
 
-        // Validar que la fecha seleccionada sea un martes
+        // Validar que la fecha seleccionada sea el día configurado para 2x1 (ej: martes)
         if (formData.fecha) {
           const [year, month, day] = formData.fecha.split('-').map(Number)
           const fechaObj = new Date(year, month - 1, day)
-          if (fechaObj.getDay() !== 2) {
+          if (fechaObj.getDay() !== config2x1.dia_semana) {
+            const diasNombres = ['domingos', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábados']
+            const diaNombre = diasNombres[config2x1.dia_semana] || 'martes'
             setSubmitting(false)
-            toastError('La promoción 2×1 solo es válida para citas los días martes.')
+            toastError(`La promoción 2×1 solo es válida para citas los días ${diaNombre}.`)
             return
           }
         }
 
-        // Validar que el horario esté entre las 08:00 y las 17:59 (8 AM a 5:30 PM)
+        // Validar que el horario esté dentro del rango configurado (ej: 08:00 a 17:30)
         if (formData.hora) {
-          const horaNum = parseInt(formData.hora.split(':')[0], 10)
-          if (horaNum < 8 || horaNum >= 18) {
+          const [hIni, mIni] = config2x1.hora_inicio.split(':').map(Number)
+          const [hFin, mFin] = config2x1.hora_fin.split(':').map(Number)
+          const [hCur, mCur] = formData.hora.split(':').map(Number)
+          const minCur = hCur * 60 + mCur
+          const minIni = hIni * 60 + (mIni || 0)
+          const minFin = hFin * 60 + (mFin || 0)
+
+          if (minCur < minIni || minCur > minFin) {
             setSubmitting(false)
-            toastError('La promoción 2×1 solo aplica para citas agendadas de 08:00 a 17:30 (5:30 PM). A partir de las 18:00 (6:00 PM) aplica tarifa regular sin 2×1.')
+            toastError(`La promoción 2×1 solo aplica de ${config2x1.hora_inicio} a ${config2x1.hora_fin}. Fuera de este horario aplica tarifa regular sin 2×1.`)
             return
           }
         }
@@ -1791,7 +1810,7 @@ function ReservarContent() {
                             </span>
                             {promoElegida?.tipo === '2x1' && (
                               <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-xs font-black text-amber-300 shadow-md">
-                                ✂️ Promo 2×1: Válida de 08:00 a 17:00
+                                ✂️ Promo 2×1: Válida de {config2x1.hora_inicio} a {config2x1.hora_fin}
                               </span>
                             )}
                           </div>
@@ -1808,8 +1827,13 @@ function ReservarContent() {
                             const estaOcupado = checkDisponibilidad(hora)
                             if (estaOcupado) return null;
                             
-                            const horaNum = parseInt(hora.split(':')[0], 10)
-                            const es2x1HoraValida = horaNum >= 8 && horaNum < 18
+                            const [hIni, mIni] = config2x1.hora_inicio.split(':').map(Number)
+                            const [hFin, mFin] = config2x1.hora_fin.split(':').map(Number)
+                            const [hCur, mCur] = hora.split(':').map(Number)
+                            const minCur = hCur * 60 + mCur
+                            const minIni = hIni * 60 + (mIni || 0)
+                            const minFin = hFin * 60 + (mFin || 0)
+                            const es2x1HoraValida = minCur >= minIni && minCur <= minFin
                             const is2x1DisabledSlot = promoElegida?.tipo === '2x1' && !es2x1HoraValida
 
                             return (
@@ -1818,7 +1842,7 @@ function ReservarContent() {
                                 type="button"
                                 onClick={() => {
                                   if (is2x1DisabledSlot) {
-                                    toastError(`La promo 2×1 solo aplica de 08:00 a 17:30. Para reservar a las ${hora}, desactiva la promo 2×1 en el paso 1.`)
+                                    toastError(`La promo 2×1 solo aplica de ${config2x1.hora_inicio} a ${config2x1.hora_fin}. Para reservar a las ${hora}, desactiva la promo 2×1 en el paso 1.`)
                                     return
                                   }
                                   setFormData({ ...formData, hora })
