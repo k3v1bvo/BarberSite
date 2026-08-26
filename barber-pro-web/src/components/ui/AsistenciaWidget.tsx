@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useRealtimeTable } from '@/hooks/useRealtimeTable'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -234,9 +235,13 @@ export function AsistenciaWidget() {
 
   useEffect(() => {
     checkStatus()
-    const interval = setInterval(checkStatus, 60_000)
-    return () => clearInterval(interval)
   }, [checkStatus])
+
+  // Realtime: actualizar estado de asistencia de inmediato cuando cambia en la base de datos
+  useRealtimeTable('asistencia-widget-realtime', {
+    table: 'asistencias',
+    onChange: () => checkStatus(),
+  })
 
   // Cronómetro de turno
   useEffect(() => {

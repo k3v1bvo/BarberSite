@@ -172,12 +172,12 @@ export function CampanaNotificaciones({ userId, userRole }: Props) {
     }
     document.addEventListener('mousedown', handleClickOutside)
 
-    const poll = setInterval(fetchNotificaciones, 60_000)
+    // Nota: el setInterval(fetchNotificaciones, 60_000) fue eliminado.
+    // El canal Realtime de arriba ya cubre INSERT y UPDATE en tiempo real.
 
     return () => {
       supabase.removeChannel(channel)
       document.removeEventListener('mousedown', handleClickOutside)
-      clearInterval(poll)
     }
   }, [userId, userRole, belongsToUser, fetchNotificaciones, supabase])
 

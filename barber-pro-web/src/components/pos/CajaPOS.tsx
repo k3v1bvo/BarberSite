@@ -268,7 +268,8 @@ export function CajaPOS() {
     }
     loadData()
 
-    const interval = setInterval(fetchTurnosSincronizados, 30000)
+    // Canal Realtime para config_turnos y asistencias
+    // (reemplaza el antiguo setInterval(fetchTurnosSincronizados, 30000))
     const channel = supabase
       .channel('pos_turnos_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'config_turnos', filter: 'id=eq.turno_offset' }, () => {
@@ -280,7 +281,6 @@ export function CajaPOS() {
       .subscribe()
 
     return () => {
-      clearInterval(interval)
       supabase.removeChannel(channel)
     }
   }, [supabase])

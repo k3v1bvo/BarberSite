@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Clock, User, RotateCw, CheckCircle2, Flame, Award, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getBusinessDateString } from '@/lib/asistencia/helpers'
+import { useRealtimeTable } from '@/hooks/useRealtimeTable'
 
 interface BarberoTurnoItem {
   id: string
@@ -28,9 +29,7 @@ export function OrdenLlegadaBarberos() {
     fetchOrdenLlegadaYTurnos()
     fetchConfigTurnos()
 
-    const interval = setInterval(fetchOrdenLlegadaYTurnos, 30000)
-
-    // Subscripción en tiempo real a la tabla config_turnos
+    // Canal Realtime para cambios de turno/offset (ya existía)
     const channel = supabase
       .channel('config_turnos_realtime')
       .on(
@@ -50,10 +49,18 @@ export function OrdenLlegadaBarberos() {
       .subscribe()
 
     return () => {
-      clearInterval(interval)
       supabase.removeChannel(channel)
     }
   }, [])
+
+  // Realtime: cuando un barbero llega o se va, recalcular el orden al instante
+  // Reemplaza el antiguo setInterval(fetchOrdenLlegadaYTurnos, 30000)
+  useRealtimeTable('orden-asistencias-realtime', {
+    table: 'asistencias',
+    onChange: () => {
+      fetchOrdenLlegadaYTurnos()
+    },
+  })
 
   const fetchConfigTurnos = async () => {
     try {

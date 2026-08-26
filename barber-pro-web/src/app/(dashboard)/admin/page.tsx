@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useRealtimeTable } from '@/hooks/useRealtimeTable'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -378,9 +379,22 @@ export default function AdminPage() {
 
   useEffect(() => {
     loadData()
-    const interval = setInterval(loadData, 45_000)
-    return () => clearInterval(interval)
   }, [loadData])
+
+  // Realtime: actualizar datos del dashboard cuando cambien citas, asistencias o ventas
+  // Reemplaza setInterval(loadData, 45_000) — ya no se recarga innecesariamente
+  useRealtimeTable('admin-citas-realtime', {
+    table: 'citas',
+    onChange: () => loadData(),
+  })
+  useRealtimeTable('admin-asistencias-realtime', {
+    table: 'asistencias',
+    onChange: () => loadData(),
+  })
+  useRealtimeTable('admin-transactions-realtime', {
+    table: 'transactions',
+    onChange: () => loadData(),
+  })
 
   const getEstadoBadge = (estado: string) => {
     const variants: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
