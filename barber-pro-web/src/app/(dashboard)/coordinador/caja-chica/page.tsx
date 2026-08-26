@@ -400,6 +400,8 @@ export default function CajaChicaPage() {
         tipo_movimiento: direccion,
         subcategoria: form.cuenta_detalle || null,
         metodo_pago: form.metodo_pago,
+        monto_efectivo: form.metodo_pago === 'efectivo' ? parseFloat(form.costo) : form.metodo_pago === 'mixto' ? parseFloat(form.mixto_efectivo || '0') : 0,
+        monto_qr: form.metodo_pago === 'qr' || form.metodo_pago === 'tarjeta' ? parseFloat(form.costo) : form.metodo_pago === 'mixto' ? parseFloat(form.mixto_qr || '0') + parseFloat(form.mixto_tarjeta || '0') : 0,
         comprobante_url: form.comprobante_url,
         notas: form.metodo_pago === 'mixto'
           ? `Efectivo: Bs ${form.mixto_efectivo || 0} | QR: Bs ${form.mixto_qr || 0} | Tarjeta: Bs ${form.mixto_tarjeta || 0}${form.notas ? ' | ' + form.notas : ''}`

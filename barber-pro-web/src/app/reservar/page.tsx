@@ -33,7 +33,7 @@ interface Servicio {
 }
 
 // Servicios válidos para el 2x1 (solo corte y barba, NO combos)
-function esServicio2x1Valido(servicio: Servicio | undefined): boolean {
+function esServicio2x1ValidoPorNombre(servicio: Servicio | undefined): boolean {
   if (!servicio) return false
   const nombre = servicio.nombre.toLowerCase().trim()
   return (
@@ -43,7 +43,7 @@ function esServicio2x1Valido(servicio: Servicio | undefined): boolean {
     nombre.includes('arreglo barba') ||
     nombre === 'corte' ||
     nombre === 'barba'
-  ) && !nombre.includes('combo')
+  ) && !nombre.includes('combo') && !nombre.includes('+')
 }
 interface Producto {
   id: string
@@ -102,7 +102,23 @@ function ReservarContent() {
     dia_semana: 2,
     hora_inicio: '08:00',
     hora_fin: '17:30',
+    servicios_acompanante: [] as string[],
+    servicios_extra: [] as string[],
   })
+
+  // Función dinámica que usa config para validar servicios 2x1
+  const esServicio2x1Valido = (servicio: Servicio | undefined): boolean => {
+    if (!servicio) return false
+    // Si hay servicios configurados por el admin, usar esos IDs
+    if (modo2x1 === 'acompanante' && config2x1.servicios_acompanante.length > 0) {
+      return config2x1.servicios_acompanante.includes(servicio.id)
+    }
+    if (modo2x1 === 'servicio_extra' && config2x1.servicios_extra.length > 0) {
+      return config2x1.servicios_extra.includes(servicio.id)
+    }
+    // Fallback: si no hay config, usar filtro por nombre (sin combos)
+    return esServicio2x1ValidoPorNombre(servicio)
+  }
   
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -422,7 +438,7 @@ function ReservarContent() {
       }
       if (config2x1Res.data?.valor) {
         const parsed = typeof config2x1Res.data.valor === 'string' ? JSON.parse(config2x1Res.data.valor) : config2x1Res.data.valor
-        setConfig2x1(prev => ({ ...prev, ...parsed }))
+        setConfig2x1(prev => ({ ...prev, ...parsed, servicios_acompanante: parsed.servicios_acompanante || [], servicios_extra: parsed.servicios_extra || [] }))
       }
 
       // Capturar recomendante desde ?ref=...
@@ -658,6 +674,27 @@ function ReservarContent() {
             setSubmitting(false)
             toastError(`La promoción 2×1 solo aplica de ${config2x1.hora_inicio} a ${config2x1.hora_fin}. Fuera de este horario aplica tarifa regular sin 2×1.`)
             return
+          }
+        }
+
+        // BUG 4: Regla temporal — Solo se puede reservar 2×1 desde el día anterior
+        // Si es el mismo día del 2×1 y ya pasó la hora de inicio, no se permite reservar con 2×1
+        if (formData.fecha) {
+          const ahora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/La_Paz' }))
+          const diaActual = ahora.getDay()
+          const [yearR, monthR, dayR] = formData.fecha.split('-').map(Number)
+          const fechaReserva = new Date(yearR, monthR - 1, dayR)
+          const esMismoDia = diaActual === config2x1.dia_semana && fechaReserva.getDay() === config2x1.dia_semana && fechaReserva.toDateString() === ahora.toDateString()
+
+          if (esMismoDia) {
+            const [hIniC, mIniC] = config2x1.hora_inicio.split(':').map(Number)
+            const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes()
+            const minutosInicio = hIniC * 60 + (mIniC || 0)
+            if (minutosAhora >= minutosInicio) {
+              setSubmitting(false)
+              toastError('Para reservar con 2×1 debes hacerlo desde el día anterior. El mismo día del 2×1, después de las ' + config2x1.hora_inicio + ', solo se puede reservar con tarifa regular.')
+              return
+            }
           }
         }
 

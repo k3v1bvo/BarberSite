@@ -77,9 +77,17 @@ export default function AdminLealtadPage() {
     dia_semana: 2,
     hora_inicio: '08:00',
     hora_fin: '17:30',
+    servicios_acompanante: [] as string[],
+    servicios_extra: [] as string[],
   })
   const [showConfig2x1Modal, setShowConfig2x1Modal] = useState(false)
+  const [showConfig2x1ServiciosModal, setShowConfig2x1ServiciosModal] = useState(false)
   const [saving2x1, setSaving2x1] = useState(false)
+
+  // Configuración Cumpleañero
+  const [configCumple, setConfigCumple] = useState({ servicios: [] as string[] })
+  const [showConfigCumpleModal, setShowConfigCumpleModal] = useState(false)
+  const [savingCumple, setSavingCumple] = useState(false)
 
   // Cliente Edit State
   const [showClienteModal, setShowClienteModal] = useState(false)
@@ -126,7 +134,18 @@ export default function AdminLealtadPage() {
         .maybeSingle()
       if (c2x1?.valor) {
         const parsed = typeof c2x1.valor === 'string' ? JSON.parse(c2x1.valor) : c2x1.valor
-        setConfig2x1(prev => ({ ...prev, ...parsed }))
+        setConfig2x1(prev => ({ ...prev, ...parsed, servicios_acompanante: parsed.servicios_acompanante || [], servicios_extra: parsed.servicios_extra || [] }))
+      }
+
+      // Cargar configuración de cumpleañero
+      const { data: cCumple } = await supabase
+        .from('configuraciones')
+        .select('valor')
+        .eq('llave', 'promo_cumpleanos_config')
+        .maybeSingle()
+      if (cCumple?.valor) {
+        const parsedC = typeof cCumple.valor === 'string' ? JSON.parse(cCumple.valor) : cCumple.valor
+        setConfigCumple({ servicios: parsedC.servicios || [] })
       }
     } finally {
       setLoading(false)
@@ -758,6 +777,20 @@ export default function AdminLealtadPage() {
                         <Clock className="w-3.5 h-3.5" />
                         ⚙️ Cambiar Horario del 2×1
                       </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowConfig2x1ServiciosModal(true)}
+                        className="w-full text-xs font-black bg-purple-500/10 border-purple-500/30 text-purple-300 hover:bg-purple-500 hover:text-black flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        📋 Editar Servicios del 2×1
+                      </Button>
+                      {config2x1.servicios_acompanante.length > 0 && (
+                        <p className="text-[10px] text-zinc-500 text-center">
+                          Acomp: {config2x1.servicios_acompanante.length} servicio(s) | Extra: {config2x1.servicios_extra.length} servicio(s)
+                        </p>
+                      )}
 
                       <div className="flex items-center justify-between gap-2">
                         {p ? (
@@ -852,6 +885,22 @@ export default function AdminLealtadPage() {
                         <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-400 font-bold">
                           <span>⚡ {verifs.length} verificados hoy</span>
                         </div>
+                      )}
+                    </div>
+                    <div className="mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowConfigCumpleModal(true)}
+                        className="w-full text-xs font-black bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500 hover:text-black flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        📋 Editar Servicios del Cumpleañero
+                      </Button>
+                      {configCumple.servicios.length > 0 && (
+                        <p className="text-[10px] text-zinc-500 text-center mt-1">
+                          {configCumple.servicios.length} servicio(s) configurados
+                        </p>
                       )}
                     </div>
                     <div className="pt-3 border-t border-white/5 flex flex-col gap-2">
@@ -1480,6 +1529,217 @@ export default function AdminLealtadPage() {
                 </Button>
                 <Button type="submit" variant="primary" className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-black" disabled={saving2x1}>
                   {saving2x1 ? 'Guardando...' : '💾 Guardar Horario 2×1'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL DE SERVICIOS DEL 2×1 (Acompañante + Extra) ══ */}
+      {showConfig2x1ServiciosModal && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-8 overflow-y-auto bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowConfig2x1ServiciosModal(false)}>
+          <div className="w-full max-w-2xl bg-zinc-900 border border-purple-500/30 rounded-3xl p-6 shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-500/20 flex items-center justify-center text-xl">📋</div>
+                <div>
+                  <h3 className="text-lg font-black uppercase text-white tracking-tight">Servicios del 2×1</h3>
+                  <p className="text-xs text-zinc-400">Define qué servicios aplican para acompañante y cuáles como servicio extra (solo)</p>
+                </div>
+              </div>
+              <button onClick={() => setShowConfig2x1ServiciosModal(false)} className="p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                setSaving2x1(true)
+                try {
+                  const { error } = await supabase.from('configuraciones').upsert({
+                    llave: 'promo_2x1_config',
+                    valor: config2x1,
+                    descripcion: 'Horarios, reglas y servicios de la promoción 2x1'
+                  }, { onConflict: 'llave' })
+                  if (error) throw error
+                  success('¡Servicios del 2×1 guardados correctamente!')
+                  setShowConfig2x1ServiciosModal(false)
+                } catch (err: any) {
+                  toastError(err.message || 'Error al guardar servicios 2x1')
+                } finally {
+                  setSaving2x1(false)
+                }
+              }}
+              className="space-y-5"
+            >
+              {/* Servicios para Acompañante */}
+              <div>
+                <label className="block text-xs font-black text-zinc-300 uppercase tracking-wider mb-2">
+                  👥 Servicios para Acompañante (viene en pareja)
+                </label>
+                <p className="text-[10px] text-zinc-500 mb-2">Cuando el cliente viene con alguien, estos son los servicios habilitados para el 2×1.</p>
+                <div className="flex flex-wrap gap-2 p-3 bg-zinc-950 border border-white/10 rounded-xl max-h-48 overflow-y-auto">
+                  {servicios.map((s) => {
+                    const isSelected = config2x1.servicios_acompanante.includes(s.id)
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          isSelected
+                            ? 'bg-purple-500 text-white font-black shadow-md'
+                            : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                        }`}
+                        onClick={() => {
+                          const newList = isSelected
+                            ? config2x1.servicios_acompanante.filter(id => id !== s.id)
+                            : [...config2x1.servicios_acompanante, s.id]
+                          setConfig2x1({ ...config2x1, servicios_acompanante: newList })
+                        }}
+                      >
+                        {isSelected ? '✓ ' : ''}{s.nombre}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[10px] text-purple-400 mt-1 font-semibold">
+                  {config2x1.servicios_acompanante.length === 0
+                    ? '⚠ Sin servicios seleccionados — se usará filtro por nombre (Corte/Barba)'
+                    : `${config2x1.servicios_acompanante.length} servicio(s) habilitados para acompañante`}
+                </p>
+              </div>
+
+              {/* Servicios Extra (viene solo) */}
+              <div>
+                <label className="block text-xs font-black text-zinc-300 uppercase tracking-wider mb-2">
+                  ✨ Servicios Extra (viene solo, 2×1 individual)
+                </label>
+                <p className="text-[10px] text-zinc-500 mb-2">Si el cliente viene solo y elige "Servicio Extra", estos son los servicios que puede agregar gratis con su compra.</p>
+                <div className="flex flex-wrap gap-2 p-3 bg-zinc-950 border border-white/10 rounded-xl max-h-48 overflow-y-auto">
+                  {servicios.map((s) => {
+                    const isSelected = config2x1.servicios_extra.includes(s.id)
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          isSelected
+                            ? 'bg-amber-500 text-black font-black shadow-md'
+                            : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                        }`}
+                        onClick={() => {
+                          const newList = isSelected
+                            ? config2x1.servicios_extra.filter(id => id !== s.id)
+                            : [...config2x1.servicios_extra, s.id]
+                          setConfig2x1({ ...config2x1, servicios_extra: newList })
+                        }}
+                      >
+                        {isSelected ? '✓ ' : ''}{s.nombre}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[10px] text-amber-400 mt-1 font-semibold">
+                  {config2x1.servicios_extra.length === 0
+                    ? '⚠ Sin servicios seleccionados — el modo "Servicio Extra" no mostrará opciones'
+                    : `${config2x1.servicios_extra.length} servicio(s) habilitados como extra`}
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowConfig2x1ServiciosModal(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="primary" className="flex-1 bg-purple-500 hover:bg-purple-400 text-white font-black" disabled={saving2x1}>
+                  {saving2x1 ? 'Guardando...' : '💾 Guardar Servicios 2×1'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL DE SERVICIOS DEL CUMPLEAÑERO ══ */}
+      {showConfigCumpleModal && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 overflow-y-auto bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowConfigCumpleModal(false)}>
+          <div className="w-full max-w-lg bg-zinc-900 border border-amber-500/30 rounded-3xl p-6 shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center text-xl">🎂</div>
+                <div>
+                  <h3 className="text-lg font-black uppercase text-white tracking-tight">Servicios del Cumpleañero</h3>
+                  <p className="text-xs text-zinc-400">Selecciona qué servicios aplican como regalo de cumpleaños</p>
+                </div>
+              </div>
+              <button onClick={() => setShowConfigCumpleModal(false)} className="p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                setSavingCumple(true)
+                try {
+                  const { error } = await supabase.from('configuraciones').upsert({
+                    llave: 'promo_cumpleanos_config',
+                    valor: configCumple,
+                    descripcion: 'Servicios habilitados para la promoción de cumpleañero'
+                  }, { onConflict: 'llave' })
+                  if (error) throw error
+                  success('¡Servicios del cumpleañero guardados correctamente!')
+                  setShowConfigCumpleModal(false)
+                } catch (err: any) {
+                  toastError(err.message || 'Error al guardar servicios cumpleañero')
+                } finally {
+                  setSavingCumple(false)
+                }
+              }}
+              className="space-y-5"
+            >
+              <div>
+                <label className="block text-xs font-black text-zinc-300 uppercase tracking-wider mb-2">
+                  🎁 Servicios de regalo para el Cumpleañero
+                </label>
+                <div className="flex flex-wrap gap-2 p-3 bg-zinc-950 border border-white/10 rounded-xl max-h-60 overflow-y-auto">
+                  {servicios.map((s) => {
+                    const isSelected = configCumple.servicios.includes(s.id)
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          isSelected
+                            ? 'bg-amber-500 text-black font-black shadow-md'
+                            : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                        }`}
+                        onClick={() => {
+                          const newList = isSelected
+                            ? configCumple.servicios.filter(id => id !== s.id)
+                            : [...configCumple.servicios, s.id]
+                          setConfigCumple({ ...configCumple, servicios: newList })
+                        }}
+                      >
+                        {isSelected ? '✓ ' : ''}{s.nombre}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[10px] text-amber-400 mt-1 font-semibold">
+                  {configCumple.servicios.length === 0
+                    ? '⚠ Sin servicios seleccionados — el cumpleañero podrá elegir cualquier servicio'
+                    : `${configCumple.servicios.length} servicio(s) habilitados para el cumpleañero`}
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowConfigCumpleModal(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="primary" className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-black" disabled={savingCumple}>
+                  {savingCumple ? 'Guardando...' : '💾 Guardar Servicios Cumpleañero'}
                 </Button>
               </div>
             </form>
