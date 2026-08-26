@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Clock, Users, ArrowRight, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { computeEstadoFromRecord, getBusinessDateString } from '@/lib/asistencia/helpers'
+import { useRealtimeTable } from '@/hooks/useRealtimeTable'
 
 interface AdminAsistenciaSummaryProps {
   onTurnosAbiertos?: (count: number) => void
@@ -55,9 +56,42 @@ export function AdminAsistenciaSummary({ onTurnosAbiertos }: AdminAsistenciaSumm
       }
     }
     load()
-    const t = setInterval(load, 60_000)
-    return () => clearInterval(t)
   }, [onTurnosAbiertos, supabase])
+
+  // Realtime: actualizar resumen al instante cuando el personal marque asistencia
+  useRealtimeTable('admin-asistencia-summary-realtime', {
+    table: 'asistencias',
+    onChange: () => {
+      const hoy = getBusinessDateString()
+      supabase
+        .from('asistencias')
+        .select(`
+          id, estado, hora_entrada, hora_salida, fecha,
+          profiles ( id, full_name, role )
+        `)
+        .eq('fecha', hoy)
+        .then(({ data }) => {
+          if (!data) return
+          const staff = data.filter((r) => {
+            const raw = r.profiles as { role?: string } | { role?: string }[] | null
+            const p = Array.isArray(raw) ? raw[0] : raw
+            return p?.role && p.role !== 'admin' && p.role !== 'cliente'
+          })
+          let abiertosCount = 0
+          let presentesCount = 0
+          for (const row of staff) {
+            const estado = computeEstadoFromRecord(row)
+            if (estado === 'presente' || estado === 'atrasado') {
+              presentesCount++
+              if (!row.hora_salida) abiertosCount++
+            }
+          }
+          setPresentes(presentesCount)
+          setAbiertos(abiertosCount)
+          onTurnosAbiertos?.(abiertosCount)
+        })
+    },
+  })
 
   return (
     <Card className="border-amber-500/20 bg-gradient-to-br from-zinc-900 to-zinc-950 overflow-hidden group">
