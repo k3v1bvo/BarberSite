@@ -1,0 +1,51 @@
+# Vercel Speed Insights Installation
+
+Successfully installed and configured Vercel Speed Insights for this Next.js project.
+
+## Changes Made
+
+### 1. Installed Package
+- Added `@vercel/speed-insights` version ^2.0.0 to dependencies
+- Updated package-lock.json with new dependency tree
+
+### 2. Updated Root Layout (src/app/layout.tsx)
+- Imported `SpeedInsights` component from `@vercel/speed-insights/next`
+- Added `<SpeedInsights />` component to the root layout's body section
+- Placed after `<AppProviders>` to ensure proper initialization order
+
+## Implementation Details
+
+Following the official Vercel Speed Insights documentation (https://vercel.com/docs/speed-insights/quickstart), the implementation uses the Next.js App Router pattern:
+
+```typescript
+import { SpeedInsights } from '@vercel/speed-insights/next'
+
+// Added to body in RootLayout component
+<SpeedInsights />
+```
+
+This approach:
+- Works with Next.js App Router (v13.5+)
+- Automatically tracks page performance metrics
+- Sends data to Vercel's Speed Insights dashboard
+- Has zero impact on bundle size for visitors (loaded asynchronously)
+
+## Files Modified
+
+- `package.json` - Added @vercel/speed-insights dependency
+- `package-lock.json` - Updated with new dependency lock
+- `src/app/layout.tsx` - Added SpeedInsights component
+
+## Next Steps
+
+Once deployed to Vercel:
+1. Speed Insights will automatically start collecting performance data
+2. Access the dashboard via your Vercel project's "Speed Insights" tab
+3. Data will appear after real users visit your site (typically within a few days)
+
+## Notes
+
+- The implementation preserves all existing code structure
+- No breaking changes were introduced
+- The component is placed at the end of the body tag as recommended
+- Pre-existing build errors related to missing Supabase environment variables are unrelated to this change
