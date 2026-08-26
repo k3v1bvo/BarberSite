@@ -36,6 +36,7 @@ CREATE TABLE public.servicios (
   imagen_url text,
   categoria text DEFAULT 'Cortes'::text,
   imagenes ARRAY DEFAULT '{}'::text[],
+  orden integer DEFAULT 0,
   CONSTRAINT servicios_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.clientes (
@@ -87,6 +88,8 @@ CREATE TABLE public.citas (
   anticipo_verificado_at timestamp with time zone,
   reprogramacion_estado text,
   fecha_hora_solicitada timestamp with time zone,
+  comision_categoria text,
+  comision_herramientas boolean,
   CONSTRAINT citas_pkey PRIMARY KEY (id),
   CONSTRAINT citas_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id),
   CONSTRAINT citas_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id),
@@ -109,6 +112,7 @@ CREATE TABLE public.productos (
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
   image_url text,
   precio_tienda numeric DEFAULT NULL::numeric,
+  orden integer DEFAULT 0,
   CONSTRAINT productos_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.inventario_movimientos (
@@ -180,6 +184,10 @@ CREATE TABLE public.asistencias (
   cierre_automatico boolean DEFAULT false,
   editado_admin boolean DEFAULT false,
   horas_extras numeric DEFAULT 0,
+  selfie_url text,
+  lat double precision,
+  lng double precision,
+  en_almuerzo boolean DEFAULT false,
   CONSTRAINT asistencias_pkey PRIMARY KEY (id),
   CONSTRAINT asistencias_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
 );
@@ -537,7 +545,6 @@ CREATE TABLE public.inducciones (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   titulo character varying NOT NULL,
   descripcion text,
-  categoria character varying DEFAULT 'Servicio Técnico'::character varying,
   servicio_id uuid,
   youtube_url text NOT NULL,
   herramientas_requeridas ARRAY DEFAULT '{}'::text[],
@@ -547,6 +554,10 @@ CREATE TABLE public.inducciones (
   creado_por uuid,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  categoria character varying DEFAULT 'Servicio Técnico'::character varying,
+  pdf_urls ARRAY DEFAULT '{}'::text[],
+  nivel text DEFAULT 'basico'::text,
+  dirigido_a ARRAY DEFAULT '{todos}'::text[],
   CONSTRAINT inducciones_pkey PRIMARY KEY (id),
   CONSTRAINT inducciones_servicio_id_fkey FOREIGN KEY (servicio_id) REFERENCES public.servicios(id),
   CONSTRAINT inducciones_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.profiles(id)
@@ -582,4 +593,73 @@ CREATE TABLE public.induccion_progreso (
   CONSTRAINT induccion_progreso_pkey PRIMARY KEY (id),
   CONSTRAINT induccion_progreso_induccion_id_fkey FOREIGN KEY (induccion_id) REFERENCES public.inducciones(id),
   CONSTRAINT induccion_progreso_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.config_turnos (
+  id text NOT NULL DEFAULT 'turno_offset'::text,
+  fecha text NOT NULL,
+  rotation_offset integer NOT NULL DEFAULT 0,
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT config_turnos_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.solicitudes_permisos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  barbero_id uuid NOT NULL,
+  fecha date NOT NULL DEFAULT CURRENT_DATE,
+  fecha_fin date,
+  hora_inicio text,
+  hora_fin text,
+  todo_el_dia boolean DEFAULT true,
+  tipo_permiso text NOT NULL DEFAULT 'jornada_completa'::text,
+  motivo text NOT NULL,
+  comprobante_url text,
+  archivo_nombre text,
+  estado text NOT NULL DEFAULT 'pendiente'::text CHECK (estado = ANY (ARRAY['pendiente'::text, 'aprobado'::text, 'rechazado'::text, 'cancelado'::text])),
+  revisado_por text,
+  revisado_por_id uuid,
+  revisado_at timestamp with time zone,
+  motivo_rechazo text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT solicitudes_permisos_pkey PRIMARY KEY (id),
+  CONSTRAINT solicitudes_permisos_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id),
+  CONSTRAINT solicitudes_permisos_revisado_por_id_fkey FOREIGN KEY (revisado_por_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.comision_categorias (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL UNIQUE,
+  descripcion text,
+  requiere_herramientas boolean DEFAULT false,
+  is_active boolean DEFAULT true,
+  orden integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT comision_categorias_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.comision_barbero_horario (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  barbero_id uuid NOT NULL,
+  dia_semana smallint NOT NULL CHECK (dia_semana >= 0 AND dia_semana <= 6),
+  categoria_id uuid NOT NULL,
+  tiene_herramientas boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT comision_barbero_horario_pkey PRIMARY KEY (id),
+  CONSTRAINT comision_barbero_horario_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id),
+  CONSTRAINT comision_barbero_horario_categoria_id_fkey FOREIGN KEY (categoria_id) REFERENCES public.comision_categorias(id)
+);
+CREATE TABLE public.comision_barbero_servicios (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  barbero_id uuid NOT NULL,
+  servicio_id uuid NOT NULL,
+  categoria_id uuid NOT NULL,
+  comision_tipo_con text DEFAULT 'porcentaje'::text CHECK (comision_tipo_con = ANY (ARRAY['porcentaje'::text, 'fija'::text, 'ninguna'::text])),
+  comision_valor_con numeric DEFAULT 0,
+  comision_tipo_sin text DEFAULT 'porcentaje'::text CHECK (comision_tipo_sin = ANY (ARRAY['porcentaje'::text, 'fija'::text, 'ninguna'::text])),
+  comision_valor_sin numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT comision_barbero_servicios_pkey PRIMARY KEY (id),
+  CONSTRAINT comision_barbero_servicios_barbero_id_fkey FOREIGN KEY (barbero_id) REFERENCES public.profiles(id),
+  CONSTRAINT comision_barbero_servicios_servicio_id_fkey FOREIGN KEY (servicio_id) REFERENCES public.servicios(id),
+  CONSTRAINT comision_barbero_servicios_categoria_id_fkey FOREIGN KEY (categoria_id) REFERENCES public.comision_categorias(id)
 );
