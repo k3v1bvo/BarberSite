@@ -1444,98 +1444,108 @@ function ReservarContent() {
                       )}
                     </div>
                     
-                    <div className="flex flex-wrap gap-2">
-                      {promociones.filter(p => p.tipo === '2x1').map(p => {
-                        const cleanName = p.nombre.replace(new RegExp(`^${p.icono}\\s*`, 'u'), '').trim()
-                        const isSelected = promoSeleccionada === p.id
-                        const is2x1 = p.tipo === '2x1'
-                        const servActual = servicios.find(s => s.id === formData.servicio_id)
-                        const is2x1DisabledServicio = is2x1 && servActual && !esServicio2x1Valido(servActual)
-                        const diaHoy = getDiaHoyLaPaz()
-                        const diaPermitido = config2x1.dia_reserva_permitido ?? 1 // 1 = Lunes
-                        const is2x1BloqueadoPorDia = is2x1 && config2x1.solo_reserva_lunes && diaHoy !== diaPermitido
+                    {(() => {
+                      const diaHoy = getDiaHoyLaPaz()
+                      const diaPermitido = config2x1.dia_reserva_permitido ?? 1 // 1 = Lunes
+                      const is2x1BloqueadoPorDia = config2x1.solo_reserva_lunes && diaHoy !== diaPermitido
 
-                        return (
-                          <div
-                            key={p.id}
-                            onClick={() => {
+                      return (
+                        <>
+                          <div className="flex flex-wrap gap-2">
+                            {promociones.filter(p => p.tipo === '2x1').map(p => {
+                              const cleanName = p.nombre.replace(new RegExp(`^${p.icono}\\s*`, 'u'), '').trim()
+                              const isSelected = promoSeleccionada === p.id
+                              const servActual = servicios.find(s => s.id === formData.servicio_id)
+                              const is2x1DisabledServicio = servActual && !esServicio2x1Valido(servActual)
+
                               if (is2x1BloqueadoPorDia) {
-                                setSelectedPromoForModal({
-                                  ...p,
-                                  descripcion: '✂️ La promo 2×1 de los Martes se reserva online únicamente los días LUNES (1 día de anticipación).\n\nLos días Martes la atención 2×1 es 100% presencial por orden de llegada en la barbería debido a la alta afluencia de clientes.'
-                                })
-                                return
+                                return (
+                                  <div
+                                    key={p.id}
+                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-zinc-950/80 border border-amber-500/25 rounded-2xl w-full"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-xl shrink-0">
+                                        ✂️
+                                      </div>
+                                      <div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <p className="font-black text-xs text-white uppercase tracking-tight">{cleanName}</p>
+                                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                            🏪 Atención Presencial en Tienda
+                                          </span>
+                                        </div>
+                                        <p className="text-[10px] text-zinc-400 mt-0.5 leading-relaxed">
+                                          Los días Martes el 2×1 se atiende por orden de llegada directo en la barbería. <em>(Reservas online solo habilitadas los Lunes)</em>.
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedPromoForModal({
+                                          ...p,
+                                          descripcion: '✂️ Promoción 2×1 de los Martes (Pagan 1 y entran 2):\n\n• Los días MARTES la atención es 100% presencial por orden de llegada directamente en la barbería debido a la alta concurrencia de clientes.\n\n• Las reservas online del 2×1 se habilitan de manera exclusiva los días LUNES (1 día de anticipación).\n\n• Si vienes solo un Martes, ¡también puedes elegir tu Servicio Extra gratis en caja!'
+                                        })
+                                      }}
+                                      className="text-[10px] font-black text-amber-300 hover:text-black hover:bg-amber-400 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 transition flex items-center justify-center gap-1 shrink-0 self-start sm:self-center"
+                                    >
+                                      <span>ℹ️ ¿Cómo funciona?</span>
+                                    </button>
+                                  </div>
+                                )
                               }
-                              if (is2x1DisabledServicio) return
-                              if (is2x1) {
-                                setPromoSeleccionada(isSelected ? '' : p.id)
-                                if (!isSelected) setModo2x1('acompanante')
-                              } else {
-                                setPromoSeleccionada(isSelected ? '' : p.id)
-                              }
-                            }}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left ${
-                              is2x1DisabledServicio
-                                ? 'opacity-40 cursor-not-allowed bg-black/20 border-zinc-800/50'
-                                : is2x1BloqueadoPorDia
-                                  ? 'bg-zinc-950/60 border-zinc-800/60 hover:border-amber-500/30 cursor-pointer'
-                                  : isSelected
-                                    ? 'bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)] cursor-pointer'
-                                    : 'bg-black/40 border-zinc-800/80 hover:border-amber-500/40 cursor-pointer'
-                            }`}
-                          >
-                            <span className="text-sm flex-shrink-0">{p.icono || '🎁'}</span>
-                            <div className="min-w-0">
-                              <p className="font-black text-[11px] text-white leading-tight truncate">{cleanName}</p>
-                              <p className="text-[9px] text-zinc-500 leading-tight">
-                                {is2x1 
-                                  ? is2x1BloqueadoPorDia
-                                    ? 'Martes Presencial · Online solo Lunes'
-                                    : is2x1DisabledServicio 
-                                      ? 'Solo Corte / Barba' 
-                                      : '2×1 Martes' 
-                                  : p.tipo === 'cumpleanos' || p.tipo === 'servicio_gratis' 
-                                    ? '100% OFF' 
-                                    : `Bs. ${p.valor || 10} OFF`}
-                              </p>
-                            </div>
-                            {is2x1 && !isSelected && !is2x1BloqueadoPorDia && (
-                              <span className="text-[8px] font-black uppercase bg-amber-500 text-black px-2 py-0.5 rounded-md flex-shrink-0">Reservar</span>
-                            )}
-                            {is2x1BloqueadoPorDia && (
-                              <span className="text-[8px] font-bold uppercase bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded-md flex-shrink-0">Presencial</span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                if (is2x1BloqueadoPorDia) {
-                                  setSelectedPromoForModal({
-                                    ...p,
-                                    descripcion: '✂️ La promo 2×1 de los Martes se reserva online únicamente los días LUNES (1 día de anticipación).\n\nLos días Martes la atención 2×1 es 100% presencial por orden de llegada en la barbería debido a la alta afluencia de clientes.'
-                                  })
-                                } else {
-                                  setSelectedPromoForModal(p)
-                                }
-                              }}
-                              className="text-[8px] font-black text-amber-400 hover:text-white px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 transition flex-shrink-0"
-                            >
-                              Info
-                            </button>
-                          </div>
-                        )
-                      })}
-                    </div>
 
-                    {/* Panel expandido del 2x1 */}
-                    {promoElegida?.tipo === '2x1' && (
-                      <div className="mt-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl animate-in fade-in duration-300 space-y-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">{promoElegida.icono || '✂️'}</span>
-                          <p className="text-[11px] font-black text-amber-400 uppercase tracking-wide">
-                            ¡2×1 Activado! — Elige una opción:
-                          </p>
-                        </div>
+                              return (
+                                <div
+                                  key={p.id}
+                                  onClick={() => {
+                                    if (is2x1DisabledServicio) return
+                                    setPromoSeleccionada(isSelected ? '' : p.id)
+                                    if (!isSelected) setModo2x1('acompanante')
+                                  }}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left ${
+                                    is2x1DisabledServicio
+                                      ? 'opacity-40 cursor-not-allowed bg-black/20 border-zinc-800/50'
+                                      : isSelected
+                                        ? 'bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)] cursor-pointer'
+                                        : 'bg-black/40 border-zinc-800/80 hover:border-amber-500/40 cursor-pointer'
+                                  }`}
+                                >
+                                  <span className="text-sm flex-shrink-0">{p.icono || '🎁'}</span>
+                                  <div className="min-w-0">
+                                    <p className="font-black text-[11px] text-white leading-tight truncate">{cleanName}</p>
+                                    <p className="text-[9px] text-zinc-500 leading-tight">
+                                      {is2x1DisabledServicio ? 'Solo Corte / Barba' : '2×1 Martes'}
+                                    </p>
+                                  </div>
+                                  {!isSelected && (
+                                    <span className="text-[8px] font-black uppercase bg-amber-500 text-black px-2 py-0.5 rounded-md flex-shrink-0">Reservar</span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      setSelectedPromoForModal(p)
+                                    }}
+                                    className="text-[8px] font-black text-amber-400 hover:text-white px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 transition flex-shrink-0"
+                                  >
+                                    Info
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          {/* Panel expandido del 2x1 (Solo cuando está permitido reservar online) */}
+                          {promoElegida?.tipo === '2x1' && !is2x1BloqueadoPorDia && (
+                            <div className="mt-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl animate-in fade-in duration-300 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm">{promoElegida.icono || '✂️'}</span>
+                                <p className="text-[11px] font-black text-amber-400 uppercase tracking-wide">
+                                  ¡2×1 Activado! — Elige una opción:
+                                </p>
+                              </div>
 
                         {/* Tabs de modo */}
                         <div className="flex gap-2">
@@ -1606,6 +1616,9 @@ function ReservarContent() {
                         </div>
                       </div>
                     )}
+                  </>
+                )
+              })()}
 
                     {/* Banner para promos que NO son 2x1 */}
                     {promoElegida && promoElegida.tipo !== '2x1' && (
