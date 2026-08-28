@@ -73,21 +73,27 @@ export function isTimeSlotAvailable(
     return { disponible: false, motivo: `El servicio finaliza después del cierre (${rangoFin})` }
   }
 
-  // 2. Validar tiempo mínimo de anticipación si la fecha es hoy (en hora de Bolivia)
+  // 2. Validar tiempo mínimo de anticipación (en hora de Bolivia)
   if (fecha && tiempoMinimoReserva > 0) {
-    const nowBolivia = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/La_Paz' }))
-    const hoyBolivia = `${nowBolivia.getFullYear()}-${String(nowBolivia.getMonth() + 1).padStart(2, '0')}-${String(nowBolivia.getDate()).padStart(2, '0')}`
+    try {
+      const nowBolivia = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/La_Paz' }))
+      const [y, m, d] = fecha.split('-').map(Number)
+      const [h, min] = hora.split(':').map(Number)
+      const appointmentDate = new Date(y, m - 1, d, h, min, 0)
 
-    if (fecha === hoyBolivia) {
-      const currentMinutes = nowBolivia.getHours() * 60 + nowBolivia.getMinutes()
-      const diffMinutos = slotInicio - currentMinutes
+      const diffMs = appointmentDate.getTime() - nowBolivia.getTime()
+      const diffMinutos = Math.floor(diffMs / 60000)
+
       if (diffMinutos < tiempoMinimoReserva) {
+        const anticipacionTexto = tiempoMinimoReserva >= 1440 
+          ? `${Math.round(tiempoMinimoReserva / 1440)} día` 
+          : `${Math.round(tiempoMinimoReserva / 60)} hr(s)`
         return { 
           disponible: false, 
-          motivo: `Requiere al menos ${Math.round(tiempoMinimoReserva / 60)}h de anticipación` 
+          motivo: `Requiere al menos ${anticipacionTexto} de anticipación` 
         }
       }
-    }
+    } catch (_) {}
   }
 
   // 3. Validar colisión con citas o bloqueos existentes
