@@ -51,6 +51,22 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
 
   useEffect(() => {
     if (transaction) {
+      let initEf = transaction.monto_efectivo !== undefined && Number(transaction.monto_efectivo) > 0 ? String(transaction.monto_efectivo) : ''
+      let initQr = transaction.monto_qr !== undefined && Number(transaction.monto_qr) > 0 ? String(transaction.monto_qr) : ''
+
+      if ((!initEf || !initQr) && transaction.notas) {
+        const efMatch = transaction.notas.match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
+        const qrMatch = transaction.notas.match(/QR:\s*Bs\s*([0-9.]+)/i)
+        if (efMatch && !initEf) initEf = efMatch[1]
+        if (qrMatch && !initQr) initQr = qrMatch[1]
+      }
+
+      if (transaction.metodo_pago === 'mixto' && !initEf && !initQr) {
+        const total = Number(transaction.costo || 0)
+        initEf = String(Math.floor(total / 2))
+        initQr = String(Math.round((total - Math.floor(total / 2)) * 100) / 100)
+      }
+
       setForm({
         nombre: transaction.nombre || '',
         ci: transaction.ci && transaction.ci !== '0000000' && transaction.ci !== '—' ? transaction.ci : '',
@@ -59,8 +75,8 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
         costo: String(transaction.costo || 0),
         tipo_movimiento: transaction.tipo_movimiento || 'INGRESO',
         metodo_pago: transaction.metodo_pago || 'efectivo',
-        monto_efectivo: transaction.monto_efectivo !== undefined ? String(transaction.monto_efectivo) : '',
-        monto_qr: transaction.monto_qr !== undefined ? String(transaction.monto_qr) : '',
+        monto_efectivo: initEf,
+        monto_qr: initQr,
         notas: transaction.notas || '',
       })
       setShowConfirmDelete(false)
@@ -71,8 +87,30 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.costo || parseFloat(form.costo) < 0) {
+    const costoNum = parseFloat(form.costo)
+    if (isNaN(costoNum) || costoNum < 0) {
       return toastError('Ingresa un monto válido')
+    }
+
+    const realEf = form.metodo_pago === 'efectivo' 
+      ? costoNum 
+      : (form.metodo_pago === 'mixto' ? (parseFloat(form.monto_efectivo) || 0) : 0)
+      
+    const realQr = (form.metodo_pago === 'qr' || form.metodo_pago === 'tarjeta') 
+      ? costoNum 
+      : (form.metodo_pago === 'mixto' ? (parseFloat(form.monto_qr) || 0) : 0)
+
+    if (form.metodo_pago === 'mixto' && (realEf <= 0 && realQr <= 0)) {
+      return toastError('En pago mixto debes ingresar al menos el monto en efectivo o QR')
+    }
+
+    let finalNotas = form.notas || ''
+    if (form.metodo_pago === 'mixto') {
+      if (finalNotas.includes('Efectivo: Bs')) {
+        finalNotas = finalNotas.replace(/Efectivo:\s*Bs\s*[0-9.]+\s*\|\s*QR:\s*Bs\s*[0-9.]+/i, `Efectivo: Bs ${realEf} | QR: Bs ${realQr}`)
+      } else {
+        finalNotas = `Efectivo: Bs ${realEf} | QR: Bs ${realQr}${finalNotas ? ' | ' + finalNotas : ''}`
+      }
     }
 
     setLoading(true)
@@ -86,12 +124,12 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
           ci: form.ci || '—',
           cuenta_detalle: form.cuenta_detalle,
           glosa: form.glosa,
-          costo: parseFloat(form.costo),
+          costo: costoNum,
           tipo_movimiento: form.tipo_movimiento,
           metodo_pago: form.metodo_pago,
-          monto_efectivo: form.metodo_pago === 'efectivo' ? parseFloat(form.costo) : (form.metodo_pago === 'mixto' ? parseFloat(form.monto_efectivo || '0') : 0),
-          monto_qr: form.metodo_pago === 'qr' ? parseFloat(form.costo) : (form.metodo_pago === 'mixto' ? parseFloat(form.monto_qr || '0') : 0),
-          notas: form.notas || null,
+          monto_efectivo: realEf,
+          monto_qr: realQr,
+          notas: finalNotas || null,
         }),
       })
 
@@ -245,7 +283,16 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => setForm({ ...form, metodo_pago: m.id })}
+                  onClick={() => {
+                    const total = parseFloat(form.costo || '0')
+                    let ef = form.monto_efectivo
+                    let qr = form.monto_qr
+                    if (m.id === 'mixto' && (!ef || !qr || parseFloat(ef) === 0 || parseFloat(qr) === 0) && total > 0) {
+                      ef = String(Math.floor(total / 2))
+                      qr = String(Math.round((total - Math.floor(total / 2)) * 100) / 100)
+                    }
+                    setForm({ ...form, metodo_pago: m.id, monto_efectivo: ef, monto_qr: qr })
+                  }}
                   className={`py-2 rounded-xl text-[11px] font-bold border transition ${
                     form.metodo_pago === m.id
                       ? 'bg-amber-500 text-black border-amber-400'

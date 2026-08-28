@@ -82,6 +82,9 @@ export async function GET(request: NextRequest) {
             cliente_id,
             metodo_pago,
             anticipo_monto,
+            monto_efectivo,
+            monto_tarjeta,
+            monto_transferencia,
             notas,
             clientes (nombre, ci, telefono),
             servicios (nombre),
@@ -141,7 +144,22 @@ export async function GET(request: NextRequest) {
               } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpRaw)) {
                 realQr += resto
               } else if (mpRaw === 'mixto') {
-                realEf = resto // fallback
+                const cEf = Number((c as any).monto_efectivo)
+                const cQr = Number((c as any).monto_transferencia || (c as any).monto_tarjeta)
+                if (cEf > 0 || cQr > 0) {
+                  realEf = cEf
+                  realQr = cQr + anticipoQr
+                } else {
+                  const efMatch = String(c.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
+                  const qrMatch = String(c.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
+                  if (efMatch || qrMatch) {
+                    realEf = efMatch ? parseFloat(efMatch[1]) : 0
+                    realQr = (qrMatch ? parseFloat(qrMatch[1]) : 0) + anticipoQr
+                  } else {
+                    realEf = Math.floor(resto / 2)
+                    realQr = (resto - Math.floor(resto / 2)) + anticipoQr
+                  }
+                }
               }
 
               if (anticipoQr > 0 && realEf > 0) {
@@ -511,6 +529,15 @@ export async function PATCH(request: NextRequest) {
           usuario_registro: profile?.full_name || 'Coordinador',
         }).select().single()
 
+        // Sincronizar también la tabla citas
+        await supabase.from('citas').update({
+          metodo_pago: realMetodo,
+          monto_efectivo: realEf,
+          monto_transferencia: realQr,
+          notas: notas || undefined,
+          precio: precioCita,
+        }).eq('id', citaId)
+
         return NextResponse.json({ success: true, data: txNueva })
       }
     }
@@ -538,6 +565,19 @@ export async function PATCH(request: NextRequest) {
       .single()
 
     if (error) throw error
+
+    // Si la transacción está asociada a una cita, sincronizar la cita
+    if (data && data.cita_id) {
+      const citaUpdate: any = {}
+      if (updatePayload.metodo_pago !== undefined) citaUpdate.metodo_pago = updatePayload.metodo_pago
+      if (updatePayload.monto_efectivo !== undefined) citaUpdate.monto_efectivo = updatePayload.monto_efectivo
+      if (updatePayload.monto_qr !== undefined) citaUpdate.monto_transferencia = updatePayload.monto_qr
+      if (updatePayload.notas !== undefined) citaUpdate.notas = updatePayload.notas
+      if (Object.keys(citaUpdate).length > 0) {
+        await supabase.from('citas').update(citaUpdate).eq('id', data.cita_id)
+      }
+    }
+
     return NextResponse.json({ success: true, data })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

@@ -330,7 +330,13 @@ export async function POST(request: NextRequest) {
 
       if (estado === 'completado') {
         insertData.updated_at = ahora.toISOString()
-        insertData.metodo_pago = metodo_pago || 'efectivo'
+        const efVal = metodo_pago === 'mixto' ? Number(monto_efectivo || 0) : (metodo_pago === 'efectivo' ? totalRealACobrar : 0)
+        const qrVal = (metodo_pago === 'mixto' ? Number(monto_qr || 0) : (metodo_pago === 'qr' || metodo_pago === 'tarjeta' ? totalRealACobrar : 0)) + anticipoQr
+        const realMetodoCita = (anticipoQr > 0 && efVal > 0) || metodo_pago === 'mixto' ? 'mixto' : (metodo_pago || 'efectivo')
+
+        insertData.metodo_pago = realMetodoCita
+        insertData.monto_efectivo = efVal
+        insertData.monto_transferencia = qrVal
         insertData.propinas = propinas || 0
         insertData.comision_barbero = comisionTotal
         insertData.comision_categoria = comisionCategoria
@@ -380,6 +386,8 @@ export async function POST(request: NextRequest) {
           delete insertData.comision_herramientas
           delete insertData.total
           delete insertData.descuento
+          delete insertData.monto_efectivo
+          delete insertData.monto_transferencia
           const retryRes = cita_id
             ? await supabase.from('citas').update(insertData).eq('id', cita_id).select('id').single()
             : await supabase.from('citas').insert(insertData).select('id').single()
@@ -512,6 +520,24 @@ export async function POST(request: NextRequest) {
         } catch (e) { console.error('Error registrando movimiento inventario:', e) }
 
         // Registrar transacción contable por producto
+        const totalItemsVal = productosCarrito.reduce((acc, p) => acc + (p.precio * p.cantidad), 0)
+        const itemTotal = item.precio * item.cantidad
+        const ratio = totalItemsVal > 0 ? (itemTotal / totalItemsVal) : 1
+        
+        let prodEf = metodo_pago === 'efectivo' ? itemTotal : 0
+        let prodQr = (metodo_pago === 'qr' || metodo_pago === 'tarjeta') ? itemTotal : 0
+        if (metodo_pago === 'mixto') {
+          if (!servicio_id) {
+            prodEf = Math.round(Number(monto_efectivo || 0) * ratio * 100) / 100
+            prodQr = Math.round(Number(monto_qr || 0) * ratio * 100) / 100
+          } else {
+            const totalGlobal = Math.max(0, precioBase - descuentoTotal) + totalItemsVal
+            const globalRatio = totalGlobal > 0 ? (itemTotal / totalGlobal) : 0
+            prodEf = Math.round(Number(monto_efectivo || 0) * globalRatio * 100) / 100
+            prodQr = Math.round(Number(monto_qr || 0) * globalRatio * 100) / 100
+          }
+        }
+
         await adminSupabase
           .from('transactions')
           .insert({
@@ -523,7 +549,7 @@ export async function POST(request: NextRequest) {
             cuenta_detalle: item.nombre,
             producto_id: item.id,
             glosa: `Venta POS - ${item.cantidad}x ${item.nombre}`,
-            costo: item.precio * item.cantidad,
+            costo: itemTotal,
             tipo_movimiento: 'INGRESO',
             subcategoria: 'PRODUCTO_VENTA',
             es_sancion: false,
@@ -531,9 +557,9 @@ export async function POST(request: NextRequest) {
             cliente_id: finalClienteId,
             cita_id: citaId || null,
             metodo_pago: metodo_pago || 'efectivo',
-            monto_efectivo: metodo_pago === 'mixto' ? Number(monto_efectivo || 0) : (metodo_pago === 'efectivo' ? item.precio * item.cantidad : 0),
-            monto_qr: metodo_pago === 'mixto' ? Number(monto_qr || 0) : (metodo_pago === 'qr' || metodo_pago === 'tarjeta' ? item.precio * item.cantidad : 0),
-            notas: metodo_pago === 'mixto' ? `Efectivo: Bs ${Number(monto_efectivo || 0)} | QR: Bs ${Number(monto_qr || 0)}` : null,
+            monto_efectivo: prodEf,
+            monto_qr: prodQr,
+            notas: metodo_pago === 'mixto' ? `Efectivo: Bs ${prodEf} | QR: Bs ${prodQr}` : null,
             comprobante_url: comprobante_url || null,
             usuario_registro: profile.full_name || 'Coordinador',
           })
@@ -614,6 +640,7 @@ export async function POST(request: NextRequest) {
         const precioNetoServicio = Math.max(0, precioBase - descuentoTotal)
         const restoPagar = Math.max(0, precioNetoServicio - anticipoQr)
         const metodoResto = metodo_pago || 'efectivo'
+        const totalItemsVal = productosCarrito.reduce((acc, p) => acc + (p.precio * p.cantidad), 0)
 
         let realEfectivo = 0
         let realQr = anticipoQr // El anticipo siempre fue QR
@@ -624,14 +651,21 @@ export async function POST(request: NextRequest) {
         } else if (metodoResto === 'qr' || metodoResto === 'tarjeta') {
           realQr += restoPagar
         } else if (metodoResto === 'mixto') {
-          realEfectivo = Number(monto_efectivo || 0)
-          realQr += Number(monto_qr || 0)
+          if (totalItemsVal > 0) {
+            const totalGlobal = precioNetoServicio + totalItemsVal
+            const servRatio = totalGlobal > 0 ? (precioNetoServicio / totalGlobal) : 1
+            realEfectivo = Math.round(Number(monto_efectivo || 0) * servRatio * 100) / 100
+            realQr += Math.round(Number(monto_qr || 0) * servRatio * 100) / 100
+          } else {
+            realEfectivo = Number(monto_efectivo || 0)
+            realQr += Number(monto_qr || 0)
+          }
         }
 
         // Si hubo anticipo QR + efectivo en caja => es mixto real
         if (anticipoQr > 0 && realEfectivo > 0) {
           realMetodo = 'mixto'
-        } else if (anticipoQr > 0 && realEfectivo === 0) {
+        } else if (anticipoQr > 0 && realEfectivo === 0 && metodoResto !== 'mixto') {
           realMetodo = 'qr'
         }
 

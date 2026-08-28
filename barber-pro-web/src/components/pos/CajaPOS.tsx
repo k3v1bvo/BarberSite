@@ -2660,8 +2660,17 @@ export function CajaPOS() {
                         {(['efectivo', 'qr', 'mixto'] as const).map((m) => (
                           <button
                             key={m}
+                            type="button"
                             className={`py-2 rounded-md text-xs font-semibold transition ${formData.metodo_pago === m ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-white'}`}
-                            onClick={() => setFormData(p => ({...p, metodo_pago: m}))}
+                            onClick={() => {
+                              if (m === 'mixto') {
+                                const ef = (formData.monto_efectivo && formData.monto_efectivo > 0) ? formData.monto_efectivo : Math.floor(totalACobrar / 2)
+                                const qr = (formData.monto_qr && formData.monto_qr > 0) ? formData.monto_qr : Math.round((totalACobrar - ef) * 100) / 100
+                                setFormData(p => ({ ...p, metodo_pago: m, monto_efectivo: ef, monto_qr: qr, notas: `Efectivo: Bs ${ef} | QR: Bs ${qr}` }))
+                              } else {
+                                setFormData(p => ({ ...p, metodo_pago: m }))
+                              }
+                            }}
                           >
                             {m === 'efectivo' ? '💵 Efectivo' : m === 'qr' ? '📱 QR' : '🔄 Mixto'}
                           </button>
@@ -2707,20 +2716,53 @@ export function CajaPOS() {
 
                       {formData.metodo_pago === 'mixto' && (
                         <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-2 mt-2">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">🔄 Desglose</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">🔄 Desglose Mixto</p>
+                            <span className="text-[10px] font-mono text-zinc-400">Total: {formatCurrency(totalACobrar)}</span>
+                          </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className="text-[9px] font-bold uppercase text-zinc-500 block mb-0.5">Efectivo</label>
-                              <input type="number" step="0.01" min="0" placeholder="0" id="mixto-efectivo"
-                                className="w-full h-9 bg-zinc-950 border border-amber-500/30 rounded-lg px-2 text-sm text-white outline-none"
-                                onChange={(e) => setFormData(p => ({...p, monto_efectivo: Number(e.target.value) || 0, notas: `Efectivo: Bs ${e.target.value} | QR: Bs ${p.monto_qr}`}))}
+                              <label className="text-[9px] font-bold uppercase text-zinc-400 block mb-0.5">💵 Efectivo (Bs)</label>
+                              <input 
+                                type="number" 
+                                step="any" 
+                                min="0" 
+                                placeholder="0.00" 
+                                id="mixto-efectivo"
+                                value={formData.monto_efectivo !== undefined && formData.monto_efectivo !== 0 ? formData.monto_efectivo : ''}
+                                className="w-full h-9 bg-zinc-950 border border-amber-500/30 rounded-lg px-2 text-sm font-mono font-bold text-emerald-400 outline-none focus:border-amber-400"
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                                  const autoQr = totalACobrar >= val ? Math.round((totalACobrar - val) * 100) / 100 : formData.monto_qr
+                                  setFormData(p => ({
+                                    ...p, 
+                                    monto_efectivo: val, 
+                                    monto_qr: autoQr, 
+                                    notas: `Efectivo: Bs ${val} | QR: Bs ${autoQr}`
+                                  }))
+                                }}
                               />
                             </div>
                             <div>
-                              <label className="text-[9px] font-bold uppercase text-zinc-500 block mb-0.5">QR</label>
-                              <input type="number" step="0.01" min="0" placeholder="0" data-mixto-qr
-                                className="w-full h-9 bg-zinc-950 border border-amber-500/30 rounded-lg px-2 text-sm text-white outline-none"
-                                onChange={(e) => setFormData(p => ({...p, monto_qr: Number(e.target.value) || 0, notas: `Efectivo: Bs ${p.monto_efectivo} | QR: Bs ${e.target.value}`}))}
+                              <label className="text-[9px] font-bold uppercase text-zinc-400 block mb-0.5">📱 QR (Bs)</label>
+                              <input 
+                                type="number" 
+                                step="any" 
+                                min="0" 
+                                placeholder="0.00" 
+                                data-mixto-qr
+                                value={formData.monto_qr !== undefined && formData.monto_qr !== 0 ? formData.monto_qr : ''}
+                                className="w-full h-9 bg-zinc-950 border border-amber-500/30 rounded-lg px-2 text-sm font-mono font-bold text-blue-400 outline-none focus:border-amber-400"
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                                  const autoEf = totalACobrar >= val ? Math.round((totalACobrar - val) * 100) / 100 : formData.monto_efectivo
+                                  setFormData(p => ({
+                                    ...p, 
+                                    monto_qr: val, 
+                                    monto_efectivo: autoEf, 
+                                    notas: `Efectivo: Bs ${autoEf} | QR: Bs ${val}`
+                                  }))
+                                }}
                               />
                             </div>
                           </div>

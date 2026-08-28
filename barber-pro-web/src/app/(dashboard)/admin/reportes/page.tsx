@@ -237,8 +237,17 @@ export default function ReportesPage() {
         // Métodos de pago sólo se suman para ingresos cobrados
         if (isIngreso) {
           if (tx.metodo_pago === 'mixto') {
-            metodos['efectivo'] += Number(tx.monto_efectivo || 0)
-            metodos['qr'] += Number(tx.monto_qr || 0)
+            const ef = Number(tx.monto_efectivo) || 0
+            const qr = Number(tx.monto_qr) || 0
+            if (ef > 0 || qr > 0) {
+              metodos['efectivo'] += ef
+              metodos['qr'] += qr
+            } else {
+              const efMatch = String(tx.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
+              const qrMatch = String(tx.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
+              metodos['efectivo'] += efMatch ? parseFloat(efMatch[1]) : Math.floor(costo / 2)
+              metodos['qr'] += qrMatch ? parseFloat(qrMatch[1]) : (costo - Math.floor(costo / 2))
+            }
           } else if (tx.metodo_pago) {
             metodos[tx.metodo_pago] = (metodos[tx.metodo_pago] || 0) + costo
           }

@@ -443,14 +443,23 @@ export default function CajaChicaPage() {
     if (mpLower === 'efectivo') return { ef: Number(tx.costo || 0), qr: 0 }
     if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)) return { ef: 0, qr: Number(tx.costo || 0) }
     if (mpLower === 'mixto') {
-      if (tx.monto_efectivo !== undefined || tx.monto_qr !== undefined) {
-        return { ef: Number(tx.monto_efectivo || 0), qr: Number(tx.monto_qr || 0) }
+      const efVal = Number(tx.monto_efectivo)
+      const qrVal = Number(tx.monto_qr)
+      if (efVal > 0 || qrVal > 0) {
+        return { ef: efVal || 0, qr: qrVal || 0 }
       }
       const efMatch = String(tx.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
       const qrMatch = String(tx.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
+      if (efMatch || qrMatch) {
+        return {
+          ef: efMatch ? parseFloat(efMatch[1]) : 0,
+          qr: qrMatch ? parseFloat(qrMatch[1]) : 0
+        }
+      }
+      const half = Math.floor(Number(tx.costo || 0) / 2)
       return {
-        ef: efMatch ? parseFloat(efMatch[1]) : 0,
-        qr: qrMatch ? parseFloat(qrMatch[1]) : Number(tx.costo || 0)
+        ef: half,
+        qr: Number(tx.costo || 0) - half
       }
     }
     return { ef: Number(tx.costo || 0), qr: 0 }
