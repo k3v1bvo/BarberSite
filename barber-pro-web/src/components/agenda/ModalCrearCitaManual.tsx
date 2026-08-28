@@ -15,9 +15,10 @@ import {
   Clock,
   Calendar,
   AlertCircle,
-  Loader2
+  Loader2,
+  Zap
 } from 'lucide-react'
-import { generateSmartSlots, isTimeSlotAvailable, minutesToTimeString, timeStringToMinutes } from '@/lib/booking/booking-slots'
+import { generateSmartSlots, isTimeSlotAvailable, minutesToTimeString, timeStringToMinutes, formatTime12h } from '@/lib/booking/booking-slots'
 
 interface Servicio {
   id: string
@@ -85,12 +86,20 @@ export function ModalCrearCitaManual({
   const [horaCita, setHoraCita] = useState('10:00')
   const [notas, setNotas] = useState('')
 
-  // Disponibilidad de Horarios
+  // Disponibilidad de Horarios y Reloj Libre
   const [slots, setSlots] = useState<TimeSlot[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [barberoDisponibleDia, setBarberoDisponibleDia] = useState(true)
   const [motivoNoDisponible, setMotivoNoDisponible] = useState('')
-  const [mostrarHoraPersonalizada, setMostrarHoraPersonalizada] = useState(false)
+  const [modoHoraLibre, setModoHoraLibre] = useState(false)
+  const [horasOcupadas, setHorasOcupadas] = useState<Array<{ hora: string; duracion: number }>>([])
+  const [rangoHorario, setRangoHorario] = useState({ inicio: '09:00', fin: '20:00' })
+
+  const ajustarHoraMinutos = (delta: number) => {
+    const base = horaCita ? timeStringToMinutes(horaCita) : timeStringToMinutes(rangoHorario.inicio)
+    const nuevo = Math.max(timeStringToMinutes(rangoHorario.inicio), Math.min(timeStringToMinutes(rangoHorario.fin), base + delta))
+    setHoraCita(minutesToTimeString(nuevo))
+  }
 
   // Carga inicial de Servicios y Barberos
   useEffect(() => {
@@ -162,6 +171,7 @@ export function ModalCrearCitaManual({
         setBarberoDisponibleDia(false)
         setMotivoNoDisponible(data.motivo || 'El barbero no atiende en esta fecha')
         setSlots([])
+        setHorasOcupadas([])
         return
       }
 
@@ -171,6 +181,8 @@ export function ModalCrearCitaManual({
       const horaInicioStr = data.hora_inicio || '09:00'
       const horaFinStr = data.hora_fin || '20:00'
       const ocupados: Array<{ hora: string; duracion: number }> = data.ocupados || []
+      setHorasOcupadas(ocupados)
+      setRangoHorario({ inicio: horaInicioStr, fin: horaFinStr })
 
       const srvObj = servicios.find(s => s.id === servicioId)
       const duracionServicio = srvObj?.duracion_minutos || 30
@@ -216,6 +228,22 @@ export function ModalCrearCitaManual({
     if (!barberoId) return toastError('Selecciona un barbero')
     if (modoCliente === 'existente' && !clienteId) return toastError('Selecciona un cliente de la lista')
     if (modoCliente === 'nuevo' && !nombreCliente.trim()) return toastError('Ingresa el nombre del cliente')
+
+    // Validar disponibilidad de la hora seleccionada
+    const srvObj = servicios.find(s => s.id === servicioId)
+    const duracionServicio = srvObj?.duracion_minutos || 30
+    const valHora = isTimeSlotAvailable(
+      horaCita,
+      duracionServicio,
+      horasOcupadas,
+      rangoHorario.inicio,
+      rangoHorario.fin,
+      fechaCita,
+      0
+    )
+    if (!valHora.disponible) {
+      return toastError(`El horario ${horaCita} no está disponible: ${valHora.motivo || 'Horario ocupado'}`)
+    }
 
     setSaving(true)
     try {
@@ -474,18 +502,9 @@ export function ModalCrearCitaManual({
 
             {/* Fecha y Selector de Horarios Disponibles */}
             <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                  Fecha de la Cita <span className="text-rose-500">*</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setMostrarHoraPersonalizada(!mostrarHoraPersonalizada)}
-                  className="text-[10px] font-bold text-amber-400 hover:underline"
-                >
-                  {mostrarHoraPersonalizada ? '← Ver Horarios Disponibles' : '✏️ Ingresar Hora Manual'}
-                </button>
-              </div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+                Fecha de la Cita <span className="text-rose-500">*</span>
+              </label>
 
               <Input
                 type="date"
@@ -495,8 +514,116 @@ export function ModalCrearCitaManual({
                 required
               />
 
-              {/* CHIPS DE HORARIOS DISPONIBLES */}
-              {!mostrarHoraPersonalizada && (
+              {/* Selector de modo: Horarios Disponibles vs Reloj Libre */}
+              <div className="flex p-1 bg-zinc-950 border border-zinc-800 rounded-2xl max-w-xs mx-auto shadow-inner mt-2">
+                <button
+                  type="button"
+                  onClick={() => setModoHoraLibre(false)}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+                    !modoHoraLibre
+                      ? 'bg-amber-500 text-black shadow-md'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Horarios</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModoHoraLibre(true)
+                    if (!horaCita) {
+                      const primerLibre = slots.find(s => s.disponible)
+                      if (primerLibre) setHoraCita(primerLibre.hora)
+                    }
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+                    modoHoraLibre
+                      ? 'bg-amber-500 text-black shadow-md'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Reloj Libre</span>
+                </button>
+              </div>
+
+              {modoHoraLibre ? (
+                /* MODO RELOJ LIBRE / HORA EXACTA */
+                <div className="p-5 bg-zinc-950 border border-amber-500/20 rounded-2xl space-y-4 animate-in fade-in">
+                  <div className="text-center">
+                    <span className="text-[10px] font-black uppercase text-amber-400 tracking-widest block mb-1">⏰ Reloj de Hora Exacta</span>
+                    <p className="text-xs text-zinc-400">Elige el minuto exacto a la que se atenderá al cliente.</p>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-3">
+                    <input
+                      type="time"
+                      value={horaCita}
+                      min={rangoHorario.inicio}
+                      max={rangoHorario.fin}
+                      onChange={(e) => setHoraCita(e.target.value)}
+                      className="bg-zinc-900 border-2 border-amber-500/40 text-amber-400 text-3xl font-mono font-black px-6 py-2.5 rounded-2xl outline-none focus:border-amber-400 text-center shadow-inner"
+                    />
+
+                    {/* Botones de ajuste rápido +/- 5 min y 15 min */}
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {[-15, -5, +5, +15].map((delta) => (
+                        <button
+                          key={delta}
+                          type="button"
+                          onClick={() => ajustarHoraMinutos(delta)}
+                          className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold border border-zinc-800 transition active:scale-95"
+                        >
+                          {delta > 0 ? `+${delta}m` : `${delta}m`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Validación en vivo de la hora elegida */}
+                  {horaCita && (() => {
+                    const duracionServicioMin = servicios.find(s => s.id === servicioId)?.duracion_minutos || 30
+                    const val = isTimeSlotAvailable(
+                      horaCita,
+                      duracionServicioMin,
+                      horasOcupadas,
+                      rangoHorario.inicio,
+                      rangoHorario.fin,
+                      fechaCita,
+                      0
+                    )
+                    const horaFinCalculada = minutesToTimeString(timeStringToMinutes(horaCita) + duracionServicioMin)
+                    const hora12 = formatTime12h(horaCita)
+                    const horaFin12 = formatTime12h(horaFinCalculada)
+
+                    if (!val.disponible) {
+                      return (
+                        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-center text-xs text-red-300 space-y-1">
+                          <p className="font-bold flex items-center justify-center gap-1.5">
+                            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                            <span>Horario no disponible</span>
+                          </p>
+                          <p className="text-red-300/80 text-[11px]">{val.motivo}</p>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-center text-xs text-emerald-300 space-y-1">
+                        <p className="font-bold flex items-center justify-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span>¡Horario libre y disponible!</span>
+                        </p>
+                        <p className="text-emerald-300/80 text-[11px]">
+                          La cita iniciará a las <strong>{hora12}</strong> ({horaCita}) y finalizará a las <strong>{horaFin12}</strong> ({duracionServicioMin} min).
+                        </p>
+                      </div>
+                    )
+                  })()}
+                </div>
+              ) : (
+                /* CHIPS DE HORARIOS DISPONIBLES */
                 <div className="p-4 bg-zinc-950 border border-white/5 rounded-xl space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-black uppercase tracking-widest text-amber-500 flex items-center gap-1.5">
@@ -544,28 +671,12 @@ export function ModalCrearCitaManual({
                   )}
 
                   <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-1 border-t border-white/5">
-                    <span>Hora seleccionada: <strong className="text-amber-400 font-mono text-xs">{horaCita}</strong></span>
+                    <span>Hora seleccionada: <strong className="text-amber-400 font-mono text-xs">{horaCita}</strong> ({formatTime12h(horaCita)})</span>
                     <span className="flex items-center gap-2">
                       <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span> Libre
                       <span className="inline-block w-2 h-2 rounded-full bg-zinc-700"></span> Ocupado
                     </span>
                   </div>
-                </div>
-              )}
-
-              {/* INPUT MANUAL DE HORA PERSONALIZADA */}
-              {mostrarHoraPersonalizada && (
-                <div className="p-4 bg-zinc-950 border border-white/5 rounded-xl space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
-                    Hora Exacta de Atención <span className="text-rose-500">*</span>
-                  </label>
-                  <Input
-                    type="time"
-                    value={horaCita}
-                    onChange={e => setHoraCita(e.target.value)}
-                    className="bg-zinc-900 border-zinc-800 text-xs font-bold text-white"
-                    required
-                  />
                 </div>
               )}
             </div>
