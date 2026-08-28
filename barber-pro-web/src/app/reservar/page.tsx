@@ -886,6 +886,9 @@ function ReservarContent() {
   const [modoHoraLibre, setModoHoraLibre] = useState(false)
   const [horaLibreCustom, setHoraLibreCustom] = useState('')
 
+  const hoyLocal = new Date()
+  const hoy = new Date(hoyLocal.getTime() - (hoyLocal.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
+
   // --- Helpers for Availability & Products ---
   const servicioSeleccionadoObj = servicios.find(s => s.id === formData.servicio_id)
   const duracionServicioMin = servicioSeleccionadoObj?.duracion_minutos || 30
