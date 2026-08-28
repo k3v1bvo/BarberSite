@@ -126,7 +126,7 @@ export default function ReportesPage() {
           .gte('fecha_hora', `${fechaInicio}T00:00:00`)
           .lte('fecha_hora', `${fechaFin}T23:59:59`)
           .limit(50000),
-        supabase.from('transactions').select('id, libro, fecha, ci, nombre, cuenta_codigo, cuenta_detalle, glosa, costo, tipo_movimiento, metodo_pago, usuario_registro, comprobante_url, subcategoria, monto_efectivo, monto_qr')
+        supabase.from('transactions').select('id, libro, fecha, ci, nombre, cuenta_codigo, cuenta_detalle, glosa, costo, tipo_movimiento, metodo_pago, usuario_registro, comprobante_url, subcategoria, monto_efectivo, monto_qr, notas')
           .gte('fecha', fechaInicio)
           .lte('fecha', fechaFin)
           .order('fecha', { ascending: true })
@@ -243,8 +243,8 @@ export default function ReportesPage() {
               metodos['efectivo'] += ef
               metodos['qr'] += qr
             } else {
-              const efMatch = String(tx.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
-              const qrMatch = String(tx.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
+              const efMatch = String((tx as any).notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
+              const qrMatch = String((tx as any).notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
               metodos['efectivo'] += efMatch ? parseFloat(efMatch[1]) : Math.floor(costo / 2)
               metodos['qr'] += qrMatch ? parseFloat(qrMatch[1]) : (costo - Math.floor(costo / 2))
             }
