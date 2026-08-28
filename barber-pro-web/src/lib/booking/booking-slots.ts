@@ -34,6 +34,20 @@ export function minutesToTimeString(minutes: number): string {
 }
 
 /**
+ * Convierte "HH:MM" (formato 24h) a "h:mm AM/PM" (ej. "08:00" -> "8:00 AM", "14:30" -> "2:30 PM").
+ */
+export function formatTime12h(timeStr: string): string {
+  if (!timeStr) return ''
+  const [hStr, mStr] = timeStr.split(':')
+  const h = parseInt(hStr, 10)
+  const m = mStr ? mStr.padStart(2, '0') : '00'
+  if (isNaN(h)) return timeStr
+  const period = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}:${m} ${period}`
+}
+
+/**
  * Valida si un horario específico está disponible para un servicio de cierta duración.
  */
 export function isTimeSlotAvailable(

@@ -2343,16 +2343,32 @@ export function CajaPOS() {
                       
                       {reservaFecha && (
                         <div className="space-y-2">
-                          <div className="flex items-center justify-between">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
                             <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
                               Hora de la Cita <span className="font-normal normal-case text-[10px] ml-1">({duracionServicioMin} min)</span>
                             </label>
-                            <input
-                              type="time"
-                              value={reservaHora}
-                              onChange={(e) => setReservaHora(e.target.value)}
-                              className="bg-zinc-800 border border-zinc-700 text-amber-400 text-xs font-bold px-2 py-1 rounded outline-none"
-                            />
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="time"
+                                value={reservaHora}
+                                onChange={(e) => setReservaHora(e.target.value)}
+                                className="bg-zinc-800 border border-zinc-700 text-amber-400 text-xs font-bold px-2 py-1 rounded outline-none"
+                              />
+                              {[-15, -5, +5, +15].map((delta) => (
+                                <button
+                                  key={delta}
+                                  type="button"
+                                  onClick={() => {
+                                    const base = reservaHora ? timeStringToMinutes(reservaHora) : timeStringToMinutes(rangoHorario.inicio || '09:00')
+                                    const nuevo = Math.max(timeStringToMinutes(rangoHorario.inicio || '09:00'), Math.min(timeStringToMinutes(rangoHorario.fin || '20:00'), base + delta))
+                                    setReservaHora(minutesToTimeString(nuevo))
+                                  }}
+                                  className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-bold border border-zinc-700 transition"
+                                >
+                                  {delta > 0 ? `+${delta}` : `${delta}`}
+                                </button>
+                              ))}
+                            </div>
                           </div>
 
                           {!disponibleAgenda ? (
