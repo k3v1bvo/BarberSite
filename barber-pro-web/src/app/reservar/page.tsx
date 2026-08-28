@@ -547,6 +547,34 @@ function ReservarContent() {
       toastError('Por favor completa todos tus datos personales.')
       return
     }
+
+    // Validar reglas del 2x1 si está seleccionado
+    const promoElegidaSubmit = promociones.find(p => p.id === promoSeleccionada)
+    if (promoElegidaSubmit?.tipo === '2x1') {
+      const diaHoy = getDiaHoyLaPaz()
+      const diaPermitido = config2x1.dia_reserva_permitido ?? 1 // 1 = Lunes
+      if (config2x1.solo_reserva_lunes && diaHoy !== diaPermitido) {
+        toastError('⚠️ La promoción 2×1 se reserva online únicamente los días Lunes (1 día de anticipación). Los días Martes la atención es 100% presencial por orden de llegada en la barbería.')
+        return
+      }
+
+      const [y, m, d] = formData.fecha.split('-').map(Number)
+      const diaCitaSemana = new Date(y, m - 1, d).getDay()
+      if (diaCitaSemana !== (config2x1.dia_semana ?? 2)) {
+        toastError('⚠️ La promoción 2×1 es válida exclusivamente para días Martes. Por favor selecciona un Martes en el calendario.')
+        return
+      }
+
+      if (modo2x1 === 'acompanante' && !acompanante.nombre.trim()) {
+        toastError('Por favor ingresa el nombre de tu acompañante para el 2×1.')
+        return
+      }
+      if (modo2x1 === 'servicio_extra' && !servicioExtra2x1) {
+        toastError('Por favor selecciona el servicio extra que deseas recibir en el 2×1.')
+        return
+      }
+    }
+
     const esGratis = totalReserva === 0
     if (!esGratis && tipoReserva !== 'sin_adelanto' && !formData.comprobante_url) {
       toastError('⚠️ Para confirmar tu reserva con QR, es OBLIGATORIO adjuntar la captura de tu comprobante de pago.')
@@ -2541,13 +2569,23 @@ function ReservarContent() {
       />
 
       {/* Promocion Detail Modal */}
-      {selectedPromoForModal && (
-        <ModalDetallePromocion
-          promo={selectedPromoForModal}
-          onClose={() => setSelectedPromoForModal(null)}
-          onAplicarEnReserva={(promoId) => setPromoSeleccionada(promoId)}
-        />
-      )}
+      {selectedPromoForModal && (() => {
+        const is2x1 = selectedPromoForModal.tipo === '2x1' || selectedPromoForModal.nombre?.toLowerCase().includes('2x1') || selectedPromoForModal.nombre?.toLowerCase().includes('2×1')
+        const diaHoy = getDiaHoyLaPaz()
+        const diaPermitido = config2x1.dia_reserva_permitido ?? 1 // 1 = Lunes
+        const is2x1Bloqueado = is2x1 && config2x1.solo_reserva_lunes && diaHoy !== diaPermitido
+
+        return (
+          <ModalDetallePromocion
+            promo={selectedPromoForModal}
+            onClose={() => setSelectedPromoForModal(null)}
+            onAplicarEnReserva={is2x1Bloqueado ? undefined : (promoId) => {
+              setPromoSeleccionada(promoId)
+              if (is2x1) setModo2x1('acompanante')
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }

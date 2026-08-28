@@ -170,19 +170,31 @@ export function ModalDetallePromocion({
           </div>
 
           {/* Información Adicional & Reglas */}
-          <div className="p-3.5 bg-zinc-900 border border-white/5 rounded-2xl flex items-center justify-between text-xs">
+          <div className="p-3.5 bg-zinc-900 border border-white/5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
             <div className="flex items-center gap-2 text-zinc-400">
-              <Clock size={14} className="text-amber-500" />
+              <Clock size={14} className="text-amber-500 shrink-0" />
               <span>Días válidos:</span>
             </div>
-            <span className="font-black text-white">
-              {is2x1 ? 'Todos los Martes' : isCumple ? 'Semana de tu Cumpleaños' : 'Todos los Días'}
+            <span className="font-black text-white text-right">
+              {is2x1 ? 'Todos los Martes (Online solo Lunes)' : isCumple ? 'Semana de tu Cumpleaños' : 'Todos los Días'}
             </span>
           </div>
 
           {/* Botones de Acción */}
           <div className="space-y-2.5 pt-2">
-            {/* Si estamos en la página de Reservar: Botón para Aplicar */}
+            {/* Si es 2x1 y no está habilitada la reserva online hoy (Martes a Domingo) */}
+            {is2x1 && !onAplicarEnReserva && (
+              <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center space-y-1.5">
+                <p className="text-xs font-black text-amber-300 uppercase tracking-tight flex items-center justify-center gap-1.5">
+                  <span>🏪 Atención 100% Presencial los Martes</span>
+                </p>
+                <p className="text-[11px] text-zinc-300 leading-relaxed">
+                  Para disfrutar del 2×1, asiste directamente a la barbería los días <strong>Martes por orden de llegada</strong>. Las reservas online se habilitan exclusivamente los días <strong>Lunes (1 día antes)</strong>.
+                </p>
+              </div>
+            )}
+
+            {/* Si estamos en la página de Reservar y está habilitada la promo: Botón para Aplicar */}
             {onAplicarEnReserva && (
               <Button
                 onClick={() => {
@@ -194,6 +206,16 @@ export function ModalDetallePromocion({
               >
                 <Sparkles size={16} />
                 <span>Aplicar esta Promoción a mi Reserva</span>
+              </Button>
+            )}
+
+            {/* Si no se puede aplicar online: Botón para Cerrar */}
+            {!onAplicarEnReserva && !onIrAReservar && (
+              <Button
+                onClick={onClose}
+                className="w-full h-12 bg-zinc-900 border border-zinc-700 hover:bg-zinc-800 text-white font-black uppercase tracking-wider text-xs rounded-2xl transition"
+              >
+                <span>Entendido / Continuar Reserva Regular</span>
               </Button>
             )}
 
