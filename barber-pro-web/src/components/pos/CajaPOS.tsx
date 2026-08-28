@@ -435,7 +435,8 @@ export function CajaPOS() {
       await supabase.from('configuraciones')
         .upsert({ llave: 'tiempo_minimo_reserva', valor: { minutos } }, { onConflict: 'llave' })
       setTiempoMinimoReserva(minutos)
-      toastSuccess(`Tiempo mínimo actualizado a ${minutos} min`)
+      const texto = minutos >= 1440 ? `${Math.round(minutos / 1440)} día` : minutos >= 60 ? `${Math.round(minutos / 60)} hr(s)` : `${minutos} min`
+      toastSuccess(`Tiempo mínimo actualizado a ${texto}`)
     } catch (e: any) {
       toastError(e.message)
     } finally {
@@ -995,28 +996,28 @@ export function CajaPOS() {
               <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider">Tiempo Mín. Reserva Web</p>
               <p className="font-black text-white text-xs">
                 {tiempoMinimoReserva >= 1440 
-                  ? `${Math.round(tiempoMinimoReserva / 1440)} día(s) (${tiempoMinimoReserva} min)`
+                  ? `${Math.round(tiempoMinimoReserva / 1440)} día`
                   : tiempoMinimoReserva >= 60 
-                    ? `${Math.round(tiempoMinimoReserva / 60)} hr(s) (${tiempoMinimoReserva} min)`
+                    ? `${Math.round(tiempoMinimoReserva / 60)} hr(s)`
                     : tiempoMinimoReserva === 0 
-                      ? 'Sin límite (Inmediato)' 
-                      : `${tiempoMinimoReserva} minutos`}
+                      ? 'Inmediato' 
+                      : `${tiempoMinimoReserva} min`}
               </p>
             </div>
           </div>
 
           <div className="hidden sm:block h-7 w-px bg-zinc-800 mx-1"></div>
 
-          <div className="grid grid-cols-3 sm:flex sm:flex-row items-center gap-1.5 w-full sm:w-auto mt-2 sm:mt-0">
+          <div className="grid grid-cols-4 sm:flex sm:flex-row items-center gap-1.5 w-full sm:w-auto mt-2 sm:mt-0">
             <Button 
               size="sm" 
-              variant={tiempoMinimoReserva === 0 ? 'primary' : 'outline'}
-              className="h-8 text-[10px] px-2 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
+              variant={tiempoMinimoReserva === 1440 ? 'primary' : 'outline'}
+              className="h-8 text-[10px] px-2.5 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
               disabled={updatingTiempo}
-              onClick={() => handleSaveTiempo(0)}
-              title="Sin límite de anticipación"
+              onClick={() => handleSaveTiempo(1440)}
+              title="1 día de anticipación"
             >
-              0 min
+              1 día
             </Button>
             <Button 
               size="sm" 
@@ -1038,13 +1039,12 @@ export function CajaPOS() {
             </Button>
             <Button 
               size="sm" 
-              variant={tiempoMinimoReserva === 1440 ? 'primary' : 'outline'}
-              className="h-8 text-[10px] px-2.5 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500 hover:text-black"
+              variant={tiempoMinimoReserva === 180 ? 'primary' : 'outline'}
+              className="h-8 text-[10px] px-2 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
               disabled={updatingTiempo}
-              onClick={() => handleSaveTiempo(1440)}
-              title="1 día de anticipación (1440 min)"
+              onClick={() => handleSaveTiempo(180)}
             >
-              1 día
+              3 hrs
             </Button>
 
             <div className="flex items-center bg-zinc-950 border border-white/10 rounded-xl overflow-hidden h-8 w-full sm:w-auto col-span-2 sm:col-span-1">
