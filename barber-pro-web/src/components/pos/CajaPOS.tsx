@@ -2899,20 +2899,20 @@ export function CajaPOS() {
                   )}
 
                   <Button 
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-12 text-lg shadow-[0_0_20px_rgba(16,185,129,0.3)] disabled:opacity-50"
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-12 text-base shadow-[0_0_20px_rgba(16,185,129,0.3)] disabled:opacity-50"
                     disabled={submitting || !formData.nombre || (!formData.servicio_id && carrito.length === 0) || !formData.barbero_id || (modoReserva && (!reservaFecha || !reservaHora))}
                     onClick={() => handleFinalizar('completado')}
                   >
-                    <CheckCircle className="w-5 h-5 mr-2" /> {modoReserva ? 'Agendar y Cobrar' : 'Cobrar y Completar'}
+                    <CheckCircle className="w-5 h-5 mr-2" /> {modoReserva ? '💳 Agendar y Cobrar Ahora' : '💵 Cobrar y Finalizar'}
                   </Button>
                   
                   <Button 
                     variant="outline"
-                    className="w-full border-amber-500/50 text-amber-500 hover:bg-amber-500/10 h-10 disabled:opacity-50"
+                    className="w-full border-amber-500/50 text-amber-400 hover:bg-amber-500/10 h-11 text-xs font-bold disabled:opacity-50"
                     disabled={submitting || !formData.nombre || (!formData.servicio_id && carrito.length === 0) || !formData.barbero_id || (modoReserva && (!reservaFecha || !reservaHora))}
                     onClick={() => handleFinalizar(modoReserva ? 'pendiente' : 'en_proceso')}
                   >
-                    <Clock className="w-4 h-4 mr-2" /> {modoReserva ? 'Reprogramar / Agendar (Paga después)' : 'Iniciar Servicio (Paga después)'}
+                    <Clock className="w-4 h-4 mr-2" /> {modoReserva ? '📅 Agendar Cita (Paga en local)' : '✂️ Pasar a Sillón / Atender (Paga al salir)'}
                   </Button>
                 </div>
               </div>
