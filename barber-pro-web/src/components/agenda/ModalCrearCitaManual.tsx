@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Clock,
   Calendar,
+  AlertCircle,
   Loader2
 } from 'lucide-react'
 import { generateSmartSlots, isTimeSlotAvailable, minutesToTimeString, timeStringToMinutes } from '@/lib/booking/booking-slots'
@@ -166,6 +167,10 @@ export function ModalCrearCitaManual({
 
       setBarberoDisponibleDia(true)
       setMotivoNoDisponible('')
+
+      const horaInicioStr = data.hora_inicio || '09:00'
+      const horaFinStr = data.hora_fin || '20:00'
+      const ocupados: Array<{ hora: string; duracion: number }> = data.ocupados || []
 
       const srvObj = servicios.find(s => s.id === servicioId)
       const duracionServicio = srvObj?.duracion_minutos || 30

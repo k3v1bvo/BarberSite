@@ -95,13 +95,15 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
   }, [showReprogramar, cita])
 
   // Cargar slots libres en tiempo real cuando cambia el barbero o la fecha
+  useEffect(() => {
+    if (!showReprogramar || !newBarberoId || !newDate) return
     const fetchDisponibilidad = async () => {
       setLoadingSlots(true)
       try {
         const res = await fetch(`/api/citas/disponibilidad?barbero_id=${newBarberoId}&fecha=${newDate}`)
         const json = await res.json()
         if (json.disponible) {
-          const srvObj = serviciosList.find(s => s.id === (newServicioId || cita?.servicio_id))
+          const srvObj = serviciosList.find(s => s.id === newServicioId || s.nombre === cita?.servicio_nombre)
           const duracionMin = cita?.duracion_minutos || srvObj?.duracion_minutos || 30
           const ocupadosFiltrados = (json.ocupados || []).filter((oc: any) => {
             if (cita && newBarberoId === cita.barbero_id && newDate === getBoliviaDateKey(cita.fecha_hora)) {
@@ -130,7 +132,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
       }
     }
     fetchDisponibilidad()
-  }, [showReprogramar, newBarberoId, newDate, newServicioId, cita])
+  }, [showReprogramar, newBarberoId, newDate, newServicioId, cita, serviciosList])
 
   useEffect(() => {
     if (!cita?.id) {
