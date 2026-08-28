@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { useToast } from './Toast'
 import { createClient } from '@/lib/supabase/client'
 import { getBoliviaDateTimeStr, getBoliviaDateKey, getBoliviaTimeStr } from '@/lib/agenda/date-utils'
+import { generateSmartSlots, isTimeSlotAvailable, minutesToTimeString, timeStringToMinutes } from '@/lib/booking/booking-slots'
 
 interface CitaDetailModalProps {
   cita: AgendaCita | null
@@ -94,16 +95,30 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
   }, [showReprogramar, cita])
 
   // Cargar slots libres en tiempo real cuando cambia el barbero o la fecha
-  useEffect(() => {
-    if (!showReprogramar || !newBarberoId || !newDate) return
     const fetchDisponibilidad = async () => {
       setLoadingSlots(true)
       try {
         const res = await fetch(`/api/citas/disponibilidad?barbero_id=${newBarberoId}&fecha=${newDate}`)
         const json = await res.json()
-        if (json.slotsDisponibles && Array.isArray(json.slotsDisponibles)) {
-          const slots = json.slotsDisponibles.map((s: any) => typeof s === 'string' ? s : (s.hora || s.time))
-          setSlotsDisponibles(slots)
+        if (json.disponible) {
+          const srvObj = serviciosList.find(s => s.id === (newServicioId || cita?.servicio_id))
+          const duracionMin = cita?.duracion_minutos || srvObj?.duracion_minutos || 30
+          const ocupadosFiltrados = (json.ocupados || []).filter((oc: any) => {
+            if (cita && newBarberoId === cita.barbero_id && newDate === getBoliviaDateKey(cita.fecha_hora)) {
+              return oc.hora !== getBoliviaTimeStr(cita.fecha_hora)
+            }
+            return true
+          })
+          const smart = generateSmartSlots({
+            rangoInicio: json.hora_inicio || '09:00',
+            rangoFin: json.hora_fin || '20:00',
+            ocupados: ocupadosFiltrados,
+            duracionServicio: duracionMin,
+            pasoMinutos: 15,
+            fecha: newDate,
+            tiempoMinimoReserva: 0
+          })
+          setSlotsDisponibles(smart.filter(s => s.disponible).map(s => s.hora))
         } else {
           setSlotsDisponibles([])
         }
@@ -115,7 +130,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
       }
     }
     fetchDisponibilidad()
-  }, [showReprogramar, newBarberoId, newDate])
+  }, [showReprogramar, newBarberoId, newDate, newServicioId, cita])
 
   useEffect(() => {
     if (!cita?.id) {

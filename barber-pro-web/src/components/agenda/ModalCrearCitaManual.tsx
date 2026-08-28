@@ -14,9 +14,9 @@ import {
   CheckCircle2,
   Clock,
   Calendar,
-  AlertCircle,
   Loader2
 } from 'lucide-react'
+import { generateSmartSlots, isTimeSlotAvailable, minutesToTimeString, timeStringToMinutes } from '@/lib/booking/booking-slots'
 
 interface Servicio {
   id: string
@@ -167,53 +167,25 @@ export function ModalCrearCitaManual({
       setBarberoDisponibleDia(true)
       setMotivoNoDisponible('')
 
-      const horaInicioStr = data.hora_inicio || '09:00'
-      const horaFinStr = data.hora_fin || '20:00'
-      const ocupados: Array<{ hora: string; duracion: number }> = data.ocupados || []
+      const srvObj = servicios.find(s => s.id === servicioId)
+      const duracionServicio = srvObj?.duracion_minutos || 30
 
-      // Convertir hora HH:MM a minutos desde medianoche
-      const toMinutes = (hStr: string) => {
-        const [h, m] = hStr.split(':').map(Number)
-        return h * 60 + (m || 0)
-      }
+      const smartSlots = generateSmartSlots({
+        rangoInicio: horaInicioStr,
+        rangoFin: horaFinStr,
+        ocupados: ocupados,
+        duracionServicio: duracionServicio,
+        pasoMinutos: 15,
+        fecha: fechaCita,
+        tiempoMinimoReserva: 0
+      })
 
-      // Convertir minutos a HH:MM
-      const toTimeString = (mins: number) => {
-        const h = Math.floor(mins / 60).toString().padStart(2, '0')
-        const m = (mins % 60).toString().padStart(2, '0')
-        return `${h}:${m}`
-      }
-
-      const inicioMins = toMinutes(horaInicioStr)
-      const finMins = toMinutes(horaFinStr)
-      const duracionServicio = 30
-
-      const generatedSlots: TimeSlot[] = []
-
-      for (let time = inicioMins; time < finMins; time += 30) {
-        const slotHoraStr = toTimeString(time)
-        const slotEnd = time + duracionServicio
-
-        // Verificar colisión con citas o bloqueos ocupados
-        const estaOcupado = ocupados.some(oc => {
-          const ocStart = toMinutes(oc.hora)
-          const ocEnd = ocStart + (oc.duracion || 30)
-          return (time < ocEnd && slotEnd > ocStart)
-        })
-
-        generatedSlots.push({
-          hora: slotHoraStr,
-          disponible: !estaOcupado,
-          motivo: estaOcupado ? 'Horario ocupado' : undefined
-        })
-      }
-
-      setSlots(generatedSlots)
+      setSlots(smartSlots)
 
       // Si la hora seleccionada no está disponible o no existe, preseleccionar la primera libre
-      const horaActualValida = generatedSlots.some(s => s.hora === horaCita && s.disponible)
+      const horaActualValida = smartSlots.some(s => s.hora === horaCita && s.disponible)
       if (!horaActualValida) {
-        const primerLibre = generatedSlots.find(s => s.disponible)
+        const primerLibre = smartSlots.find(s => s.disponible)
         if (primerLibre) {
           setHoraCita(primerLibre.hora)
         }
@@ -223,13 +195,13 @@ export function ModalCrearCitaManual({
     } finally {
       setLoadingSlots(false)
     }
-  }, [barberoId, fechaCita, horaCita])
+  }, [barberoId, fechaCita, horaCita, servicioId, servicios])
 
   useEffect(() => {
     if (isOpen && barberoId && fechaCita) {
       fetchDisponibilidad()
     }
-  }, [isOpen, barberoId, fechaCita, fetchDisponibilidad])
+  }, [isOpen, barberoId, fechaCita, servicioId, fetchDisponibilidad])
 
   if (!isOpen) return null
 
@@ -547,7 +519,7 @@ export function ModalCrearCitaManual({
                             type="button"
                             disabled={!slot.disponible}
                             onClick={() => setHoraCita(slot.hora)}
-                            className={`py-2 px-1 rounded-xl text-xs font-bold transition-all text-center ${
+                            className={`py-2 px-1 rounded-xl text-xs font-bold transition-all text-center flex flex-col items-center justify-center ${
                               isSelected
                                 ? 'bg-amber-500 text-black font-black shadow-lg shadow-amber-500/30 scale-105 ring-2 ring-amber-300'
                                 : slot.disponible
@@ -556,7 +528,10 @@ export function ModalCrearCitaManual({
                             }`}
                             title={slot.disponible ? 'Disponible' : slot.motivo || 'Ocupado'}
                           >
-                            {slot.hora}
+                            <span>{slot.hora}</span>
+                            {(slot as any).esContinuo && slot.disponible && (
+                              <span className="text-[7px] text-emerald-400 font-black">⚡ Continuo</span>
+                            )}
                           </button>
                         )
                       })}

@@ -18,6 +18,7 @@ import { ServicioDetailModal } from '@/components/ui/ServicioDetailModal'
 import { ModalDetallePromocion, PromocionDetalle } from '@/components/cliente/ModalDetallePromocion'
 import Link from 'next/link'
 import { useBrand } from '@/components/providers/BrandProvider'
+import { generateSmartSlots, isTimeSlotAvailable, minutesToTimeString, timeStringToMinutes } from '@/lib/booking/booking-slots'
 
 // Interfaces
 interface Servicio {
@@ -882,54 +883,36 @@ function ReservarContent() {
     }
   }
 
+  const [modoHoraLibre, setModoHoraLibre] = useState(false)
+  const [horaLibreCustom, setHoraLibreCustom] = useState('')
+
   // --- Helpers for Availability & Products ---
-  const generarHorarios = () => {
+  const servicioSeleccionadoObj = servicios.find(s => s.id === formData.servicio_id)
+  const duracionServicioMin = servicioSeleccionadoObj?.duracion_minutos || 30
+
+  const getSmartSlotsDisponibles = () => {
     if (!disponibleAgenda) return []
-    const horarios: string[] = []
-    const [hStart, mStart] = (rangoHorario.inicio || '09:00').split(':').map(Number)
-    const [hEnd, mEnd] = (rangoHorario.fin || '20:00').split(':').map(Number)
-    let cur = (isNaN(hStart) ? 9 : hStart) * 60 + (isNaN(mStart) ? 0 : mStart)
-    const end = (isNaN(hEnd) ? 20 : hEnd) * 60 + (isNaN(mEnd) ? 0 : mEnd)
-    while (cur < end) {
-      const hh = Math.floor(cur / 60).toString().padStart(2, '0')
-      const mm = (cur % 60).toString().padStart(2, '0')
-      horarios.push(`${hh}:${mm}`)
-      cur += 30
-    }
-    return horarios
+    return generateSmartSlots({
+      rangoInicio: rangoHorario.inicio || '09:00',
+      rangoFin: rangoHorario.fin || '20:00',
+      ocupados: horasOcupadas,
+      duracionServicio: duracionServicioMin,
+      pasoMinutos: 15,
+      fecha: formData.fecha,
+      tiempoMinimoReserva
+    })
   }
 
-  const hoyLocal = new Date()
-  const hoy = new Date(hoyLocal.getTime() - (hoyLocal.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
-
-  const checkDisponibilidad = (hora: string) => {
-    const servicioSeleccionado = servicios.find(s => s.id === formData.servicio_id)
-    if (!servicioSeleccionado) return false
-
-    const [hrs, mins] = hora.split(':').map(Number)
-    
-    if (formData.fecha === hoy) {
-      const ahora = new Date()
-      const horaCita = new Date()
-      horaCita.setHours(hrs, mins, 0, 0)
-      
-      const diffMinutos = (horaCita.getTime() - ahora.getTime()) / (1000 * 60)
-      if (diffMinutos < tiempoMinimoReserva) return true
-    }
-
-    const getMinutos = (h: string) => {
-      const [hs, ms] = h.split(':').map(Number)
-      return hs * 60 + ms
-    }
-
-    const slotInicio = getMinutos(hora)
-    const slotFin = slotInicio + servicioSeleccionado.duracion_minutos
-
-    return horasOcupadas.some(cita => {
-      const citaInicio = getMinutos(cita.hora)
-      const citaFin = citaInicio + cita.duracion
-      return (slotInicio < citaFin) && (citaInicio < slotFin)
-    })
+  const validarHoraSeleccionada = (hora: string) => {
+    return isTimeSlotAvailable(
+      hora,
+      duracionServicioMin,
+      horasOcupadas,
+      rangoHorario.inicio || '09:00',
+      rangoHorario.fin || '20:00',
+      formData.fecha,
+      tiempoMinimoReserva
+    )
   }
 
   const agregarProducto = (producto: Producto) => {
@@ -1835,15 +1818,18 @@ function ReservarContent() {
                   </div>
                   {formData.fecha && (
                     <div className="animate-in fade-in slide-in-from-bottom-8 duration-500">
-                      <div className="text-center mb-6">
-                        <label className="flex items-center justify-center gap-2 text-sm text-zinc-400 font-black uppercase tracking-[0.2em] mb-2">
-                          2. Horarios Disponibles 
+                      <div className="text-center mb-6 space-y-3">
+                        <label className="flex items-center justify-center gap-2 text-sm text-zinc-400 font-black uppercase tracking-[0.2em]">
+                          2. Selecciona el Horario 
                           {loadingDisponibilidad && <span className="text-amber-500 text-xs animate-pulse bg-amber-500/10 px-2 py-1 rounded-full ml-2">Cargando...</span>}
                         </label>
                         {disponibleAgenda && (
                           <div className="flex flex-wrap items-center justify-center gap-2">
                             <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs font-black text-amber-400 shadow-md">
-                              🕒 Horario de atención: {rangoHorario.inicio} a {rangoHorario.fin}
+                              🕒 Atención: {rangoHorario.inicio} a {rangoHorario.fin}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 text-xs font-bold text-zinc-300 shadow-md">
+                              ⏱️ Duración: {duracionServicioMin} min
                             </span>
                             {promoElegida?.tipo === '2x1' && (
                               <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-xs font-black text-amber-300 shadow-md">
@@ -1852,17 +1838,132 @@ function ReservarContent() {
                             )}
                           </div>
                         )}
+
+                        {/* Selector de modo: Horarios sugeridos vs Hora personalizada */}
+                        {disponibleAgenda && (
+                          <div className="inline-flex p-1 bg-black/60 border border-zinc-800 rounded-2xl mx-auto mt-2">
+                            <button
+                              type="button"
+                              onClick={() => setModoHoraLibre(false)}
+                              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                                !modoHoraLibre
+                                  ? 'bg-amber-500 text-black shadow-md'
+                                  : 'text-zinc-400 hover:text-white'
+                              }`}
+                            >
+                              ⚡ Horarios Disponibles
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setModoHoraLibre(true)
+                                if (!formData.hora) {
+                                  const primerLibre = getSmartSlotsDisponibles().find(s => s.disponible)
+                                  if (primerLibre) setFormData(p => ({ ...p, hora: primerLibre.hora }))
+                                }
+                              }}
+                              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                                modoHoraLibre
+                                  ? 'bg-amber-500 text-black shadow-md'
+                                  : 'text-zinc-400 hover:text-white'
+                              }`}
+                            >
+                              ⏰ Elegir Hora Exacta (Minutero)
+                            </button>
+                          </div>
+                        )}
                       </div>
+
                       {!disponibleAgenda ? (
                         <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-2xl text-center">
                           <p className="text-red-300 font-black text-base mb-1">⚠️ Barbero No Disponible</p>
                           <p className="text-red-200/80 text-sm">{motivoAgenda || 'El barbero no atiende en esta fecha o se encuentra en su día libre.'}</p>
                         </div>
+                      ) : modoHoraLibre ? (
+                        /* MODO 2: SELECTOR DE HORA EXACTA LIBRE */
+                        <div className="max-w-md mx-auto p-6 bg-black/40 border border-zinc-800 rounded-3xl space-y-6 animate-in fade-in">
+                          <div className="text-center">
+                            <span className="text-xs font-black uppercase text-amber-500 tracking-widest block mb-1">⏰ Hora Personalizada</span>
+                            <p className="text-xs text-zinc-400">Elige la hora exacta a la que deseas iniciar tu corte.</p>
+                          </div>
+
+                          <div className="flex flex-col items-center gap-4">
+                            <input
+                              type="time"
+                              value={formData.hora}
+                              min={rangoHorario.inicio}
+                              max={rangoHorario.fin}
+                              onChange={(e) => {
+                                setFormData(p => ({ ...p, hora: e.target.value }))
+                              }}
+                              className="bg-zinc-900 border-2 border-amber-500/40 text-amber-400 text-3xl font-mono font-black px-6 py-3 rounded-2xl outline-none focus:border-amber-400 text-center shadow-inner"
+                            />
+
+                            {/* Botones de ajuste rápido +/- 5 min y 15 min */}
+                            <div className="flex flex-wrap justify-center gap-2">
+                              {[-15, -5, +5, +15].map((delta) => (
+                                <button
+                                  key={delta}
+                                  type="button"
+                                  onClick={() => {
+                                    const base = formData.hora ? timeStringToMinutes(formData.hora) : timeStringToMinutes(rangoHorario.inicio)
+                                    const nuevo = Math.max(timeStringToMinutes(rangoHorario.inicio), Math.min(timeStringToMinutes(rangoHorario.fin), base + delta))
+                                    setFormData(p => ({ ...p, hora: minutesToTimeString(nuevo) }))
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold border border-zinc-700 transition"
+                                >
+                                  {delta > 0 ? `+${delta}m` : `${delta}m`}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Validación en vivo de la hora elegida */}
+                          {formData.hora && (() => {
+                            const val = validarHoraSeleccionada(formData.hora)
+                            const [hIni, mIni] = config2x1.hora_inicio.split(':').map(Number)
+                            const [hFin, mFin] = config2x1.hora_fin.split(':').map(Number)
+                            const [hCur, mCur] = formData.hora.split(':').map(Number)
+                            const minCur = hCur * 60 + mCur
+                            const minIni = hIni * 60 + (mIni || 0)
+                            const minFin = hFin * 60 + (mFin || 0)
+                            const es2x1Val = minCur >= minIni && minCur <= minFin
+                            const es2x1Inval = promoElegida?.tipo === '2x1' && !es2x1Val
+                            const horaFinCalculada = minutesToTimeString(timeStringToMinutes(formData.hora) + duracionServicioMin)
+
+                            if (es2x1Inval) {
+                              return (
+                                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center text-xs text-amber-300">
+                                  ⚠️ La promo 2×1 solo aplica de {config2x1.hora_inicio} a {config2x1.hora_fin}. Puedes continuar sin 2×1 o ajustar la hora.
+                                </div>
+                              )
+                            }
+
+                            if (!val.disponible) {
+                              return (
+                                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-center text-xs text-red-300 space-y-1">
+                                  <p className="font-bold">❌ Horario no disponible</p>
+                                  <p className="text-red-300/80">{val.motivo}</p>
+                                </div>
+                              )
+                            }
+
+                            return (
+                              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center text-xs text-emerald-300 space-y-1">
+                                <p className="font-bold">✅ ¡Horario disponible y perfecto!</p>
+                                <p className="text-emerald-300/80">
+                                  Tu cita iniciará a las <strong>{formData.hora}</strong> y terminará a las <strong>{horaFinCalculada}</strong> ({duracionServicioMin} min).
+                                </p>
+                              </div>
+                            )
+                          })()}
+                        </div>
                       ) : (
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                          {generarHorarios().map((hora) => {
-                            const estaOcupado = checkDisponibilidad(hora)
-                            if (estaOcupado) return null;
+                        /* MODO 1: SMART QUICK SLOTS */
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                          {getSmartSlotsDisponibles().map((slot) => {
+                            if (!slot.disponible) return null;
+                            const hora = slot.hora
                             
                             const [hIni, mIni] = config2x1.hora_inicio.split(':').map(Number)
                             const [hFin, mFin] = config2x1.hora_fin.split(':').map(Number)
@@ -1885,7 +1986,7 @@ function ReservarContent() {
                                   setFormData({ ...formData, hora })
                                   setTimeout(() => setStep(4), 300)
                                 }}
-                                className={`py-3 rounded-xl text-sm font-black transition-all duration-200 flex flex-col items-center justify-center ${
+                                className={`py-3 px-2 rounded-xl text-sm font-black transition-all duration-200 flex flex-col items-center justify-center relative ${
                                   formData.hora === hora
                                     ? 'bg-amber-500 text-black scale-105 shadow-[0_0_20px_rgba(245,158,11,0.4)] ring-2 ring-amber-400'
                                     : is2x1DisabledSlot
@@ -1894,6 +1995,9 @@ function ReservarContent() {
                                 }`}
                               >
                                 <span>{hora}</span>
+                                {slot.esContinuo && (
+                                  <span className="text-[7px] font-black text-emerald-400 uppercase tracking-tighter">⚡ Continuo</span>
+                                )}
                                 {promoElegida?.tipo === '2x1' && es2x1HoraValida && (
                                   <span className="text-[8px] font-black text-amber-400 uppercase tracking-wider">2×1</span>
                                 )}

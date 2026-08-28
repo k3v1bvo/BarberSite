@@ -15,6 +15,7 @@ import { ImageUpload } from '@/components/ui/ImageUpload'
 import { CATEGORIAS_SERVICIOS } from '@/types'
 import { ClienteHistorialModal } from '@/components/pos/ClienteHistorialModal'
 import { ClienteSearchModal } from '@/components/pos/ClienteSearchModal'
+import { generateSmartSlots, isTimeSlotAvailable, minutesToTimeString, timeStringToMinutes } from '@/lib/booking/booking-slots'
 
 interface Cliente {
   id: string
@@ -907,39 +908,33 @@ export function CajaPOS() {
   const anticipoPagado = Number(formData.anticipo_monto || 0)
   const totalACobrar = Math.max(0, subtotalServicio + totalProductos + Number(formData.propinas || 0) - descuentoTotal - anticipoPagado)
 
-  const checkDisponibilidad = (hora: string) => {
-    const servicioSeleccionado = servicios.find(s => s.id === formData.servicio_id)
-    if (!servicioSeleccionado) return false
+  const servicioSeleccionadoObj = servicios.find(s => s.id === formData.servicio_id)
+  const duracionServicioMin = servicioSeleccionadoObj?.duracion_minutos || 30
 
-    const getMinutos = (h: string) => {
-      const [hs, ms] = h.split(':').map(Number)
-      return hs * 60 + ms
-    }
-
-    const slotInicio = getMinutos(hora)
-    const slotFin = slotInicio + servicioSeleccionado.duracion_minutos
-
-    return horasOcupadas.some(cita => {
-      const citaInicio = getMinutos(cita.hora)
-      const citaFin = citaInicio + cita.duracion
-      return (slotInicio < citaFin) && (citaInicio < slotFin)
+  const getSmartSlotsDisponibles = () => {
+    if (!disponibleAgenda) return []
+    return generateSmartSlots({
+      rangoInicio: rangoHorario.inicio || '09:00',
+      rangoFin: rangoHorario.fin || '20:00',
+      ocupados: horasOcupadas,
+      duracionServicio: duracionServicioMin,
+      pasoMinutos: 15,
+      fecha: reservaFecha,
+      tiempoMinimoReserva: 0
     })
   }
 
-  const generarHorarios = () => {
-    if (!disponibleAgenda) return []
-    const horarios: string[] = []
-    const [hStart, mStart] = (rangoHorario.inicio || '09:00').split(':').map(Number)
-    const [hEnd, mEnd] = (rangoHorario.fin || '20:00').split(':').map(Number)
-    let cur = (isNaN(hStart) ? 9 : hStart) * 60 + (isNaN(mStart) ? 0 : mStart)
-    const end = (isNaN(hEnd) ? 20 : hEnd) * 60 + (isNaN(mEnd) ? 0 : mEnd)
-    while (cur < end) {
-      const hh = Math.floor(cur / 60).toString().padStart(2, '0')
-      const mm = (cur % 60).toString().padStart(2, '0')
-      horarios.push(`${hh}:${mm}`)
-      cur += 30
-    }
-    return horarios
+  const checkDisponibilidad = (hora: string) => {
+    const res = isTimeSlotAvailable(
+      hora,
+      duracionServicioMin,
+      horasOcupadas,
+      rangoHorario.inicio || '09:00',
+      rangoHorario.fin || '20:00',
+      reservaFecha,
+      0
+    )
+    return !res.disponible
   }
 
   const hoyLocal = new Date()
@@ -2348,34 +2343,63 @@ export function CajaPOS() {
                       
                       {reservaFecha && (
                         <div className="space-y-2">
-                          <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                            Hora <span className="font-normal normal-case text-[10px] ml-1">(No respeta tiempo mín.)</span>
-                          </label>
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                              Hora de la Cita <span className="font-normal normal-case text-[10px] ml-1">({duracionServicioMin} min)</span>
+                            </label>
+                            <input
+                              type="time"
+                              value={reservaHora}
+                              onChange={(e) => setReservaHora(e.target.value)}
+                              className="bg-zinc-800 border border-zinc-700 text-amber-400 text-xs font-bold px-2 py-1 rounded outline-none"
+                            />
+                          </div>
+
                           {!disponibleAgenda ? (
                             <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-300 font-medium">
                               ⚠️ {motivoAgenda || 'El barbero no atiende en esta fecha (Horario / Día libre / Vacaciones).'}
                             </div>
                           ) : (
-                            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                              {generarHorarios().map(hora => {
-                                const ocupado = checkDisponibilidad(hora)
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                                {getSmartSlotsDisponibles().map(slot => {
+                                  const hora = slot.hora
+                                  const ocupado = !slot.disponible
+                                  return (
+                                    <button
+                                      key={hora}
+                                      onClick={() => !ocupado && setReservaHora(hora)}
+                                      disabled={ocupado || loadingAgenda}
+                                      className={`py-1.5 px-1 text-xs font-bold rounded-md transition flex flex-col items-center justify-center ${
+                                        reservaHora === hora
+                                          ? 'bg-amber-500 text-black'
+                                          : ocupado
+                                            ? 'bg-zinc-800/30 text-zinc-600 cursor-not-allowed line-through'
+                                            : 'bg-black/50 border border-white/5 text-zinc-300 hover:border-amber-500/50 hover:text-amber-500'
+                                      }`}
+                                    >
+                                      <span>{hora}</span>
+                                      {slot.esContinuo && !ocupado && (
+                                        <span className="text-[7px] text-emerald-400 leading-none">⚡</span>
+                                      )}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+
+                              {reservaHora && (() => {
+                                const ocupado = checkDisponibilidad(reservaHora)
+                                const horaFin = minutesToTimeString(timeStringToMinutes(reservaHora) + duracionServicioMin)
                                 return (
-                                  <button
-                                    key={hora}
-                                    onClick={() => !ocupado && setReservaHora(hora)}
-                                    disabled={ocupado || loadingAgenda}
-                                    className={`py-1.5 text-xs font-bold rounded-md transition ${
-                                      reservaHora === hora
-                                        ? 'bg-amber-500 text-black'
-                                        : ocupado
-                                          ? 'bg-zinc-800/30 text-zinc-600 cursor-not-allowed line-through'
-                                          : 'bg-black/50 border border-white/5 text-zinc-300 hover:border-amber-500/50 hover:text-amber-500'
-                                    }`}
-                                  >
-                                    {hora}
-                                  </button>
+                                  <div className={`p-2 rounded text-[11px] font-bold text-center ${
+                                    ocupado
+                                      ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                      : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  }`}>
+                                    {ocupado ? '⚠️ Horario con conflicto de agenda' : `✅ Reserva: ${reservaHora} a ${horaFin}`}
+                                  </div>
                                 )
-                              })}
+                              })()}
                             </div>
                           )}
                           {loadingAgenda && <p className="text-[10px] text-zinc-500 animate-pulse">Consultando agenda...</p>}
