@@ -993,27 +993,35 @@ export function CajaPOS() {
             </div>
             <div>
               <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider">Tiempo Mín. Reserva Web</p>
-              <p className="font-black text-white text-xs">{tiempoMinimoReserva} minutos</p>
+              <p className="font-black text-white text-xs">
+                {tiempoMinimoReserva >= 1440 
+                  ? `${Math.round(tiempoMinimoReserva / 1440)} día(s) (${tiempoMinimoReserva} min)`
+                  : tiempoMinimoReserva >= 60 
+                    ? `${Math.round(tiempoMinimoReserva / 60)} hr(s) (${tiempoMinimoReserva} min)`
+                    : tiempoMinimoReserva === 0 
+                      ? 'Sin límite (Inmediato)' 
+                      : `${tiempoMinimoReserva} minutos`}
+              </p>
             </div>
           </div>
 
           <div className="hidden sm:block h-7 w-px bg-zinc-800 mx-1"></div>
 
-          <div className="grid grid-cols-5 sm:flex sm:flex-row items-center gap-1.5 w-full sm:w-auto mt-2 sm:mt-0">
+          <div className="grid grid-cols-3 sm:flex sm:flex-row items-center gap-1.5 w-full sm:w-auto mt-2 sm:mt-0">
             <Button 
               size="sm" 
               variant={tiempoMinimoReserva === 0 ? 'primary' : 'outline'}
-              className="h-8 text-[10px] px-0 sm:px-2.5 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
+              className="h-8 text-[10px] px-2 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
               disabled={updatingTiempo}
               onClick={() => handleSaveTiempo(0)}
-              title="Sin Límite"
+              title="Sin límite de anticipación"
             >
               0 min
             </Button>
             <Button 
               size="sm" 
               variant={tiempoMinimoReserva === 60 ? 'primary' : 'outline'}
-              className="h-8 text-[10px] px-0 sm:px-2.5 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
+              className="h-8 text-[10px] px-2 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
               disabled={updatingTiempo}
               onClick={() => handleSaveTiempo(60)}
             >
@@ -1022,7 +1030,7 @@ export function CajaPOS() {
             <Button 
               size="sm" 
               variant={tiempoMinimoReserva === 120 ? 'primary' : 'outline'}
-              className="h-8 text-[10px] px-0 sm:px-2.5 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
+              className="h-8 text-[10px] px-2 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
               disabled={updatingTiempo}
               onClick={() => handleSaveTiempo(120)}
             >
@@ -1030,15 +1038,16 @@ export function CajaPOS() {
             </Button>
             <Button 
               size="sm" 
-              variant={tiempoMinimoReserva === 180 ? 'primary' : 'outline'}
-              className="h-8 text-[10px] px-0 sm:px-2.5 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto"
+              variant={tiempoMinimoReserva === 1440 ? 'primary' : 'outline'}
+              className="h-8 text-[10px] px-2.5 font-black uppercase tracking-wider flex justify-center w-full sm:w-auto bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500 hover:text-black"
               disabled={updatingTiempo}
-              onClick={() => handleSaveTiempo(180)}
+              onClick={() => handleSaveTiempo(1440)}
+              title="1 día de anticipación (1440 min)"
             >
-              3 hrs
+              1 día
             </Button>
 
-            <div className="flex items-center bg-zinc-950 border border-white/10 rounded-xl overflow-hidden h-8 w-full sm:w-auto col-span-1">
+            <div className="flex items-center bg-zinc-950 border border-white/10 rounded-xl overflow-hidden h-8 w-full sm:w-auto col-span-2 sm:col-span-1">
               <input 
                 type="number" 
                 className="w-full sm:w-14 h-full bg-transparent text-center text-xs text-white font-bold outline-none px-1 sm:px-2" 

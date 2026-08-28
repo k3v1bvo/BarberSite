@@ -227,35 +227,45 @@ export default function EgresosPage() {
       const profileRes = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
       const userName = profileRes.data?.full_name || 'Admin'
 
+      const fechaHoyLaPaz = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+      const montoTotal = Number(formData.monto_neto)
+      const montoEf = formData.metodo_pago === 'mixto' ? Number(formData.monto_efectivo) : (formData.metodo_pago === 'efectivo' ? montoTotal : 0)
+      const montoQr = formData.metodo_pago === 'mixto' ? Number(formData.monto_qr) : (formData.metodo_pago === 'qr' ? montoTotal : 0)
+      const notasFinal = formData.metodo_pago === 'mixto'
+        ? (formData.notas ? `${formData.notas} | Efectivo: Bs ${montoEf} | QR: Bs ${montoQr}` : `Efectivo: Bs ${montoEf} | QR: Bs ${montoQr}`)
+        : (formData.notas || null)
+
       const { error: egresoError } = await supabase.from('egresos').insert({
+        fecha: fechaHoyLaPaz,
         concepto: formData.concepto,
         proveedor: formData.proveedor || null,
-        monto_bruto: Number(formData.monto_neto),
-        monto_neto: Number(formData.monto_neto),
+        monto_bruto: montoTotal,
+        monto_neto: montoTotal,
         metodo_pago: formData.metodo_pago,
-        monto_efectivo: formData.metodo_pago === 'mixto' ? Number(formData.monto_efectivo) : (formData.metodo_pago === 'efectivo' ? Number(formData.monto_neto) : 0),
-        monto_qr: formData.metodo_pago === 'mixto' ? Number(formData.monto_qr) : (formData.metodo_pago === 'qr' ? Number(formData.monto_neto) : 0),
+        monto_efectivo: montoEf,
+        monto_qr: montoQr,
         usuario_registro: userName,
-        notas: formData.notas || null,
+        notas: notasFinal,
         comprobante_url: formData.comprobante_url || null
       })
       if (egresoError) throw egresoError
 
       const selectedCat = categorias.find(c => c.id === selectedCategoriaId)
       const { error: txError } = await supabase.from('transactions').insert({
-        libro: 'EGRESOS',
-        fecha: new Date().toISOString().split('T')[0],
-        ci: 'S/N',
+        libro: formData.metodo_pago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
+        fecha: fechaHoyLaPaz,
+        ci: '0000000',
         nombre: formData.proveedor || 'Gasto General',
         cuenta_codigo: selectedCat?.codigo || 'EGRESO',
         cuenta_detalle: formData.concepto,
         glosa: formData.notas || `Egreso por ${formData.concepto}`,
-        costo: Number(formData.monto_neto),
+        costo: montoTotal,
         tipo_movimiento: 'EGRESO',
         subcategoria: 'GASTO_GENERAL',
         metodo_pago: formData.metodo_pago,
-        monto_efectivo: formData.metodo_pago === 'mixto' ? Number(formData.monto_efectivo) : (formData.metodo_pago === 'efectivo' ? Number(formData.monto_neto) : 0),
-        monto_qr: formData.metodo_pago === 'mixto' ? Number(formData.monto_qr) : (formData.metodo_pago === 'qr' ? Number(formData.monto_neto) : 0),
+        monto_efectivo: montoEf,
+        monto_qr: montoQr,
+        notas: notasFinal,
         usuario_registro: userName,
         comprobante_url: formData.comprobante_url || null
       })

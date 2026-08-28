@@ -71,17 +71,18 @@ export default function AdminLealtadPage() {
   const [promoForm, setPromoForm] = useState(emptyPromo)
   const [savingPromo, setSavingPromo] = useState(false)
 
-  // Configuración Horario y Reglas 2x1
+  // Configuración Horario, Reglas y Servicios 2x1
   const [config2x1, setConfig2x1] = useState({
     activa: true,
-    dia_semana: 2,
+    dia_semana: 2, // 2 = Martes
+    solo_reserva_lunes: true, // Si true, solo se permite reservar online los días lunes (1 día antes)
+    dia_reserva_permitido: 1, // 1 = Lunes
     hora_inicio: '08:00',
     hora_fin: '17:30',
     servicios_acompanante: [] as string[],
     servicios_extra: [] as string[],
   })
   const [showConfig2x1Modal, setShowConfig2x1Modal] = useState(false)
-  const [showConfig2x1ServiciosModal, setShowConfig2x1ServiciosModal] = useState(false)
   const [saving2x1, setSaving2x1] = useState(false)
 
   // Configuración Cumpleañero
@@ -134,7 +135,14 @@ export default function AdminLealtadPage() {
         .maybeSingle()
       if (c2x1?.valor) {
         const parsed = typeof c2x1.valor === 'string' ? JSON.parse(c2x1.valor) : c2x1.valor
-        setConfig2x1(prev => ({ ...prev, ...parsed, servicios_acompanante: parsed.servicios_acompanante || [], servicios_extra: parsed.servicios_extra || [] }))
+        setConfig2x1(prev => ({
+          ...prev,
+          ...parsed,
+          solo_reserva_lunes: parsed.solo_reserva_lunes ?? true,
+          dia_reserva_permitido: parsed.dia_reserva_permitido ?? 1,
+          servicios_acompanante: parsed.servicios_acompanante || [],
+          servicios_extra: parsed.servicios_extra || []
+        }))
       }
 
       // Cargar configuración de cumpleañero
@@ -753,7 +761,7 @@ export default function AdminLealtadPage() {
                             <span>⚡ Conectado a /reservar</span>
                           </div>
 
-                          <div className="bg-black/40 p-2.5 rounded-xl border border-white/5 space-y-1.5 text-xs">
+                          <div className="bg-black/40 p-3 rounded-2xl border border-white/5 space-y-2 text-xs">
                             <div className="flex justify-between items-center text-zinc-400">
                               <span>📅 Día de promo:</span>
                               <span className="font-black text-white">{DIAS_SEMANA_COMPLETO[config2x1.dia_semana] || 'Martes'}</span>
@@ -762,6 +770,15 @@ export default function AdminLealtadPage() {
                               <span>⏰ Horario 2×1:</span>
                               <span className="font-black text-amber-400">{config2x1.hora_inicio} a {config2x1.hora_fin}</span>
                             </div>
+                            <div className="flex justify-between items-center text-zinc-400">
+                              <span>🌐 Reserva Web:</span>
+                              <span className="font-black text-emerald-400">
+                                {config2x1.solo_reserva_lunes ? 'Solo Lunes (1 día antes)' : 'Cualquier día'}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-zinc-500 pt-1 border-t border-white/5">
+                              Acomp: {config2x1.servicios_acompanante.length || 'Corte/Barba'} serv. | Extra: {config2x1.servicios_extra.length || 0} serv.
+                            </div>
                           </div>
                         </div>
                       )}
@@ -769,38 +786,23 @@ export default function AdminLealtadPage() {
                     <div className="pt-3 border-t border-white/5 space-y-2">
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="primary"
                         size="sm"
                         onClick={() => setShowConfig2x1Modal(true)}
-                        className="w-full text-xs font-black bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500 hover:text-black flex items-center justify-center gap-1.5 transition-all"
+                        className="w-full text-xs font-black bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center gap-1.5 transition-all shadow-md shadow-amber-500/20"
                       >
-                        <Clock className="w-3.5 h-3.5" />
-                        ⚙️ Cambiar Horario del 2×1
+                        ⚙️ Configuración Integral del 2×1
                       </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowConfig2x1ServiciosModal(true)}
-                        className="w-full text-xs font-black bg-purple-500/10 border-purple-500/30 text-purple-300 hover:bg-purple-500 hover:text-black flex items-center justify-center gap-1.5 transition-all"
-                      >
-                        📋 Editar Servicios del 2×1
-                      </Button>
-                      {config2x1.servicios_acompanante.length > 0 && (
-                        <p className="text-[10px] text-zinc-500 text-center">
-                          Acomp: {config2x1.servicios_acompanante.length} servicio(s) | Extra: {config2x1.servicios_extra.length} servicio(s)
-                        </p>
-                      )}
 
                       <div className="flex items-center justify-between gap-2">
                         {p ? (
                           <>
-                            <button onClick={() => togglePromo(p)} className={`text-xs font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all ${p.activa ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20' : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'}`}>
+                            <button onClick={() => togglePromo(p)} className={`text-xs font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all flex-1 justify-center ${p.activa ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20' : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'}`}>
                               {p.activa ? <ToggleRight className="text-emerald-400 w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
                               <span>{p.activa ? '🟢 En Línea' : '🟠 Pausada'}</span>
                             </button>
                             <div className="flex gap-1">
-                              <Button variant="outline" size="sm" onClick={() => openEditPromo(p)} title="Editar"><Edit className="w-3.5 h-3.5" /></Button>
+                              <Button variant="outline" size="sm" onClick={() => setShowConfig2x1Modal(true)} title="Editar"><Edit className="w-3.5 h-3.5" /></Button>
                               <Button variant="outline" size="sm" onClick={() => deletePromo(p.id)} title="Eliminar"><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                             </div>
                           </>
@@ -1407,21 +1409,21 @@ export default function AdminLealtadPage() {
         </div>
       )}
 
-      {/* ══ MODAL DE CONFIGURACIÓN DE HORARIO Y DÍAS 2X1 ══ */}
+      {/* ══ MODAL UNIFICADO DE CONFIGURACIÓN INTEGRAL DEL 2×1 ══ */}
       {showConfig2x1Modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowConfig2x1Modal(false)}>
-          <div className="w-full max-w-lg bg-zinc-900 border border-amber-500/30 rounded-3xl p-6 shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-8 overflow-y-auto bg-black/85 backdrop-blur-md animate-in fade-in duration-200" onClick={() => setShowConfig2x1Modal(false)}>
+          <div className="w-full max-w-2xl bg-zinc-900 border border-amber-500/40 rounded-3xl p-6 shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-white/10 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center text-xl">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 flex items-center justify-center text-2xl border border-amber-500/30 shadow-inner">
                   ✂️
                 </div>
                 <div>
-                  <h3 className="text-lg font-black uppercase text-white tracking-tight">Horario y Reglas del 2×1</h3>
-                  <p className="text-xs text-zinc-400">Define qué día y en qué rango de horas aplica el 2×1 en la web</p>
+                  <h3 className="text-xl font-black uppercase text-white tracking-tight">Configuración Integral del 2×1</h3>
+                  <p className="text-xs text-zinc-400">Reglas, horarios, reserva online y servicios habilitados</p>
                 </div>
               </div>
-              <button onClick={() => setShowConfig2x1Modal(false)} className="p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors">
+              <button onClick={() => setShowConfig2x1Modal(false)} className="p-2 hover:bg-white/10 rounded-xl text-zinc-400 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1431,26 +1433,63 @@ export default function AdminLealtadPage() {
                 e.preventDefault()
                 setSaving2x1(true)
                 try {
+                  // 1. Guardar en configuraciones
                   const { error } = await supabase.from('configuraciones').upsert({
                     llave: 'promo_2x1_config',
                     valor: config2x1,
-                    descripcion: 'Horarios y reglas de la promoción 2x1'
+                    descripcion: 'Horarios, reglas y servicios de la promoción 2x1'
                   }, { onConflict: 'llave' })
                   if (error) throw error
-                  success('¡Horario y reglas del 2×1 guardadas correctamente!')
+
+                  // 2. Sincronizar en la tabla promociones
+                  const promo2x1Obj = promociones.find(isPromo2x1)
+                  if (promo2x1Obj) {
+                    await fetch('/api/promociones', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        id: promo2x1Obj.id,
+                        activa: config2x1.activa,
+                        dias_semana: [config2x1.dia_semana]
+                      })
+                    })
+                  }
+
+                  success('¡Configuración del 2×1 guardada exitosamente! ✅')
                   setShowConfig2x1Modal(false)
+                  loadAll()
                 } catch (err: any) {
-                  toastError(err.message || 'Error al guardar horario 2x1')
+                  toastError(err.message || 'Error al guardar configuración 2x1')
                 } finally {
                   setSaving2x1(false)
                 }
               }}
-              className="space-y-5"
+              className="space-y-6"
             >
-              {/* Día de la semana */}
+              {/* 1. ESTADO DE LA PROMO */}
+              <div className="flex items-center justify-between p-4 bg-zinc-950/80 rounded-2xl border border-white/5">
+                <div>
+                  <span className="text-sm font-black text-white uppercase block">Estado del 2×1</span>
+                  <span className="text-xs text-zinc-400">Activa o pausa la promoción en todo el sistema</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setConfig2x1({ ...config2x1, activa: !config2x1.activa })}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                    config2x1.activa
+                      ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
+                      : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {config2x1.activa ? <ToggleRight className="w-4 h-4 text-black" /> : <ToggleLeft className="w-4 h-4" />}
+                  <span>{config2x1.activa ? '🟢 HABILITADA' : '🟠 PAUSADA'}</span>
+                </button>
+              </div>
+
+              {/* 2. DÍA DE LA SEMANA */}
               <div>
                 <label className="block text-xs font-black text-zinc-300 uppercase tracking-wider mb-2">
-                  1. Día de la Semana para el 2×1
+                  📅 1. Día de la Semana para el 2×1
                 </label>
                 <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
                   {DIAS_SEMANA_COMPLETO.map((dia, idx) => {
@@ -1471,15 +1510,38 @@ export default function AdminLealtadPage() {
                     )
                   })}
                 </div>
-                <p className="text-[11px] text-amber-400/90 mt-2 font-semibold">
+                <p className="text-[11px] text-amber-400/90 mt-1.5 font-semibold">
                   Día seleccionado: <strong>{DIAS_SEMANA_COMPLETO[config2x1.dia_semana]}</strong>
                 </p>
               </div>
 
-              {/* Rango de Horarios */}
+              {/* 3. REGLA DE RESERVA ONLINE (SOLO LUNES / DÍA ANTERIOR) */}
+              <div className="p-4 bg-zinc-950/90 border border-amber-500/20 rounded-2xl space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <label className="text-xs font-black text-amber-400 uppercase tracking-wider block">
+                      🌐 2. Regla de Reserva Online (Web)
+                    </label>
+                    <p className="text-xs text-zinc-300 mt-0.5">
+                      Solo permitir reservar el 2×1 los días <strong>Lunes (1 día antes)</strong>
+                    </p>
+                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                      💡 <em>Si está activo, en la web el botón 2×1 solo se habilitará los Lunes. Los Martes la atención es 100% presencial por orden de llegada en la barbería para evitar saturación de agenda.</em>
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={config2x1.solo_reserva_lunes}
+                    onChange={e => setConfig2x1({ ...config2x1, solo_reserva_lunes: e.target.checked })}
+                    className="w-5 h-5 accent-amber-500 mt-1 cursor-pointer shrink-0"
+                  />
+                </div>
+              </div>
+
+              {/* 4. RANGO DE HORARIOS */}
               <div>
                 <label className="block text-xs font-black text-zinc-300 uppercase tracking-wider mb-2">
-                  2. Horario en que Aplica el 2×1
+                  ⏰ 3. Horario en que Aplica el 2×1
                 </label>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-zinc-950 p-3.5 rounded-2xl border border-white/10">
@@ -1512,75 +1574,13 @@ export default function AdminLealtadPage() {
                 </div>
               </div>
 
-              {/* Resumen explicativo */}
-              <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs space-y-1 text-zinc-300">
-                <p className="font-bold text-amber-300">ℹ️ Regla activa en el sistema:</p>
-                <p>
-                  • Las citas reservadas los <strong>{DIAS_SEMANA_COMPLETO[config2x1.dia_semana]}s</strong> entre las <strong>{config2x1.hora_inicio}</strong> y las <strong>{config2x1.hora_fin}</strong> tendrán habilitada la promoción 2×1.
-                </p>
-                <p>
-                  • Las citas agendadas fuera de este rango pagarán la <strong>tarifa regular individual</strong>.
-                </p>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowConfig2x1Modal(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" variant="primary" className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-black" disabled={saving2x1}>
-                  {saving2x1 ? 'Guardando...' : '💾 Guardar Horario 2×1'}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ══ MODAL DE SERVICIOS DEL 2×1 (Acompañante + Extra) ══ */}
-      {showConfig2x1ServiciosModal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-8 overflow-y-auto bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowConfig2x1ServiciosModal(false)}>
-          <div className="w-full max-w-2xl bg-zinc-900 border border-purple-500/30 rounded-3xl p-6 shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-white/10 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-purple-500/20 flex items-center justify-center text-xl">📋</div>
-                <div>
-                  <h3 className="text-lg font-black uppercase text-white tracking-tight">Servicios del 2×1</h3>
-                  <p className="text-xs text-zinc-400">Define qué servicios aplican para acompañante y cuáles como servicio extra (solo)</p>
-                </div>
-              </div>
-              <button onClick={() => setShowConfig2x1ServiciosModal(false)} className="p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault()
-                setSaving2x1(true)
-                try {
-                  const { error } = await supabase.from('configuraciones').upsert({
-                    llave: 'promo_2x1_config',
-                    valor: config2x1,
-                    descripcion: 'Horarios, reglas y servicios de la promoción 2x1'
-                  }, { onConflict: 'llave' })
-                  if (error) throw error
-                  success('¡Servicios del 2×1 guardados correctamente!')
-                  setShowConfig2x1ServiciosModal(false)
-                } catch (err: any) {
-                  toastError(err.message || 'Error al guardar servicios 2x1')
-                } finally {
-                  setSaving2x1(false)
-                }
-              }}
-              className="space-y-5"
-            >
-              {/* Servicios para Acompañante */}
+              {/* 5. SERVICIOS PARA ACOMPAÑANTE */}
               <div>
-                <label className="block text-xs font-black text-zinc-300 uppercase tracking-wider mb-2">
-                  👥 Servicios para Acompañante (viene en pareja)
+                <label className="block text-xs font-black text-zinc-300 uppercase tracking-wider mb-1">
+                  👥 4. Servicios para Acompañante (Vienen en Pareja)
                 </label>
-                <p className="text-[10px] text-zinc-500 mb-2">Cuando el cliente viene con alguien, estos son los servicios habilitados para el 2×1.</p>
-                <div className="flex flex-wrap gap-2 p-3 bg-zinc-950 border border-white/10 rounded-xl max-h-48 overflow-y-auto">
+                <p className="text-[10px] text-zinc-500 mb-2">Toca los servicios que están habilitados para el 2×1 cuando vienen 2 personas.</p>
+                <div className="flex flex-wrap gap-2 p-3 bg-zinc-950 border border-white/10 rounded-xl max-h-40 overflow-y-auto">
                   {servicios.map((s) => {
                     const isSelected = config2x1.servicios_acompanante.includes(s.id)
                     return (
@@ -1606,18 +1606,18 @@ export default function AdminLealtadPage() {
                 </div>
                 <p className="text-[10px] text-purple-400 mt-1 font-semibold">
                   {config2x1.servicios_acompanante.length === 0
-                    ? '⚠ Sin servicios seleccionados — se usará filtro por nombre (Corte/Barba)'
-                    : `${config2x1.servicios_acompanante.length} servicio(s) habilitados para acompañante`}
+                    ? '⚠ Sin servicios seleccionados — se aplicará a Corte y Barba'
+                    : `${config2x1.servicios_acompanante.length} servicio(s) seleccionados para acompañante`}
                 </p>
               </div>
 
-              {/* Servicios Extra (viene solo) */}
+              {/* 6. SERVICIOS DISPONIBLES PARA SERVICIO EXTRA */}
               <div>
-                <label className="block text-xs font-black text-zinc-300 uppercase tracking-wider mb-2">
-                  ✨ Servicios Extra (viene solo, 2×1 individual)
+                <label className="block text-xs font-black text-zinc-300 uppercase tracking-wider mb-1">
+                  ✨ 5. Servicios Disponibles para "Servicio Extra" (Viene Solo)
                 </label>
-                <p className="text-[10px] text-zinc-500 mb-2">Si el cliente viene solo y elige "Servicio Extra", estos son los servicios que puede agregar gratis con su compra.</p>
-                <div className="flex flex-wrap gap-2 p-3 bg-zinc-950 border border-white/10 rounded-xl max-h-48 overflow-y-auto">
+                <p className="text-[10px] text-zinc-500 mb-2">Toca los servicios que el cliente que viene solo puede agregar gratis con su compra.</p>
+                <div className="flex flex-wrap gap-2 p-3 bg-zinc-950 border border-white/10 rounded-xl max-h-40 overflow-y-auto">
                   {servicios.map((s) => {
                     const isSelected = config2x1.servicios_extra.includes(s.id)
                     return (
@@ -1643,17 +1643,17 @@ export default function AdminLealtadPage() {
                 </div>
                 <p className="text-[10px] text-amber-400 mt-1 font-semibold">
                   {config2x1.servicios_extra.length === 0
-                    ? '⚠ Sin servicios seleccionados — el modo "Servicio Extra" no mostrará opciones'
+                    ? '⚠ Sin servicios seleccionados — el cliente podrá elegir cualquier servicio individual (sin combos)'
                     : `${config2x1.servicios_extra.length} servicio(s) habilitados como extra`}
                 </p>
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowConfig2x1ServiciosModal(false)}>
+              <div className="flex gap-3 pt-2 border-t border-white/10">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowConfig2x1Modal(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" variant="primary" className="flex-1 bg-purple-500 hover:bg-purple-400 text-white font-black" disabled={saving2x1}>
-                  {saving2x1 ? 'Guardando...' : '💾 Guardar Servicios 2×1'}
+                <Button type="submit" variant="primary" className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-black" disabled={saving2x1}>
+                  {saving2x1 ? 'Guardando...' : '💾 Guardar Todo el 2×1'}
                 </Button>
               </div>
             </form>

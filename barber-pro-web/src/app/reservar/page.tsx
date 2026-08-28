@@ -104,11 +104,25 @@ function ReservarContent() {
   const [config2x1, setConfig2x1] = useState({
     activa: true,
     dia_semana: 2,
+    solo_reserva_lunes: true,
+    dia_reserva_permitido: 1,
     hora_inicio: '08:00',
     hora_fin: '17:30',
     servicios_acompanante: [] as string[],
     servicios_extra: [] as string[],
   })
+
+  // Obtener día de la semana actual en zona horaria La Paz (0=Dom, 1=Lun, 2=Mar, etc.)
+  const getDiaHoyLaPaz = (): number => {
+    try {
+      const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/La_Paz', weekday: 'short' })
+      const dayStr = formatter.format(new Date()).toLowerCase()
+      const map: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
+      return map[dayStr] ?? new Date().getDay()
+    } catch {
+      return new Date().getDay()
+    }
+  }
 
   // Función dinámica que usa config para validar servicios 2x1
   const esServicio2x1Valido = (servicio: Servicio | undefined): boolean => {
@@ -442,7 +456,14 @@ function ReservarContent() {
       }
       if (config2x1Res.data?.valor) {
         const parsed = typeof config2x1Res.data.valor === 'string' ? JSON.parse(config2x1Res.data.valor) : config2x1Res.data.valor
-        setConfig2x1(prev => ({ ...prev, ...parsed, servicios_acompanante: parsed.servicios_acompanante || [], servicios_extra: parsed.servicios_extra || [] }))
+        setConfig2x1(prev => ({
+          ...prev,
+          ...parsed,
+          solo_reserva_lunes: parsed.solo_reserva_lunes ?? true,
+          dia_reserva_permitido: parsed.dia_reserva_permitido ?? 1,
+          servicios_acompanante: parsed.servicios_acompanante || [],
+          servicios_extra: parsed.servicios_extra || []
+        }))
       }
 
       // Capturar recomendante desde ?ref=...
@@ -1429,12 +1450,23 @@ function ReservarContent() {
                         const isSelected = promoSeleccionada === p.id
                         const is2x1 = p.tipo === '2x1'
                         const servActual = servicios.find(s => s.id === formData.servicio_id)
-                        const is2x1Disabled = is2x1 && servActual && !esServicio2x1Valido(servActual)
+                        const is2x1DisabledServicio = is2x1 && servActual && !esServicio2x1Valido(servActual)
+                        const diaHoy = getDiaHoyLaPaz()
+                        const diaPermitido = config2x1.dia_reserva_permitido ?? 1 // 1 = Lunes
+                        const is2x1BloqueadoPorDia = is2x1 && config2x1.solo_reserva_lunes && diaHoy !== diaPermitido
+
                         return (
                           <div
                             key={p.id}
                             onClick={() => {
-                              if (is2x1Disabled) return // No permitir seleccionar 2x1 en servicios no válidos
+                              if (is2x1BloqueadoPorDia) {
+                                setSelectedPromoForModal({
+                                  ...p,
+                                  descripcion: '✂️ La promo 2×1 de los Martes se reserva online únicamente los días LUNES (1 día de anticipación).\n\nLos días Martes la atención 2×1 es 100% presencial por orden de llegada en la barbería debido a la alta afluencia de clientes.'
+                                })
+                                return
+                              }
+                              if (is2x1DisabledServicio) return
                               if (is2x1) {
                                 setPromoSeleccionada(isSelected ? '' : p.id)
                                 if (!isSelected) setModo2x1('acompanante')
@@ -1443,26 +1475,49 @@ function ReservarContent() {
                               }
                             }}
                             className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left ${
-                              is2x1Disabled
+                              is2x1DisabledServicio
                                 ? 'opacity-40 cursor-not-allowed bg-black/20 border-zinc-800/50'
-                                : isSelected
-                                  ? 'bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)] cursor-pointer'
-                                  : 'bg-black/40 border-zinc-800/80 hover:border-amber-500/40 cursor-pointer'
+                                : is2x1BloqueadoPorDia
+                                  ? 'bg-zinc-950/60 border-zinc-800/60 hover:border-amber-500/30 cursor-pointer'
+                                  : isSelected
+                                    ? 'bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)] cursor-pointer'
+                                    : 'bg-black/40 border-zinc-800/80 hover:border-amber-500/40 cursor-pointer'
                             }`}
                           >
                             <span className="text-sm flex-shrink-0">{p.icono || '🎁'}</span>
                             <div className="min-w-0">
                               <p className="font-black text-[11px] text-white leading-tight truncate">{cleanName}</p>
                               <p className="text-[9px] text-zinc-500 leading-tight">
-                                {is2x1 ? (is2x1Disabled ? 'Solo Corte / Barba' : '2×1 Martes') : p.tipo === 'cumpleanos' || p.tipo === 'servicio_gratis' ? '100% OFF' : `Bs. ${p.valor || 10} OFF`}
+                                {is2x1 
+                                  ? is2x1BloqueadoPorDia
+                                    ? 'Martes Presencial · Online solo Lunes'
+                                    : is2x1DisabledServicio 
+                                      ? 'Solo Corte / Barba' 
+                                      : '2×1 Martes' 
+                                  : p.tipo === 'cumpleanos' || p.tipo === 'servicio_gratis' 
+                                    ? '100% OFF' 
+                                    : `Bs. ${p.valor || 10} OFF`}
                               </p>
                             </div>
-                            {is2x1 && !isSelected && (
+                            {is2x1 && !isSelected && !is2x1BloqueadoPorDia && (
                               <span className="text-[8px] font-black uppercase bg-amber-500 text-black px-2 py-0.5 rounded-md flex-shrink-0">Reservar</span>
+                            )}
+                            {is2x1BloqueadoPorDia && (
+                              <span className="text-[8px] font-bold uppercase bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded-md flex-shrink-0">Presencial</span>
                             )}
                             <button
                               type="button"
-                              onClick={(e) => { e.stopPropagation(); setSelectedPromoForModal(p) }}
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                if (is2x1BloqueadoPorDia) {
+                                  setSelectedPromoForModal({
+                                    ...p,
+                                    descripcion: '✂️ La promo 2×1 de los Martes se reserva online únicamente los días LUNES (1 día de anticipación).\n\nLos días Martes la atención 2×1 es 100% presencial por orden de llegada en la barbería debido a la alta afluencia de clientes.'
+                                  })
+                                } else {
+                                  setSelectedPromoForModal(p)
+                                }
+                              }}
                               className="text-[8px] font-black text-amber-400 hover:text-white px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 transition flex-shrink-0"
                             >
                               Info
@@ -1529,10 +1584,17 @@ function ReservarContent() {
                               onChange={(e) => setServicioExtra2x1(e.target.value)}
                               className="w-full bg-black/70 border border-amber-500/30 rounded-xl px-3 py-2 text-white text-xs font-bold outline-none focus:border-amber-500"
                             >
-                              <option value="">— Seleccionar Servicio —</option>
-                              {servicios.filter(s => !(s as any).es_combo && !s.nombre?.toLowerCase().includes('combo')).map(s => (
-                                <option key={s.id} value={s.id}>{s.nombre} · Bs. {Number(s.precio).toFixed(0)}</option>
-                              ))}
+                              <option value="">— Seleccionar Servicio Extra —</option>
+                              {servicios
+                                .filter(s => {
+                                  if (config2x1.servicios_extra && config2x1.servicios_extra.length > 0) {
+                                    return config2x1.servicios_extra.includes(s.id)
+                                  }
+                                  return !(s as any).es_combo && !s.nombre?.toLowerCase().includes('combo')
+                                })
+                                .map(s => (
+                                  <option key={s.id} value={s.id}>{s.nombre} · Bs. {Number(s.precio).toFixed(0)}</option>
+                                ))}
                             </select>
                           </div>
                         )}
@@ -1857,6 +1919,23 @@ function ReservarContent() {
                           )}
                         </div>
                       </div>
+
+                      {/* Aviso si 2x1 está seleccionado y el día no es Martes */}
+                      {promoElegida?.tipo === '2x1' && (() => {
+                        try {
+                          const [y, m, d] = formData.fecha.split('-').map(Number)
+                          const diaSem = new Date(y, m - 1, d).getDay()
+                          if (diaSem !== (config2x1.dia_semana ?? 2)) {
+                            return (
+                              <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-300 font-bold flex items-center gap-2 animate-in fade-in">
+                                <span>⚠️</span>
+                                <span>Has activado la promoción 2×1. Recuerda que aplica exclusivamente los días <strong>Martes</strong>. Selecciona un Martes en el calendario para confirmar.</span>
+                              </div>
+                            )
+                          }
+                        } catch (_) {}
+                        return null
+                      })()}
 
                       {!disponibleAgenda ? (
                         <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-2xl text-center">
