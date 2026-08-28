@@ -2912,7 +2912,7 @@ export function CajaPOS() {
                     disabled={submitting || !formData.nombre || (!formData.servicio_id && carrito.length === 0) || !formData.barbero_id || (modoReserva && (!reservaFecha || !reservaHora))}
                     onClick={() => handleFinalizar(modoReserva ? 'pendiente' : 'en_proceso')}
                   >
-                    <Clock className="w-4 h-4 mr-2" /> {modoReserva ? '📅 Agendar Cita (Paga en local)' : '✂️ Pasar a Sillón / Atender (Paga al salir)'}
+                    <Clock className="w-4 h-4 mr-2" /> {modoReserva ? '📅 Agendar Cita (Paga en local)' : '✂️ Pasar a Sillón / Agendar (Paga al salir)'}
                   </Button>
                 </div>
               </div>
