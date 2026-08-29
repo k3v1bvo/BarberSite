@@ -72,7 +72,17 @@ export async function GET(request: Request) {
   ])
 
   const horario = horarioRes.data
-  const tiempoMinimoReserva = (configRes.data?.valor as any)?.minutos || 180
+  const rawTiempoMin = configRes.data?.valor
+  let tiempoMinimoReserva = 60
+  if (rawTiempoMin) {
+    if (typeof rawTiempoMin === 'object' && (rawTiempoMin as any).minutos !== undefined) {
+      tiempoMinimoReserva = Number((rawTiempoMin as any).minutos)
+    } else if (typeof rawTiempoMin === 'number') {
+      tiempoMinimoReserva = rawTiempoMin
+    } else if (typeof rawTiempoMin === 'string') {
+      tiempoMinimoReserva = Number(rawTiempoMin) || 60
+    }
+  }
 
   // Feriados & Domingos Rotativos
   const feriadosList: Array<{ fecha: string; nombre: string; tipo: 'cerrado' | 'con_atencion'; hora_inicio?: string; hora_fin?: string }> =
