@@ -20,7 +20,30 @@ interface ManualProps {
 type TabRole = 'cliente' | 'barbero' | 'coordinador' | 'admin'
 
 export function ManualInteractivo({ userRole }: ManualProps) {
+  const isCliente = userRole === 'cliente'
   const [activeTab, setActiveTab] = useState<TabRole>(userRole || 'cliente')
+
+  // Tabs permitidas según rol para evitar redundancia y proteger vistas internas
+  const allowedTabs: { id: TabRole; label: string; icon: string }[] = []
+  if (userRole === 'admin') {
+    allowedTabs.push(
+      { id: 'admin', label: 'Manual Admin', icon: '👑' },
+      { id: 'coordinador', label: 'Manual Coordinador', icon: '👔' },
+      { id: 'barbero', label: 'Manual Barbero', icon: '💈' },
+      { id: 'cliente', label: 'Guía Cliente', icon: '👤' }
+    )
+  } else if (userRole === 'coordinador') {
+    allowedTabs.push(
+      { id: 'coordinador', label: 'Manual Coordinador', icon: '👔' },
+      { id: 'barbero', label: 'Manual Barbero', icon: '💈' },
+      { id: 'cliente', label: 'Guía Cliente', icon: '👤' }
+    )
+  } else if (userRole === 'barbero') {
+    allowedTabs.push(
+      { id: 'barbero', label: 'Manual Barbero', icon: '💈' },
+      { id: 'cliente', label: 'Guía Cliente', icon: '👤' }
+    )
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20 lg:pb-12 max-w-7xl mx-auto px-2 sm:px-4">
@@ -30,13 +53,20 @@ export function ManualInteractivo({ userRole }: ManualProps) {
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-black uppercase tracking-widest">
-              <BookOpen className="w-3.5 h-3.5" /> Centro de Capacitación y Manuales
+              <BookOpen className="w-3.5 h-3.5" /> {isCliente ? 'Guía de Uso para Clientes' : 'Centro de Capacitación y Manuales'}
             </div>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white uppercase tracking-tight leading-tight">
-              GuíaInteractiva <span className="text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.4)]">BarberSite</span>
+              {isCliente ? (
+                <>Guía & Beneficios <span className="text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.4)]">BarberSite</span></>
+              ) : (
+                <>Guía Interactiva <span className="text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.4)]">BarberSite</span></>
+              )}
             </h1>
             <p className="text-zinc-400 text-sm sm:text-base font-medium leading-relaxed">
-              Selecciona cualquier rol para consultar su manual de uso, ver procesos paso a paso y dominar la plataforma en minutos.
+              {isCliente 
+                ? 'Conoce cómo agendar tus citas, pagar cómodamente por QR, acumular puntos y ganar cortes gratis con tu fidelidad.'
+                : 'Consulta los manuales y procesos según tu perfil para dominar la plataforma en minutos.'
+              }
             </p>
           </div>
 
@@ -51,52 +81,25 @@ export function ManualInteractivo({ userRole }: ManualProps) {
           </div>
         </div>
 
-        {/* SELECTOR DE PESTAÑAS POR ROL */}
-        <div className="mt-8 pt-6 border-t border-white/10 flex flex-wrap gap-2 sm:gap-3">
-          <button
-            onClick={() => setActiveTab('cliente')}
-            className={`px-4 sm:px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2.5 ${
-              activeTab === 'cliente'
-                ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
-                : 'bg-zinc-900/80 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-white/5'
-            }`}
-          >
-            👤 Manual Cliente
-          </button>
-
-          <button
-            onClick={() => setActiveTab('barbero')}
-            className={`px-4 sm:px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2.5 ${
-              activeTab === 'barbero'
-                ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
-                : 'bg-zinc-900/80 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-white/5'
-            }`}
-          >
-            💈 Manual Barbero
-          </button>
-
-          <button
-            onClick={() => setActiveTab('coordinador')}
-            className={`px-4 sm:px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2.5 ${
-              activeTab === 'coordinador'
-                ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
-                : 'bg-zinc-900/80 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-white/5'
-            }`}
-          >
-            👔 Manual Coordinador
-          </button>
-
-          <button
-            onClick={() => setActiveTab('admin')}
-            className={`px-4 sm:px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2.5 ${
-              activeTab === 'admin'
-                ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
-                : 'bg-zinc-900/80 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-white/5'
-            }`}
-          >
-            👑 Manual Admin
-          </button>
-        </div>
+        {/* SELECTOR DE PESTAÑAS POR ROL (SOLO PARA STAFF / ADMIN) */}
+        {!isCliente && allowedTabs.length > 1 && (
+          <div className="mt-8 pt-6 border-t border-white/10 flex flex-wrap gap-2 sm:gap-3">
+            {allowedTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 sm:px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2.5 ${
+                  activeTab === tab.id
+                    ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
+                    : 'bg-zinc-900/80 text-zinc-400 hover:bg-zinc-800 hover:text-white border border-white/5'
+                }`}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* SECCIÓN 1: MANUAL DEL CLIENTE */}
