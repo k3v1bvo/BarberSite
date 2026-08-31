@@ -540,7 +540,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
           <div className="px-5 py-4 border-t border-white/10 bg-zinc-900/50 shrink-0 space-y-2.5">
 
             {/* Solicitud de reprogramación pendiente */}
-            {userRole === 'barbero' && cita.reprogramacion_estado === 'pendiente_aprobacion' && (
+            {(userRole === 'barbero' || userRole === 'admin' || userRole === 'coordinador') && cita.reprogramacion_estado === 'pendiente_aprobacion' && (
               <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl space-y-2">
                 <p className="text-xs font-black uppercase text-amber-500 tracking-widest">Solicitud de Reprogramación</p>
                 <p className="text-xs text-zinc-300">
@@ -555,11 +555,12 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                       setResponding(true)
                       try {
                         const res = await fetch('/api/citas/responder-reprogramacion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ citaId: cita.id, respuesta: 'aceptar' }) })
-                        if (!res.ok) throw new Error()
-                        success('Reprogramación aceptada')
+                        const data = await res.json()
+                        if (!res.ok) throw new Error(data.error || 'No se pudo aceptar')
+                        success('Reprogramación aceptada con éxito')
                         onUpdate ? onUpdate() : window.location.reload()
                         onClose()
-                      } catch { error('No se pudo aceptar') } finally { setResponding(false) }
+                      } catch (err: any) { error(err.message || 'No se pudo aceptar la reprogramación') } finally { setResponding(false) }
                     }}
                   >Aceptar</Button>
                   <Button variant="danger" size="sm" className="flex-1" disabled={responding}
@@ -567,11 +568,12 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                       setResponding(true)
                       try {
                         const res = await fetch('/api/citas/responder-reprogramacion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ citaId: cita.id, respuesta: 'rechazar' }) })
-                        if (!res.ok) throw new Error()
+                        const data = await res.json()
+                        if (!res.ok) throw new Error(data.error || 'No se pudo rechazar')
                         success('Reprogramación rechazada')
                         onUpdate ? onUpdate() : window.location.reload()
                         onClose()
-                      } catch { error('No se pudo rechazar') } finally { setResponding(false) }
+                      } catch (err: any) { error(err.message || 'No se pudo rechazar la reprogramación') } finally { setResponding(false) }
                     }}
                   >Rechazar</Button>
                 </div>

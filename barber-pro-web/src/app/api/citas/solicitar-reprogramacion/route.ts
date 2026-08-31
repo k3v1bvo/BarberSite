@@ -1,11 +1,12 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getNotificationDbClient } from '@/lib/supabase/admin'
+import { createAdminSupabaseClient, getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
+    const adminSupabase = createAdminSupabaseClient() || supabase
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -19,32 +20,40 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify cita exists and belongs to the user
-    const { data: cita, error: findError } = await supabase
+    const { data: cita, error: findError } = await adminSupabase
       .from('citas')
-      .select('id, cliente_id, barbero_id')
+      .select('id, cliente_id, barbero_id, clientes(id, user_id, email, nombre)')
       .eq('id', cita_id)
-      .single()
+      .maybeSingle()
 
     if (findError || !cita) {
       return NextResponse.json({ error: 'Cita no encontrada' }, { status: 404 })
     }
 
-    if (cita.cliente_id !== user.id) {
-      return NextResponse.json({ error: 'No tienes permiso' }, { status: 403 })
+    const clienteData = Array.isArray(cita.clientes) ? cita.clientes[0] : cita.clientes
+    const isOwner = cita.cliente_id === user.id || 
+                    clienteData?.user_id === user.id || 
+                    clienteData?.id === user.id || 
+                    clienteData?.email?.toLowerCase() === user.email?.toLowerCase()
+
+    if (!isOwner) {
+      return NextResponse.json({ error: 'No tienes permiso para reprogramar esta cita' }, { status: 403 })
     }
 
     const fechaHoraSolicitada = new Date(`${nueva_fecha}T${nueva_hora}:00-04:00`).toISOString()
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await adminSupabase
       .from('citas')
       .update({
         reprogramacion_estado: 'pendiente_aprobacion',
-        fecha_hora_solicitada: fechaHoraSolicitada
+        fecha_hora_solicitada: fechaHoraSolicitada,
+        updated_at: new Date().toISOString()
       })
       .eq('id', cita_id)
 
     if (updateError) {
-      throw updateError
+      console.error('Error updating cita in solicitar-reprogramacion:', updateError)
+      return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
     // Notificar al barbero
@@ -66,6 +75,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('API solicitar-reprogramacion:', error)
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 })
   }
 }
