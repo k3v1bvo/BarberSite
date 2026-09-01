@@ -258,36 +258,37 @@ export function Navbar() {
       </header>
 
       {/* --- MOBILE TOP BAR --- */}
-      <header className="lg:hidden h-16 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md flex items-center justify-between px-4 sticky top-0 z-40">
+      <header className="lg:hidden h-16 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md flex items-center justify-between px-3 sticky top-0 z-40">
         {/* Hamburger + Logo */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 min-w-0">
           {user && (
             <button
               onClick={toggleMobile}
-              className="w-10 h-10 flex items-center justify-center rounded-xl bg-zinc-900 border border-white/10 text-zinc-300 hover:text-amber-400 hover:border-amber-500/30 transition-all active:scale-90"
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-zinc-900 border border-white/10 text-zinc-300 hover:text-amber-400 hover:border-amber-500/30 transition-all active:scale-90 shrink-0"
               aria-label="Abrir menú"
             >
-              <Menu size={20} />
+              <Menu size={18} />
             </button>
           )}
-          <Link href="/" className="flex items-center gap-2 text-amber-500 font-black tracking-tighter">
+          <Link href="/" className="flex items-center gap-1.5 text-amber-500 font-black tracking-tighter truncate">
             {brand.logo_url && (brand.mostrar_modo === 'logo' || brand.mostrar_modo === 'ambos') ? (
-              <img src={brand.logo_url} alt={brand.nombre} className="h-9 max-w-[150px] object-contain mix-blend-screen" />
+              <img src={brand.logo_url} alt={brand.nombre} className="h-8 max-w-[110px] object-contain mix-blend-screen" />
             ) : (
-              <Scissors className="w-6 h-6 glow-amber" />
+              <Scissors className="w-5 h-5 glow-amber shrink-0" />
             )}
             {(brand.mostrar_modo === 'ambos' || brand.mostrar_modo === 'texto' || !brand.logo_url) && (
-              <span>{brand.nombre}</span>
+              <span className="truncate text-xs sm:text-sm">{brand.nombre}</span>
             )}
           </Link>
         </div>
 
         {user ? (
-          <div className="flex items-center gap-2 relative">
+          <div className="flex items-center gap-1.5 shrink-0">
+            {['barbero', 'admin', 'coordinador'].includes(user.role) && <OrdenLlegadaBarberos />}
             <CampanaNotificaciones userId={user.id || ''} userRole={user.role} />
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="w-9 h-9 rounded-full bg-zinc-800 border border-amber-500/40 flex items-center justify-center text-amber-400 font-black hover:border-amber-400 transition-colors overflow-hidden shrink-0 ml-1 active:scale-95"
+              className="w-8 h-8 rounded-full bg-zinc-800 border border-amber-500/40 flex items-center justify-center text-amber-400 font-black hover:border-amber-400 transition-colors overflow-hidden shrink-0 ml-0.5 active:scale-95"
               aria-label="Perfil y Cerrar Sesión"
             >
               {user.avatar_url ? (

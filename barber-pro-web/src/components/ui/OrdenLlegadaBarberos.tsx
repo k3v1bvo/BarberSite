@@ -229,11 +229,11 @@ export function OrdenLlegadaBarberos() {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 h-9 px-3 rounded-xl bg-zinc-900 border border-amber-500/30 hover:border-amber-500/60 text-zinc-200 hover:text-white transition-all text-xs font-bold shadow-md shadow-amber-500/5 group"
-        title="Ver orden de llegada y próximo turno de atención"
+        className="flex items-center gap-1.5 h-8 sm:h-9 px-2 sm:px-3 rounded-xl bg-zinc-900 border border-amber-500/40 hover:border-amber-500 text-zinc-200 hover:text-white transition-all text-xs font-bold shadow-md shadow-amber-500/5 group shrink-0 active:scale-95"
+        title="Ver orden de llegada y pasar turno"
       >
         <span className="text-amber-400 group-hover:scale-110 transition-transform">🏁</span>
-        <span className="hidden sm:inline font-extrabold uppercase tracking-wider text-[11px]">Turnos</span>
+        <span className="font-extrabold uppercase tracking-wider text-[10px] sm:text-[11px]">Turnos</span>
         {proximoBarbero && (
           <span className="hidden md:inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-400 px-2 py-0.5 rounded-lg text-[10px] font-black">
             👉 {proximoBarbero.full_name.split(' ')[0]}
@@ -247,10 +247,10 @@ export function OrdenLlegadaBarberos() {
       {open && (
         <>
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs sm:bg-transparent"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 mt-2 w-88 sm:w-96 bg-zinc-950 border border-amber-500/30 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 backdrop-blur-xl">
+          <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-96 bg-zinc-950 border border-amber-500/40 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 backdrop-blur-xl max-h-[85vh] overflow-y-auto">
             {/* Header del modal */}
             <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-3">
               <div className="flex items-center gap-2.5">
