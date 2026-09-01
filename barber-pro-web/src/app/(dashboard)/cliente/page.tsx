@@ -17,7 +17,7 @@ import {
   Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
   Trophy, Zap, Shield, Crown, Flame, Users, UserPlus,
-  Edit3, Save, CreditCard, Upload, QrCode, Lock, KeyRound
+  Edit3, Save, CreditCard, Upload, QrCode, Lock, KeyRound, LogOut, UserCog
 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 
@@ -105,6 +105,12 @@ export default function ClientePage() {
 
   const router = useRouter()
   const supabase = createClient()
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
 
 
 
@@ -300,6 +306,41 @@ export default function ClientePage() {
   return (
     <div className="min-h-screen space-y-8 animate-in fade-in duration-700 pb-24 lg:pb-8">
 
+      {/* ══════════ HEADER CON SALUDO Y CERRAR SESIÓN ══════════ */}
+      <div className="flex flex-wrap items-center justify-between bg-zinc-900/80 border border-white/10 rounded-2xl p-4 shadow-lg backdrop-blur-md gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-500 font-black text-sm shrink-0">
+            {nombreCorto.slice(0, 2)}
+          </div>
+          <div>
+            <p className="text-white font-black text-base leading-tight">{nombre}</p>
+            <p className="text-[10px] text-amber-500 uppercase font-black tracking-widest flex items-center gap-1 mt-0.5">
+              <NivelIcon size={12} /> Nivel {config.label} • {visitas} Visitas
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push('/perfil')}
+            className="text-xs font-bold gap-1 border-white/10 hover:bg-white/5 text-zinc-300"
+          >
+            <UserCog size={14} className="text-amber-500" /> Perfil
+          </Button>
+
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={handleLogout}
+            className="text-xs font-bold gap-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 active:scale-95"
+          >
+            <LogOut size={14} /> Cerrar Sesión
+          </Button>
+        </div>
+      </div>
+
       {/* ══════════ BANNER DE CUMPLEAÑOS ══════════ */}
       {cardData?.esCumpleanos && (
         <div className={cn(
@@ -428,7 +469,15 @@ export default function ClientePage() {
             </div>
           </div>
           
-          <div className="flex justify-end mt-2 print:hidden">
+          <div className="flex justify-between items-center mt-2 print:hidden">
+            <Button
+              variant="danger"
+              size="sm"
+              className="text-xs font-bold gap-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20"
+              onClick={handleLogout}
+            >
+              <LogOut size={14} /> Cerrar Sesión
+            </Button>
             <Button 
               variant="outline" 
               className="border-white/10 hover:bg-white/5 text-xs font-bold"

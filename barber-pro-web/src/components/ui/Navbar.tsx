@@ -227,13 +227,24 @@ export function Navbar() {
 
               {/* Account Dropdown (Simplified) */}
               {menuOpen && (
-                <div className="absolute top-16 right-8 w-48 bg-zinc-900 border border-white/10 p-2 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95">
-                   <button 
+                <div className="absolute top-16 right-8 w-52 bg-zinc-900 border border-white/10 p-2 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 z-50">
+                  <div className="px-3 py-2 border-b border-white/10 mb-1">
+                    <p className="text-xs font-bold text-white leading-tight">{user.full_name}</p>
+                    <p className="text-[10px] uppercase font-black text-amber-500 tracking-widest">{getRoleLabel(user.role)}</p>
+                  </div>
+                  <Link
+                    href="/perfil"
+                    onClick={() => setMenuOpen(false)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-zinc-300 hover:text-white hover:bg-white/5 rounded-xl transition-colors font-bold text-xs"
+                  >
+                    <UserCog size={16} className="text-amber-500" /> Mi Perfil
+                  </Link>
+                  <button 
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-colors font-bold text-sm"
-                   >
-                     <LogOut size={16} /> Cerrar Sesión
-                   </button>
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-red-400 hover:bg-red-500/10 rounded-xl transition-colors font-bold text-xs"
+                  >
+                    <LogOut size={16} /> Cerrar Sesión
+                  </button>
                 </div>
               )}
             </>
@@ -250,7 +261,7 @@ export function Navbar() {
       <header className="lg:hidden h-16 border-b border-white/5 bg-zinc-950/80 backdrop-blur-md flex items-center justify-between px-4 sticky top-0 z-40">
         {/* Hamburger + Logo */}
         <div className="flex items-center gap-3">
-          {user && inDashboard && (
+          {user && (
             <button
               onClick={toggleMobile}
               className="w-10 h-10 flex items-center justify-center rounded-xl bg-zinc-900 border border-white/10 text-zinc-300 hover:text-amber-400 hover:border-amber-500/30 transition-all active:scale-90"
@@ -272,7 +283,46 @@ export function Navbar() {
         </div>
 
         {user ? (
-           <CampanaNotificaciones userId={user.id || ''} userRole={user.role} />
+          <div className="flex items-center gap-2 relative">
+            <CampanaNotificaciones userId={user.id || ''} userRole={user.role} />
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="w-9 h-9 rounded-full bg-zinc-800 border border-amber-500/40 flex items-center justify-center text-amber-400 font-black hover:border-amber-400 transition-colors overflow-hidden shrink-0 ml-1 active:scale-95"
+              aria-label="Perfil y Cerrar Sesión"
+            >
+              {user.avatar_url ? (
+                <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                getInitials(user.full_name)
+              )}
+            </button>
+            
+            {/* Dropdown flotante en móvil */}
+            {menuOpen && (
+              <div className="absolute top-12 right-0 w-52 bg-zinc-900 border border-white/10 p-2 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 z-50">
+                <div className="px-3 py-2 border-b border-white/10 mb-1">
+                  <p className="text-xs font-bold text-white leading-tight">{user.full_name}</p>
+                  <p className="text-[10px] uppercase font-black text-amber-500 tracking-widest">{getRoleLabel(user.role)}</p>
+                </div>
+                <Link
+                  href="/perfil"
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-zinc-300 hover:text-white hover:bg-white/5 rounded-xl transition-colors font-bold text-xs"
+                >
+                  <UserCog size={16} className="text-amber-500" /> Mi Perfil
+                </Link>
+                <button 
+                  onClick={() => {
+                    setMenuOpen(false)
+                    handleLogout()
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-red-400 hover:bg-red-500/10 rounded-xl transition-colors font-bold text-xs"
+                >
+                  <LogOut size={16} /> Cerrar Sesión
+                </button>
+              </div>
+            )}
+          </div>
         ) : (
            <div className="w-10"></div>
         )}

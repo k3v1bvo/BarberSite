@@ -7,10 +7,12 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
-import { User, Save, Shield, Mail, Phone, CreditCard, Image as ImageIcon, QrCode } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { User, Save, Shield, Mail, Phone, CreditCard, Image as ImageIcon, QrCode, LogOut } from 'lucide-react'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 
 export default function PerfilPage() {
+  const router = useRouter()
   const supabase = createClient()
   const { success, error: toastError } = useToast()
   const [loading, setLoading] = useState(true)
@@ -25,6 +27,12 @@ export default function PerfilPage() {
     avatar_url: '',
     qr_code_url: '',
   })
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
 
   useEffect(() => {
     async function load() {
@@ -203,7 +211,15 @@ export default function PerfilPage() {
             </div>
           )}
 
-          <div className="pt-4 flex justify-end">
+          <div className="pt-6 border-t border-zinc-800 flex justify-between items-center">
+            <Button
+              variant="danger"
+              onClick={handleLogout}
+              className="gap-2 font-bold uppercase tracking-wider text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30"
+            >
+              <LogOut className="w-4 h-4" /> Cerrar Sesión
+            </Button>
+
             <Button
               variant="primary"
               onClick={handleSave}

@@ -2,13 +2,15 @@
 
 import { useEffect, useRef } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import {
   Scissors,
   Home,
   ChevronLeft,
   ChevronRight,
   X,
+  LogOut,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -209,6 +211,16 @@ export function Sidebar({ role, userId }: SidebarProps) {
           ? 'Coordinación'
           : 'Administración'
 
+  const router = useRouter()
+  const supabase = createClient()
+
+  const handleLogout = async () => {
+    closeMobile()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
   // Close mobile sidebar on pathname change
   useEffect(() => {
     closeMobile()
@@ -327,8 +339,8 @@ export function Sidebar({ role, userId }: SidebarProps) {
             />
           )}
 
-          {/* ── Public site link ── */}
-          <div className="pt-4 mt-4 border-t border-white/5">
+          {/* ── Public site link & Logout ── */}
+          <div className="pt-3 mt-3 border-t border-white/5 space-y-1">
             <NavLink
               href="/"
               label="Sitio público"
@@ -336,6 +348,25 @@ export function Sidebar({ role, userId }: SidebarProps) {
               active={false}
               collapsed={isCollapsed}
             />
+            
+            {isCollapsed ? (
+              <Tooltip label="Cerrar Sesión" show>
+                <button
+                  onClick={handleLogout}
+                  className="sidebar-nav-link sidebar-nav-link--collapsed text-red-400 hover:bg-red-500/10 w-full"
+                >
+                  <LogOut size={20} className="text-red-400 shrink-0" />
+                </button>
+              </Tooltip>
+            ) : (
+              <button
+                onClick={handleLogout}
+                className="sidebar-nav-link text-red-400 hover:bg-red-500/10 hover:text-red-300 w-full font-bold text-xs"
+              >
+                <LogOut size={18} className="text-red-400 shrink-0" />
+                <span className="sidebar-label">Cerrar Sesión</span>
+              </button>
+            )}
           </div>
         </nav>
 
