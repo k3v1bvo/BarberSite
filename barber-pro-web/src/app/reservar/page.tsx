@@ -2136,7 +2136,7 @@ function ReservarContent() {
                               const slotsTodos = getSmartSlotsDisponibles()
                               const slotsLibres = slotsTodos.filter(s => s.disponible)
 
-                              if (slotsLibres.length === 0) {
+                              if (slotsTodos.length === 0) {
                                 return (
                                   <div className="p-6 bg-amber-500/10 border border-amber-500/30 rounded-3xl text-center max-w-md mx-auto space-y-3 animate-in fade-in">
                                     <div className="w-12 h-12 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto text-amber-400">
@@ -2165,54 +2165,101 @@ function ReservarContent() {
                               }
 
                               return (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                                  {slotsTodos.map((slot) => {
-                                    if (!slot.disponible) return null;
-                                    const hora = slot.hora
-                                    const hora12 = formatTime12h(hora)
-                                    
-                                    const [hIni, mIni] = config2x1.hora_inicio.split(':').map(Number)
-                                    const [hFin, mFin] = config2x1.hora_fin.split(':').map(Number)
-                                    const [hCur, mCur] = hora.split(':').map(Number)
-                                    const minCur = hCur * 60 + mCur
-                                    const minIni = hIni * 60 + (mIni || 0)
-                                    const minFin = hFin * 60 + (mFin || 0)
-                                    const es2x1HoraValida = minCur >= minIni && minCur <= minFin
-                                    const is2x1DisabledSlot = promoElegida?.tipo === '2x1' && !es2x1HoraValida
+                                <div className="space-y-4">
+                                  {/* Leyenda de Horarios */}
+                                  <div className="flex flex-wrap items-center justify-center gap-4 text-[10px] font-black uppercase tracking-wider text-zinc-400 bg-black/40 py-2 px-4 rounded-xl border border-zinc-800/60 max-w-xs sm:max-w-sm mx-auto">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
+                                      <span className="text-zinc-200">Libre</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
+                                      <span className="text-zinc-200">Ocupado</span>
+                                    </div>
+                                    {promoElegida?.tipo === '2x1' && (
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                                        <span className="text-amber-400">2×1</span>
+                                      </div>
+                                    )}
+                                  </div>
 
-                                    return (
-                                      <button
-                                        key={hora}
-                                        type="button"
-                                        onClick={() => {
-                                          if (is2x1DisabledSlot) {
-                                            toastError(`La promo 2×1 solo aplica de ${config2x1.hora_inicio} a ${config2x1.hora_fin}. Para reservar a las ${hora12}, desactiva la promo 2×1 en el paso 1.`)
-                                            return
-                                          }
-                                          setFormData({ ...formData, hora })
-                                          setTimeout(() => setStep(4), 300)
-                                        }}
-                                        className={`py-3.5 px-3 rounded-2xl text-xs font-black transition-all duration-200 flex flex-col items-center justify-center relative ${
-                                          formData.hora === hora
-                                            ? 'bg-amber-500 text-black scale-[1.03] shadow-[0_0_20px_rgba(245,158,11,0.4)] ring-2 ring-amber-400'
-                                            : is2x1DisabledSlot
-                                              ? 'bg-zinc-900/40 text-zinc-600 border border-zinc-800/40 hover:border-zinc-700 cursor-not-allowed opacity-60'
-                                              : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 hover:border-amber-500/40'
-                                        }`}
-                                      >
-                                        <span className="text-sm tracking-wide">{hora12}</span>
-                                        {slot.esContinuo && (
-                                          <span className="text-[8px] font-black text-emerald-400 uppercase tracking-tight mt-0.5">⚡ Continuo</span>
-                                        )}
-                                        {promoElegida?.tipo === '2x1' && es2x1HoraValida && (
-                                          <span className="text-[8px] font-black text-amber-400 uppercase tracking-wider mt-0.5">2×1</span>
-                                        )}
-                                        {promoElegida?.tipo === '2x1' && !es2x1HoraValida && (
-                                          <span className="text-[8px] font-medium text-zinc-600 mt-0.5">Sin 2×1</span>
-                                        )}
-                                      </button>
-                                    )
-                                  })}
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                                    {slotsTodos.map((slot) => {
+                                      const hora = slot.hora
+                                      const hora12 = formatTime12h(hora)
+                                      
+                                      const [hIni, mIni] = config2x1.hora_inicio.split(':').map(Number)
+                                      const [hFin, mFin] = config2x1.hora_fin.split(':').map(Number)
+                                      const [hCur, mCur] = hora.split(':').map(Number)
+                                      const minCur = hCur * 60 + mCur
+                                      const minIni = hIni * 60 + (mIni || 0)
+                                      const minFin = hFin * 60 + (mFin || 0)
+                                      const es2x1HoraValida = minCur >= minIni && minCur <= minFin
+                                      const is2x1DisabledSlot = promoElegida?.tipo === '2x1' && !es2x1HoraValida
+                                      const esOcupado = !slot.disponible
+
+                                      if (esOcupado) {
+                                        return (
+                                          <button
+                                            key={hora}
+                                            type="button"
+                                            onClick={() => {
+                                              toastError(`El horario de las ${hora12} no está disponible (${slot.motivo || 'ya se encuentra reservado u ocupado'}). Por favor selecciona un horario libre en verde.`)
+                                            }}
+                                            className="py-3.5 px-3 rounded-2xl text-xs font-black transition-all duration-200 flex flex-col items-center justify-center relative bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 hover:border-red-500/50 cursor-pointer active:scale-95 group"
+                                          >
+                                            <span className="text-sm tracking-wide line-through decoration-red-500/60 opacity-80">{hora12}</span>
+                                            <span className="text-[8px] font-black text-red-400 uppercase tracking-tight mt-0.5 flex items-center gap-0.5">
+                                              🔴 Ocupado
+                                            </span>
+                                          </button>
+                                        )
+                                      }
+
+                                      return (
+                                        <button
+                                          key={hora}
+                                          type="button"
+                                          onClick={() => {
+                                            if (is2x1DisabledSlot) {
+                                              toastError(`La promo 2×1 solo aplica de ${config2x1.hora_inicio} a ${config2x1.hora_fin}. Para reservar a las ${hora12}, desactiva la promo 2×1 en el paso 1.`)
+                                              return
+                                            }
+                                            setFormData({ ...formData, hora })
+                                            setTimeout(() => setStep(4), 300)
+                                          }}
+                                          className={`py-3.5 px-3 rounded-2xl text-xs font-black transition-all duration-200 flex flex-col items-center justify-center relative ${
+                                            formData.hora === hora
+                                              ? 'bg-amber-500 text-black scale-[1.03] shadow-[0_0_20px_rgba(245,158,11,0.4)] ring-2 ring-amber-400'
+                                              : is2x1DisabledSlot
+                                                ? 'bg-zinc-900/40 text-zinc-600 border border-zinc-800/40 hover:border-zinc-700 cursor-not-allowed opacity-60'
+                                                : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 hover:border-amber-500/40'
+                                          }`}
+                                        >
+                                          <span className="text-sm tracking-wide">{hora12}</span>
+                                          {slot.esContinuo && (
+                                            <span className="text-[8px] font-black text-emerald-400 uppercase tracking-tight mt-0.5">⚡ Continuo</span>
+                                          )}
+                                          {promoElegida?.tipo === '2x1' && es2x1HoraValida && (
+                                            <span className="text-[8px] font-black text-amber-400 uppercase tracking-wider mt-0.5">2×1</span>
+                                          )}
+                                          {promoElegida?.tipo === '2x1' && !es2x1HoraValida && (
+                                            <span className="text-[8px] font-medium text-zinc-600 mt-0.5">Sin 2×1</span>
+                                          )}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+
+                                  {slotsLibres.length === 0 && (
+                                    <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center text-xs text-amber-300 space-y-1 mt-3">
+                                      <p className="font-bold">💈 Toda la agenda online de esta fecha está ocupada</p>
+                                      <p className="text-zinc-300 text-[11px]">
+                                        Todos los turnos arriba figuran en rojo por estar ocupados o por regla de anticipación. Puedes acercarte directamente a la barbería para atención presencial por orden de llegada.
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })()
