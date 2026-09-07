@@ -17,7 +17,7 @@ import {
   Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
   Trophy, Zap, Shield, Crown, Flame, Users, UserPlus,
-  Edit3, Save, CreditCard, Upload, QrCode, Lock, KeyRound, LogOut, UserCog
+  Edit3, Save, CreditCard, Upload, QrCode, Lock, KeyRound, LogOut, UserCog, Megaphone
 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 
@@ -103,6 +103,10 @@ export default function ClientePage() {
   const [sendingPasswordReset, setSendingPasswordReset] = useState(false)
   const [passwordResetSent, setPasswordResetSent] = useState(false)
 
+  // Banner Promocional Splash
+  const [bannerPromo, setBannerPromo] = useState<{ imagen_url: string; titulo: string; descripcion: string; activo: boolean; link_url: string } | null>(null)
+  const [showBannerSplash, setShowBannerSplash] = useState(false)
+
   const router = useRouter()
   const supabase = createClient()
 
@@ -174,6 +178,28 @@ export default function ClientePage() {
       const citas = (citasRes.data as unknown as Cita[]) ?? []
       setCitasProximas(citas.filter(c => new Date(c.fecha_hora).getTime() >= ahoraMs && c.estado !== 'cancelado'))
       setCitasPasadas(citas.filter(c => new Date(c.fecha_hora).getTime() < ahoraMs || c.estado === 'cancelado').reverse().slice(0, 8))
+
+      // Cargar banner promocional
+      try {
+        const { data: bannerConf } = await supabase
+          .from('configuraciones')
+          .select('valor')
+          .eq('llave', 'banner_promo_cliente')
+          .maybeSingle()
+        if (bannerConf?.valor) {
+          const b = bannerConf.valor as any
+          if (b.activo && b.imagen_url) {
+            setBannerPromo(b)
+            // Solo mostrar splash si no se cerró en esta sesión
+            const dismissed = sessionStorage.getItem('banner_promo_dismissed')
+            if (!dismissed) {
+              setShowBannerSplash(true)
+            }
+          }
+        }
+      } catch (e) {
+        // No romper si falla la carga del banner
+      }
     } finally {
       setLoading(false)
     }
@@ -1346,6 +1372,71 @@ export default function ClientePage() {
           }}
           clienteReferralCode={cardData?.cliente?.referral_code}
         />
+      )}
+
+      {/* ══════════ SPLASH BANNER PROMOCIONAL ══════════ */}
+      {showBannerSplash && bannerPromo && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="relative w-[95vw] max-w-lg mx-auto animate-in zoom-in-95 duration-500">
+            {/* Botón cerrar */}
+            <button
+              onClick={() => {
+                setShowBannerSplash(false)
+                sessionStorage.setItem('banner_promo_dismissed', '1')
+              }}
+              className="absolute -top-3 -right-3 z-10 w-10 h-10 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center text-white hover:bg-red-500 hover:border-red-500 transition-all shadow-2xl group"
+              aria-label="Cerrar banner"
+            >
+              <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+            </button>
+
+            {/* Imagen del banner */}
+            <div className="rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(245,158,11,0.15)] border border-white/10">
+              {bannerPromo.link_url ? (
+                <a
+                  href={bannerPromo.link_url}
+                  onClick={() => {
+                    setShowBannerSplash(false)
+                    sessionStorage.setItem('banner_promo_dismissed', '1')
+                  }}
+                  className="block"
+                >
+                  <img
+                    src={bannerPromo.imagen_url}
+                    alt={bannerPromo.titulo || 'Promoción del mes'}
+                    className="w-full h-auto object-cover"
+                  />
+                </a>
+              ) : (
+                <img
+                  src={bannerPromo.imagen_url}
+                  alt={bannerPromo.titulo || 'Promoción del mes'}
+                  className="w-full h-auto object-cover"
+                />
+              )}
+
+              {/* Overlay con título y descripción */}
+              {(bannerPromo.titulo || bannerPromo.descripcion) && (
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6 pt-16">
+                  {bannerPromo.titulo && (
+                    <h3 className="text-white font-black text-xl leading-tight drop-shadow-lg">{bannerPromo.titulo}</h3>
+                  )}
+                  {bannerPromo.descripcion && (
+                    <p className="text-white/80 text-sm mt-1.5 leading-relaxed drop-shadow">{bannerPromo.descripcion}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Badge informativo */}
+            <div className="flex justify-center mt-4">
+              <span className="inline-flex items-center gap-2 bg-zinc-900/80 border border-amber-500/30 backdrop-blur px-4 py-2 rounded-full text-xs font-bold text-amber-400">
+                <Megaphone className="w-3.5 h-3.5" />
+                Toca la ✕ para continuar
+              </span>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

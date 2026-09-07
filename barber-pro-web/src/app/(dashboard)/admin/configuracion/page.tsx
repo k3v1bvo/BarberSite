@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useToast } from '@/components/ui/Toast'
-import { QrCode, Save, ArrowLeft, Image as ImageIcon, Info, Sparkles, Tag, Gift } from 'lucide-react'
+import { QrCode, Save, ArrowLeft, Image as ImageIcon, Info, Sparkles, Tag, Gift, ToggleLeft, ToggleRight, Megaphone, X, Eye, EyeOff } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { isValidImageUrl } from '@/lib/validators'
 import { ImageUpload } from '@/components/ui/ImageUpload'
@@ -42,6 +42,7 @@ export default function AdminConfiguracionPage() {
   const [aboutUsConfig, setAboutUsConfig] = useState(defaultAboutUs)
   const [initialAboutUsConfig, setInitialAboutUsConfig] = useState(defaultAboutUs)
   const [montoBonoReferido, setMontoBonoReferido] = useState('10')
+  const [bannerPromo, setBannerPromo] = useState({ imagen_url: '', titulo: '', descripcion: '', activo: false, link_url: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const { error: toastError, success: toastSuccess, toast: toastInfo } = useToast()
@@ -54,7 +55,7 @@ export default function AdminConfiguracionPage() {
         const { data, error } = await supabase
           .from('configuraciones')
           .select('llave, valor')
-          .in('llave', ['qr_pago', 'hero_bg_image', 'about_us_config', 'brand_config', 'monto_bono_referido'])
+          .in('llave', ['qr_pago', 'hero_bg_image', 'about_us_config', 'brand_config', 'monto_bono_referido', 'banner_promo_cliente'])
 
         if (data) {
           const brandData = data.find(c => c.llave === 'brand_config')
@@ -81,6 +82,10 @@ export default function AdminConfiguracionPage() {
             const mergedHeroConfig = { ...defaultHero, ...(heroConfigData.valor as any) }
             setHeroConfig(mergedHeroConfig)
             setInitialHeroConfig(mergedHeroConfig)
+          }
+          const bannerData = data.find(c => c.llave === 'banner_promo_cliente')
+          if (bannerData && bannerData.valor) {
+            setBannerPromo({ imagen_url: '', titulo: '', descripcion: '', activo: false, link_url: '', ...(bannerData.valor as any) })
           }
           if (aboutConfig && aboutConfig.valor) {
             setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
@@ -246,6 +251,29 @@ export default function AdminConfiguracionPage() {
     }
   }
 
+  const handleSaveBanner = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (bannerPromo.activo && !bannerPromo.imagen_url) {
+      return toastError('Para activar el banner debes subir una imagen.')
+    }
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from('configuraciones')
+        .upsert({
+          llave: 'banner_promo_cliente',
+          valor: bannerPromo as any,
+          descripcion: 'Banner promocional visible al cliente al iniciar sesión'
+        }, { onConflict: 'llave' })
+      if (error) throw error
+      toastSuccess(bannerPromo.activo ? '📢 Banner promocional activado y guardado' : 'Banner guardado (desactivado)')
+    } catch (err: any) {
+      toastError(err.message || 'Error al guardar el banner')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-96">
@@ -388,6 +416,115 @@ export default function AdminConfiguracionPage() {
               >
                 <Save className="w-4 h-4 mr-2" />
                 {saving ? 'Guardando...' : 'Guardar Monto de Bono'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* ══════════ BANNER PROMOCIONAL MENSUAL ══════════ */}
+      <Card className={`bg-zinc-900 shadow-xl transition-all ${bannerPromo.activo ? 'border-emerald-500/40 shadow-emerald-500/10' : 'border-white/5'}`}>
+        <CardHeader className="border-b border-white/5 bg-zinc-900/50 p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${bannerPromo.activo ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-800 text-zinc-500'}`}>
+                <Megaphone className="w-6 h-6" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-black uppercase text-white">📢 Banner Promocional (Clientes)</CardTitle>
+                <p className="text-sm text-zinc-400">Imagen que verán los clientes al iniciar sesión. Ideal para promos del mes.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setBannerPromo({ ...bannerPromo, activo: !bannerPromo.activo })}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all border ${
+                bannerPromo.activo
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30'
+                  : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-zinc-700'
+              }`}
+            >
+              {bannerPromo.activo ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              {bannerPromo.activo ? 'Activo' : 'Inactivo'}
+            </button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <form onSubmit={handleSaveBanner} className="space-y-6">
+            <ImageUpload
+              label="Imagen del Banner Promocional (Recomendado: 1080x600px o similar horizontal)"
+              defaultImage={bannerPromo.imagen_url || undefined}
+              onUploadSuccess={(url) => setBannerPromo({ ...bannerPromo, imagen_url: url })}
+              onUploadError={(err) => toastError(err)}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Título del Banner (opcional)</label>
+                <Input
+                  className="mt-1 bg-zinc-950 border-white/10 text-white font-bold h-12 rounded-xl focus:border-amber-500"
+                  placeholder="Ej: 🔥 Promociones de Septiembre"
+                  value={bannerPromo.titulo}
+                  onChange={(e) => setBannerPromo({ ...bannerPromo, titulo: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Link al tocar el banner (opcional)</label>
+                <Input
+                  className="mt-1 bg-zinc-950 border-white/10 text-white font-bold h-12 rounded-xl focus:border-amber-500"
+                  placeholder="Ej: /reservar"
+                  value={bannerPromo.link_url}
+                  onChange={(e) => setBannerPromo({ ...bannerPromo, link_url: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción corta (opcional)</label>
+              <textarea
+                className="mt-1 w-full bg-zinc-950 border border-white/10 text-white font-bold rounded-xl p-3 text-sm min-h-[80px] focus:border-amber-500 outline-none transition-all resize-none"
+                placeholder="Ej: 2x1 todos los martes, 20% en barba los jueves..."
+                value={bannerPromo.descripcion}
+                onChange={(e) => setBannerPromo({ ...bannerPromo, descripcion: e.target.value })}
+              />
+            </div>
+
+            {/* Preview */}
+            {bannerPromo.imagen_url && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Vista Previa (así lo verán los clientes)</p>
+                <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl max-w-md mx-auto">
+                  <img src={bannerPromo.imagen_url} alt="Preview banner" className="w-full h-auto object-cover" />
+                  {(bannerPromo.titulo || bannerPromo.descripcion) && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-5 pt-12">
+                      {bannerPromo.titulo && <h3 className="text-white font-black text-lg leading-tight">{bannerPromo.titulo}</h3>}
+                      {bannerPromo.descripcion && <p className="text-white/70 text-xs mt-1 leading-relaxed">{bannerPromo.descripcion}</p>}
+                    </div>
+                  )}
+                  <button type="button" className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 backdrop-blur flex items-center justify-center text-white/80 hover:text-white hover:bg-black/80 transition-all">
+                    <X className="w-4 h-4" />
+                  </button>
+                  {!bannerPromo.activo && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <span className="bg-zinc-800 text-zinc-400 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest">Banner Desactivado</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-4 border-t border-white/5">
+              <Button
+                type="submit"
+                disabled={saving}
+                className={`font-black px-8 py-3 rounded-xl transition-all shadow-lg ${
+                  bannerPromo.activo
+                    ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/20'
+                    : 'bg-zinc-700 hover:bg-zinc-600 text-white shadow-none'
+                }`}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {saving ? 'Guardando...' : bannerPromo.activo ? 'Guardar y Activar Banner' : 'Guardar Banner (Inactivo)'}
               </Button>
             </div>
           </form>
