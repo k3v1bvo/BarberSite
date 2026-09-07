@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/Input'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { ModalPaseDigitalCita, CitaPaseDigital } from '@/components/cliente/ModalPaseDigitalCita'
 import { ModalDetallePromocion, PromocionDetalle } from '@/components/cliente/ModalDetallePromocion'
+import { BannerPromoSplashModal } from '@/components/ui/BannerPromoSplashModal'
 import {
   Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
@@ -1375,69 +1376,11 @@ export default function ClientePage() {
       )}
 
       {/* ══════════ SPLASH BANNER PROMOCIONAL ══════════ */}
-      {showBannerSplash && bannerPromo && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="relative w-[95vw] max-w-lg mx-auto animate-in zoom-in-95 duration-500">
-            {/* Botón cerrar */}
-            <button
-              onClick={() => {
-                setShowBannerSplash(false)
-                sessionStorage.setItem('banner_promo_dismissed', '1')
-              }}
-              className="absolute -top-3 -right-3 z-10 w-10 h-10 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center text-white hover:bg-red-500 hover:border-red-500 transition-all shadow-2xl group"
-              aria-label="Cerrar banner"
-            >
-              <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-            </button>
-
-            {/* Imagen del banner */}
-            <div className="rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(245,158,11,0.15)] border border-white/10">
-              {bannerPromo.link_url ? (
-                <a
-                  href={bannerPromo.link_url}
-                  onClick={() => {
-                    setShowBannerSplash(false)
-                    sessionStorage.setItem('banner_promo_dismissed', '1')
-                  }}
-                  className="block"
-                >
-                  <img
-                    src={bannerPromo.imagen_url}
-                    alt={bannerPromo.titulo || 'Promoción del mes'}
-                    className="w-full h-auto object-cover"
-                  />
-                </a>
-              ) : (
-                <img
-                  src={bannerPromo.imagen_url}
-                  alt={bannerPromo.titulo || 'Promoción del mes'}
-                  className="w-full h-auto object-cover"
-                />
-              )}
-
-              {/* Overlay con título y descripción */}
-              {(bannerPromo.titulo || bannerPromo.descripcion) && (
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6 pt-16">
-                  {bannerPromo.titulo && (
-                    <h3 className="text-white font-black text-xl leading-tight drop-shadow-lg">{bannerPromo.titulo}</h3>
-                  )}
-                  {bannerPromo.descripcion && (
-                    <p className="text-white/80 text-sm mt-1.5 leading-relaxed drop-shadow">{bannerPromo.descripcion}</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Badge informativo */}
-            <div className="flex justify-center mt-4">
-              <span className="inline-flex items-center gap-2 bg-zinc-900/80 border border-amber-500/30 backdrop-blur px-4 py-2 rounded-full text-xs font-bold text-amber-400">
-                <Megaphone className="w-3.5 h-3.5" />
-                Toca la ✕ para continuar
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+      <BannerPromoSplashModal
+        banner={bannerPromo}
+        isOpen={showBannerSplash}
+        onClose={() => setShowBannerSplash(false)}
+      />
 
     </div>
   )

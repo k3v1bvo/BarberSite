@@ -30,6 +30,7 @@ import { useSocialLinks } from '@/components/ui/useSocialLinks'
 import { CATEGORIAS_SERVICIOS } from '@/types'
 import { ServicioGalleryBanner } from '@/components/ui/ServicioGalleryBanner'
 import { ServicioDetailModal } from '@/components/ui/ServicioDetailModal'
+import { BannerPromoSplashModal } from '@/components/ui/BannerPromoSplashModal'
 import { useBrand } from '@/components/providers/BrandProvider'
 
 interface UserProfile {
@@ -117,6 +118,7 @@ export default function HomePage() {
   const [activeSection, setActiveSection] = useState<string>('')
   const [focusedBarberoId, setFocusedBarberoId] = useState<string | null>(null)
   const [categoriaActiva, setCategoriaActiva] = useState<string>('todos')
+  const [bannerPromo, setBannerPromo] = useState<any | null>(null)
   const router = useRouter()
   const supabase = createClient()
   const socialLinks = useSocialLinks()
@@ -190,7 +192,7 @@ export default function HomePage() {
           supabase
             .from('configuraciones')
             .select('llave, valor')
-            .in('llave', ['hero_bg_image', 'about_us_config']),
+            .in('llave', ['hero_bg_image', 'about_us_config', 'banner_promo_cliente']),
           supabase
             .from('reviews')
             .select(`
@@ -235,8 +237,12 @@ export default function HomePage() {
         if (configRes.data) {
           const heroConfig = configRes.data.find((c: any) => c.llave === 'hero_bg_image')
           const aboutConfig = configRes.data.find((c: any) => c.llave === 'about_us_config')
+          const bannerConfig = configRes.data.find((c: any) => c.llave === 'banner_promo_cliente')
           if (heroConfig?.valor) setHeroConfigState({ ...defaultHero, ...(heroConfig.valor as any) })
           if (aboutConfig?.valor) setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
+          if (bannerConfig?.valor?.activo && bannerConfig?.valor?.imagen_url) {
+            setBannerPromo(bannerConfig.valor)
+          }
         }
 
         if (testimoniosRes.data) setTestimonios(testimoniosRes.data)
@@ -1161,6 +1167,9 @@ export default function HomePage() {
         isOpen={!!selectedServicioForDetail}
         onClose={() => setSelectedServicioForDetail(null)}
       />
+
+      {/* Banner Promocional Splash Modal */}
+      <BannerPromoSplashModal banner={bannerPromo} />
     </div>
   )
 }
