@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Megaphone, ArrowRight, Sparkles, Clock, Calendar } from 'lucide-react'
+import { X, Sparkles, Clock } from 'lucide-react'
 
 export interface BannerPromoData {
   activo: boolean
@@ -101,7 +101,7 @@ export function BannerPromoSplashModal({
     return null
   }
 
-  const modalContent = (
+  return createPortal(
     <div
       className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
       style={{ margin: 0 }}
@@ -114,7 +114,7 @@ export function BannerPromoSplashModal({
         className="relative z-10 w-full max-w-[94vw] sm:max-w-md md:max-w-lg my-auto flex flex-col items-center animate-in zoom-in-95 duration-300 select-none"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Botón flotante superior derecho (✕) */}
+        {/* Único botón de cierre: X flotante superior derecha */}
         <button
           type="button"
           onClick={handleClose}
@@ -126,8 +126,8 @@ export function BannerPromoSplashModal({
 
         {/* Tarjeta del Banner */}
         <div className="w-full rounded-3xl overflow-hidden shadow-[0_0_70px_rgba(245,158,11,0.25)] border border-amber-500/40 bg-zinc-950 flex flex-col">
-          {/* Imagen destacada con altura máxima adaptable para móviles y desktops */}
-          <div className="relative bg-zinc-900/60 flex items-center justify-center max-h-[55vh] sm:max-h-[62vh] overflow-hidden">
+          {/* Imagen destacada: si tiene link, al tocarla redirige */}
+          <div className="relative bg-zinc-900/60 flex items-center justify-center max-h-[75vh] sm:max-h-[82vh] overflow-hidden">
             {banner.link_url ? (
               <a
                 href={banner.link_url}
@@ -137,24 +137,24 @@ export function BannerPromoSplashModal({
                 <img
                   src={banner.imagen_url}
                   alt={banner.titulo || 'Promoción destacada'}
-                  className="w-full h-auto max-h-[55vh] sm:max-h-[62vh] object-contain mx-auto"
+                  className="w-full h-auto max-h-[75vh] sm:max-h-[82vh] object-contain mx-auto"
                 />
               </a>
             ) : (
               <img
                 src={banner.imagen_url}
                 alt={banner.titulo || 'Promoción destacada'}
-                className="w-full h-auto max-h-[55vh] sm:max-h-[62vh] object-contain mx-auto"
+                className="w-full h-auto max-h-[75vh] sm:max-h-[82vh] object-contain mx-auto"
               />
             )}
           </div>
 
-          {/* Información: Título, vigencia, descripción y botón opcional */}
-          {(banner.titulo || banner.descripcion || banner.link_url || banner.fecha_fin) && (
-            <div className="p-4 sm:p-5 bg-gradient-to-b from-zinc-900 to-zinc-950 border-t border-white/10 text-center">
+          {/* Información: Título, vigencia y descripción SOLO si se ingresaron textos */}
+          {(banner.titulo || banner.descripcion || banner.fecha_fin) && (
+            <div className="p-4 bg-gradient-to-b from-zinc-900 to-zinc-950 border-t border-white/10 text-center">
               {/* Badge de vigencia hasta que la promo acabe */}
               {banner.fecha_fin && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-black mb-2.5 shadow-sm">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-black mb-1.5 shadow-sm">
                   <Clock className="w-3.5 h-3.5" />
                   <span>Válido hasta el {formatFechaFin(banner.fecha_fin)}</span>
                 </div>
@@ -167,36 +167,15 @@ export function BannerPromoSplashModal({
                 </h3>
               )}
               {banner.descripcion && (
-                <p className="text-zinc-300 text-xs sm:text-sm mt-1.5 leading-relaxed max-w-md mx-auto">
+                <p className="text-zinc-300 text-xs sm:text-sm mt-1 leading-relaxed max-w-md mx-auto">
                   {banner.descripcion}
                 </p>
-              )}
-              {banner.link_url && (
-                <a
-                  href={banner.link_url}
-                  onClick={handleClose}
-                  className="mt-3.5 inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-sm transition-all shadow-lg active:scale-95"
-                >
-                  Aprovechar Promoción <ArrowRight className="w-4 h-4" />
-                </a>
               )}
             </div>
           )}
         </div>
-
-        {/* Botón inferior amigable para continuar */}
-        <button
-          type="button"
-          onClick={handleClose}
-          className="mt-3.5 inline-flex items-center gap-2 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700 hover:border-amber-500/50 backdrop-blur-md px-5 py-2 rounded-full text-xs font-bold text-zinc-300 hover:text-white transition-all shadow-lg active:scale-95 cursor-pointer"
-        >
-          <Megaphone className="w-3.5 h-3.5 text-amber-500" />
-          <span>Continuar</span>
-          <X className="w-3.5 h-3.5 text-zinc-400 ml-1" />
-        </button>
       </div>
-    </div>
+    </div>,
+    document.body
   )
-
-  return createPortal(modalContent, document.body)
 }
