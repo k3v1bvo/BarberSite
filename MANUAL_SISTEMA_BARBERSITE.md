@@ -195,16 +195,20 @@ Esta función permite comunicar campañas especiales a todos los clientes que in
 1. Ingrese a **Administración ➔ Configuración** (`/admin/configuracion`).
 2. Desplácese hasta la tarjeta **📢 Banner Promocional del Mes (Splash)**.
 3. **Interruptor de Activación**:
-   - Encienda o apague el switch *"Activar banner promocional al iniciar sesión"*. Si está apagado, los clientes no verán ninguna ventana emergente.
-4. **Subir la Imagen**:
+   - Encienda o apague el switch *"Activar banner promocional"*. Si está apagado, los clientes no verán ninguna ventana emergente.
+4. **Vincular con Promoción de Lealtad (Opcional)**:
+   - Puede seleccionar una promoción ya creada en `/admin/lealtad` (ej. "2x1 Aniversario"). El sistema cargará automáticamente el título, descripción y la fecha fin de vigencia.
+5. **Subir la Imagen**:
    - Haga clic en el cargador de imágenes y seleccione el afiche, volante o banner promocional (formato JPG, PNG o WebP).
-5. **Textos y Enlace**:
+6. **Fecha de Vigencia / Válido Hasta (`fecha_fin`)**:
+   - Seleccione la fecha en que termina la promoción. El banner se mostrará a los clientes en cada visita o inicio de sesión, y **se desactivará de forma 100% automática al vencer dicha fecha**.
+7. **Textos y Enlace**:
    - **Título**: Ejemplo: *"¡Cortes 2x1 este mes de Aniversario!"* o *"Combo Barba + Limpieza Facial"*.
    - **Descripción**: Breve texto explicando las condiciones o vigencia de la promo.
    - **Enlace de Destino (Opcional)**: URL a la que se redirige al cliente si hace clic en el botón (por ejemplo `/reservar`).
-6. **Previsualización en Vivo**:
-   - A la derecha verá exactamente cómo lucirá la ventana emergente que verán los clientes en sus pantallas.
-7. **Guardar**: Presione el botón *"Guardar Banner Promocional"*. El cambio entra en vigor inmediatamente.
+8. **Previsualización en Vivo**:
+   - A la derecha verá exactamente cómo lucirá la ventana emergente centrada con su badge de vigencia.
+9. **Guardar**: Presione el botón *"Guardar Banner Promocional"*. El cambio entra en vigor inmediatamente.
 
 ---
 

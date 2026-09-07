@@ -190,10 +190,20 @@ export default function ClientePage() {
         if (bannerConf?.valor) {
           const b = bannerConf.valor as any
           if (b.activo && b.imagen_url) {
-            setBannerPromo(b)
-            // Solo mostrar splash si no se cerró en esta sesión
-            const dismissed = sessionStorage.getItem('banner_promo_dismissed')
-            if (!dismissed) {
+            // Validar si la promo ya acabó por fecha_fin
+            let expirado = false
+            if (b.fecha_fin) {
+              const d = new Date()
+              const y = d.getFullYear()
+              const m = String(d.getMonth() + 1).padStart(2, '0')
+              const day = String(d.getDate()).padStart(2, '0')
+              const hoy = `${y}-${m}-${day}`
+              if (hoy > b.fecha_fin) {
+                expirado = true
+              }
+            }
+            if (!expirado) {
+              setBannerPromo(b)
               setShowBannerSplash(true)
             }
           }

@@ -241,7 +241,21 @@ export default function HomePage() {
           if (heroConfig?.valor) setHeroConfigState({ ...defaultHero, ...(heroConfig.valor as any) })
           if (aboutConfig?.valor) setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
           if (bannerConfig?.valor?.activo && bannerConfig?.valor?.imagen_url) {
-            setBannerPromo(bannerConfig.valor)
+            const val = bannerConfig.valor
+            let expirado = false
+            if (val.fecha_fin) {
+              const d = new Date()
+              const y = d.getFullYear()
+              const m = String(d.getMonth() + 1).padStart(2, '0')
+              const day = String(d.getDate()).padStart(2, '0')
+              const hoy = `${y}-${m}-${day}`
+              if (hoy > val.fecha_fin) {
+                expirado = true
+              }
+            }
+            if (!expirado) {
+              setBannerPromo(val)
+            }
           }
         }
 

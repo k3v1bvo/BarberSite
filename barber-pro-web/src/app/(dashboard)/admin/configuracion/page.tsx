@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useToast } from '@/components/ui/Toast'
-import { QrCode, Save, ArrowLeft, Image as ImageIcon, Info, Sparkles, Tag, Gift, ToggleLeft, ToggleRight, Megaphone, X, Eye, EyeOff } from 'lucide-react'
+import { QrCode, Save, ArrowLeft, Image as ImageIcon, Info, Sparkles, Tag, Gift, ToggleLeft, ToggleRight, Megaphone, X, Eye, EyeOff, Clock, Calendar } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { isValidImageUrl } from '@/lib/validators'
 import { ImageUpload } from '@/components/ui/ImageUpload'
@@ -42,7 +42,16 @@ export default function AdminConfiguracionPage() {
   const [aboutUsConfig, setAboutUsConfig] = useState(defaultAboutUs)
   const [initialAboutUsConfig, setInitialAboutUsConfig] = useState(defaultAboutUs)
   const [montoBonoReferido, setMontoBonoReferido] = useState('10')
-  const [bannerPromo, setBannerPromo] = useState({ imagen_url: '', titulo: '', descripcion: '', activo: false, link_url: '' })
+  const [bannerPromo, setBannerPromo] = useState({
+    imagen_url: '',
+    titulo: '',
+    descripcion: '',
+    activo: false,
+    link_url: '',
+    fecha_fin: '',
+    promocion_id: '',
+  })
+  const [promocionesList, setPromocionesList] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const { error: toastError, success: toastSuccess, toast: toastInfo } = useToast()
@@ -85,7 +94,28 @@ export default function AdminConfiguracionPage() {
           }
           const bannerData = data.find(c => c.llave === 'banner_promo_cliente')
           if (bannerData && bannerData.valor) {
-            setBannerPromo({ imagen_url: '', titulo: '', descripcion: '', activo: false, link_url: '', ...(bannerData.valor as any) })
+            setBannerPromo({
+              imagen_url: '',
+              titulo: '',
+              descripcion: '',
+              activo: false,
+              link_url: '',
+              fecha_fin: '',
+              promocion_id: '',
+              ...(bannerData.valor as any)
+            })
+          }
+
+          // Cargar lista de promociones para vincular
+          try {
+            const { data: promosData } = await supabase
+              .from('promociones')
+              .select('id, nombre, descripcion, fecha_inicio, fecha_fin, activa, icono')
+              .eq('activa', true)
+              .order('created_at', { ascending: false })
+            if (promosData) setPromocionesList(promosData)
+          } catch (pErr) {
+            console.error('Error cargando promociones:', pErr)
           }
           if (aboutConfig && aboutConfig.valor) {
             setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
@@ -458,6 +488,50 @@ export default function AdminConfiguracionPage() {
               onUploadError={(err) => toastError(err)}
             />
 
+            {/* Selector de Promoción de Lealtad (Opcional) */}
+            {promocionesList.length > 0 && (
+              <div className="p-4 bg-zinc-950 border border-white/5 rounded-2xl space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 flex items-center justify-between">
+                  <span>Vincular con Promoción de Lealtad (Opcional)</span>
+                  {bannerPromo.promocion_id && (
+                    <span className="text-amber-500 font-bold text-[10px]">✨ Vinculada a promoción existente</span>
+                  )}
+                </label>
+                <select
+                  className="w-full bg-zinc-900 border border-white/10 text-white font-bold h-12 rounded-xl px-3 text-sm focus:border-amber-500 outline-none transition-all cursor-pointer"
+                  value={bannerPromo.promocion_id || ''}
+                  onChange={(e) => {
+                    const promoId = e.target.value
+                    if (!promoId) {
+                      setBannerPromo({ ...bannerPromo, promocion_id: '' })
+                      return
+                    }
+                    const selectedPromo = promocionesList.find((p: any) => p.id === promoId)
+                    if (selectedPromo) {
+                      setBannerPromo({
+                        ...bannerPromo,
+                        promocion_id: selectedPromo.id,
+                        titulo: selectedPromo.nombre || bannerPromo.titulo,
+                        descripcion: selectedPromo.descripcion || bannerPromo.descripcion,
+                        fecha_fin: selectedPromo.fecha_fin || bannerPromo.fecha_fin,
+                      })
+                      toastSuccess(`Datos cargados desde la promoción: ${selectedPromo.nombre}`)
+                    }
+                  }}
+                >
+                  <option value="">— Ninguna (Crear afiche personalizado) —</option>
+                  {promocionesList.map((p: any) => (
+                    <option key={p.id} value={p.id}>
+                      {p.icono || '🎁'} {p.nombre} {p.fecha_fin ? `(Válido hasta: ${p.fecha_fin})` : '(Sin fecha límite)'}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-zinc-500">
+                  Si seleccionas una promoción, se autorellenará el título, la descripción y la fecha fin de vigencia.
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Título del Banner (opcional)</label>
@@ -468,15 +542,40 @@ export default function AdminConfiguracionPage() {
                   onChange={(e) => setBannerPromo({ ...bannerPromo, titulo: e.target.value })}
                 />
               </div>
+
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Link al tocar el banner (opcional)</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1 flex items-center justify-between">
+                  <span>Válido Hasta (Fecha Límite)</span>
+                  {bannerPromo.fecha_fin && (
+                    <span className={`text-[10px] font-black uppercase ${
+                      new Date().toISOString().split('T')[0] > bannerPromo.fecha_fin
+                        ? 'text-red-400'
+                        : 'text-emerald-400'
+                    }`}>
+                      {new Date().toISOString().split('T')[0] > bannerPromo.fecha_fin ? '⚠️ Expirada' : '✅ Vigente'}
+                    </span>
+                  )}
+                </label>
                 <Input
+                  type="date"
                   className="mt-1 bg-zinc-950 border-white/10 text-white font-bold h-12 rounded-xl focus:border-amber-500"
-                  placeholder="Ej: /reservar"
-                  value={bannerPromo.link_url}
-                  onChange={(e) => setBannerPromo({ ...bannerPromo, link_url: e.target.value })}
+                  value={bannerPromo.fecha_fin || ''}
+                  onChange={(e) => setBannerPromo({ ...bannerPromo, fecha_fin: e.target.value })}
                 />
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  El banner aparecerá a los clientes en cada visita hasta esta fecha. Al pasar el día, dejará de mostrarse automáticamente.
+                </p>
               </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Link al tocar el banner (opcional)</label>
+              <Input
+                className="mt-1 bg-zinc-950 border-white/10 text-white font-bold h-12 rounded-xl focus:border-amber-500"
+                placeholder="Ej: /reservar"
+                value={bannerPromo.link_url}
+                onChange={(e) => setBannerPromo({ ...bannerPromo, link_url: e.target.value })}
+              />
             </div>
 
             <div>
@@ -495,8 +594,14 @@ export default function AdminConfiguracionPage() {
                 <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Vista Previa (así lo verán los clientes)</p>
                 <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl max-w-md mx-auto">
                   <img src={bannerPromo.imagen_url} alt="Preview banner" className="w-full h-auto object-cover" />
-                  {(bannerPromo.titulo || bannerPromo.descripcion) && (
+                  {(bannerPromo.titulo || bannerPromo.descripcion || bannerPromo.fecha_fin) && (
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-5 pt-12">
+                      {bannerPromo.fecha_fin && (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/25 text-amber-400 text-[10px] font-black mb-1.5 border border-amber-500/40">
+                          <Clock className="w-3 h-3" />
+                          <span>Válido hasta: {bannerPromo.fecha_fin}</span>
+                        </div>
+                      )}
                       {bannerPromo.titulo && <h3 className="text-white font-black text-lg leading-tight">{bannerPromo.titulo}</h3>}
                       {bannerPromo.descripcion && <p className="text-white/70 text-xs mt-1 leading-relaxed">{bannerPromo.descripcion}</p>}
                     </div>

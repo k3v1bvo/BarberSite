@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Megaphone, ArrowRight, Sparkles } from 'lucide-react'
+import { X, Megaphone, ArrowRight, Sparkles, Clock, Calendar } from 'lucide-react'
 
 export interface BannerPromoData {
   activo: boolean
@@ -10,20 +10,51 @@ export interface BannerPromoData {
   titulo?: string
   descripcion?: string
   link_url?: string
+  fecha_fin?: string | null
+  promocion_id?: string | null
 }
 
 interface BannerPromoSplashModalProps {
   banner: BannerPromoData | null
   isOpen?: boolean
   onClose?: () => void
-  storageKey?: string
+}
+
+/** Formatea YYYY-MM-DD a formato amigable "30 de septiembre" */
+function formatFechaFin(fechaStr: string) {
+  try {
+    const [y, m, d] = fechaStr.split('-')
+    const meses = [
+      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+    ]
+    const mes = meses[parseInt(m, 10) - 1] || m
+    return `${parseInt(d, 10)} de ${mes}`
+  } catch {
+    return fechaStr
+  }
+}
+
+/** Comprueba si la fecha actual ya superó la fecha fin de la promoción */
+export function isBannerExpired(banner: BannerPromoData | null | undefined): boolean {
+  if (!banner || !banner.activo || !banner.imagen_url) return true
+  if (banner.fecha_fin) {
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hoy = `${y}-${m}-${day}`
+    if (hoy > banner.fecha_fin) {
+      return true // La promoción ya finalizó
+    }
+  }
+  return false
 }
 
 export function BannerPromoSplashModal({
   banner,
   isOpen: controlledIsOpen,
   onClose,
-  storageKey = 'banner_promo_dismissed',
 }: BannerPromoSplashModalProps) {
   const [mounted, setMounted] = useState(false)
   const [internalOpen, setInternalOpen] = useState(false)
@@ -32,9 +63,9 @@ export function BannerPromoSplashModal({
     setMounted(true)
   }, [])
 
-  // Determinar si debe abrirse automáticamente según sessionStorage si no es controlado
+  // Determinar si debe abrirse automáticamente según vigencia de la promo
   useEffect(() => {
-    if (!banner || !banner.activo || !banner.imagen_url) {
+    if (isBannerExpired(banner)) {
       setInternalOpen(false)
       return
     }
@@ -44,15 +75,9 @@ export function BannerPromoSplashModal({
       return
     }
 
-    try {
-      const dismissed = typeof window !== 'undefined' ? sessionStorage.getItem(storageKey) : null
-      if (!dismissed) {
-        setInternalOpen(true)
-      }
-    } catch {
-      setInternalOpen(true)
-    }
-  }, [banner, controlledIsOpen, storageKey])
+    // Se muestra cada vez que el cliente entra mientras la promo no haya acabado
+    setInternalOpen(true)
+  }, [banner, controlledIsOpen])
 
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalOpen
 
@@ -68,18 +93,11 @@ export function BannerPromoSplashModal({
   }, [isOpen])
 
   const handleClose = () => {
-    try {
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem(storageKey, '1')
-      }
-    } catch {
-      // ignore
-    }
     setInternalOpen(false)
     onClose?.()
   }
 
-  if (!isOpen || !mounted || !banner || !banner.activo || !banner.imagen_url) {
+  if (!isOpen || !mounted || isBannerExpired(banner) || !banner) {
     return null
   }
 
@@ -131,9 +149,17 @@ export function BannerPromoSplashModal({
             )}
           </div>
 
-          {/* Información: Título, descripción y botón opcional */}
-          {(banner.titulo || banner.descripcion || banner.link_url) && (
+          {/* Información: Título, vigencia, descripción y botón opcional */}
+          {(banner.titulo || banner.descripcion || banner.link_url || banner.fecha_fin) && (
             <div className="p-4 sm:p-5 bg-gradient-to-b from-zinc-900 to-zinc-950 border-t border-white/10 text-center">
+              {/* Badge de vigencia hasta que la promo acabe */}
+              {banner.fecha_fin && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-black mb-2.5 shadow-sm">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Válido hasta el {formatFechaFin(banner.fecha_fin)}</span>
+                </div>
+              )}
+
               {banner.titulo && (
                 <h3 className="text-white font-black text-lg sm:text-xl leading-tight flex items-center justify-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
