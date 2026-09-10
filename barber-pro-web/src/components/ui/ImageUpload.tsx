@@ -54,20 +54,21 @@ export function ImageUpload({
 
     try {
       setIsUploading(true)
-      // 1. Mostrar la vista previa local en 5 milisegundos para que el usuario la vea de inmediato
+      // 1. Mostrar la vista previa local inmediata (solo visual, NO se envía a la DB)
       const localBase64 = await convertToBase64(file)
       if (localBase64) {
         setPreview(localBase64)
-        onUploadSuccess(localBase64)
       }
 
-      // 2. Subir al servidor o Supabase Storage
+      // 2. Subir a servicio externo (ImgBB/Catbox) — solo el link se guarda en Supabase
       let url = ''
       try {
         url = await uploadImageToImgBB(file)
       } catch (imgbbErr) {
-        console.warn('Servidor externo falló, usando vista previa Base64 garantizada:', imgbbErr)
-        url = localBase64
+        console.error('Todos los servicios de subida fallaron:', imgbbErr)
+        onUploadError?.('No se pudo subir la imagen. Verifica tu conexión e intenta de nuevo.')
+        setPreview(null)
+        return
       }
 
       if (url) {
@@ -76,6 +77,8 @@ export function ImageUpload({
       }
     } catch (error: any) {
       console.error('Error al procesar la imagen:', error)
+      onUploadError?.('Error al procesar la imagen. Intenta de nuevo.')
+      setPreview(null)
     } finally {
       setIsUploading(false)
     }

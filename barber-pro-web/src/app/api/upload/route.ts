@@ -11,9 +11,7 @@ export async function POST(req: Request) {
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    const base64 = buffer.toString('base64')
     const mimeType = file.type || 'image/jpeg'
-    const dataUrl = `data:${mimeType};base64,${base64}`
 
     // Intentar guardar en Supabase Storage si el bucket 'avatars' existe
     try {
@@ -35,11 +33,14 @@ export async function POST(req: Request) {
         }
       }
     } catch (sErr) {
-      console.warn('Fallback a Base64 por falta de bucket avatars en Supabase:', sErr)
+      console.warn('Supabase Storage no disponible, el cliente debe usar ImgBB/Catbox:', sErr)
     }
 
-    // Fallback infalible a Base64 Data URL
-    return NextResponse.json({ url: dataUrl, success: true })
+    // NO retornar Base64 — devolver error para que el cliente use servicios externos
+    return NextResponse.json(
+      { error: 'No se pudo subir al storage. Usa un servicio externo de imágenes.' },
+      { status: 502 }
+    )
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Error al procesar la subida de imagen' }, { status: 500 })
   }

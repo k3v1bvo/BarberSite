@@ -64,19 +64,19 @@ export function FileUpload({
       setFileName(file.name)
       setIsPdf(isFilePdf)
 
-      // 1. Mostrar preview Base64
+      // 1. Mostrar preview local Base64 (solo visual, NO se envía a la DB)
       const localBase64 = await convertToBase64(file)
       if (localBase64) {
         setPreview(localBase64)
-        onUploadSuccess(localBase64, file.name)
       }
 
-      // 2. Intentar subida a Catbox primero para PDFs o como fallback
+      let uploadedUrl = ''
+
+      // 2. Intentar subida a Catbox primero para PDFs o /api/upload para imágenes
       try {
         const formData = new FormData()
         formData.append('file', file)
         
-        // Si es PDF o documento, probar Catbox primero
         const endpoint = isFilePdf ? '/api/upload/catbox' : '/api/upload'
         let res = await fetch(endpoint, {
           method: 'POST',
@@ -84,7 +84,6 @@ export function FileUpload({
         })
 
         if (!res.ok && isFilePdf) {
-          // Intentar /api/upload si catbox falló
           res = await fetch('/api/upload', {
             method: 'POST',
             body: formData,
@@ -93,51 +92,53 @@ export function FileUpload({
 
         if (res.ok) {
           const data = await res.json()
-          if (data.url) {
-            setPreview(data.url)
-            onUploadSuccess(data.url, file.name)
-            return
-          }
+          if (data.url) uploadedUrl = data.url
         }
       } catch (uploadErr) {
         console.warn('Subida primaria falló, utilizando fallbacks:', uploadErr)
       }
 
-      // 3. Fallback para imágenes / documentos a Catbox o ImgBB
-      try {
-        const catboxForm = new FormData()
-        catboxForm.append('file', file)
-        const catRes = await fetch('/api/upload/catbox', {
-          method: 'POST',
-          body: catboxForm,
-        })
-        if (catRes.ok) {
-          const cData = await catRes.json()
-          if (cData.url) {
-            setPreview(cData.url)
-            onUploadSuccess(cData.url, file.name)
-            return
+      // 3. Fallback a Catbox
+      if (!uploadedUrl) {
+        try {
+          const catboxForm = new FormData()
+          catboxForm.append('file', file)
+          const catRes = await fetch('/api/upload/catbox', {
+            method: 'POST',
+            body: catboxForm,
+          })
+          if (catRes.ok) {
+            const cData = await catRes.json()
+            if (cData.url) uploadedUrl = cData.url
           }
+        } catch (catErr) {
+          console.warn('Catbox upload fallback error:', catErr)
         }
-      } catch (catErr) {
-        console.warn('Catbox upload fallback error:', catErr)
       }
 
       // 4. Fallback a ImgBB si es imagen
-      if (isImage) {
+      if (!uploadedUrl && isImage) {
         try {
-          const imgbbUrl = await uploadImageToImgBB(file)
-          if (imgbbUrl) {
-            setPreview(imgbbUrl)
-            onUploadSuccess(imgbbUrl, file.name)
-          }
+          uploadedUrl = await uploadImageToImgBB(file)
         } catch {
-          // Mantener Base64 como último recurso
+          console.warn('ImgBB fallback también falló')
         }
+      }
+
+      // 5. Si se obtuvo URL externa, notificar éxito. Si no, mostrar error.
+      if (uploadedUrl) {
+        setPreview(uploadedUrl)
+        onUploadSuccess(uploadedUrl, file.name)
+      } else {
+        onUploadError?.('No se pudo subir el archivo. Verifica tu conexión e intenta de nuevo.')
+        setPreview(null)
+        setFileName(null)
+        setIsPdf(false)
       }
     } catch (error: any) {
       console.error('Error al procesar archivo:', error)
       onUploadError?.(error?.message || 'Error al procesar archivo')
+      setPreview(null)
     } finally {
       setIsUploading(false)
     }
