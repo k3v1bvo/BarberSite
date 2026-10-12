@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency, getTodayBolivia, exportToCSV } from '@/lib/utils'
-import { Wallet, Plus, X, User, Building, Image as ImageIcon, ArrowUpCircle, ArrowDownCircle, Search, TrendingUp, TrendingDown, Scale, ShoppingCart, Receipt, ArrowUpDown, ArrowUp, ArrowDown, Printer, Download, Edit3 } from 'lucide-react'
+import { Wallet, Plus, X, User, Building, Image as ImageIcon, ArrowUpCircle, ArrowDownCircle, Search, TrendingUp, TrendingDown, Scale, ShoppingCart, Receipt, ArrowUpDown, ArrowUp, ArrowDown, Printer, Download, Edit3, Trash2 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { ModalEditarTransaccion } from '@/components/pos/ModalEditarTransaccion'
@@ -63,6 +63,8 @@ export default function CajaChicaPage() {
   const [sortKey, setSortKey] = useState<'fecha' | 'nombre' | 'cuenta_detalle' | 'costo' | 'metodo_pago'>('fecha')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [txToEdit, setTxToEdit] = useState<any>(null)
+  const [txToDelete, setTxToDelete] = useState<Transaction | null>(null)
+  const [deletingTx, setDeletingTx] = useState(false)
 
   // Crear nueva categoría
   const [showNewCategoria, setShowNewCategoria] = useState(false)
@@ -137,6 +139,27 @@ export default function CajaChicaPage() {
       }
     } catch (e: any) {
       toastError(e.message)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!txToDelete) return
+    setDeletingTx(true)
+    try {
+      const res = await fetch(`/api/transactions?id=${txToDelete.id}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Error al eliminar el registro')
+      }
+      toastSuccess('Registro eliminado exitosamente ✅')
+      setTxToDelete(null)
+      loadData()
+    } catch (e: any) {
+      toastError(e.message || 'Error al eliminar')
+    } finally {
+      setDeletingTx(false)
     }
   }
 
@@ -1339,16 +1362,27 @@ export default function CajaChicaPage() {
                           })()}
                         </td>
                         {/* Acciones */}
-                        <td className="px-3 py-2.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setTxToEdit(tx)}
-                            className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-amber-500 hover:text-black text-zinc-400 text-[11px] font-bold transition flex items-center gap-1 mx-auto"
-                            title="Editar este movimiento"
-                          >
-                            <Edit3 size={12} />
-                            <span>Editar</span>
-                          </button>
+                        <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setTxToEdit(tx)}
+                              className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-amber-500 hover:text-black text-zinc-400 text-[11px] font-bold transition flex items-center gap-1"
+                              title="Editar este movimiento"
+                            >
+                              <Edit3 size={12} />
+                              <span>Editar</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setTxToDelete(tx)}
+                              className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-red-500 hover:text-white text-zinc-400 text-[11px] font-bold transition flex items-center gap-1"
+                              title="Borrar registro del día"
+                            >
+                              <Trash2 size={12} />
+                              <span>Borrar</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -1367,6 +1401,60 @@ export default function CajaChicaPage() {
         onClose={() => setTxToEdit(null)}
         onSuccess={loadData}
       />
+
+      {/* Modal de confirmación para borrar registro */}
+      {txToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-zinc-900 border border-red-500/30 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 shrink-0">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">¿Borrar registro de caja?</h3>
+                <p className="text-[11px] text-zinc-400">Esta acción revertirá el movimiento contable si cometiste un error.</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-black/50 border border-zinc-800 rounded-2xl space-y-1.5 text-xs">
+              <div className="flex justify-between items-start">
+                <span className="text-zinc-400">Concepto:</span>
+                <span className="text-white font-bold text-right">{txToDelete.cuenta_detalle || txToDelete.glosa}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-400">Persona / Origen:</span>
+                <span className="text-zinc-200 font-medium">{txToDelete.nombre || '—'}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1 border-t border-white/5">
+                <span className="text-zinc-400 font-bold">Monto:</span>
+                <span className="text-amber-400 font-mono font-black text-sm">{formatCurrency(txToDelete.costo)}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setTxToDelete(null)}
+                disabled={deletingTx}
+                className="border-zinc-800 text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleConfirmDelete}
+                disabled={deletingTx}
+                className="bg-red-600 hover:bg-red-500 text-white font-black text-xs px-4"
+              >
+                {deletingTx ? 'Eliminando...' : 'Sí, Borrar Registro'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal para adjuntar o editar comprobante */}
       {editingComprobanteTx && (

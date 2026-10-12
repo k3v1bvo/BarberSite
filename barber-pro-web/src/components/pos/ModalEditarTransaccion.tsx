@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useToast } from '@/components/ui/Toast'
-import { X, Trash2, Save, Edit3, AlertTriangle, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
+import { X, Trash2, Save, Edit3, AlertTriangle, ArrowUpCircle, ArrowDownCircle, Scissors, UserCheck } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 
 interface TransactionToEdit {
   id: string
@@ -21,6 +22,9 @@ interface TransactionToEdit {
   monto_efectivo?: number
   monto_qr?: number
   notas?: string | null
+  empleado_id?: string | null
+  cita_id?: string | null
+  usuario_registro?: string | null
 }
 
 interface ModalEditarTransaccionProps {
@@ -36,6 +40,11 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
   const [deleting, setDeleting] = useState(false)
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
 
+  const [serviciosList, setServiciosList] = useState<{ id: string; nombre: string; precio: number }[]>([])
+  const [barberosList, setBarberosList] = useState<{ id: string; full_name: string; role: string; avatar_url: string | null }[]>([])
+  const [selectedServicioId, setSelectedServicioId] = useState<string>('')
+  const [selectedBarberoId, setSelectedBarberoId] = useState<string>('')
+
   const [form, setForm] = useState({
     nombre: '',
     ci: '',
@@ -48,6 +57,18 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
     monto_qr: '',
     notas: '',
   })
+
+  // Cargar lista de servicios y barberos
+  useEffect(() => {
+    const supabase = createClient()
+    Promise.all([
+      supabase.from('servicios').select('id, nombre, precio').eq('is_active', true).order('nombre'),
+      supabase.from('profiles').select('id, full_name, role, avatar_url').in('role', ['barbero', 'admin', 'coordinador']).eq('is_active', true).order('full_name')
+    ]).then(([sRes, bRes]) => {
+      if (sRes.data) setServiciosList(sRes.data)
+      if (bRes.data) setBarberosList(bRes.data)
+    })
+  }, [])
 
   useEffect(() => {
     if (transaction) {
@@ -80,10 +101,61 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
         notas: transaction.notas || '',
       })
       setShowConfirmDelete(false)
+
+      // Identificar barbero
+      let foundBarberId = transaction.empleado_id || ''
+      if (!foundBarberId && barberosList.length > 0) {
+        const glosaLower = (transaction.glosa || '').toLowerCase()
+        const userRegLower = (transaction.usuario_registro || '').toLowerCase()
+        const found = barberosList.find(b => glosaLower.includes(b.full_name.toLowerCase()) || userRegLower === b.full_name.toLowerCase())
+        if (found) foundBarberId = found.id
+      }
+      setSelectedBarberoId(foundBarberId)
+
+      // Identificar servicio
+      let foundServicioId = ''
+      if (serviciosList.length > 0 && transaction.cuenta_detalle) {
+        const detalleClean = transaction.cuenta_detalle.replace(/^Servicio:\s*/i, '').trim().toLowerCase()
+        const found = serviciosList.find(s => s.nombre.toLowerCase() === detalleClean || detalleClean.includes(s.nombre.toLowerCase()))
+        if (found) foundServicioId = found.id
+      }
+      setSelectedServicioId(foundServicioId)
     }
-  }, [transaction])
+  }, [transaction, barberosList, serviciosList])
 
   if (!isOpen || !transaction) return null
+
+  const handleSelectServicio = (servId: string) => {
+    setSelectedServicioId(servId)
+    if (!servId) return
+    const s = serviciosList.find(item => item.id === servId)
+    if (s) {
+      setForm(prev => ({
+        ...prev,
+        cuenta_detalle: `Servicio: ${s.nombre}`,
+        costo: String(s.precio)
+      }))
+    }
+  }
+
+  const handleSelectBarbero = (bId: string) => {
+    setSelectedBarberoId(bId)
+    const b = barberosList.find(item => item.id === bId)
+    if (b) {
+      let currentGlosa = form.glosa || ''
+      if (currentGlosa.includes('Atendido por')) {
+        currentGlosa = currentGlosa.replace(/Atendido por [^—\n\r]+(\s*—\s*Cita #[a-zA-Z0-9]+)?/i, (match, citaPart) => {
+          return `Atendido por ${b.full_name}${citaPart ? citaPart : ''}`
+        })
+      } else {
+        currentGlosa = currentGlosa ? `Atendido por ${b.full_name} — ${currentGlosa}` : `Atendido por ${b.full_name}`
+      }
+      setForm(prev => ({
+        ...prev,
+        glosa: currentGlosa
+      }))
+    }
+  }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -130,6 +202,8 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
           monto_efectivo: realEf,
           monto_qr: realQr,
           notas: finalNotas || null,
+          empleado_id: selectedBarberoId || null,
+          servicio_id: selectedServicioId || null,
         }),
       })
 
@@ -170,8 +244,6 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
     }
   }
 
-  const isVirtual = transaction.id.startsWith('virtual-cita-')
-
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-zinc-900 border border-zinc-700/80 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
@@ -182,7 +254,7 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
             </div>
             <div>
               <h3 className="text-base font-black text-white">Editar Registro Contable</h3>
-              <p className="text-[11px] text-zinc-400">Corrige monto, cliente, método o glosa si hubo error</p>
+              <p className="text-[11px] text-zinc-400">Corrige monto, cliente, servicio, barbero o glosa</p>
             </div>
           </div>
           <button
@@ -245,28 +317,77 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
             </div>
           </div>
 
-          {/* Concepto y Monto */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Concepto / Servicio</label>
-              <Input
-                value={form.cuenta_detalle}
-                onChange={(e) => setForm({ ...form, cuenta_detalle: e.target.value })}
-                className="bg-black/60 border-zinc-800 text-sm h-11"
-                placeholder="Ej: Corte de cabello / Devolución"
-              />
+          {/* Selector de Barbero / Operario que atendió */}
+          <div className="p-3 bg-zinc-950/70 border border-amber-500/30 rounded-2xl space-y-1.5">
+            <label className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <Scissors size={13} className="text-amber-500" />
+              Barbero / Operario que atendió el servicio
+            </label>
+            <div className="relative">
+              <select
+                value={selectedBarberoId}
+                onChange={(e) => handleSelectBarbero(e.target.value)}
+                className="w-full h-11 bg-black/80 border border-zinc-700 hover:border-amber-500/50 rounded-xl px-3 text-sm text-white focus:outline-none focus:border-amber-400 transition"
+              >
+                <option value="">-- Sin barbero asignado o manual --</option>
+                {barberosList.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    💈 {b.full_name} ({b.role.toUpperCase()})
+                  </option>
+                ))}
+              </select>
             </div>
+            <p className="text-[10px] text-zinc-400">
+              💡 Cambia el barbero si hubo un error en caja. Se actualizará la glosa y las comisiones correspondientes.
+            </p>
+          </div>
+
+          {/* Concepto / Servicio y Monto */}
+          <div className="space-y-2">
             <div>
-              <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Monto Total (Bs.) *</label>
-              <Input
-                type="number"
-                step="any"
-                required
-                value={form.costo}
-                onChange={(e) => setForm({ ...form, costo: e.target.value })}
-                className="bg-black/60 border-amber-500/40 text-amber-400 font-bold text-base h-11 font-mono"
-                placeholder="0.00"
-              />
+              <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">
+                Seleccionar Servicio del Catálogo
+              </label>
+              <select
+                value={selectedServicioId}
+                onChange={(e) => handleSelectServicio(e.target.value)}
+                className="w-full h-11 bg-black/80 border border-zinc-700 hover:border-amber-500/50 rounded-xl px-3 text-sm text-white focus:outline-none focus:border-amber-400 transition mb-2"
+              >
+                <option value="">-- Seleccionar servicio para autocompletar --</option>
+                {serviciosList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    ✂️ {s.nombre} — {formatCurrency(s.precio)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">
+                  Concepto / Detalle
+                </label>
+                <Input
+                  value={form.cuenta_detalle}
+                  onChange={(e) => setForm({ ...form, cuenta_detalle: e.target.value })}
+                  className="bg-black/60 border-zinc-800 text-sm h-11"
+                  placeholder="Ej: Servicio: Corte de cabello"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">
+                  Monto Total (Bs.) *
+                </label>
+                <Input
+                  type="number"
+                  step="any"
+                  required
+                  value={form.costo}
+                  onChange={(e) => setForm({ ...form, costo: e.target.value })}
+                  className="bg-black/60 border-amber-500/40 text-amber-400 font-bold text-base h-11 font-mono"
+                  placeholder="0.00"
+                />
+              </div>
             </div>
           </div>
 
@@ -346,37 +467,35 @@ export function ModalEditarTransaccion({ transaction, isOpen, onClose, onSuccess
 
           {/* Botones de acción */}
           <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-3">
-            {!isVirtual && (
-              <div>
-                {!showConfirmDelete ? (
+            <div>
+              {!showConfirmDelete ? (
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmDelete(true)}
+                  className="px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 text-xs font-bold flex items-center gap-1.5 transition"
+                >
+                  <Trash2 size={13} /> Eliminar
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowConfirmDelete(true)}
-                    className="px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 text-xs font-bold flex items-center gap-1.5 transition"
+                    disabled={deleting}
+                    onClick={handleDelete}
+                    className="px-3 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black transition"
                   >
-                    <Trash2 size={13} /> Eliminar
+                    {deleting ? 'Eliminando...' : '¿Confirmar eliminar?'}
                   </button>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={deleting}
-                      onClick={handleDelete}
-                      className="px-3 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black transition"
-                    >
-                      {deleting ? 'Eliminando...' : '¿Confirmar?'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmDelete(false)}
-                      className="px-2 py-2 text-xs text-zinc-400 hover:text-white"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmDelete(false)}
+                    className="px-2 py-2 text-xs text-zinc-400 hover:text-white"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div className="flex items-center gap-2 ml-auto">
               <Button type="button" variant="outline" onClick={onClose} className="border-zinc-800 text-xs">

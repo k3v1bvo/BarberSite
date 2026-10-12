@@ -468,7 +468,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { id, comprobante_url, costo, nombre, ci, cuenta_codigo, cuenta_detalle, glosa, metodo_pago, monto_efectivo, monto_qr, tipo_movimiento, fecha, notas } = body
+    const { id, comprobante_url, costo, nombre, ci, cuenta_codigo, cuenta_detalle, glosa, metodo_pago, monto_efectivo, monto_qr, tipo_movimiento, fecha, notas, empleado_id, servicio_id } = body
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
     if (id.startsWith('virtual-cita-')) {
@@ -490,10 +490,23 @@ export async function PATCH(request: NextRequest) {
           await supabase.from('citas').update({ notas: currentNotas }).eq('id', citaId)
         }
 
+        const barberoIdFinal = empleado_id || cita.barbero_id
+        const servicioIdFinal = servicio_id || cita.servicio_id
+
+        let barberoNombre = (cita.profiles as any)?.full_name || 'Barbero'
+        if (empleado_id && empleado_id !== cita.barbero_id) {
+          const { data: newBarber } = await supabase.from('profiles').select('full_name').eq('id', empleado_id).single()
+          if (newBarber?.full_name) barberoNombre = newBarber.full_name
+        }
+
+        let servicioNombre = (cita.servicios as any)?.nombre || 'Servicio'
+        if (servicio_id && servicio_id !== cita.servicio_id) {
+          const { data: newServ } = await supabase.from('servicios').select('nombre').eq('id', servicio_id).single()
+          if (newServ?.nombre) servicioNombre = newServ.nombre
+        }
+
         const clienteNombre = nombre || (cita.clientes as any)?.nombre || 'Cliente'
         const clienteCi = ci || (cita.clientes as any)?.ci || '—'
-        const barberoNombre = (cita.profiles as any)?.full_name || 'Barbero'
-        const servicioNombre = (cita.servicios as any)?.nombre || 'Servicio'
         const precioCita = costo !== undefined ? Number(costo) : Number(cita.precio || 0)
         const anticipoQr = Number(cita.anticipo_monto || 0)
         const mpRaw = String(metodo_pago || cita.metodo_pago || 'qr').toLowerCase()
@@ -518,7 +531,7 @@ export async function PATCH(request: NextRequest) {
           tipo_movimiento: tipo_movimiento || 'INGRESO',
           subcategoria: 'SERVICIO',
           es_sancion: false,
-          empleado_id: cita.barbero_id,
+          empleado_id: barberoIdFinal,
           cliente_id: cita.cliente_id,
           cita_id: citaId,
           metodo_pago: realMetodo,
@@ -536,6 +549,8 @@ export async function PATCH(request: NextRequest) {
           monto_transferencia: realQr,
           notas: notas || undefined,
           precio: precioCita,
+          barbero_id: barberoIdFinal,
+          servicio_id: servicioIdFinal,
         }).eq('id', citaId)
 
         return NextResponse.json({ success: true, data: txNueva })
@@ -556,6 +571,7 @@ export async function PATCH(request: NextRequest) {
     if (tipo_movimiento !== undefined) updatePayload.tipo_movimiento = tipo_movimiento
     if (fecha !== undefined) updatePayload.fecha = fecha
     if (notas !== undefined) updatePayload.notas = notas
+    if (empleado_id !== undefined) updatePayload.empleado_id = empleado_id || null
 
     const { data, error } = await supabase
       .from('transactions')
@@ -573,6 +589,10 @@ export async function PATCH(request: NextRequest) {
       if (updatePayload.monto_efectivo !== undefined) citaUpdate.monto_efectivo = updatePayload.monto_efectivo
       if (updatePayload.monto_qr !== undefined) citaUpdate.monto_transferencia = updatePayload.monto_qr
       if (updatePayload.notas !== undefined) citaUpdate.notas = updatePayload.notas
+      if (updatePayload.costo !== undefined) citaUpdate.precio = updatePayload.costo
+      if (empleado_id !== undefined && empleado_id) citaUpdate.barbero_id = empleado_id
+      if (servicio_id !== undefined && servicio_id) citaUpdate.servicio_id = servicio_id
+
       if (Object.keys(citaUpdate).length > 0) {
         await supabase.from('citas').update(citaUpdate).eq('id', data.cita_id)
       }
@@ -605,7 +625,34 @@ export async function DELETE(request: NextRequest) {
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
     if (id.startsWith('virtual-cita-')) {
-      return NextResponse.json({ error: 'No se puede eliminar una cita directamente desde transacciones. Cancelarla en citas.' }, { status: 400 })
+      const citaId = id.replace('virtual-cita-', '')
+      const { error: cancelErr } = await supabase
+        .from('citas')
+        .update({
+          estado: 'cancelado',
+          notas: `Cancelado por eliminación de registro contable (${new Date().toISOString()})`
+        })
+        .eq('id', citaId)
+
+      if (cancelErr) throw cancelErr
+      return NextResponse.json({ success: true, message: 'Cita cancelada y retirada de caja' })
+    }
+
+    // Si tiene cita vinculada, cancelar la cita también
+    const { data: txRow } = await supabase
+      .from('transactions')
+      .select('cita_id')
+      .eq('id', id)
+      .single()
+
+    if (txRow?.cita_id) {
+      await supabase
+        .from('citas')
+        .update({
+          estado: 'cancelado',
+          notas: `Cancelado por eliminación de registro contable (${new Date().toISOString()})`
+        })
+        .eq('id', txRow.cita_id)
     }
 
     const { error } = await supabase

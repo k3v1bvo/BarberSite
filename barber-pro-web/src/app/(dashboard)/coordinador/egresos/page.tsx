@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { formatCurrency } from '@/lib/utils'
-import { ArrowDownCircle, Plus, X, FileText, Search, User, Building, Wallet, Landmark, CheckCircle2 } from 'lucide-react'
+import { ArrowDownCircle, Plus, X, FileText, Search, User, Building, Wallet, Landmark, CheckCircle2, Edit3, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import { useToast } from '@/components/ui/Toast'
@@ -15,6 +15,7 @@ interface Egreso {
   monto_bruto: number; tiene_factura: boolean; iva: number; it: number
   monto_neto: number; numero_factura: string | null; cuenta_codigo: string | null
   creado_en: string; metodo_pago?: string; monto_qr?: number; monto_efectivo?: number; comprobante_url?: string | null
+  notas?: string | null
 }
 
 interface Profile {
@@ -32,6 +33,27 @@ export default function EgresosPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  // Edit & Delete Egreso
+  const [egresoToEdit, setEgresoToEdit] = useState<Egreso | null>(null)
+  const [egresoToDelete, setEgresoToDelete] = useState<Egreso | null>(null)
+  const [deletingEgreso, setDeletingEgreso] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  const [editForm, setEditForm] = useState({
+    fecha: '',
+    concepto: '',
+    proveedor: '',
+    cuenta_codigo: '',
+    monto_bruto: '',
+    tiene_factura: false,
+    numero_factura: '',
+    metodo_pago: 'efectivo',
+    monto_efectivo: '',
+    monto_qr: '',
+    notas: '',
+    comprobante_url: ''
+  })
 
   const [periodo, setPeriodo] = useState<'todos' | 'hoy' | 'semana' | 'mes' | 'custom'>('hoy')
   const [customDesde, setCustomDesde] = useState('')
@@ -132,6 +154,87 @@ export default function EgresosPage() {
       toastError('Error al guardar el comprobante')
     }
     setSavingQr(false)
+  }
+
+  // Sincronizar formulario de edición cuando se selecciona un egreso
+  useEffect(() => {
+    if (egresoToEdit) {
+      setEditForm({
+        fecha: egresoToEdit.fecha || getTodayBolivia(),
+        concepto: egresoToEdit.concepto || '',
+        proveedor: egresoToEdit.proveedor || '',
+        cuenta_codigo: egresoToEdit.cuenta_codigo || '',
+        monto_bruto: String(egresoToEdit.monto_bruto || 0),
+        tiene_factura: Boolean(egresoToEdit.tiene_factura),
+        numero_factura: egresoToEdit.numero_factura || '',
+        metodo_pago: egresoToEdit.metodo_pago || 'efectivo',
+        monto_efectivo: egresoToEdit.monto_efectivo ? String(egresoToEdit.monto_efectivo) : '',
+        monto_qr: egresoToEdit.monto_qr ? String(egresoToEdit.monto_qr) : '',
+        notas: (egresoToEdit as any).notas || '',
+        comprobante_url: egresoToEdit.comprobante_url || ''
+      })
+    }
+  }, [egresoToEdit])
+
+  const handleSaveEgresoEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!egresoToEdit) return
+    const mbNum = parseFloat(editForm.monto_bruto)
+    if (isNaN(mbNum) || mbNum <= 0) {
+      return toastError('Ingresa un monto bruto válido')
+    }
+    setSavingEdit(true)
+    try {
+      const res = await fetch('/api/egresos', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: egresoToEdit.id,
+          fecha: editForm.fecha,
+          concepto: editForm.concepto,
+          proveedor: editForm.proveedor || null,
+          cuenta_codigo: editForm.cuenta_codigo || 'EGR-GEN',
+          monto_bruto: mbNum,
+          tiene_factura: editForm.tiene_factura,
+          numero_factura: editForm.numero_factura || null,
+          metodo_pago: editForm.metodo_pago,
+          monto_efectivo: editForm.metodo_pago === 'efectivo' ? mbNum : (parseFloat(editForm.monto_efectivo) || 0),
+          monto_qr: editForm.metodo_pago === 'qr' ? mbNum : (parseFloat(editForm.monto_qr) || 0),
+          notas: editForm.notas || null,
+          comprobante_url: editForm.comprobante_url || null
+        })
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Error al actualizar el egreso')
+      }
+      toastSuccess('Egreso actualizado con éxito ✅')
+      setEgresoToEdit(null)
+      loadData()
+    } catch (err: any) {
+      toastError(err.message || 'Error al guardar cambios')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  const handleDeleteEgreso = async () => {
+    if (!egresoToDelete) return
+    setDeletingEgreso(true)
+    try {
+      const res = await fetch(`/api/egresos?id=${egresoToDelete.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Error al eliminar el egreso')
+      }
+      toastSuccess('Egreso eliminado exitosamente ✅')
+      setEgresoToDelete(null)
+      loadData()
+    } catch (err: any) {
+      toastError(err.message || 'Error al eliminar')
+    } finally {
+      setDeletingEgreso(false)
+    }
   }
 
   const getNivel = (codigo: string) => codigo.split('.').length
@@ -894,12 +997,13 @@ export default function EgresosPage() {
                   <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">Factura (IVA+IT)</th>
                   <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">Neto a Gasto</th>
                   <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center">Método / Comprobante</th>
+                  <th className="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {egresosFiltrados.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-16 text-center text-zinc-600 font-medium">
+                    <td colSpan={8} className="px-5 py-16 text-center text-zinc-600 font-medium">
                       No hay egresos o salidas de dinero para el filtro seleccionado
                     </td>
                   </tr>
@@ -970,6 +1074,26 @@ export default function EgresosPage() {
                             )}
                           </div>
                         </td>
+                        <td className="px-5 py-4 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => setEgresoToEdit(e)}
+                              className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-amber-500 hover:text-black text-zinc-300 text-xs font-bold transition flex items-center gap-1"
+                              title="Editar egreso del día"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span>Editar</span>
+                            </button>
+                            <button
+                              onClick={() => setEgresoToDelete(e)}
+                              className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-rose-500 hover:text-white text-zinc-300 text-xs font-bold transition flex items-center gap-1"
+                              title="Borrar egreso del día"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Borrar</span>
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     )
                   })
@@ -1001,6 +1125,232 @@ export default function EgresosPage() {
                 {savingQr ? 'Guardando...' : 'Guardar Comprobante'}
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para confirmar eliminación de egreso */}
+      {egresoToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-zinc-900 border border-rose-500/30 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500 shrink-0">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">¿Borrar registro de egreso?</h3>
+                <p className="text-[11px] text-zinc-400">Esta acción eliminará el gasto y revertirá la salida en caja/banco.</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-black/50 border border-zinc-800 rounded-2xl space-y-1.5 text-xs">
+              <div className="flex justify-between items-start">
+                <span className="text-zinc-400">Concepto:</span>
+                <span className="text-white font-bold text-right">{egresoToDelete.concepto}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-400">Proveedor / Destinatario:</span>
+                <span className="text-zinc-200 font-medium">{egresoToDelete.proveedor || '—'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-400">Fecha:</span>
+                <span className="text-zinc-300 font-mono">{egresoToDelete.fecha}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1 border-t border-white/5">
+                <span className="text-zinc-400 font-bold">Monto Bruto:</span>
+                <span className="text-rose-400 font-mono font-black text-sm">{formatCurrency(egresoToDelete.monto_bruto)}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setEgresoToDelete(null)}
+                disabled={deletingEgreso}
+                className="border-zinc-800 text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleDeleteEgreso}
+                disabled={deletingEgreso}
+                className="bg-rose-600 hover:bg-rose-500 text-white font-black text-xs px-4"
+              >
+                {deletingEgreso ? 'Eliminando...' : 'Sí, Borrar Egreso'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para editar egreso */}
+      {egresoToEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-zinc-900 border border-zinc-700 w-full max-w-lg rounded-3xl p-6 shadow-2xl my-auto max-h-[92vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500">
+                  <Edit3 size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Editar Egreso del Día</h3>
+                  <p className="text-[11px] text-zinc-400">Corrige monto, concepto, proveedor o método de pago</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEgresoToEdit(null)}
+                className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEgresoEdit} className="space-y-4">
+              {/* Fecha y Monto */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Fecha</label>
+                  <input
+                    type="date"
+                    required
+                    value={editForm.fecha}
+                    onChange={(e) => setEditForm({ ...editForm, fecha: e.target.value })}
+                    className="w-full h-10 bg-black/60 border border-zinc-800 rounded-xl px-3 text-xs text-white outline-none focus:border-rose-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Monto Bruto (Bs.) *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={editForm.monto_bruto}
+                    onChange={(e) => setEditForm({ ...editForm, monto_bruto: e.target.value })}
+                    className="w-full h-10 bg-black/60 border border-rose-500/40 rounded-xl px-3 text-sm font-bold font-mono text-rose-400 outline-none focus:border-rose-400"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Concepto / Descripción *</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.concepto}
+                  onChange={(e) => setEditForm({ ...editForm, concepto: e.target.value })}
+                  className="w-full h-10 bg-black/60 border border-zinc-800 rounded-xl px-3 text-xs text-white outline-none focus:border-rose-500/50"
+                  placeholder="Ej: Compra de cuchillas, pago de luz..."
+                />
+              </div>
+
+              {/* Proveedor / Destinatario */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Proveedor / Destinatario</label>
+                <input
+                  type="text"
+                  value={editForm.proveedor}
+                  onChange={(e) => setEditForm({ ...editForm, proveedor: e.target.value })}
+                  className="w-full h-10 bg-black/60 border border-zinc-800 rounded-xl px-3 text-xs text-white outline-none focus:border-rose-500/50"
+                  placeholder="Nombre de la persona o comercio"
+                />
+              </div>
+
+              {/* Categoría / Plan de Cuentas */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Categoría Contable</label>
+                <select
+                  value={editForm.cuenta_codigo}
+                  onChange={(e) => setEditForm({ ...editForm, cuenta_codigo: e.target.value })}
+                  className="w-full h-10 bg-black/60 border border-zinc-800 rounded-xl px-3 text-xs text-white outline-none focus:border-rose-500/50"
+                >
+                  <option value="">-- Seleccionar categoría --</option>
+                  {cuentas.map((c) => (
+                    <option key={c.codigo} value={c.codigo}>
+                      {c.codigo} — {c.detalle}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Factura */}
+              <div className="p-3 bg-black/40 border border-zinc-800 rounded-xl space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-300 font-bold">
+                  <input
+                    type="checkbox"
+                    checked={editForm.tiene_factura}
+                    onChange={(e) => setEditForm({ ...editForm, tiene_factura: e.target.checked })}
+                    className="accent-rose-500 w-4 h-4 rounded"
+                  />
+                  <span>¿Tiene Factura? (IVA 13% e IT 3%)</span>
+                </label>
+                {editForm.tiene_factura && (
+                  <div>
+                    <label className="text-[9px] font-bold text-zinc-400 block mb-1">Nº de Factura / NIT</label>
+                    <input
+                      type="text"
+                      value={editForm.numero_factura}
+                      onChange={(e) => setEditForm({ ...editForm, numero_factura: e.target.value })}
+                      className="w-full h-8 bg-zinc-950 border border-zinc-700 rounded-lg px-2 text-xs text-white outline-none"
+                      placeholder="F-00123"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Método de Pago */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1.5">Método de Pago</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['efectivo', 'qr', 'mixto'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, metodo_pago: m })}
+                      className={`py-2 rounded-xl text-xs font-bold border transition ${
+                        editForm.metodo_pago === m
+                          ? 'bg-rose-500/20 border-rose-500 text-rose-300'
+                          : 'bg-black/40 border-zinc-800 text-zinc-400'
+                      }`}
+                    >
+                      {m === 'efectivo' ? '💵 Efectivo' : m === 'qr' ? '📱 QR / Banco' : '🔄 Mixto'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notas */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1">Glosa / Observación</label>
+                <input
+                  type="text"
+                  value={editForm.notas}
+                  onChange={(e) => setEditForm({ ...editForm, notas: e.target.value })}
+                  className="w-full h-9 bg-black/60 border border-zinc-800 rounded-xl px-3 text-xs text-white outline-none"
+                  placeholder="Detalles adicionales"
+                />
+              </div>
+
+              {/* Botones de acción */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+                <Button type="button" variant="outline" size="sm" onClick={() => setEgresoToEdit(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={savingEdit || !editForm.monto_bruto || parseFloat(editForm.monto_bruto) <= 0}
+                  className="bg-rose-600 hover:bg-rose-500 text-white font-black text-xs px-5 shadow-lg shadow-rose-500/20"
+                >
+                  {savingEdit ? 'Guardando...' : 'Guardar Cambios'}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}
