@@ -16,7 +16,7 @@ import {
   parseISO,
 } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock, Calendar } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from './Card'
 import { Badge } from './Badge'
 import clsx from 'clsx'
@@ -28,6 +28,27 @@ import { formatCurrency } from '@/lib/utils'
 export type CalendarCita = AgendaCita
 
 import { getBoliviaDateKey, getBoliviaTimeStr, getBoliviaHour } from '@/lib/agenda/date-utils'
+
+function getHoraFinStr(fechaHoraIso: string, duracionMinutos: number): string {
+  try {
+    if (!fechaHoraIso) return ''
+    const d = new Date(
+      fechaHoraIso.includes('Z') || fechaHoraIso.match(/[+-]\d{2}:\d{2}$/)
+        ? fechaHoraIso
+        : `${fechaHoraIso}-04:00`
+    )
+    if (isNaN(d.getTime())) return ''
+    const end = new Date(d.getTime() + (duracionMinutos || 30) * 60000)
+    return end.toLocaleTimeString('es-BO', {
+      timeZone: 'America/La_Paz',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  } catch {
+    return ''
+  }
+}
 
 interface CalendarViewProps {
   citas: CalendarCita[]
@@ -124,7 +145,10 @@ export function CalendarView({
   const renderCitaLabel = (cita: CalendarCita, compact = false) => (
     <div className="space-y-0.5">
       <div className="flex items-center justify-between gap-1 font-bold truncate">
-        <span>{getBoliviaTimeStr(cita.fecha_hora)}</span>
+        <span className="font-mono text-xs font-black text-amber-300 flex items-center gap-1">
+          <Clock className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+          {getBoliviaTimeStr(cita.fecha_hora)}
+        </span>
         {mode === 'general' && compact && (
           <div className="flex items-center gap-1 shrink-0 bg-black/40 px-1 py-0.5 rounded border border-white/5">
             {cita.barbero_avatar_url ? (
@@ -320,10 +344,11 @@ export function CalendarView({
                         )}
                       >
                         <div className="flex items-center justify-between gap-1">
-                          <span className="font-extrabold text-[11px] tracking-tight">
+                          <span className="font-mono font-black text-xs text-amber-300 tracking-tight flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-400 shrink-0" />
                             {getBoliviaTimeStr(dayCita.fecha_hora)}
                           </span>
-                          <span className="text-[9px] px-1 py-0.5 rounded bg-black/40 font-semibold border border-white/5">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/60 font-bold text-zinc-300 border border-white/10">
                             {dayCita.duracion_minutos}m
                           </span>
                         </div>
@@ -429,8 +454,11 @@ export function CalendarView({
             )
 
             return (
-              <div key={hourStr} className="border-l-4 border-amber-500/30 pl-4 py-2">
-                <div className="text-sm font-bold text-zinc-400 mb-2">{hourStr}</div>
+              <div key={hourStr} className="border-l-4 border-amber-500/40 pl-4 py-2">
+                <div className="text-base font-black font-mono text-zinc-300 mb-2 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  {hourStr}
+                </div>
                 {citasHora.length > 0 ? (
                   <div className="space-y-2">
                     {citasHora.map((cita) => (
@@ -489,25 +517,57 @@ export function CalendarView({
                             {cita.estado.replace('_', ' ')}
                           </Badge>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400 mt-2">
-                          <span>{getBoliviaTimeStr(cita.fecha_hora)} · {cita.duracion_minutos} min · {formatCurrency(cita.precio)}</span>
+                        {/* Barra destacada de Horario, Duración y Precio */}
+                        <div className="mt-3 pt-2.5 border-t border-white/10 flex flex-wrap items-center justify-between gap-2.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* Cápsula de Horario grande y visible */}
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/35 text-amber-300 shadow-sm">
+                              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                              <span className="font-mono font-black text-sm text-white tracking-tight">
+                                {getBoliviaTimeStr(cita.fecha_hora)}
+                              </span>
+                              {(() => {
+                                const endStr = getHoraFinStr(cita.fecha_hora, cita.duracion_minutos)
+                                return endStr ? (
+                                  <span className="text-xs font-bold text-amber-400/90 font-mono">
+                                    → {endStr}
+                                  </span>
+                                ) : null
+                              })()}
+                            </div>
+
+                            {/* Duración */}
+                            <span className="text-xs font-bold text-zinc-200 px-2.5 py-1.5 rounded-xl bg-zinc-800/90 border border-white/10 flex items-center gap-1">
+                              <span>⏱️</span>
+                              <span>{cita.duracion_minutos || 30} min</span>
+                            </span>
+                          </div>
+
+                          {/* Precio destacado */}
+                          <div className="inline-flex items-center gap-1 text-sm font-black text-amber-400 bg-black/60 px-3 py-1.5 rounded-xl border border-amber-500/30 shadow-inner">
+                            <span>{formatCurrency(cita.precio)}</span>
+                          </div>
+                        </div>
+
+                        {/* Badges de etiquetas / extras */}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
                           {cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            <span className="px-2 py-0.5 text-[10px] font-black rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
                               📱 Anticipo QR {formatCurrency(cita.anticipo_monto)}
                             </span>
                           )}
                           {cita.notas?.toLowerCase().includes('2x1') && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                            <span className="px-2 py-0.5 text-[10px] font-black rounded-md bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
                               ✂️ Promo 2x1
                             </span>
                           )}
                           {cita.notas?.toLowerCase().includes('producto') && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                            <span className="px-2 py-0.5 text-[10px] font-black rounded-md bg-violet-500/20 text-violet-300 border border-violet-500/30">
                               🛍️ Incluye Productos
                             </span>
                           )}
                           {cita.estado === 'pendiente_pago' && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-black rounded bg-orange-500/25 text-orange-300 border border-orange-500/40 animate-pulse">
+                            <span className="px-2 py-0.5 text-[10px] font-black rounded-md bg-orange-500/25 text-orange-300 border border-orange-500/40 animate-pulse">
                               ⚠️ Pendiente Verificación QR
                             </span>
                           )}

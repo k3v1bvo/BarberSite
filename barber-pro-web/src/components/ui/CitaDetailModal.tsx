@@ -10,7 +10,7 @@ import type { AgendaCita } from '@/lib/agenda/types'
 import Link from 'next/link'
 import { useToast } from './Toast'
 import { createClient } from '@/lib/supabase/client'
-import { getBoliviaDateTimeStr, getBoliviaDateKey, getBoliviaTimeStr } from '@/lib/agenda/date-utils'
+import { getBoliviaDateTimeStr, getBoliviaDateKey, getBoliviaTimeStr, parseBoliviaDate, BOLIVIA_TZ } from '@/lib/agenda/date-utils'
 import { generateSmartSlots, isTimeSlotAvailable, minutesToTimeString, timeStringToMinutes } from '@/lib/booking/booking-slots'
 
 interface CitaDetailModalProps {
@@ -199,6 +199,29 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
     }
   }
 
+  const fechaBoliviaDate = cita ? parseBoliviaDate(cita.fecha_hora) : new Date()
+  const fechaTextoCompleta = cita && !isNaN(fechaBoliviaDate.getTime())
+    ? new Intl.DateTimeFormat('es-BO', {
+        timeZone: BOLIVIA_TZ,
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      }).format(fechaBoliviaDate)
+    : ''
+  const fechaCapitalizada = fechaTextoCompleta
+    ? fechaTextoCompleta.charAt(0).toUpperCase() + fechaTextoCompleta.slice(1)
+    : (cita ? getBoliviaDateTimeStr(cita.fecha_hora) : '')
+  const horaInicioCita = cita ? getBoliviaTimeStr(cita.fecha_hora) : ''
+  const horaFinCita = cita && !isNaN(fechaBoliviaDate.getTime())
+    ? new Date(fechaBoliviaDate.getTime() + (cita.duracion_minutos || 30) * 60000).toLocaleTimeString('es-BO', {
+        timeZone: BOLIVIA_TZ,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })
+    : ''
+
   return createPortal(
     <>
       {/* Lightbox pantalla completa */}
@@ -233,12 +256,19 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-zinc-900/80 shrink-0">
             <div>
-              <h3 className="text-lg font-black text-white uppercase tracking-tight leading-none">
+              <h3 className="text-lg sm:text-xl font-black text-white uppercase tracking-tight leading-none">
                 Detalle de <span className="text-amber-500">Cita</span>
               </h3>
-              <p className="text-xs text-zinc-500 mt-1 font-medium">
-                {getBoliviaDateTimeStr(cita.fecha_hora)}
-              </p>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <span className="inline-flex items-center gap-1.5 text-xs text-amber-300 font-bold bg-amber-500/15 px-2.5 py-0.5 rounded-full border border-amber-500/30 shadow-sm">
+                  <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{fechaCapitalizada}</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs text-white font-mono font-black bg-zinc-800 px-2.5 py-0.5 rounded-full border border-white/10 shadow-sm">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{horaInicioCita}{horaFinCita ? ` → ${horaFinCita}` : ''}</span>
+                </span>
+              </div>
             </div>
             <button
               type="button"
@@ -251,6 +281,49 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
 
           {/* Contenido scrollable */}
           <div className="flex-1 overflow-y-auto">
+            {/* HERO CARD: FECHA Y HORA DESTACADA */}
+            <div className="p-5 pb-0">
+              <div className="p-4 sm:p-5 bg-gradient-to-br from-amber-500/20 via-zinc-900 to-zinc-950 border-2 border-amber-500/40 rounded-2xl shadow-xl shadow-amber-500/5 relative overflow-hidden space-y-3">
+                <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+                  {/* Fecha */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-amber-500 shrink-0" />
+                      Fecha Programada
+                    </span>
+                    <p className="text-base sm:text-lg font-black text-white capitalize leading-tight">
+                      {fechaCapitalizada}
+                    </p>
+                  </div>
+
+                  {/* Horario Grande */}
+                  <div className="flex items-center gap-3 sm:border-l sm:border-white/10 sm:pl-4 pt-2 sm:pt-0 border-t border-white/5 sm:border-t-0">
+                    <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 shrink-0 shadow-inner">
+                      <Clock className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-widest text-zinc-400 font-bold block">Horario de Atención</span>
+                      <div className="flex items-baseline gap-2 mt-0.5">
+                        <span className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight drop-shadow-sm">
+                          {horaInicioCita}
+                        </span>
+                        {horaFinCita && (
+                          <span className="text-sm sm:text-base font-bold text-amber-400/90 font-mono">
+                            → {horaFinCita}
+                          </span>
+                        )}
+                        <span className="ml-1 text-[11px] font-black text-zinc-300 px-2 py-0.5 rounded-md bg-zinc-800 border border-white/10">
+                          {cita.duracion_minutos || 30} min
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Tarjeta Destacada del Cliente */}
             <div className="p-5 pb-3">
               <div className="p-4 bg-gradient-to-br from-zinc-900 to-zinc-950 border border-white/10 rounded-2xl shadow-xl space-y-3">
