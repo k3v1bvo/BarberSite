@@ -129,6 +129,8 @@ export function CajaPOS() {
   const [searchMovimiento, setSearchMovimiento] = useState<string>('')
   const [montoRecibido, setMontoRecibido] = useState<string>('')
   const [descuentoManual, setDescuentoManual] = useState<number>(0)
+  const [descuentoManualTipo, setDescuentoManualTipo] = useState<'barberia' | 'barbero' | 'compartido'>('barberia')
+  const [descuentoManualMotivo, setDescuentoManualMotivo] = useState<string>('')
 
   const [searchCliente, setSearchCliente] = useState('')
   const [searchCi, setSearchCi] = useState('')
@@ -763,6 +765,9 @@ export function CajaPOS() {
           referido_por_id: referidoPorId || undefined,
           descuento: descuentoTotal,
           descuento_manual: descuentoManual,
+          descuento_manual_tipo: descuentoManual > 0 ? descuentoManualTipo : null,
+          descuento_manual_motivo: descuentoManual > 0 ? descuentoManualMotivo : null,
+          descuento_manual_barbero_nombre: descuentoManual > 0 && (descuentoManualTipo === 'barbero' || descuentoManualTipo === 'compartido') ? (barberos.find(b => b.id === formData.barbero_id)?.full_name || 'Barbero') : null,
           promo_id: promoSeleccionada || null,
           referral_ids: aplicarReferido ? referralBonuses.map(r => r.id) : [],
           comprobante_url: formData.comprobante_url || null,
@@ -840,6 +845,8 @@ export function CajaPOS() {
       setAplicarReferido(false)
       setPromoSeleccionada('')
       setDescuentoManual(0)
+      setDescuentoManualTipo('barberia')
+      setDescuentoManualMotivo('')
       setAcompanante({ nombre: '', email: '' })
       setEditingCliente(false)
       setModoReserva(false)
@@ -1189,9 +1196,15 @@ export function CajaPOS() {
                               const matchDesc = (item.notas || '').match(/Desc:\s*-Bs\s*([0-9.]+)/i) || (item.glosa || '').match(/Desc.*:\s*-Bs\s*([0-9.]+)/i)
                               const descMonto = (item as any).descuento ? Number((item as any).descuento) : (matchDesc ? parseFloat(matchDesc[1]) : 0)
                               if (descMonto <= 0) return null
+                              // Detectar tipo de descuento desde notas
+                              const notasStr = (item.notas || '') + (item.glosa || '')
+                              const esBarbero = /Asume:\s*Barbero/i.test(notasStr)
+                              const esCompartido = /Asume:\s*Compartido|50\/50/i.test(notasStr)
+                              const tipoColor = esBarbero ? 'bg-orange-500/20 text-orange-300 border-orange-500/40' : esCompartido ? 'bg-violet-500/20 text-violet-300 border-violet-500/40' : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              const tipoIcon = esBarbero ? '💈' : esCompartido ? '🤝' : '🏢'
                               return (
-                                <span className="inline-flex items-center gap-1 text-[8px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 w-fit mt-0.5 shadow-sm">
-                                  ⭐ Desc. Especial: -{formatCurrency(descMonto)}
+                                <span className={`inline-flex items-center gap-1 text-[8px] font-black px-1.5 py-0.2 rounded border w-fit mt-0.5 shadow-sm ${tipoColor}`}>
+                                  {tipoIcon} Desc: -{formatCurrency(descMonto)}
                                 </span>
                               )
                             })()}
@@ -2575,24 +2588,108 @@ export function CajaPOS() {
                     <span>{formatCurrency(subtotalServicio)}</span>
                   </div>
                   {formData.servicio_id && (
-                    <div className="flex items-center gap-2 mb-2 p-2 bg-zinc-800/50 rounded-lg border border-white/5">
-                      <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider shrink-0">⭐ Desc. Especial</span>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        max={subtotalServicio}
-                        placeholder="0"
-                        value={descuentoManual || ''}
-                        onChange={(e) => setDescuentoManual(Math.min(Number(e.target.value) || 0, subtotalServicio))}
-                        className="w-20 h-7 bg-zinc-950 border border-amber-500/30 rounded-lg px-2 text-xs font-bold text-white text-right outline-none focus:border-amber-500"
-                        title="Descuento o Precio Especial"
-                      />
-                      <span className="text-[10px] text-zinc-500">Bs</span>
+                    <div className="mb-2 p-2.5 bg-zinc-800/50 rounded-xl border border-white/5 space-y-2">
+                      {/* Fila principal: label + input monto */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider shrink-0">⭐ Desc. Especial</span>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          max={subtotalServicio}
+                          placeholder="0"
+                          value={descuentoManual || ''}
+                          onChange={(e) => setDescuentoManual(Math.min(Number(e.target.value) || 0, subtotalServicio))}
+                          className="w-20 h-7 bg-zinc-950 border border-amber-500/30 rounded-lg px-2 text-xs font-bold text-white text-right outline-none focus:border-amber-500"
+                          title="Descuento o Precio Especial"
+                        />
+                        <span className="text-[10px] text-zinc-500">Bs</span>
+                        {descuentoManual > 0 && (
+                          <button type="button" onClick={() => { setDescuentoManual(0); setDescuentoManualTipo('barberia'); setDescuentoManualMotivo('') }} className="text-zinc-500 hover:text-red-400 transition" title="Quitar descuento">
+                            <span className="text-xs">✕</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Selector de tipo de descuento - solo visible cuando hay monto */}
                       {descuentoManual > 0 && (
-                        <button type="button" onClick={() => setDescuentoManual(0)} className="text-zinc-500 hover:text-red-400 transition" title="Quitar descuento">
-                          <span className="text-xs">✕</span>
-                        </button>
+                        <>
+                          <div className="flex flex-col gap-1.5">
+                            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">¿Quién asume?</span>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {([
+                                { key: 'barberia' as const, label: '🏢 Barbería', color: 'emerald' },
+                                { key: 'barbero' as const, label: `💈 Barbero${formData.barbero_id ? `: ${(barberos.find(b => b.id === formData.barbero_id)?.full_name || '').split(' ')[0]}` : ''}`, color: 'orange' },
+                                { key: 'compartido' as const, label: '🤝 50/50', color: 'violet' },
+                              ]).map(opt => (
+                                <button
+                                  key={opt.key}
+                                  type="button"
+                                  onClick={() => setDescuentoManualTipo(opt.key)}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all duration-200 ${
+                                    descuentoManualTipo === opt.key
+                                      ? opt.color === 'emerald'
+                                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.15)]'
+                                        : opt.color === 'orange'
+                                          ? 'bg-orange-500/20 text-orange-400 border-orange-500/50 shadow-[0_0_8px_rgba(249,115,22,0.15)]'
+                                          : 'bg-violet-500/20 text-violet-400 border-violet-500/50 shadow-[0_0_8px_rgba(139,92,246,0.15)]'
+                                      : 'bg-zinc-900/50 text-zinc-500 border-zinc-700/50 hover:border-zinc-600'
+                                  }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Motivo: chips rápidos + input libre */}
+                          <div className="flex flex-col gap-1.5">
+                            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Motivo (opcional)</span>
+                            <div className="flex gap-1 flex-wrap">
+                              {['Amigo / Familiar', 'Cortesía', 'Modelo', 'Compensación', 'Primera vez'].map(chip => (
+                                <button
+                                  key={chip}
+                                  type="button"
+                                  onClick={() => setDescuentoManualMotivo(descuentoManualMotivo === chip ? '' : chip)}
+                                  className={`px-2 py-0.5 rounded-md text-[9px] font-semibold border transition-all ${
+                                    descuentoManualMotivo === chip
+                                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                      : 'bg-zinc-900/60 text-zinc-500 border-zinc-700/40 hover:text-zinc-400'
+                                  }`}
+                                >
+                                  {chip}
+                                </button>
+                              ))}
+                            </div>
+                            <input
+                              type="text"
+                              placeholder="Escribir motivo personalizado..."
+                              value={descuentoManualMotivo}
+                              onChange={e => setDescuentoManualMotivo(e.target.value)}
+                              className="w-full h-7 bg-zinc-950 border border-zinc-700/50 rounded-lg px-2.5 text-[11px] text-zinc-300 outline-none focus:border-amber-500/50 placeholder:text-zinc-600"
+                              maxLength={120}
+                            />
+                          </div>
+
+                          {/* Nota de impacto visual */}
+                          <div className={`text-[9px] font-semibold px-2 py-1.5 rounded-md border ${
+                            descuentoManualTipo === 'barberia'
+                              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                              : descuentoManualTipo === 'barbero'
+                                ? 'bg-orange-500/10 border-orange-500/20 text-orange-400'
+                                : 'bg-violet-500/10 border-violet-500/20 text-violet-400'
+                          }`}>
+                            {descuentoManualTipo === 'barberia' && (
+                              <>🏢 La barbería asume -{formatCurrency(descuentoManual)}. Comisión del barbero intacta.</>
+                            )}
+                            {descuentoManualTipo === 'barbero' && (
+                              <>💈 {barberos.find(b => b.id === formData.barbero_id)?.full_name || 'El barbero'} asume -{formatCurrency(descuentoManual)} de su comisión.</>
+                            )}
+                            {descuentoManualTipo === 'compartido' && (
+                              <>🤝 Compartido: Barbería -{formatCurrency(descuentoManual / 2)} · Barbero -{formatCurrency(descuentoManual / 2)} de comisión.</>
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
                   )}
@@ -2643,8 +2740,13 @@ export function CajaPOS() {
 
                   {descuentoManual > 0 && (
                     <div className="flex justify-between items-center text-sm mb-2">
-                      <span className="text-amber-400 text-xs flex items-center gap-1">
-                        ⭐ Descuento / Precio Especial
+                      <span className={`text-xs flex items-center gap-1 ${
+                        descuentoManualTipo === 'barbero' ? 'text-orange-400' :
+                        descuentoManualTipo === 'compartido' ? 'text-violet-400' :
+                        'text-emerald-400'
+                      }`}>
+                        {descuentoManualTipo === 'barberia' ? '🏢' : descuentoManualTipo === 'barbero' ? '💈' : '🤝'} Desc. {descuentoManualTipo === 'barberia' ? 'Barbería' : descuentoManualTipo === 'barbero' ? `Barbero` : '50/50'}
+                        {descuentoManualMotivo && <span className="text-zinc-500 ml-1">· {descuentoManualMotivo}</span>}
                       </span>
                       <span className="text-amber-400 font-semibold">-{formatCurrency(descuentoManual)}</span>
                     </div>

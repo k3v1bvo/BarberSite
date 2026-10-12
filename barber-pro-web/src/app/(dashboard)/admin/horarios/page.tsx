@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import {
   ArrowLeft, Clock, Plus, Save, Trash2, User, Edit, Zap, Calendar, X, Copy, Check,
-  CalendarDays, SlidersHorizontal, AlertTriangle, Moon, Sun, Sparkles, CheckCircle2, ShieldAlert
+  CalendarDays, SlidersHorizontal, AlertTriangle, Moon, Sparkles, CheckCircle2, ShieldAlert
 } from 'lucide-react'
 import type { PlantillaHorario, TipoHorario } from '@/types'
 import { getBusinessDateString } from '@/lib/asistencia/helpers'
@@ -52,11 +52,6 @@ interface FeriadoItem {
   descripcion?: string
 }
 
-interface DomingoItem {
-  fecha: string
-  barberos_habilitados: string[]
-  notas?: string
-}
 
 const DIAS_CONFIG_INICIAL: DiaConfig[] = [
   { dia_semana: 1, nombre: 'Lunes', nombre_corto: 'Lun', activo: true, hora_inicio: '08:30', hora_fin: '20:30' },
@@ -77,32 +72,12 @@ const emptyForm = {
   is_active: true,
 }
 
-// Genera los próximos N domingos a partir de hoy
-function getProximosDomingos(cantidad = 8): { fecha: string; label: string }[] {
-  const domingos: { fecha: string; label: string }[] = []
-  const d = new Date()
-  // Ajustar al próximo domingo si no es domingo hoy
-  const day = d.getDay()
-  const diffToSunday = day === 0 ? 0 : 7 - day
-  d.setDate(d.getDate() + diffToSunday)
-
-  for (let i = 0; i < cantidad; i++) {
-    const yyyy = d.getFullYear()
-    const mm = String(d.getMonth() + 1).padStart(2, '0')
-    const dd = String(d.getDate()).padStart(2, '0')
-    const dateStr = `${yyyy}-${mm}-${dd}`
-    const label = d.toLocaleDateString('es-BO', { weekday: 'short', day: 'numeric', month: 'short' })
-    domingos.push({ fecha: dateStr, label })
-    d.setDate(d.getDate() + 7)
-  }
-  return domingos
-}
 
 export default function AdminHorariosPage() {
   const router = useRouter()
   const { success, error: toastError } = useToast()
   
-  const [activeTab, setActiveTab] = useState<'semanal' | 'domingos' | 'feriados' | 'fecha_especifica'>('semanal')
+  const [activeTab, setActiveTab] = useState<'semanal' | 'feriados' | 'fecha_especifica'>('semanal')
   const [plantillas, setPlantillas] = useState<PlantillaHorario[]>([])
   const [barberos, setBarberos] = useState<{ id: string; full_name: string; role?: string }[]>([])
   const [barberoId, setBarberoId] = useState<string>('')
@@ -125,10 +100,6 @@ export default function AdminHorariosPage() {
   const [bloqueos, setBloqueos] = useState<BloqueoItem[]>([])
   const [savingExcepcion, setSavingExcepcion] = useState(false)
 
-  // Domingos Rotativos
-  const [proximosDomingos] = useState(() => getProximosDomingos(10))
-  const [domingosRotativos, setDomingosRotativos] = useState<DomingoItem[]>([])
-  const [savingDomingos, setSavingDomingos] = useState(false)
 
   // Feriados
   const [feriados, setFeriados] = useState<FeriadoItem[]>([])
@@ -169,23 +140,12 @@ export default function AdminHorariosPage() {
     }
   }, [])
 
-  const loadDomingos = useCallback(async () => {
-    try {
-      const res = await fetch('/api/horarios/domingos')
-      const json = await res.json()
-      setDomingosRotativos(json.domingos || [])
-    } catch {
-      console.error('Error cargando domingos')
-    }
-  }, [])
-
   const searchParams = useSearchParams()
   const targetBarberoId = searchParams.get('barbero_id')
 
   useEffect(() => {
     loadPlantillas()
     loadFeriados()
-    loadDomingos()
     import('@/lib/supabase/client').then(({ createClient }) => {
       createClient()
         .from('profiles')
@@ -206,7 +166,7 @@ export default function AdminHorariosPage() {
           }
         })
     })
-  }, [loadPlantillas, loadFeriados, loadDomingos, targetBarberoId])
+  }, [loadPlantillas, loadFeriados, targetBarberoId])
 
   // Cargar horario específico del barbero
   const loadHorarioBarbero = useCallback(async (bId: string) => {
@@ -309,38 +269,7 @@ export default function AdminHorariosPage() {
     }
   }
 
-  // Domingos Rotativos: toggle de barbero en determinado domingo
-  const toggleBarberoDomingo = (fechaDom: string, bId: string) => {
-    setDomingosRotativos(prev => {
-      const exist = prev.find(d => d.fecha === fechaDom)
-      if (exist) {
-        const estaHabilitado = exist.barberos_habilitados.includes(bId)
-        const nuevaLista = estaHabilitado
-          ? exist.barberos_habilitados.filter(id => id !== bId)
-          : [...exist.barberos_habilitados, bId]
-        return prev.map(d => (d.fecha === fechaDom ? { ...d, barberos_habilitados: nuevaLista } : d))
-      } else {
-        return [...prev, { fecha: fechaDom, barberos_habilitados: [bId] }]
-      }
-    })
-  }
 
-  const guardarDomingosRotativos = async () => {
-    setSavingDomingos(true)
-    try {
-      const res = await fetch('/api/horarios/domingos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domingos: domingosRotativos }),
-      })
-      if (!res.ok) throw new Error((await res.json()).error)
-      success('¡Asignaciones de Domingos guardadas!')
-    } catch (err: any) {
-      toastError(err.message || 'Error al guardar domingos')
-    } finally {
-      setSavingDomingos(false)
-    }
-  }
 
   // Feriados: agregar feriado
   const agregarFeriado = async (e: React.FormEvent) => {
@@ -474,7 +403,7 @@ export default function AdminHorariosPage() {
             <h1 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tight mt-1">
               Horas de <span className="text-amber-500">Trabajo</span>
             </h1>
-            <p className="text-zinc-400 text-xs md:text-sm">Configura horarios semanales, domingos rotativos y feriados especiales</p>
+            <p className="text-zinc-400 text-xs md:text-sm">Configura horarios semanales y feriados especiales</p>
           </div>
         </div>
 
@@ -511,17 +440,7 @@ export default function AdminHorariosPage() {
           Planilla Semanal
         </button>
 
-        <button
-          onClick={() => setActiveTab('domingos')}
-          className={`flex-1 py-3 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all min-w-[140px] ${
-            activeTab === 'domingos'
-              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
-              : 'text-zinc-400 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <Sun className="w-4 h-4" />
-          Domingos Rotativos
-        </button>
+
 
         <button
           onClick={() => setActiveTab('feriados')}
@@ -708,79 +627,7 @@ export default function AdminHorariosPage() {
         </div>
       )}
 
-      {/* VISTA 2: DOMINGOS ROTATIVOS */}
-      {activeTab === 'domingos' && (
-        <div className="space-y-6">
-          <Card className="bg-zinc-950 border-amber-500/20 shadow-xl">
-            <CardHeader className="pb-3 border-b border-white/5 flex flex-col md:flex-row justify-between md:items-center gap-4">
-              <div>
-                <CardTitle className="text-amber-400 text-lg font-black uppercase tracking-wider flex items-center gap-2">
-                  <Sun className="w-5 h-5" />
-                  Asignación de Domingos Rotativos
-                </CardTitle>
-                <p className="text-xs text-zinc-400 mt-1">
-                  Marca con un tike los domingos específicos en que trabajará cada barbero. Si un barbero no está tiqueado para determinado domingo, la web no permitirá reservas para él ese día.
-                </p>
-              </div>
-              <Button
-                onClick={guardarDomingosRotativos}
-                disabled={savingDomingos}
-                className="bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs h-11 px-6 rounded-xl shrink-0"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {savingDomingos ? 'Guardando...' : 'Guardar Domingos'}
-              </Button>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {proximosDomingos.map((dom) => {
-                  const exist = domingosRotativos.find(d => d.fecha === dom.fecha)
-                  const habilitadosCount = exist?.barberos_habilitados?.length || 0
-                  return (
-                    <div key={dom.fecha} className="bg-zinc-900 border border-white/10 rounded-2xl p-4 space-y-3">
-                      <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                        <div className="flex items-center gap-2">
-                          <Sun className="w-4 h-4 text-amber-500" />
-                          <span className="font-black text-white text-sm uppercase">{dom.label}</span>
-                        </div>
-                        <span className="text-[10px] text-amber-400 font-mono font-bold bg-amber-500/10 px-2 py-0.5 rounded-md">
-                          {dom.fecha}
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        {barberos.filter(b => b.role === 'barbero' || !b.role).map((b) => {
-                          const isChecked = exist?.barberos_habilitados?.includes(b.id) || false
-                          return (
-                            <label
-                              key={b.id}
-                              className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
-                                isChecked
-                                  ? 'bg-amber-500/10 border-amber-500/40 text-white'
-                                  : 'bg-zinc-950 border-white/5 text-zinc-500 hover:border-white/10'
-                              }`}
-                            >
-                              <span className="text-xs font-bold truncate pr-2">{b.full_name}</span>
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => toggleBarberoDomingo(dom.fecha, b.id)}
-                                className="w-4 h-4 accent-amber-500 rounded cursor-pointer shrink-0"
-                              />
-                            </label>
-                          )
-                        })}
-                      </div>
-                      <div className="pt-1 text-[10px] text-zinc-500 font-bold text-right">
-                        {habilitadosCount} barbero(s) atiende(n)
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+
 
       {/* VISTA 3: FERIADOS Y DÍAS FESTIVOS */}
       {activeTab === 'feriados' && (

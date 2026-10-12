@@ -21,8 +21,8 @@ export async function GET(request: Request) {
   const dBolivia = new Date(`${fecha}T12:00:00-04:00`)
   const diaSemana = dBolivia.getDay()
 
-  // 2. Consultar horario semanal, tiempo mínimo de reserva, bloqueos, citas, feriados, domingos, permisos y asistencia
-  const [horarioRes, configRes, bloqueosRes, citasRes, feriadosRes, domingosRes, permisosRes, asistenciaRes] = await Promise.all([
+  // 2. Consultar horario semanal, tiempo mínimo de reserva, bloqueos, citas, feriados, permisos y asistencia
+  const [horarioRes, configRes, bloqueosRes, citasRes, feriadosRes, permisosRes, asistenciaRes] = await Promise.all([
     supabase
       .from('barbero_horario_semanal')
       .select('hora_inicio, hora_fin, activo')
@@ -53,11 +53,6 @@ export async function GET(request: Request) {
       .eq('clave', 'feriados_config')
       .maybeSingle(),
     adminSupabase
-      .from('sistema_config')
-      .select('valor')
-      .eq('clave', 'domingos_rotativos_config')
-      .maybeSingle(),
-    adminSupabase
       .from('solicitudes_permisos')
       .select('fecha, fecha_fin, hora_inicio, hora_fin, tipo_permiso, estado, motivo')
       .eq('barbero_id', barbero_id)
@@ -84,15 +79,11 @@ export async function GET(request: Request) {
     }
   }
 
-  // Feriados & Domingos Rotativos
+  // Feriados
   const feriadosList: Array<{ fecha: string; nombre: string; tipo: 'cerrado' | 'con_atencion'; hora_inicio?: string; hora_fin?: string }> =
     (feriadosRes.data?.valor as any)?.feriados || []
 
-  const domingosList: Array<{ fecha: string; barberos_habilitados: string[] }> =
-    (domingosRes.data?.valor as any)?.domingos || []
-
   const feriadoCoincidente = feriadosList.find(f => f.fecha === fecha)
-  const domingoCoincidente = domingosList.find(d => d.fecha === fecha)
 
   let disponible = true
   let hora_inicio = '09:00'
@@ -111,34 +102,11 @@ export async function GET(request: Request) {
       motivo = `Feriado Especial: ${feriadoCoincidente.nombre}`
     }
   } 
-  // Prioridad 2: Evaluación de Domingos Rotativos
-  else if (diaSemana === 0) {
-    if (domingoCoincidente) {
-      const estaHabilitado = domingoCoincidente.barberos_habilitados?.includes(barbero_id)
-      if (estaHabilitado) {
-        disponible = true
-        hora_inicio = horario?.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
-        hora_fin = horario?.hora_fin ? horario.hora_fin.slice(0, 5) : '16:00'
-      } else {
-        disponible = false
-        motivo = 'El barbero no atiende este domingo.'
-      }
-    } else {
-      if (horario && horario.activo) {
-        disponible = true
-        hora_inicio = horario.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
-        hora_fin = horario.hora_fin ? horario.hora_fin.slice(0, 5) : '16:00'
-      } else {
-        disponible = false
-        motivo = 'El barbero no atiende los domingos.'
-      }
-    }
-  } 
-  // Prioridad 3: Horario Semanal Estándar
+  // Prioridad 2: Horario Semanal Estándar
   else if (horario) {
     if (!horario.activo) {
       disponible = false
-      motivo = 'El barbero no atiende en este día de la semana.'
+      motivo = diaSemana === 0 ? 'El barbero no atiende los domingos.' : 'El barbero no atiende en este día de la semana.'
     } else {
       hora_inicio = horario.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
       hora_fin = horario.hora_fin ? horario.hora_fin.slice(0, 5) : '20:00'

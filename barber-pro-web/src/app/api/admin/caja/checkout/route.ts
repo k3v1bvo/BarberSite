@@ -50,10 +50,16 @@ export async function POST(request: NextRequest) {
       monto_efectivo,
       monto_qr,
       anticipo_monto,
-      descuento_manual
+      descuento_manual,
+      descuento_manual_tipo,
+      descuento_manual_motivo,
+      descuento_manual_barbero_nombre
     } = body
     const anticipoQr = Number(anticipo_monto || 0)
     const descuentoManual = Number(descuento_manual || 0)
+    const descuentoManualTipo: string = descuento_manual_tipo || 'barberia'
+    const descuentoManualMotivo: string = descuento_manual_motivo || ''
+    const descuentoManualBarberoNombre: string = descuento_manual_barbero_nombre || ''
     const descuentoTotal = Number(descuento) || 0
     const referralIdsToMark: string[] = referral_ids || []
 
@@ -273,6 +279,18 @@ export async function POST(request: NextRequest) {
         comisionTotal = comResult.monto + (extraPropinas * 0.5)
         comisionCategoria = comResult.categoria_nombre
         comisionHerramientas = comResult.tiene_herramientas
+
+        // Ajustar comisión del barbero según tipo de descuento manual
+        if (descuentoManual > 0 && comisionTotal > 0) {
+          if (descuentoManualTipo === 'barbero') {
+            // El barbero asume todo el descuento → se resta de su comisión
+            comisionTotal = Math.max(0, comisionTotal - descuentoManual)
+          } else if (descuentoManualTipo === 'compartido') {
+            // 50/50 → se resta la mitad del descuento de la comisión del barbero
+            comisionTotal = Math.max(0, comisionTotal - (descuentoManual / 2))
+          }
+          // Si es 'barberia' → comisión del barbero queda intacta
+        }
       }
     }
 
@@ -311,7 +329,15 @@ export async function POST(request: NextRequest) {
 
       if (descuentoTotal > 0) {
         if (descuentoManual > 0) {
-          finalNotas += `\n⭐ Precio Especial / Desc: -Bs ${descuentoManual}`
+          const tipoLabel = descuentoManualTipo === 'barbero'
+            ? `Barbero (${descuentoManualBarberoNombre})`
+            : descuentoManualTipo === 'compartido'
+              ? `Compartido 50/50 (${descuentoManualBarberoNombre})`
+              : 'Barbería'
+          finalNotas += `\n⭐ Desc. Especial: -Bs ${descuentoManual} [Asume: ${tipoLabel}]`
+          if (descuentoManualMotivo) {
+            finalNotas += ` | Motivo: ${descuentoManualMotivo}`
+          }
         }
         finalNotas += `\nPrecio original: Bs ${precioBase} → Neto cobrado: Bs ${precioNetoServicio}`
       }
@@ -686,7 +712,14 @@ export async function POST(request: NextRequest) {
         } else {
           if (anticipoQr > 0) notasParts.push(`Cobrado en caja (Efectivo): Bs ${restoPagar}`)
         }
-        if (descuentoManual > 0) notasParts.push(`⭐ Precio Especial / Desc: -Bs ${descuentoManual}`)
+        if (descuentoManual > 0) {
+          const tipoLabel = descuentoManualTipo === 'barbero'
+            ? `Barbero (${descuentoManualBarberoNombre})`
+            : descuentoManualTipo === 'compartido'
+              ? `Compartido 50/50 (${descuentoManualBarberoNombre})`
+              : 'Barbería'
+          notasParts.push(`⭐ Desc. Especial: -Bs ${descuentoManual} [Asume: ${tipoLabel}]${descuentoManualMotivo ? ` | Motivo: ${descuentoManualMotivo}` : ''}`)
+        }
         if (descuentoTotal > 0 && descuentoTotal !== descuentoManual) notasParts.push(`Descuento total: -Bs ${descuentoTotal}`)
         if (descuentoTotal > 0) notasParts.push(`Precio original: Bs ${precioBase} → Neto cobrado: Bs ${precioNetoServicio}`)
         const notasFinales = notasParts.length > 0 ? notasParts.join(' | ') : null

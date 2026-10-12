@@ -69,6 +69,13 @@ interface Barbero {
   avatar_url: string | null
   qr_code_url?: string | null
 }
+interface BarberoHorarioItem {
+  barbero_id: string
+  dia_semana: number
+  hora_inicio: string
+  hora_fin: string
+  activo: boolean
+}
 interface UserProfile {
   id: string
   email: string
@@ -93,6 +100,7 @@ function ReservarContent() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [carrito, setCarrito] = useState<ProductoCarrito[]>([])
   const [barberos, setBarberos] = useState<Barbero[]>([])
+  const [barberoHorarios, setBarberoHorarios] = useState<BarberoHorarioItem[]>([])
   const [barberoServicios, setBarberoServicios] = useState<{ barbero_id: string; servicio_id: string }[]>([])
   const [referidoInfo, setReferidoInfo] = useState<{ id: string; nombre: string } | null>(null)
   const [promociones, setPromociones] = useState<any[]>([])
@@ -420,7 +428,7 @@ function ReservarContent() {
       const hoyLocal = new Date()
       const hoyStr = new Date(hoyLocal.getTime() - (hoyLocal.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
 
-      const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo, resBarberoServicios, resAsistencias, resPermisos, config2x1Res] = await Promise.all([
+      const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo, resBarberoServicios, resAsistencias, resPermisos, config2x1Res, resHorarios] = await Promise.all([
         supabase.from('servicios').select('*').eq('is_active', true).order('orden', { ascending: true }),
         supabase.from('profiles').select('id, full_name, email, avatar_url, qr_code_url').eq('role', 'barbero').eq('is_active', true),
         supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url').eq('is_active', true).gt('stock_actual', 0).order('orden', { ascending: true }),
@@ -430,7 +438,8 @@ function ReservarContent() {
         supabase.from('comision_barbero_servicios').select('barbero_id, servicio_id'),
         supabase.from('asistencias').select('profile_id, estado, hora_entrada, hora_salida').eq('fecha', hoyStr),
         supabase.from('solicitudes_permisos').select('barbero_id, estado, fecha, fecha_fin, tipo_permiso').eq('estado', 'aprobado').lte('fecha', hoyStr),
-        supabase.from('configuraciones').select('valor').eq('llave', 'promo_2x1_config').maybeSingle()
+        supabase.from('configuraciones').select('valor').eq('llave', 'promo_2x1_config').maybeSingle(),
+        supabase.from('barbero_horario_semanal').select('barbero_id, dia_semana, hora_inicio, hora_fin, activo')
       ])
 
       setServicios(resServicios.data || [])
@@ -438,6 +447,16 @@ function ReservarContent() {
       setProductos(resProductos.data || [])
       setAsistenciasHoy(resAsistencias.data || [])
       setPermisosHoy(resPermisos.data || [])
+      if (resHorarios.data && resHorarios.data.length > 0) {
+        setBarberoHorarios(resHorarios.data)
+      } else {
+        fetch('/api/barberos/horarios')
+          .then(r => r.json())
+          .then(j => {
+            if (j?.horarios?.length) setBarberoHorarios(j.horarios)
+          })
+          .catch(() => {})
+      }
       if (resBarberoServicios.data) {
         setBarberoServicios(resBarberoServicios.data)
       }
@@ -1874,6 +1893,55 @@ function ReservarContent() {
                       const tienePermisoHoy = permisosHoy.some(p => p.barbero_id === b.id && p.fecha <= hoy && (p.fecha_fin ? p.fecha_fin >= hoy : p.fecha === hoy))
                       const estaPresenteHoy = asisHoy?.hora_entrada && !asisHoy?.hora_salida && asisHoy?.estado !== 'permiso' && asisHoy?.estado !== 'falta'
 
+                      // Determinar el día de la semana correspondiente (hoy o la fecha elegida si ya fue seleccionada)
+                      const targetDiaSemana = (() => {
+                        if (formData.fecha) {
+                          try {
+                            const [y, m, d] = formData.fecha.split('-').map(Number)
+                            return new Date(y, m - 1, d).getDay()
+                          } catch {
+                            return getDiaHoyLaPaz()
+                          }
+                        }
+                        return getDiaHoyLaPaz()
+                      })()
+
+                      const esMismoDiaHoy = !formData.fecha || formData.fecha === hoy
+                      const nombresDiasCortos = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+                      const diaPrefijo = esMismoDiaHoy ? 'Hoy' : nombresDiasCortos[targetDiaSemana]
+
+                      const horarioConfig = barberoHorarios.find(
+                        h => h.barbero_id === b.id && Number(h.dia_semana) === targetDiaSemana
+                      )
+
+                      let horarioTexto = ''
+                      let horarioDisponible = true
+
+                      if (tienePermisoHoy || asisHoy?.estado === 'permiso') {
+                        horarioTexto = 'Permiso Justificado'
+                        horarioDisponible = false
+                      } else if (asisHoy?.estado === 'falta') {
+                        horarioTexto = 'Ausente Hoy'
+                        horarioDisponible = false
+                      } else if (horarioConfig) {
+                        if (!horarioConfig.activo) {
+                          horarioTexto = `${diaPrefijo}: No atiende`
+                          horarioDisponible = false
+                        } else {
+                          const ini = horarioConfig.hora_inicio ? horarioConfig.hora_inicio.slice(0, 5) : '08:30'
+                          const fin = horarioConfig.hora_fin ? horarioConfig.hora_fin.slice(0, 5) : '20:30'
+                          horarioTexto = `${diaPrefijo}: ${ini} - ${fin}`
+                        }
+                      } else {
+                        // Horario por defecto si aún no está registrado
+                        if (targetDiaSemana === 0) {
+                          horarioTexto = `${diaPrefijo}: No atiende`
+                          horarioDisponible = false
+                        } else {
+                          horarioTexto = `${diaPrefijo}: 08:30 - 20:30`
+                        }
+                      }
+
                       return (
                         <div
                           key={b.id}
@@ -1881,39 +1949,52 @@ function ReservarContent() {
                             setFormData({ ...formData, barbero_id: b.id, fecha: '', hora: '' })
                             setTimeout(() => setStep(3), 250)
                           }}
-                          className={`flex flex-col items-center gap-4 p-6 border-2 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1 ${
+                          className={`flex flex-col items-center gap-3 p-4 sm:p-5 border-2 rounded-2xl cursor-pointer transition-all duration-300 group hover:-translate-y-1 ${
                             formData.barbero_id === b.id
                               ? 'border-amber-500 bg-amber-500/10 scale-105 shadow-[0_0_25px_rgba(245,158,11,0.2)]'
                               : 'border-zinc-800 hover:border-amber-500/40 bg-black/50 hover:bg-zinc-800/80'
                           }`}
                         >
-                          <div className="w-24 h-24 rounded-full overflow-hidden bg-zinc-950 border-4 border-zinc-800 relative group-hover:border-amber-500/50 transition-colors">
+                          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-zinc-950 border-4 border-zinc-800 relative group-hover:border-amber-500/50 transition-colors">
                             {formData.barbero_id === b.id && <div className="absolute inset-0 border-4 border-amber-500 rounded-full z-10" />}
                             {b.avatar_url ? (
                               <img src={b.avatar_url} alt={b.full_name} className="w-full h-full object-cover relative z-0" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-4xl font-black bg-zinc-900 text-zinc-600 relative z-0">{b.full_name.charAt(0)}</div>
+                              <div className="w-full h-full flex items-center justify-center text-3xl sm:text-4xl font-black bg-zinc-900 text-zinc-600 relative z-0">{b.full_name.charAt(0)}</div>
                             )}
                           </div>
-                          <div className="text-center">
-                            <h3 className="font-black text-base text-white group-hover:text-amber-400 transition-colors">{toTitleCase(b.full_name)}</h3>
-                            {tienePermisoHoy || asisHoy?.estado === 'permiso' ? (
-                              <span className="inline-block mt-2 text-[9px] uppercase tracking-wider text-amber-300 font-bold bg-amber-500/20 px-2.5 py-1 rounded-full border border-amber-500/40">
-                                🟡 Permiso Hoy
-                              </span>
-                            ) : asisHoy?.estado === 'falta' ? (
-                              <span className="inline-block mt-2 text-[9px] uppercase tracking-wider text-red-400 font-bold bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/30">
-                                🔴 Ausente Hoy
-                              </span>
-                            ) : estaPresenteHoy ? (
-                              <span className="inline-flex items-center gap-1 mt-2 text-[9px] uppercase tracking-wider text-emerald-400 font-black bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Atendiendo Hoy
-                              </span>
-                            ) : (
-                              <span className="inline-block mt-2 text-[10px] uppercase tracking-[0.2em] text-amber-500 font-bold bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
-                                Especialista
-                              </span>
-                            )}
+                          <div className="text-center w-full">
+                            <h3 className="font-black text-sm sm:text-base text-white group-hover:text-amber-400 transition-colors truncate">{toTitleCase(b.full_name)}</h3>
+                            
+                            <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2">
+                              {tienePermisoHoy || asisHoy?.estado === 'permiso' ? (
+                                <span className="inline-block text-[9px] uppercase tracking-wider text-amber-300 font-bold bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/40">
+                                  🟡 Permiso
+                                </span>
+                              ) : asisHoy?.estado === 'falta' ? (
+                                <span className="inline-block text-[9px] uppercase tracking-wider text-red-400 font-bold bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/30">
+                                  🔴 Ausente
+                                </span>
+                              ) : estaPresenteHoy ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider text-emerald-400 font-black bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Atendiendo Hoy
+                                </span>
+                              ) : (
+                                <span className="inline-block text-[9px] uppercase tracking-wider text-amber-500 font-bold bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                                  Especialista
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Horario disponible del día */}
+                            <div className={`mt-2.5 flex items-center justify-center gap-1.5 py-1 px-2 rounded-xl border text-[10px] sm:text-[11px] font-bold transition-colors ${
+                              !horarioDisponible
+                                ? 'bg-zinc-900/60 text-zinc-500 border-zinc-800'
+                                : 'bg-zinc-900/80 text-zinc-300 border-white/5 group-hover:border-amber-500/30 group-hover:text-amber-300 group-hover:bg-amber-500/10'
+                            }`}>
+                              <Clock className={`w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 ${!horarioDisponible ? 'text-zinc-600' : 'text-amber-500'}`} />
+                              <span className="truncate">{horarioTexto}</span>
+                            </div>
                           </div>
                         </div>
                       )

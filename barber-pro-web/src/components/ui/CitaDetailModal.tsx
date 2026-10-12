@@ -353,6 +353,24 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                       </span>
                       <span className="text-amber-400 font-mono font-black text-sm">-{formatCurrency(descMonto)}</span>
                     </div>
+                    {(() => {
+                      const notasStr = cita.notas || ''
+                      const matchAsume = notasStr.match(/\[Asume:\s*([^\]]+)\]/i)
+                      const matchMotivo = notasStr.match(/Motivo:\s*([^|\n]+)/i)
+                      if (!matchAsume && !matchMotivo) return null
+                      const esBarbero = matchAsume && /Barbero\s*\(/i.test(matchAsume[1])
+                      const esCompartido = matchAsume && /Compartido/i.test(matchAsume[1])
+                      return (
+                        <div className={`flex items-center gap-2 text-[10px] font-semibold px-2 py-1 rounded-md border ${
+                          esBarbero ? 'bg-orange-500/10 border-orange-500/20 text-orange-400'
+                          : esCompartido ? 'bg-violet-500/10 border-violet-500/20 text-violet-400'
+                          : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                        }`}>
+                          <span>{esBarbero ? '💈' : esCompartido ? '🤝' : '🏢'} {matchAsume ? matchAsume[1].trim() : 'Barbería'}</span>
+                          {matchMotivo && <span className="text-zinc-500">· {matchMotivo[1].trim()}</span>}
+                        </div>
+                      )
+                    })()}
                     <div className="flex items-center justify-between text-xs text-zinc-400 pt-1 border-t border-white/10">
                       <span>Precio Regular: <span className="line-through text-zinc-500">{formatCurrency(origMonto)}</span></span>
                       <span className="text-white font-bold">Total Final: <span className="text-emerald-400 font-black">{formatCurrency(netoMonto)}</span></span>
