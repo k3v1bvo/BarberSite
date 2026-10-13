@@ -819,7 +819,8 @@ export async function POST(request: NextRequest) {
           if (cProf?.id) clientUserIdForNotif = cProf.id
         }
 
-        const precioNetoServicio = Math.max(0, precioBase - descuentoTotal)
+        const descuentoServiciosNotif = Math.max(0, descuentoTotal - descuentoProductos)
+        const precioNetoServicioNotif = Math.max(0, precioBase - descuentoServiciosNotif)
         const db = getNotificationDbClient(adminSupabase)
         await dispatchNotification(db, {
           event: 'cita_completada',
@@ -827,7 +828,7 @@ export async function POST(request: NextRequest) {
             citaId, 
             barberoId: barbero_id, 
             barberoNombre: finalBarberoNombre,
-            monto: precioNetoServicio + totalProductos,
+            monto: precioNetoServicioNotif + totalProductosNeto,
             clienteId: clientUserIdForNotif || undefined,
             clienteEmail: clienteEmail || undefined,
             clienteNombre: clienteNombre || 'Cliente'
