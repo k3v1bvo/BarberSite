@@ -154,6 +154,13 @@ export function CajaPOS() {
   const [referidoPorNombre, setReferidoPorNombre] = useState<string>('')
   const [referidoresOptions, setReferidoresOptions] = useState<Cliente[]>([])
 
+  // Descuento en productos (Asume la barbería netamente)
+  const [descuentoProductos, setDescuentoProductos] = useState<number>(0)
+  const [descuentoProductosMotivo, setDescuentoProductosMotivo] = useState<string>('')
+
+  // Operador Caja (Encargado de Caja)
+  const [cajaOperator, setCajaOperator] = useState<{ id: string; full_name: string; avatar_url?: string } | null>(null)
+
   // Turno rotation & agenda
   const [barberoTurno, setBarberoTurno] = useState<string | null>(null)
   const [turnosPosicionMap, setTurnosPosicionMap] = useState<Map<string, { posicion: number; esProximo: boolean }>>(new Map())
@@ -205,6 +212,29 @@ export function CajaPOS() {
         setProductos(resProductos.data || [])
         setPromociones(resPromos.data || [])
         setLealtadMetas(resMetas.data || [])
+
+        // Detectar perfil de Caja (usuario actual autenticado o staff administrativo)
+        try {
+          const { data: authData } = await supabase.auth.getUser()
+          const curUser = authData?.user
+          if (curUser) {
+            const { data: myProf } = await supabase.from('profiles').select('id, full_name, role, avatar_url').eq('id', curUser.id).maybeSingle()
+            if (myProf) {
+              setCajaOperator({ id: myProf.id, full_name: 'Caja', avatar_url: myProf.avatar_url })
+            } else {
+              setCajaOperator({ id: curUser.id, full_name: 'Caja' })
+            }
+          } else {
+            const { data: staffProf } = await supabase.from('profiles').select('id, full_name, role, avatar_url').in('role', ['coordinador', 'admin']).eq('is_active', true).limit(1).maybeSingle()
+            if (staffProf) {
+              setCajaOperator({ id: staffProf.id, full_name: 'Caja', avatar_url: staffProf.avatar_url })
+            } else {
+              setCajaOperator({ id: 'caja', full_name: 'Caja' })
+            }
+          }
+        } catch (_) {
+          setCajaOperator({ id: 'caja', full_name: 'Caja' })
+        }
         
         if (resQr.data?.valor?.url) {
           setQrPagoUrl(resQr.data.valor.url)
@@ -742,7 +772,7 @@ export function CajaPOS() {
       return
     }
     if (!formData.barbero_id) {
-      toastError('Debes seleccionar un barbero')
+      toastError('Debes seleccionar un barbero u operador de caja')
       return
     }
 
@@ -768,6 +798,8 @@ export function CajaPOS() {
           descuento_manual_tipo: descuentoManual > 0 ? descuentoManualTipo : null,
           descuento_manual_motivo: descuentoManual > 0 ? descuentoManualMotivo : null,
           descuento_manual_barbero_nombre: descuentoManual > 0 && (descuentoManualTipo === 'barbero' || descuentoManualTipo === 'compartido') ? (barberos.find(b => b.id === formData.barbero_id)?.full_name || 'Barbero') : null,
+          descuento_productos: descuentoProductos,
+          descuento_productos_motivo: descuentoProductos > 0 ? descuentoProductosMotivo : null,
           promo_id: promoSeleccionada || null,
           referral_ids: aplicarReferido ? referralBonuses.map(r => r.id) : [],
           comprobante_url: formData.comprobante_url || null,
@@ -847,6 +879,8 @@ export function CajaPOS() {
       setDescuentoManual(0)
       setDescuentoManualTipo('barberia')
       setDescuentoManualMotivo('')
+      setDescuentoProductos(0)
+      setDescuentoProductosMotivo('')
       setAcompanante({ nombre: '', email: '' })
       setEditingCliente(false)
       setModoReserva(false)
@@ -912,7 +946,7 @@ export function CajaPOS() {
   }
 
   const descuentoReservaProducto = (formData.servicio_id && carrito.length > 0) ? 10 : 0
-  const descuentoTotal = descuentoPromo + totalBonoReferido + descuentoReservaProducto + descuentoLealtad + descuentoManual
+  const descuentoTotal = descuentoPromo + totalBonoReferido + descuentoReservaProducto + descuentoLealtad + descuentoManual + descuentoProductos
   const anticipoPagado = Number(formData.anticipo_monto || 0)
   const totalACobrar = Math.max(0, subtotalServicio + totalProductos + Number(formData.propinas || 0) - descuentoTotal - anticipoPagado)
 
@@ -2262,13 +2296,43 @@ export function CajaPOS() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold flex items-center gap-2">
-                  <User className="w-5 h-5 text-amber-500" /> 3. Asignar Barbero
+                  <User className="w-5 h-5 text-amber-500" /> 3. Asignar Barbero u Operador
                 </h2>
-                {!formData.servicio_id && (
-                  <span className="text-xs text-amber-500/70">Seleccione un servicio primero</span>
-                )}
+                {!formData.servicio_id ? (
+                  <span className="text-xs text-amber-400 font-medium">
+                    {carrito.length > 0 ? 'Venta de productos: selecciona Caja o Barbero' : 'Seleccione servicio o producto'}
+                  </span>
+                ) : null}
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {/* TARJETA CAJA / ENCARGADO DE CAJA */}
+                {(() => {
+                  const cajaId = cajaOperator?.id || 'caja'
+                  const isCajaSelected = formData.barbero_id === cajaId || formData.barbero_id === 'caja'
+                  return (
+                    <div
+                      key="operador-caja"
+                      onClick={() => setFormData({ ...formData, barbero_id: cajaId })}
+                      className={`relative flex flex-col items-center gap-2 p-3 border rounded-xl cursor-pointer transition ${
+                        isCajaSelected
+                          ? 'border-amber-400 bg-amber-500/10 ring-2 ring-amber-400/50 shadow-md'
+                          : 'border-white/10 hover:border-amber-400/40 bg-black/20'
+                      }`}
+                    >
+                      <div className="absolute -top-2.5 bg-blue-600 text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.4)] flex items-center gap-1">
+                        <span>💼 Encargado</span>
+                      </div>
+                      <div className={`w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-blue-600/30 to-amber-500/20 border border-blue-400/40 flex items-center justify-center shrink-0 ${isCajaSelected ? 'ring-2 ring-amber-400' : ''}`}>
+                        <span className="text-2xl">🏪</span>
+                      </div>
+                      <div className="text-center">
+                        <h3 className="font-semibold text-xs text-white">Caja</h3>
+                        <p className="text-[9px] text-zinc-400">Venta Directa</p>
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 {barberos
                   .filter(b => {
                     // Filter out excluded barbers for the selected service
@@ -2577,8 +2641,12 @@ export function CajaPOS() {
                   </div>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-400">Barbero</span>
-                  <span className="font-medium text-right">{barberos.find(b => b.id === formData.barbero_id)?.full_name || 'No seleccionado'}</span>
+                  <span className="text-zinc-400">Operador / Barbero</span>
+                  <span className="font-medium text-right">
+                    {(formData.barbero_id === (cajaOperator?.id || 'caja') || formData.barbero_id === 'caja')
+                      ? '🏪 Caja (Encargado)'
+                      : barberos.find(b => b.id === formData.barbero_id)?.full_name || 'No seleccionado'}
+                  </span>
                 </div>
                 
                 <div className="pt-4 border-t border-zinc-800">
@@ -2722,6 +2790,57 @@ export function CajaPOS() {
                         <span className="text-violet-400 font-semibold">{formatCurrency(totalProductos)}</span>
                       </div>
 
+                      {/* Espacio para Descuento en Productos (Asume 100% la barbería) */}
+                      <div className="mt-2 p-2.5 bg-zinc-800/50 rounded-xl border border-violet-500/20 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-xs">🏷️</span>
+                            <span className="text-[10px] font-bold text-violet-300 uppercase tracking-wider">Desc. Productos</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              max={totalProductos}
+                              placeholder="0"
+                              value={descuentoProductos || ''}
+                              onChange={(e) => setDescuentoProductos(Math.min(Math.max(0, Number(e.target.value) || 0), totalProductos))}
+                              className="w-20 h-7 bg-zinc-950 border border-violet-500/40 rounded-lg px-2 text-xs font-bold text-white text-right outline-none focus:border-violet-400"
+                              title="Descuento en venta de productos (Asumido 100% por barbería)"
+                            />
+                            <span className="text-[10px] text-zinc-500 font-bold">Bs</span>
+                            {descuentoProductos > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => { setDescuentoProductos(0); setDescuentoProductosMotivo('') }}
+                                className="text-zinc-500 hover:text-red-400 transition"
+                                title="Quitar descuento de productos"
+                              >
+                                <span className="text-xs">✕</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {descuentoProductos > 0 && (
+                          <div className="space-y-1.5 pt-1 border-t border-white/5">
+                            <div className="text-[9px] font-semibold px-2 py-1 rounded-md border bg-emerald-500/10 border-emerald-500/20 text-emerald-400 flex items-center justify-between">
+                              <span>🏢 Asumido 100% por barbería</span>
+                              <span className="font-bold">Comisión barbero intacta</span>
+                            </div>
+                            <input
+                              type="text"
+                              placeholder="Motivo del descuento en productos (opcional)..."
+                              value={descuentoProductosMotivo}
+                              onChange={e => setDescuentoProductosMotivo(e.target.value)}
+                              className="w-full h-7 bg-zinc-950 border border-zinc-700/50 rounded-lg px-2.5 text-[11px] text-zinc-300 outline-none focus:border-violet-500/50 placeholder:text-zinc-600"
+                              maxLength={100}
+                            />
+                          </div>
+                        )}
+                      </div>
+
                     </div>
                   )}
 
@@ -2736,7 +2855,15 @@ export function CajaPOS() {
                   </div>
                   
 
-
+                  {descuentoProductos > 0 && (
+                    <div className="flex justify-between items-center text-sm mb-2">
+                      <span className="text-emerald-400 text-xs flex items-center gap-1 font-medium">
+                        🏢 Desc. Productos (Barbería)
+                        {descuentoProductosMotivo && <span className="text-zinc-500 ml-1">· {descuentoProductosMotivo}</span>}
+                      </span>
+                      <span className="text-emerald-400 font-semibold">-{formatCurrency(descuentoProductos)}</span>
+                    </div>
+                  )}
 
                   {descuentoManual > 0 && (
                     <div className="flex justify-between items-center text-sm mb-2">
@@ -2995,7 +3122,7 @@ export function CajaPOS() {
                       <ul className="text-[11px] text-red-300/80 list-disc list-inside space-y-0.5 ml-1">
                         {!formData.nombre && <li>Falta seleccionar el Cliente</li>}
                         {(!formData.servicio_id && carrito.length === 0) && <li>Falta seleccionar Servicio o Producto</li>}
-                        {!formData.barbero_id && <li>Falta asignar un Barbero</li>}
+                        {!formData.barbero_id && <li>Falta asignar Barbero u Operador de Caja</li>}
                       </ul>
                     </div>
                   )}

@@ -53,13 +53,17 @@ export async function POST(request: NextRequest) {
       descuento_manual,
       descuento_manual_tipo,
       descuento_manual_motivo,
-      descuento_manual_barbero_nombre
+      descuento_manual_barbero_nombre,
+      descuento_productos,
+      descuento_productos_motivo
     } = body
     const anticipoQr = Number(anticipo_monto || 0)
     const descuentoManual = Number(descuento_manual || 0)
     const descuentoManualTipo: string = descuento_manual_tipo || 'barberia'
     const descuentoManualMotivo: string = descuento_manual_motivo || ''
     const descuentoManualBarberoNombre: string = descuento_manual_barbero_nombre || ''
+    const descuentoProductos = Number(descuento_productos || 0)
+    const descuentoProductosMotivo: string = (descuento_productos_motivo || '').trim()
     const descuentoTotal = Number(descuento) || 0
     const referralIdsToMark: string[] = referral_ids || []
 
@@ -69,8 +73,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Selecciona un servicio o agrega un producto' }, { status: 400 })
     }
 
-    if (!barbero_id) {
-      return NextResponse.json({ error: 'Faltan datos obligatorios' }, { status: 400 })
+    // Resolver barbero / operador: si es 'caja' o viene vacío y hay productos, asignar al usuario autenticado de caja
+    let finalBarberoId = barbero_id
+    if (!finalBarberoId || finalBarberoId === 'caja') {
+      finalBarberoId = user.id
+    }
+
+    if (!finalBarberoId) {
+      return NextResponse.json({ error: 'Faltan datos obligatorios (operador)' }, { status: 400 })
     }
 
     let finalClienteId = cliente_id
@@ -268,11 +278,11 @@ export async function POST(request: NextRequest) {
       serv = servData
       precioBase = serv.precio || 0
 
-      if (estado === 'completado' && barbero_id) {
+      if (estado === 'completado' && finalBarberoId) {
         // Calcular comisión personalizada por barbero
         const fechaCita = reserva_fecha ? new Date(`${reserva_fecha}T12:00:00-04:00`) : new Date()
         const comResult = await calcularComisionBarbero(
-          supabase, barbero_id, servicio_id, precioBase, fechaCita,
+          supabase, finalBarberoId, servicio_id, precioBase, fechaCita,
           { comision_activa: serv.comision_activa, comision_tipo: serv.comision_tipo, comision_valor: serv.comision_valor, comision_acumulable: serv.comision_acumulable }
         )
         const extraPropinas = serv.comision_acumulable !== false ? (propinas || 0) : 0
@@ -294,8 +304,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calcular total de productos
+    // Calcular total de productos y descuento de productos
     const totalProductos = productosCarrito.reduce((sum: number, item: ProductoCarrito) => sum + (item.precio * item.cantidad), 0)
+    const totalProductosNeto = Math.max(0, totalProductos - descuentoProductos)
 
     // 3. Crear la cita (si hay servicio)
     const ahora = new Date()
@@ -322,10 +333,11 @@ export async function POST(request: NextRequest) {
         finalNotas += `\n[PROMO 2x1] Acompañante: ${acompanante_2x1.nombre}${acompanante_2x1.email ? ` (${acompanante_2x1.email})` : ''}`
       }
 
-      // Calcular el precio neto del servicio (después de descuentos, sin contar productos/propinas)
-      const precioNetoServicio = Math.max(0, precioBase - descuentoTotal)
-      // Total real a cobrar (servicio neto + productos + propinas - anticipo)
-      const totalRealACobrar = Math.max(0, precioNetoServicio + totalProductos + (propinas || 0) - anticipoQr)
+      // Calcular el precio neto del servicio (después de descuentos asignados al servicio, sin contar productos)
+      const descuentoServicios = Math.max(0, descuentoTotal - descuentoProductos)
+      const precioNetoServicio = Math.max(0, precioBase - descuentoServicios)
+      // Total real a cobrar (servicio neto + productos neto + propinas - anticipo)
+      const totalRealACobrar = Math.max(0, precioNetoServicio + totalProductosNeto + (propinas || 0) - anticipoQr)
 
       if (descuentoTotal > 0) {
         if (descuentoManual > 0) {
@@ -339,12 +351,16 @@ export async function POST(request: NextRequest) {
             finalNotas += ` | Motivo: ${descuentoManualMotivo}`
           }
         }
-        finalNotas += `\nPrecio original: Bs ${precioBase} → Neto cobrado: Bs ${precioNetoServicio}`
+        if (descuentoProductos > 0) {
+          finalNotas += `\n🏷️ Desc. Productos: -Bs ${descuentoProductos} [Asume 100% Barbería]`
+          if (descuentoProductosMotivo) finalNotas += ` | Motivo: ${descuentoProductosMotivo}`
+        }
+        finalNotas += `\nPrecio original: Bs ${precioBase} → Neto cobrado servicio: Bs ${precioNetoServicio}`
       }
 
       const insertData: any = {
         cliente_id: finalClienteId,
-        barbero_id,
+        barbero_id: finalBarberoId,
         servicio_id,
         fecha_hora: inicio.toISOString(),
         precio: precioNetoServicio,
@@ -438,24 +454,24 @@ export async function POST(request: NextRequest) {
           ? new Date(`${reserva_fecha}T${reserva_hora}:00-04:00`)
           : ahora
 
-        const { data: barberoRow } = await adminSupabase.from('profiles').select('full_name, email').eq('id', barbero_id).single()
+        const { data: barberoRow } = await adminSupabase.from('profiles').select('full_name, email').eq('id', finalBarberoId).single()
         let finalBarberoEmail = barberoRow?.email
         if (!finalBarberoEmail && adminSupabase?.auth?.admin) {
           try {
-            const { data: authUser } = await adminSupabase.auth.admin.getUserById(barbero_id)
+            const { data: authUser } = await adminSupabase.auth.admin.getUserById(finalBarberoId)
             if (authUser?.user?.email) {
               finalBarberoEmail = authUser.user.email
-              await adminSupabase.from('profiles').update({ email: authUser.user.email }).eq('id', barbero_id)
+              await adminSupabase.from('profiles').update({ email: authUser.user.email }).eq('id', finalBarberoId)
             }
           } catch (_) {}
         }
 
-        const precioNetoServicio = Math.max(0, precioBase - descuentoTotal)
+        const precioNetoServicio = Math.max(0, precioBase - (descuentoTotal - descuentoProductos))
         await dispatchNotification(adminSupabase, {
           event: 'reserva_nueva',
           payload: {
             citaId,
-            barberoId: barbero_id,
+            barberoId: finalBarberoId,
             barberoNombre: barberoRow?.full_name || 'Barbero',
             barberoEmail: finalBarberoEmail,
             clienteNombre: clienteNombre || 'Cliente',
@@ -475,7 +491,7 @@ export async function POST(request: NextRequest) {
     // 3.2. Notificación de Reprogramación si cambió el horario
     if (servicio_id && serv && citaId && wasRescheduled) {
       try {
-        const { data: barberoRow } = await adminSupabase.from('profiles').select('full_name').eq('id', barbero_id).single()
+        const { data: barberoRow } = await adminSupabase.from('profiles').select('full_name').eq('id', finalBarberoId).single()
         const dNueva = new Date(citaFechaHoraFinal)
         const dVieja = oldFechaHora ? new Date(oldFechaHora) : null
 
@@ -549,20 +565,33 @@ export async function POST(request: NextRequest) {
         const totalItemsVal = productosCarrito.reduce((acc, p) => acc + (p.precio * p.cantidad), 0)
         const itemTotal = item.precio * item.cantidad
         const ratio = totalItemsVal > 0 ? (itemTotal / totalItemsVal) : 1
+        const itemDescuento = totalItemsVal > 0 ? Math.round((descuentoProductos * ratio) * 100) / 100 : 0
+        const itemTotalNeto = Math.max(0, itemTotal - itemDescuento)
         
-        let prodEf = metodo_pago === 'efectivo' ? itemTotal : 0
-        let prodQr = (metodo_pago === 'qr' || metodo_pago === 'tarjeta') ? itemTotal : 0
+        let prodEf = metodo_pago === 'efectivo' ? itemTotalNeto : 0
+        let prodQr = (metodo_pago === 'qr' || metodo_pago === 'tarjeta') ? itemTotalNeto : 0
         if (metodo_pago === 'mixto') {
           if (!servicio_id) {
             prodEf = Math.round(Number(monto_efectivo || 0) * ratio * 100) / 100
             prodQr = Math.round(Number(monto_qr || 0) * ratio * 100) / 100
           } else {
-            const totalGlobal = Math.max(0, precioBase - descuentoTotal) + totalItemsVal
-            const globalRatio = totalGlobal > 0 ? (itemTotal / totalGlobal) : 0
+            const totalGlobal = Math.max(0, precioBase - (descuentoTotal - descuentoProductos)) + totalProductosNeto
+            const globalRatio = totalGlobal > 0 ? (itemTotalNeto / totalGlobal) : 0
             prodEf = Math.round(Number(monto_efectivo || 0) * globalRatio * 100) / 100
             prodQr = Math.round(Number(monto_qr || 0) * globalRatio * 100) / 100
           }
         }
+
+        let glosaProd = `Venta POS - ${item.cantidad}x ${item.nombre}`
+        if (itemDescuento > 0) {
+          glosaProd += ` (Orig: Bs ${itemTotal} - Desc. Barbería: Bs ${itemDescuento} = Bs ${itemTotalNeto})`
+          if (descuentoProductosMotivo) glosaProd += ` | Motivo: ${descuentoProductosMotivo}`
+        }
+
+        const notasProdArr: string[] = []
+        if (metodo_pago === 'mixto') notasProdArr.push(`Efectivo: Bs ${prodEf} | QR: Bs ${prodQr}`)
+        if (itemDescuento > 0) notasProdArr.push(`Desc. Barbería: -Bs ${itemDescuento} (Asumido 100% por barbería)`)
+        if (descuentoProductosMotivo) notasProdArr.push(`Motivo: ${descuentoProductosMotivo}`)
 
         await adminSupabase
           .from('transactions')
@@ -574,18 +603,18 @@ export async function POST(request: NextRequest) {
             cuenta_codigo: '4.1.2',
             cuenta_detalle: item.nombre,
             producto_id: item.id,
-            glosa: `Venta POS - ${item.cantidad}x ${item.nombre}`,
-            costo: itemTotal,
+            glosa: glosaProd,
+            costo: itemTotalNeto,
             tipo_movimiento: 'INGRESO',
             subcategoria: 'PRODUCTO_VENTA',
             es_sancion: false,
-            empleado_id: barbero_id,
+            empleado_id: finalBarberoId,
             cliente_id: finalClienteId,
             cita_id: citaId || null,
             metodo_pago: metodo_pago || 'efectivo',
             monto_efectivo: prodEf,
             monto_qr: prodQr,
-            notas: metodo_pago === 'mixto' ? `Efectivo: Bs ${prodEf} | QR: Bs ${prodQr}` : null,
+            notas: notasProdArr.length > 0 ? notasProdArr.join(' | ') : null,
             comprobante_url: comprobante_url || null,
             usuario_registro: profile.full_name || 'Coordinador',
           })
@@ -646,7 +675,9 @@ export async function POST(request: NextRequest) {
           const nuevoNivel = await calcularNivelFidelidad(supabase, nuevoTotalVisitas)
           
           // Usar el precio NETO (después de descuentos) para el total gastado del cliente
-          const gastoRealCliente = Math.max(0, precioBase - descuentoTotal) + totalProductosCliente
+          const totalProductosNetoCliente = Math.max(0, totalProductosCliente - descuentoProductos)
+          const descuentoServicios = Math.max(0, descuentoTotal - descuentoProductos)
+          const gastoRealCliente = Math.max(0, precioBase - descuentoServicios) + totalProductosNetoCliente
           await adminSupabase.from('clientes')
             .update({
               total_visitas: nuevoTotalVisitas,
@@ -659,11 +690,12 @@ export async function POST(request: NextRequest) {
 
       // 5.b Transacción Contable del servicio (solo si hay servicio)
       if (servicio_id && serv) {
-        const { data: barberoProfile } = await supabase.from('profiles').select('full_name').eq('id', barbero_id).single()
+        const { data: barberoProfile } = await supabase.from('profiles').select('full_name').eq('id', finalBarberoId).single()
         const barberoNombre = barberoProfile?.full_name || 'Desconocido'
 
         // --- Calcular montos reales considerando anticipo (QR) ---
-        const precioNetoServicio = Math.max(0, precioBase - descuentoTotal)
+        const descuentoServicios = Math.max(0, descuentoTotal - descuentoProductos)
+        const precioNetoServicio = Math.max(0, precioBase - descuentoServicios)
         const restoPagar = Math.max(0, precioNetoServicio - anticipoQr)
         const metodoResto = metodo_pago || 'efectivo'
         const totalItemsVal = productosCarrito.reduce((acc, p) => acc + (p.precio * p.cantidad), 0)
@@ -678,7 +710,7 @@ export async function POST(request: NextRequest) {
           realQr += restoPagar
         } else if (metodoResto === 'mixto') {
           if (totalItemsVal > 0) {
-            const totalGlobal = precioNetoServicio + totalItemsVal
+            const totalGlobal = precioNetoServicio + totalProductosNeto
             const servRatio = totalGlobal > 0 ? (precioNetoServicio / totalGlobal) : 1
             realEfectivo = Math.round(Number(monto_efectivo || 0) * servRatio * 100) / 100
             realQr += Math.round(Number(monto_qr || 0) * servRatio * 100) / 100
@@ -738,7 +770,7 @@ export async function POST(request: NextRequest) {
           tipo_movimiento: 'INGRESO' as const,
           subcategoria: 'SERVICIO',
           es_sancion: false,
-          empleado_id: barbero_id,
+          empleado_id: finalBarberoId,
           cliente_id: finalClienteId,
           cita_id: citaId || null,
           metodo_pago: realMetodo,
