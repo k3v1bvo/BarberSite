@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getNotificationDbClient } from '@/lib/supabase/admin'
+import { createAdminSupabaseClient, getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
 
 export async function POST(request: Request) {
@@ -73,6 +73,18 @@ export async function POST(request: Request) {
     if (updateError) {
       console.error('[rechazar-comprobante] Error update:', updateError)
       return NextResponse.json({ error: 'Error al rechazar comprobante' }, { status: 500 })
+    }
+
+    // Si existía una transacción registrada en BANCO para este anticipo, retirarla
+    try {
+      const adminDb = createAdminSupabaseClient() || serverDb
+      await adminDb
+        .from('transactions')
+        .delete()
+        .eq('cita_id', citaId)
+        .eq('libro', 'BANCO')
+    } catch (e) {
+      console.error('[rechazar-comprobante] Error eliminando transacción BANCO:', e)
     }
 
     // Obtener nombre del barbero

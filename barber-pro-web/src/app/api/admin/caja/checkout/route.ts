@@ -700,8 +700,25 @@ export async function POST(request: NextRequest) {
         const metodoResto = metodo_pago || 'efectivo'
         const totalItemsVal = productosCarrito.reduce((acc, p) => acc + (p.precio * p.cantidad), 0)
 
+        // Verificar si el anticipo ya fue registrado previamente en el Libro de BANCO (en la reserva)
+        let anticipoEnBanco = false
+        let fechaAnticipoBanco = ''
+        if (citaId && anticipoQr > 0) {
+          const { data: bTx } = await adminSupabase
+            .from('transactions')
+            .select('id, fecha')
+            .eq('cita_id', citaId)
+            .eq('libro', 'BANCO')
+            .maybeSingle()
+          if (bTx) {
+            anticipoEnBanco = true
+            fechaAnticipoBanco = bTx.fecha
+          }
+        }
+
         let realEfectivo = 0
-        let realQr = anticipoQr // El anticipo siempre fue QR
+        // Si el anticipo ya entró a BANCO en la fecha de reserva, hoy solo ingresa al banco lo cobrado en caja
+        let realQr = anticipoEnBanco ? 0 : anticipoQr
         let realMetodo = metodoResto
 
         if (metodoResto === 'efectivo') {
@@ -720,10 +737,10 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Si hubo anticipo QR + efectivo en caja => es mixto real
-        if (anticipoQr > 0 && realEfectivo > 0) {
+        // Si hubo anticipo QR + efectivo en caja (o cobro mixto)
+        if (anticipoQr > 0 && realEfectivo > 0 && !anticipoEnBanco) {
           realMetodo = 'mixto'
-        } else if (anticipoQr > 0 && realEfectivo === 0 && metodoResto !== 'mixto') {
+        } else if (anticipoQr > 0 && realEfectivo === 0 && metodoResto !== 'mixto' && !anticipoEnBanco) {
           realMetodo = 'qr'
         }
 
@@ -736,7 +753,13 @@ export async function POST(request: NextRequest) {
         if (citaId) glosaFinal += ` — Cita #${citaId.substring(0, 6)}`
 
         const notasParts: string[] = []
-        if (anticipoQr > 0) notasParts.push(`Anticipo QR: Bs ${anticipoQr}`)
+        if (anticipoQr > 0) {
+          notasParts.push(
+            anticipoEnBanco
+              ? `Anticipo QR: Bs ${anticipoQr} (registrado en Banco el ${fechaAnticipoBanco || 'día de reserva'})`
+              : `Anticipo QR: Bs ${anticipoQr}`
+          )
+        }
         if (realMetodo === 'mixto') {
           notasParts.push(`Efectivo: Bs ${realEfectivo} | QR: Bs ${realQr}`)
         } else if (realMetodo === 'qr') {
@@ -782,10 +805,12 @@ export async function POST(request: NextRequest) {
         }
 
         if (citaId) {
+          // Filtrar estrictamente por libro SERVICIOS para no sobreescribir la transacción en BANCO del anticipo
           const { data: existingTx } = await adminSupabase
             .from('transactions')
             .select('id')
             .eq('cita_id', citaId)
+            .eq('libro', 'SERVICIOS')
             .maybeSingle()
 
           if (existingTx?.id) {

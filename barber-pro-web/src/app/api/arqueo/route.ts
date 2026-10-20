@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     const { data: citasDia } = await supabase
       .from('citas')
-      .select('id, precio, anticipo_monto, metodo_pago, barbero_id, cliente_id, comision_pagada, comision_barbero, notas')
+      .select('id, precio, anticipo_monto, created_at, metodo_pago, barbero_id, cliente_id, comision_pagada, comision_barbero, notas')
       .gte('fecha_hora', `${fecha}T00:00:00`)
       .lte('fecha_hora', `${fecha}T23:59:59`)
       .eq('estado', 'completado')
@@ -167,8 +167,11 @@ export async function GET(request: NextRequest) {
         const saldo = Math.max(0, total - anticipo)
         const mp = String(c.metodo_pago || 'efectivo').toLowerCase()
 
-        // El anticipo de reserva siempre es pago digital (QR / Banco)
-        citasQrBanco += anticipo
+        // El anticipo de reserva solo ingresó al banco HOY si la reserva se creó en la misma fecha del arqueo
+        const fechaReservaBolivia = c.created_at ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(c.created_at)) : ''
+        if (fechaReservaBolivia === fecha) {
+          citasQrBanco += anticipo
+        }
         if (mp === 'qr' || mp === 'tarjeta' || mp === 'transferencia' || mp === 'banco') {
           citasQrBanco += saldo
         } else {

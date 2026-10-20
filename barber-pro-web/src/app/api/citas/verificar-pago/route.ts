@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getNotificationDbClient } from '@/lib/supabase/admin'
+import { createAdminSupabaseClient, getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
 
 export async function POST(request: Request) {
@@ -31,10 +31,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 403 })
     }
 
-    // Obtener la cita con notas (donde se guarda el comprobante_url)
+    // Obtener la cita con notas, fecha de creación y comprobante
     const { data: cita, error: citaError } = await serverDb
       .from('citas')
-      .select('id, barbero_id, cliente_id, estado, anticipo_monto, fecha_hora, notas, clientes(nombre, email), servicios(nombre)')
+      .select('id, barbero_id, cliente_id, estado, anticipo_monto, fecha_hora, created_at, notas, clientes(nombre, ci, email), servicios(nombre)')
       .eq('id', citaId)
       .single()
 
@@ -93,11 +93,84 @@ export async function POST(request: Request) {
     const matchAnyUrl = notasStr?.match(/(https?:\/\/[^\s\n\r]+\.(?:jpg|jpeg|png|webp|gif|svg)|https?:\/\/(?:i\.)?ibb\.co\/[^\s\n\r]+|https?:\/\/res\.cloudinary\.com\/[^\s\n\r]+)/i)
     const comprobante_url = matchStandard ? matchStandard[1].trim() : (matchBase64 ? matchBase64[1].trim() : (matchAnyUrl ? matchAnyUrl[1].trim() : undefined))
 
-    // Disparar notificaciones
-    const cliente = cita.clientes as { nombre?: string; email?: string } | null
+    const cliente = cita.clientes as { nombre?: string; ci?: string; email?: string } | null
     const servicio = cita.servicios as { nombre?: string } | null
     const fh = new Date(cita.fecha_hora)
+    const fechaCitaStr = fh.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' })
+    const horaCitaStr = fh.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false })
 
+    // Registrar en el Libro de BANCO el anticipo con la fecha y hora en que se reservó
+    const anticipoMonto = Number(cita.anticipo_monto || 0)
+    if (anticipoMonto > 0) {
+      try {
+        const adminDb = createAdminSupabaseClient() || serverDb
+
+        // Verificar que no exista ya un registro previo en BANCO para esta cita
+        const { data: existingTx } = await adminDb
+          .from('transactions')
+          .select('id')
+          .eq('cita_id', citaId)
+          .eq('libro', 'BANCO')
+          .maybeSingle()
+
+        if (!existingTx) {
+          // Extraer fecha en hora de Bolivia a partir del momento en que el cliente reservó (created_at)
+          const resDate = cita.created_at ? new Date(cita.created_at) : new Date()
+          const fechaReservaBolivia = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/La_Paz',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          }).format(resDate)
+          const horaReservaBolivia = resDate.toLocaleTimeString('es-BO', {
+            timeZone: 'America/La_Paz',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          })
+
+          const clienteCi = cliente?.ci && cliente.ci !== '0' && cliente.ci !== '0000000' ? cliente.ci : '—'
+          const clienteNom = cliente?.nombre || 'Cliente'
+          const servNom = servicio?.nombre || 'Servicio'
+
+          const glosaAnticipo = `Anticipo QR por reserva #${citaId.slice(0, 6)} (${servNom} con ${barberoNombre} para el ${fechaCitaStr} a las ${horaCitaStr}) [Reservado el ${fechaReservaBolivia} a las ${horaReservaBolivia}]`
+
+          const { error: txError } = await adminDb
+            .from('transactions')
+            .insert({
+              libro: 'BANCO',
+              fecha: fechaReservaBolivia,
+              creado_en: cita.created_at || new Date().toISOString(),
+              ci: clienteCi,
+              nombre: clienteNom,
+              cuenta_codigo: '1.1.1.4.1',
+              cuenta_detalle: `Caja de ahorro M.N. BANCO GANADERO (Anticipo QR - ${servNom})`,
+              glosa: glosaAnticipo,
+              costo: anticipoMonto,
+              tipo_movimiento: 'DEPOSITO',
+              subcategoria: 'ANTICIPO_RESERVA',
+              es_sancion: false,
+              empleado_id: cita.barbero_id || null,
+              cliente_id: cita.cliente_id || null,
+              cita_id: citaId,
+              metodo_pago: 'qr',
+              monto_efectivo: 0,
+              monto_qr: anticipoMonto,
+              comprobante_url: comprobante_url || null,
+              usuario_registro: profile.full_name || 'Sistema',
+              notas: `Reserva realizada el ${fechaReservaBolivia} ${horaReservaBolivia} para cita del ${fechaCitaStr} ${horaCitaStr}`
+            })
+
+          if (txError) {
+            console.error('[verificar-pago] Error al registrar anticipo en transactions (BANCO):', txError)
+          }
+        }
+      } catch (errTx) {
+        console.error('[verificar-pago] Excepción al registrar transacción de banco:', errTx)
+      }
+    }
+
+    // Disparar notificaciones
     const notifDb = getNotificationDbClient(serverDb)
     await dispatchNotification(notifDb, {
       event: 'pago_verificado',
@@ -110,8 +183,8 @@ export async function POST(request: Request) {
         clienteEmail: cliente?.email ?? undefined,
         servicioNombre: servicio?.nombre,
         monto: cita.anticipo_monto,
-        fecha: fh.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' }),
-        hora: fh.toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit' }),
+        fecha: fechaCitaStr,
+        hora: horaCitaStr,
         motivo: profile.full_name,
         comprobante_url,
       },

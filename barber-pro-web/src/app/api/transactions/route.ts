@@ -118,14 +118,14 @@ export async function GET(request: NextRequest) {
                   : (descValue > 0 ? Math.max(0, Number(c.precio || 0) - descValue) : Number(c.precio || 0)))
 
             const alreadyIn = finalData.some((t: any) => {
-              if (t.cita_id && String(t.cita_id) === cIdStr) return true
-              if (t.glosa && (t.glosa.includes(cIdShort) || t.glosa.includes(cIdStr))) return true
+              if (t.libro === 'SERVICIOS' && t.cita_id && String(t.cita_id) === cIdStr) return true
+              if (t.libro === 'SERVICIOS' && t.glosa && (t.glosa.includes(cIdShort) || t.glosa.includes(cIdStr))) return true
 
               const sameFecha = t.fecha === fechaCita
               const sameNombre = t.nombre && clienteNombre && clienteNombre !== 'Cliente' && t.nombre.toLowerCase().trim() === clienteNombre.toLowerCase().trim()
               const sameMonto = Math.abs(Number(t.costo || 0) - precioCita) < 1.5
 
-              return sameFecha && sameNombre && sameMonto
+              return t.libro === 'SERVICIOS' && sameFecha && sameNombre && sameMonto
             })
 
             if (!alreadyIn) {
@@ -134,8 +134,11 @@ export async function GET(request: NextRequest) {
               const anticipoQr = Number(c.anticipo_monto || 0)
               const mpRaw = String(c.metodo_pago || 'efectivo').toLowerCase()
 
+              // Verificar si el anticipo ya figura en BANCO
+              const tieneAnticipoEnBanco = finalData.some((t: any) => t.libro === 'BANCO' && (t.cita_id === cIdStr || (t.glosa && t.glosa.includes(cIdShort))))
+
               let realEf = 0
-              let realQr = anticipoQr
+              let realQr = tieneAnticipoEnBanco ? 0 : anticipoQr
               let realMetodo = mpRaw
 
               const resto = Math.max(0, precioCita - anticipoQr)
@@ -512,12 +515,20 @@ export async function PATCH(request: NextRequest) {
         const mpRaw = String(metodo_pago || cita.metodo_pago || 'qr').toLowerCase()
         const resto = Math.max(0, precioCita - anticipoQr)
 
+        const { data: bTx } = await supabase
+          .from('transactions')
+          .select('id')
+          .eq('cita_id', citaId)
+          .eq('libro', 'BANCO')
+          .maybeSingle()
+        const tieneAnticipoEnBanco = !!bTx
+
         let realEf = monto_efectivo !== undefined ? Number(monto_efectivo) : (mpRaw === 'efectivo' ? resto : 0)
-        let realQr = monto_qr !== undefined ? Number(monto_qr) : (anticipoQr + (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpRaw) ? resto : 0))
+        let realQr = monto_qr !== undefined ? Number(monto_qr) : ((tieneAnticipoEnBanco ? 0 : anticipoQr) + (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpRaw) ? resto : 0))
         let realMetodo = mpRaw
 
-        if (anticipoQr > 0 && realEf > 0) realMetodo = 'mixto'
-        else if (anticipoQr > 0 && realEf === 0) realMetodo = 'qr'
+        if (anticipoQr > 0 && realEf > 0 && !tieneAnticipoEnBanco) realMetodo = 'mixto'
+        else if (anticipoQr > 0 && realEf === 0 && !tieneAnticipoEnBanco) realMetodo = 'qr'
 
         const { data: txNueva } = await supabase.from('transactions').insert({
           libro: 'SERVICIOS',
