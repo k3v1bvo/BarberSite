@@ -131,13 +131,15 @@ export async function POST(
 
     const now = new Date()
     const entrada = new Date(reg.hora_entrada)
-    const horas = (now.getTime() - entrada.getTime()) / (1000 * 60 * 60)
+    const horasTurnoActual = Math.max(0, (now.getTime() - entrada.getTime()) / (1000 * 60 * 60))
+    const horasPrevias = Number(reg.horas_trabajadas || 0)
+    const horasTotales = Number((horasTurnoActual + horasPrevias).toFixed(2))
 
     const { data, error } = await supabase
       .from('asistencias')
       .update({
         hora_salida: now.toISOString(),
-        horas_trabajadas: Number(horas.toFixed(2)),
+        horas_trabajadas: horasTotales,
         estado: 'finalizado',
       })
       .eq('id', id)
@@ -151,19 +153,37 @@ export async function POST(
     try {
       // Check for early departure (Salida temprano) — usar hora Bolivia
       const dayOfWeek = getBoliviaDayOfWeek()
-      const { data: horario } = await supabase
-        .from('barbero_horario_semanal')
-        .select('hora_fin')
-        .eq('barbero_id', user.id)
-        .eq('dia_semana', dayOfWeek)
-        .eq('activo', true)
-        .single()
+      const [horarioRes, configFraccionadoRes] = await Promise.all([
+        supabase
+          .from('barbero_horario_semanal')
+          .select('*')
+          .eq('barbero_id', user.id)
+          .eq('dia_semana', dayOfWeek)
+          .eq('activo', true)
+          .maybeSingle(),
+        supabase
+          .from('configuraciones')
+          .select('valor')
+          .eq('llave', `horario_fraccionado_${user.id}`)
+          .maybeSingle()
+      ])
 
-      if (horario && horario.hora_fin) {
+      const horario = horarioRes.data
+      const cfgList = configFraccionadoRes.data?.valor?.horario as any[] | undefined
+      const cfgDay = cfgList?.find((c: any) => Number(c.dia_semana) === dayOfWeek)
+
+      const horaFin1 = (horario?.hora_fin || cfgDay?.hora_fin)?.slice(0, 5)
+      const horaFin2 = (horario?.hora_fin_2 || cfgDay?.hora_fin_2)?.slice(0, 5)
+
+      // Determinar cuál turno se está finalizando
+      const esSegundoTurno = Boolean(reg.notas?.includes('Turno 1'))
+      const horaFinEsperada = esSegundoTurno && horaFin2 ? horaFin2 : horaFin1
+
+      if (horaFinEsperada) {
         const bTime = getBoliviaTime()
         const currentHour = bTime.getUTCHours()
         const currentMinute = bTime.getUTCMinutes()
-        const [endHour, endMinute] = horario.hora_fin.split(':').map(Number)
+        const [endHour, endMinute] = horaFinEsperada.split(':').map(Number)
         
         const currentTime = currentHour * 60 + currentMinute
         const endTime = endHour * 60 + endMinute
@@ -180,8 +200,8 @@ export async function POST(
           await supabase.from('sanciones').insert({
             barbero_id: user.id,
             tipo: tipoSancion,
-            descripcion: `Salida temprano (Salió a las ${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}, turno hasta ${horario.hora_fin})`,
-            monto: 12, // 30% of 40Bs
+            descripcion: `Salida temprano (${esSegundoTurno ? 'Turno 2' : 'Turno 1'}: Salió a las ${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}, programado hasta ${horaFinEsperada})`,
+            monto: 12,
             estado: 'pendiente'
           })
         }

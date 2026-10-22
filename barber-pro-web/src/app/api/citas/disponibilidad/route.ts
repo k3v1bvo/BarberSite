@@ -22,10 +22,10 @@ export async function GET(request: Request) {
   const diaSemana = dBolivia.getDay()
 
   // 2. Consultar horario semanal, tiempo mínimo de reserva, bloqueos, citas, feriados, permisos y asistencia
-  const [horarioRes, configRes, bloqueosRes, citasRes, feriadosRes, permisosRes, asistenciaRes] = await Promise.all([
+  const [horarioRes, configRes, bloqueosRes, citasRes, feriadosRes, permisosRes, asistenciaRes, configFraccionadoRes] = await Promise.all([
     supabase
       .from('barbero_horario_semanal')
-      .select('hora_inicio, hora_fin, activo')
+      .select('*')
       .eq('barbero_id', barbero_id)
       .eq('dia_semana', diaSemana)
       .maybeSingle(),
@@ -63,6 +63,11 @@ export async function GET(request: Request) {
       .select('id, hora_entrada, hora_salida, estado, notas')
       .eq('profile_id', barbero_id)
       .eq('fecha', fecha)
+      .maybeSingle(),
+    adminSupabase
+      .from('configuraciones')
+      .select('valor')
+      .eq('llave', `horario_fraccionado_${barbero_id}`)
       .maybeSingle()
   ])
 
@@ -89,6 +94,10 @@ export async function GET(request: Request) {
   let hora_inicio = '09:00'
   let hora_fin = '20:00'
   let motivo = ''
+  let esFraccionado = false
+  let turnos: Array<{ inicio: string; fin: string }> = []
+  let t1_fin_str = ''
+  let t2_ini_str = ''
 
   // Prioridad 1: Evaluación de Feriados
   if (feriadoCoincidente) {
@@ -100,16 +109,58 @@ export async function GET(request: Request) {
       hora_inicio = feriadoCoincidente.hora_inicio || '10:00'
       hora_fin = feriadoCoincidente.hora_fin || '16:00'
       motivo = `Feriado Especial: ${feriadoCoincidente.nombre}`
+      turnos = [{ inicio: hora_inicio, fin: hora_fin }]
     }
   } 
-  // Prioridad 2: Horario Semanal Estándar
+  // Prioridad 2: Horario Semanal Estándar o Fraccionado
   else if (horario) {
     if (!horario.activo) {
       disponible = false
       motivo = diaSemana === 0 ? 'El barbero no atiende los domingos.' : 'El barbero no atiende en este día de la semana.'
     } else {
-      hora_inicio = horario.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
-      hora_fin = horario.hora_fin ? horario.hora_fin.slice(0, 5) : '20:00'
+      const cfgHorario = configFraccionadoRes.data?.valor?.horario as any[] | undefined
+      const cfgDay = cfgHorario?.find((c: any) => Number(c.dia_semana) === diaSemana)
+
+      const hasDbT2 = Boolean(horario.hora_inicio_2 && horario.hora_fin_2)
+      const hasCfgT2 = Boolean(cfgDay?.fraccionado && cfgDay?.hora_inicio_2 && cfgDay?.hora_fin_2)
+
+      if (hasDbT2 || hasCfgT2) {
+        esFraccionado = true
+        const t1_ini = (horario.hora_inicio || cfgDay?.hora_inicio || '09:00').slice(0, 5)
+        const t1_fin = (horario.hora_fin || cfgDay?.hora_fin || '12:00').slice(0, 5)
+        const t2_ini = (horario.hora_inicio_2 || cfgDay?.hora_inicio_2 || '17:00').slice(0, 5)
+        const t2_fin = (horario.hora_fin_2 || cfgDay?.hora_fin_2 || '21:00').slice(0, 5)
+
+        hora_inicio = t1_ini
+        hora_fin = t2_fin
+        t1_fin_str = t1_fin
+        t2_ini_str = t2_ini
+
+        turnos = [
+          { inicio: t1_ini, fin: t1_fin },
+          { inicio: t2_ini, fin: t2_fin }
+        ]
+      } else {
+        hora_inicio = horario.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
+        hora_fin = horario.hora_fin ? horario.hora_fin.slice(0, 5) : '20:00'
+        turnos = [{ inicio: hora_inicio, fin: hora_fin }]
+      }
+    }
+  }
+
+  // Extraer las horas ocupadas con su duración (citas, bloqueos parciales, recesos fraccionados y permisos por horas)
+  const ocupados: Array<{ hora: string; duracion: number }> = []
+
+  // Si tiene horario fraccionado, bloquear el intervalo intermedio entre turno 1 y turno 2
+  if (esFraccionado && t1_fin_str && t2_ini_str) {
+    const [h1, m1] = t1_fin_str.split(':').map(Number)
+    const [h2, m2] = t2_ini_str.split(':').map(Number)
+    const gapMinutos = (h2 * 60 + m2) - (h1 * 60 + m1)
+    if (gapMinutos > 0) {
+      ocupados.push({
+        hora: t1_fin_str,
+        duracion: gapMinutos
+      })
     }
   }
 
@@ -131,9 +182,6 @@ export async function GET(request: Request) {
     const fFin = p.fecha_fin || p.fecha
     return fInicio <= fecha && fFin >= fecha
   })
-
-  // Extraer las horas ocupadas con su duración (citas, bloqueos parciales y permisos por horas)
-  const ocupados: Array<{ hora: string; duracion: number }> = []
 
   if (permisoAprobado && disponible) {
     if (permisoAprobado.tipo_permiso === 'horas' && permisoAprobado.hora_inicio && permisoAprobado.hora_fin) {
@@ -168,15 +216,37 @@ export async function GET(request: Request) {
         disponible = false
         motivo = 'El barbero no asistió el día de hoy (falta registrada).'
       } else if (asis.hora_salida) {
-        disponible = false
-        motivo = 'El barbero ya finalizó su jornada laboral de hoy.'
+        // En horario fraccionado, la hora_salida puede ser el fin de Turno 1
+        if (esFraccionado && t2_ini_str) {
+          const [h2, m2] = t2_ini_str.split(':').map(Number)
+          const startT2Minutes = h2 * 60 + m2
+          if (currentMinutes < (startT2Minutes + 30)) {
+            // Está en receso intermedio esperando el segundo turno de la tarde
+            // Las reservas siguen activas para el segundo turno!
+          } else {
+            disponible = false
+            motivo = 'El barbero finalizó el turno matutino y aún no ha marcado ingreso para el turno tarde.'
+          }
+        } else {
+          disponible = false
+          motivo = 'El barbero ya finalizó su jornada laboral de hoy.'
+        }
       } else if (!asis.hora_entrada && currentMinutes >= (startMinutes + 30)) {
         disponible = false
         motivo = 'El barbero no se encuentra presente en el local el día de hoy (sin asistencia registrada).'
       }
     } else {
       // Si no existe registro de asistencia y ya pasaron 30 min del inicio de la jornada
-      if (currentMinutes >= (startMinutes + 30)) {
+      if (esFraccionado && t2_ini_str) {
+        const [h2, m2] = t2_ini_str.split(':').map(Number)
+        const startT2Minutes = h2 * 60 + m2
+        if (currentMinutes >= (startMinutes + 30) && currentMinutes < startT2Minutes) {
+          // No vino al turno 1, pero aún no inicia el turno 2
+        } else if (currentMinutes >= (startT2Minutes + 30)) {
+          disponible = false
+          motivo = 'El barbero no se encuentra presente en el local el día de hoy (sin marcación de entrada).'
+        }
+      } else if (currentMinutes >= (startMinutes + 30)) {
         disponible = false
         motivo = 'El barbero no se encuentra presente en el local el día de hoy (sin marcación de entrada).'
       }
@@ -235,6 +305,8 @@ export async function GET(request: Request) {
     disponible,
     hora_inicio,
     hora_fin,
+    turnos,
+    fraccionado: esFraccionado,
     motivo,
     tiempo_minimo_reserva: tiempoMinimoReserva
   })

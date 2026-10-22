@@ -49,16 +49,16 @@ export async function POST(request: NextRequest) {
         .eq('id', viejo.id)
     }
 
-    // Prevenir doble marcación del día actual
+    // Prevenir doble marcación del turno actual
     const { data: existente } = await supabase
       .from('asistencias')
-      .select('id')
+      .select('id, hora_salida, estado, notas, horas_trabajadas, hora_entrada')
       .eq('profile_id', user.id)
       .eq('fecha', hoy)
       .maybeSingle()
 
-    if (existente) {
-      return NextResponse.json({ error: 'Ya marcaste tu entrada el día de hoy' }, { status: 409 })
+    if (existente && !existente.hora_salida) {
+      return NextResponse.json({ error: 'Ya tienes un turno activo abierto hoy. Debes marcar salida antes de registrar un nuevo ingreso.' }, { status: 409 })
     }
 
     // Leer body con coordenadas y selfie
@@ -107,16 +107,20 @@ export async function POST(request: NextRequest) {
     const entrada = getBusinessNow() // Bolivia local time for calculations
     const dayOfWeek = entrada.getUTCDay() // Day of week in Bolivia time
     
-    // 1. Fetch configuraciones and plan_cuentas and horario
-    const [configRes, cuentasRes, horarioRes] = await Promise.all([
+    // 1. Fetch configuraciones, plan_cuentas, horario y configuración de turnos fraccionados
+    const [configRes, cuentasRes, horarioRes, configFraccionadoRes] = await Promise.all([
       supabase.from('configuraciones').select('valor').eq('llave', 'asistencia_config').single(),
       supabase.from('plan_cuentas').select('detalle').eq('es_sancion', true),
       supabase.from('barbero_horario_semanal')
-        .select('hora_inicio')
+        .select('*')
         .eq('barbero_id', user.id)
         .eq('dia_semana', dayOfWeek)
         .eq('activo', true)
-        .single()
+        .maybeSingle(),
+      supabase.from('configuraciones')
+        .select('valor')
+        .eq('llave', `horario_fraccionado_${user.id}`)
+        .maybeSingle()
     ])
 
     const requiereFoto = configRes.data?.valor?.requiere_foto ?? true
@@ -136,10 +140,21 @@ export async function POST(request: NextRequest) {
     let minutosAtraso = 0
     let turnoInicioStr = ''
 
-    if (horarioRes.data && horarioRes.data.hora_inicio) {
-      turnoInicioStr = horarioRes.data.hora_inicio
+    // Determinar si es segundo turno de un horario fraccionado
+    const cfgList = configFraccionadoRes.data?.valor?.horario as any[] | undefined
+    const cfgDay = cfgList?.find((c: any) => Number(c.dia_semana) === dayOfWeek)
+
+    const tieneT2 = Boolean(horarioRes.data?.hora_inicio_2 || cfgDay?.hora_inicio_2)
+    const esSegundoTurno = Boolean(existente && existente.hora_salida)
+
+    if (esSegundoTurno && tieneT2) {
+      turnoInicioStr = (horarioRes.data?.hora_inicio_2 || cfgDay?.hora_inicio_2 || '17:00').slice(0, 5)
+    } else if (horarioRes.data?.hora_inicio || cfgDay?.hora_inicio) {
+      turnoInicioStr = (horarioRes.data?.hora_inicio || cfgDay?.hora_inicio || '09:00').slice(0, 5)
+    }
+
+    if (turnoInicioStr) {
       const [startHour, startMinute] = turnoInicioStr.split(':').map(Number)
-      // Use UTC accessors on the Bolivia-shifted date for correct local time
       const currentHour = entrada.getUTCHours()
       const currentMinute = entrada.getUTCMinutes()
       
@@ -159,21 +174,52 @@ export async function POST(request: NextRequest) {
       if (estadoInicial === 'atrasado') estadoFinal = 'atrasado'
     }
 
-    const { data, error } = await supabase
-      .from('asistencias')
-      .insert({
-        profile_id: user.id,
-        fecha: hoy,
-        hora_entrada: entradaUtc.toISOString(),
-        estado: estadoFinal,
-        lat,
-        lng,
-        selfie_url,
-      })
-      .select()
-      .single()
+    let data: any
+    if (existente && existente.hora_salida) {
+      // Re-apertura para segundo turno (horario fraccionado)
+      const t1Entrada = new Date(existente.hora_entrada).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit' })
+      const t1Salida = new Date(existente.hora_salida).toLocaleTimeString('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit' })
+      const prevHoras = Number(existente.horas_trabajadas || 0)
+      const logTurno1 = `[Turno 1: ${t1Entrada} a ${t1Salida} (${prevHoras.toFixed(2)}h)]`
+      const notasAcumuladas = existente.notas ? `${existente.notas} | ${logTurno1}` : logTurno1
 
-    if (error) throw error
+      const { data: updated, error: updError } = await supabase
+        .from('asistencias')
+        .update({
+          hora_entrada: entradaUtc.toISOString(),
+          hora_salida: null,
+          horas_trabajadas: prevHoras,
+          estado: estadoFinal,
+          lat,
+          lng,
+          selfie_url,
+          notas: notasAcumuladas,
+          cierre_automatico: false,
+        })
+        .eq('id', existente.id)
+        .select()
+        .single()
+
+      if (updError) throw updError
+      data = updated
+    } else {
+      const { data: inserted, error: insError } = await supabase
+        .from('asistencias')
+        .insert({
+          profile_id: user.id,
+          fecha: hoy,
+          hora_entrada: entradaUtc.toISOString(),
+          estado: estadoFinal,
+          lat,
+          lng,
+          selfie_url,
+        })
+        .select()
+        .single()
+
+      if (insError) throw insError
+      data = inserted
+    }
 
     // Si está atrasado, generar sanción automática
     if (estadoFinal === 'atrasado') {

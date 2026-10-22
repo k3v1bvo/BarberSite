@@ -266,6 +266,7 @@ function ReservarContent() {
   const [disponibleAgenda, setDisponibleAgenda] = useState(true)
   const [motivoAgenda, setMotivoAgenda] = useState('')
   const [rangoHorario, setRangoHorario] = useState({ inicio: '09:00', fin: '20:00' })
+  const [turnosAgenda, setTurnosAgenda] = useState<Array<{ inicio: string; fin: string }> | undefined>(undefined)
   const [loadingDisponibilidad, setLoadingDisponibilidad] = useState(false)
   const [lealtadInfo, setLealtadInfo] = useState<{descuento: number, mensaje: string} | null>(null)
   const [tiempoMinimoReserva, setTiempoMinimoReserva] = useState(60) // minutos
@@ -344,6 +345,7 @@ function ReservarContent() {
               inicio: data.hora_inicio || '09:00',
               fin: data.hora_fin || '20:00'
             })
+            setTurnosAgenda(data.turnos || undefined)
           }
           if (typeof data.tiempo_minimo_reserva !== 'undefined') {
             setTiempoMinimoReserva(Number(data.tiempo_minimo_reserva))
@@ -1092,7 +1094,8 @@ function ReservarContent() {
       duracionServicio: duracionServicioMin,
       pasoMinutos: 15,
       fecha: formData.fecha,
-      tiempoMinimoReserva
+      tiempoMinimoReserva,
+      turnos: turnosAgenda
     })
   }
 
@@ -1104,7 +1107,8 @@ function ReservarContent() {
       rangoHorario.inicio || '09:00',
       rangoHorario.fin || '20:00',
       formData.fecha,
-      tiempoMinimoReserva
+      tiempoMinimoReserva,
+      turnosAgenda
     )
   }
 

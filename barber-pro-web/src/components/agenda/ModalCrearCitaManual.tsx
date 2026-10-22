@@ -194,7 +194,8 @@ export function ModalCrearCitaManual({
         duracionServicio: duracionServicio,
         pasoMinutos: 15,
         fecha: fechaCita,
-        tiempoMinimoReserva: 0
+        tiempoMinimoReserva: 0,
+        turnos: data.turnos
       })
 
       setSlots(smartSlots)

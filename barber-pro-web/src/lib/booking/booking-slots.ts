@@ -57,7 +57,8 @@ export function isTimeSlotAvailable(
   rangoInicio: string = '09:00',
   rangoFin: string = '20:00',
   fecha?: string,
-  tiempoMinimoReserva: number = 0
+  tiempoMinimoReserva: number = 0,
+  turnos?: Array<{ inicio: string; fin: string }>
 ): { disponible: boolean; motivo?: string } {
   const slotInicio = timeStringToMinutes(hora)
   const slotFin = slotInicio + Math.max(5, duracionServicio || 30)
@@ -65,12 +66,24 @@ export function isTimeSlotAvailable(
   const jornadaInicio = timeStringToMinutes(rangoInicio)
   const jornadaFin = timeStringToMinutes(rangoFin)
 
-  // 1. Validar que esté dentro del horario de atención
-  if (slotInicio < jornadaInicio) {
-    return { disponible: false, motivo: `Antes del horario de apertura (${rangoInicio})` }
-  }
-  if (slotFin > jornadaFin) {
-    return { disponible: false, motivo: `El servicio finaliza después del cierre (${rangoFin})` }
+  // 1. Validar si existen turnos fraccionados explícitos
+  if (turnos && turnos.length > 0) {
+    const cabeEnTurno = turnos.some(t => {
+      const tIni = timeStringToMinutes(t.inicio)
+      const tFin = timeStringToMinutes(t.fin)
+      return slotInicio >= tIni && slotFin <= tFin
+    })
+    if (!cabeEnTurno) {
+      return { disponible: false, motivo: 'Fuera de turno de atención o en receso' }
+    }
+  } else {
+    // Validar que esté dentro del horario de atención continuo
+    if (slotInicio < jornadaInicio) {
+      return { disponible: false, motivo: `Antes del horario de apertura (${rangoInicio})` }
+    }
+    if (slotFin > jornadaFin) {
+      return { disponible: false, motivo: `El servicio finaliza después del cierre (${rangoFin})` }
+    }
   }
 
   // 2. Validar tiempo mínimo de anticipación (en hora de Bolivia)
@@ -115,7 +128,7 @@ export function isTimeSlotAvailable(
 
 /**
  * Genera todos los slots inteligentes disponibles:
- * 1. Horarios base cada `pasoMinutos` (por defecto 15 min).
+ * 1. Horarios base cada `pasoMinutos` (por defecto 15 min), dentro de cada turno si es fraccionado.
  * 2. Horarios continuos exactos inmediatamente después de terminar citas previas (ej. 10:35, 11:20).
  * 3. Deduplicados y ordenados cronológicamente.
  */
@@ -127,15 +140,17 @@ export function generateSmartSlots(options: {
   pasoMinutos?: number
   fecha?: string
   tiempoMinimoReserva?: number
+  turnos?: Array<{ inicio: string; fin: string }>
 }): SmartSlot[] {
   const {
     rangoInicio = '09:00',
     rangoFin = '20:00',
     ocupados = [],
     duracionServicio = 30,
-    pasoMinutos = 15, // Paso estándar de 15 minutos en lugar de 30
+    pasoMinutos = 15,
     fecha,
-    tiempoMinimoReserva = 0
+    tiempoMinimoReserva = 0,
+    turnos
   } = options
 
   const startMin = timeStringToMinutes(rangoInicio)
@@ -143,17 +158,39 @@ export function generateSmartSlots(options: {
   const candidateMinutes = new Set<number>()
   const continuousMinutes = new Set<number>()
 
-  // 1. Agregar intervalos regulares
-  for (let m = startMin; m < endMin; m += pasoMinutos) {
-    candidateMinutes.add(m)
+  // 1. Agregar intervalos regulares según los turnos especificados o el rango global
+  if (turnos && turnos.length > 0) {
+    for (const t of turnos) {
+      const tStart = timeStringToMinutes(t.inicio)
+      const tEnd = timeStringToMinutes(t.fin)
+      for (let m = tStart; m < tEnd; m += pasoMinutos) {
+        candidateMinutes.add(m)
+      }
+    }
+  } else {
+    for (let m = startMin; m < endMin; m += pasoMinutos) {
+      candidateMinutes.add(m)
+    }
   }
 
   // 2. Agregar puntos de inicio continuo tras cada cita/bloqueo previo
   for (const oc of ocupados) {
     const ocEnd = timeStringToMinutes(oc.hora) + Math.max(5, oc.duracion || 30)
-    if (ocEnd >= startMin && ocEnd < endMin) {
-      candidateMinutes.add(ocEnd)
-      continuousMinutes.add(ocEnd)
+    if (turnos && turnos.length > 0) {
+      const caeEnTurno = turnos.some(t => {
+        const tStart = timeStringToMinutes(t.inicio)
+        const tEnd = timeStringToMinutes(t.fin)
+        return ocEnd >= tStart && ocEnd < tEnd
+      })
+      if (caeEnTurno) {
+        candidateMinutes.add(ocEnd)
+        continuousMinutes.add(ocEnd)
+      }
+    } else {
+      if (ocEnd >= startMin && ocEnd < endMin) {
+        candidateMinutes.add(ocEnd)
+        continuousMinutes.add(ocEnd)
+      }
     }
   }
 
@@ -171,7 +208,8 @@ export function generateSmartSlots(options: {
       rangoInicio,
       rangoFin,
       fecha,
-      tiempoMinimoReserva
+      tiempoMinimoReserva,
+      turnos
     )
 
     result.push({

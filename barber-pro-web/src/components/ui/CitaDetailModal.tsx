@@ -118,7 +118,8 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
             duracionServicio: duracionMin,
             pasoMinutos: 15,
             fecha: newDate,
-            tiempoMinimoReserva: 0
+            tiempoMinimoReserva: 0,
+            turnos: json.turnos
           })
           setSlotsDisponibles(smart.filter(s => s.disponible).map(s => s.hora))
         } else {

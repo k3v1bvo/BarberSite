@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import {
   ArrowLeft, Clock, Plus, Save, Trash2, User, Edit, Zap, Calendar, X, Copy, Check,
-  CalendarDays, SlidersHorizontal, AlertTriangle, Moon, Sparkles, CheckCircle2, ShieldAlert
+  CalendarDays, SlidersHorizontal, AlertTriangle, Moon, Sparkles, CheckCircle2, ShieldAlert,
+  Split, Coffee
 } from 'lucide-react'
 import type { PlantillaHorario, TipoHorario } from '@/types'
 import { getBusinessDateString } from '@/lib/asistencia/helpers'
@@ -30,6 +31,9 @@ interface DiaConfig {
   activo: boolean
   hora_inicio: string
   hora_fin: string
+  fraccionado?: boolean
+  hora_inicio_2?: string
+  hora_fin_2?: string
 }
 
 interface BloqueoItem {
@@ -54,13 +58,13 @@ interface FeriadoItem {
 
 
 const DIAS_CONFIG_INICIAL: DiaConfig[] = [
-  { dia_semana: 1, nombre: 'Lunes', nombre_corto: 'Lun', activo: true, hora_inicio: '08:30', hora_fin: '20:30' },
-  { dia_semana: 2, nombre: 'Martes', nombre_corto: 'Mar', activo: true, hora_inicio: '08:30', hora_fin: '20:30' },
-  { dia_semana: 3, nombre: 'Miércoles', nombre_corto: 'Mié', activo: true, hora_inicio: '08:30', hora_fin: '20:30' },
-  { dia_semana: 4, nombre: 'Jueves', nombre_corto: 'Jue', activo: true, hora_inicio: '08:30', hora_fin: '20:30' },
-  { dia_semana: 5, nombre: 'Viernes', nombre_corto: 'Vie', activo: true, hora_inicio: '08:30', hora_fin: '20:30' },
-  { dia_semana: 6, nombre: 'Sábado', nombre_corto: 'Sáb', activo: true, hora_inicio: '08:30', hora_fin: '20:30' },
-  { dia_semana: 0, nombre: 'Domingo', nombre_corto: 'Dom', activo: false, hora_inicio: '09:00', hora_fin: '15:00' },
+  { dia_semana: 1, nombre: 'Lunes', nombre_corto: 'Lun', activo: true, hora_inicio: '08:30', hora_fin: '13:00', fraccionado: false, hora_inicio_2: '16:00', hora_fin_2: '20:30' },
+  { dia_semana: 2, nombre: 'Martes', nombre_corto: 'Mar', activo: true, hora_inicio: '08:30', hora_fin: '13:00', fraccionado: false, hora_inicio_2: '16:00', hora_fin_2: '20:30' },
+  { dia_semana: 3, nombre: 'Miércoles', nombre_corto: 'Mié', activo: true, hora_inicio: '08:30', hora_fin: '13:00', fraccionado: false, hora_inicio_2: '16:00', hora_fin_2: '20:30' },
+  { dia_semana: 4, nombre: 'Jueves', nombre_corto: 'Jue', activo: true, hora_inicio: '08:30', hora_fin: '13:00', fraccionado: false, hora_inicio_2: '16:00', hora_fin_2: '20:30' },
+  { dia_semana: 5, nombre: 'Viernes', nombre_corto: 'Vie', activo: true, hora_inicio: '08:30', hora_fin: '13:00', fraccionado: false, hora_inicio_2: '16:00', hora_fin_2: '20:30' },
+  { dia_semana: 6, nombre: 'Sábado', nombre_corto: 'Sáb', activo: true, hora_inicio: '08:30', hora_fin: '13:00', fraccionado: false, hora_inicio_2: '16:00', hora_fin_2: '20:30' },
+  { dia_semana: 0, nombre: 'Domingo', nombre_corto: 'Dom', activo: false, hora_inicio: '09:00', hora_fin: '15:00', fraccionado: false, hora_inicio_2: '16:00', hora_fin_2: '20:00' },
 ]
 
 const emptyForm = {
@@ -89,7 +93,10 @@ export default function AdminHorariosPage() {
 
   // Rango general de lote
   const [batchInicio, setBatchInicio] = useState('08:30')
-  const [batchFin, setBatchFin] = useState('20:30')
+  const [batchFin, setBatchFin] = useState('13:00')
+  const [batchFraccionado, setBatchFraccionado] = useState(false)
+  const [batchInicio2, setBatchInicio2] = useState('16:00')
+  const [batchFin2, setBatchFin2] = useState('20:30')
 
   // Modificación por Fecha Específica (Un solo día)
   const [fechaEspecifica, setFechaEspecifica] = useState(() => getBusinessDateString())
@@ -184,6 +191,9 @@ export default function AdminHorariosPage() {
                 activo: Boolean(dbDay.activo),
                 hora_inicio: dbDay.hora_inicio?.slice(0, 5) || d.hora_inicio,
                 hora_fin: dbDay.hora_fin?.slice(0, 5) || d.hora_fin,
+                fraccionado: Boolean(dbDay.fraccionado),
+                hora_inicio_2: dbDay.hora_inicio_2?.slice(0, 5) || d.hora_inicio_2 || '16:00',
+                hora_fin_2: dbDay.hora_fin_2?.slice(0, 5) || d.hora_fin_2 || '20:30',
               }
             }
             return d
@@ -223,19 +233,62 @@ export default function AdminHorariosPage() {
     )
   }
 
+  // Toggle de horario fraccionado para un día
+  const toggleFraccionadoDia = (diaSemana: number) => {
+    setHorarioSemanal(prev =>
+      prev.map(d => {
+        if (d.dia_semana === diaSemana) {
+          const nextVal = !d.fraccionado
+          return {
+            ...d,
+            fraccionado: nextVal,
+            hora_inicio_2: d.hora_inicio_2 || '16:00',
+            hora_fin_2: d.hora_fin_2 || '20:30',
+          }
+        }
+        return d
+      })
+    )
+  }
+
   // Modificar hora individual de un día de la semana
-  const updateHoraDia = (diaSemana: number, campo: 'hora_inicio' | 'hora_fin', valor: string) => {
+  const updateHoraDia = (
+    diaSemana: number,
+    campo: 'hora_inicio' | 'hora_fin' | 'hora_inicio_2' | 'hora_fin_2',
+    valor: string
+  ) => {
     setHorarioSemanal(prev =>
       prev.map(d => (d.dia_semana === diaSemana ? { ...d, [campo]: valor } : d))
     )
   }
 
   // Aplicar horario de un día a TODOS los días activos
-  const aplicarATodosLosDias = (horaInicio: string, horaFin: string) => {
+  const aplicarATodosLosDias = (
+    horaInicio: string,
+    horaFin: string,
+    fraccionado: boolean = false,
+    horaInicio2: string = '16:00',
+    horaFin2: string = '20:30'
+  ) => {
     setHorarioSemanal(prev =>
-      prev.map(d => (d.activo ? { ...d, hora_inicio: horaInicio, hora_fin: horaFin } : d))
+      prev.map(d =>
+        d.activo
+          ? {
+              ...d,
+              hora_inicio: horaInicio,
+              hora_fin: horaFin,
+              fraccionado,
+              hora_inicio_2: horaInicio2,
+              hora_fin_2: horaFin2,
+            }
+          : d
+      )
     )
-    success(`Horario ${horaInicio} a ${horaFin} aplicado a todos los días activos.`)
+    if (fraccionado) {
+      success(`Horario fraccionado (${horaInicio}-${horaFin} y ${horaInicio2}-${horaFin2}) aplicado a todos los días activos.`)
+    } else {
+      success(`Horario continuo ${horaInicio} a ${horaFin} aplicado a todos los días activos.`)
+    }
   }
 
   // Aplicar plantilla rápida
@@ -244,7 +297,8 @@ export default function AdminHorariosPage() {
     const fin = p.hora_fin?.slice(0, 5) || '20:30'
     setBatchInicio(inicio)
     setBatchFin(fin)
-    aplicarATodosLosDias(inicio, fin)
+    setBatchFraccionado(false)
+    aplicarATodosLosDias(inicio, fin, false)
   }
 
   // Guardar horario semanal recurrente
@@ -533,38 +587,145 @@ export default function AdminHorariosPage() {
                   horarioSemanal.filter(d => d.activo).map((d) => (
                     <div
                       key={d.dia_semana}
-                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-zinc-900 border border-white/5 rounded-2xl hover:border-amber-500/20 transition"
+                      className="flex flex-col gap-4 p-5 bg-zinc-900 border border-white/5 rounded-2xl hover:border-amber-500/20 transition"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-black text-sm">
-                          {d.nombre_corto}
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-black text-sm">
+                            {d.nombre_corto}
+                          </div>
+                          <div>
+                            <p className="font-black text-white text-base">{d.nombre}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Día Hábil</span>
+                              {d.fraccionado ? (
+                                <Badge variant="warning" className="text-[9px] uppercase font-black px-1.5 py-0">
+                                  ⚡ Horario Fraccionado
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[9px] uppercase font-bold text-zinc-400 px-1.5 py-0 border-white/10">
+                                  Turno Continuo
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-black text-white text-sm">{d.nombre}</p>
-                          <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-0.5">Día Hábil</p>
-                        </div>
+
+                        {/* Botón switch para alternar entre turno continuo y fraccionado */}
+                        <button
+                          type="button"
+                          onClick={() => toggleFraccionadoDia(d.dia_semana)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border ${
+                            d.fraccionado
+                              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
+                              : 'bg-zinc-800/80 border-white/10 text-zinc-300 hover:bg-zinc-800 hover:text-white'
+                          }`}
+                        >
+                          <Split className="w-3.5 h-3.5" />
+                          {d.fraccionado ? 'Cambiar a Turno Continuo' : '+ Fraccionar Horario (2 Turnos)'}
+                        </button>
                       </div>
-                      <div className="flex items-center gap-3 w-full sm:w-auto">
-                        <div className="flex-1 sm:flex-initial">
-                          <label className="text-[9px] font-black uppercase text-zinc-500 block mb-1">Entrada</label>
-                          <input
-                            type="time"
-                            value={d.hora_inicio}
-                            onChange={(e) => updateHoraDia(d.dia_semana, 'hora_inicio', e.target.value)}
-                            className="bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full outline-none focus:border-amber-500"
-                          />
+
+                      {/* Contenido de horas */}
+                      {!d.fraccionado ? (
+                        /* Horario Continuo */
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                          <div className="flex-1 sm:w-44">
+                            <label className="text-[10px] font-black uppercase text-zinc-400 block mb-1">Hora Entrada</label>
+                            <input
+                              type="time"
+                              value={d.hora_inicio}
+                              onChange={(e) => updateHoraDia(d.dia_semana, 'hora_inicio', e.target.value)}
+                              className="bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full outline-none focus:border-amber-500"
+                            />
+                          </div>
+                          <span className="text-zinc-600 font-bold mt-5">→</span>
+                          <div className="flex-1 sm:w-44">
+                            <label className="text-[10px] font-black uppercase text-zinc-400 block mb-1">Hora Salida</label>
+                            <input
+                              type="time"
+                              value={d.hora_fin}
+                              onChange={(e) => updateHoraDia(d.dia_semana, 'hora_fin', e.target.value)}
+                              className="bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full outline-none focus:border-amber-500"
+                            />
+                          </div>
                         </div>
-                        <span className="text-zinc-600 font-bold mt-4">→</span>
-                        <div className="flex-1 sm:flex-initial">
-                          <label className="text-[9px] font-black uppercase text-zinc-500 block mb-1">Salida</label>
-                          <input
-                            type="time"
-                            value={d.hora_fin}
-                            onChange={(e) => updateHoraDia(d.dia_semana, 'hora_fin', e.target.value)}
-                            className="bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full outline-none focus:border-amber-500"
-                          />
+                      ) : (
+                        /* Horario Fraccionado (Turno 1 + Receso + Turno 2) */
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Turno 1 */}
+                            <div className="bg-zinc-950/70 border border-white/5 p-3.5 rounded-xl space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  Turno 1 (Primer Ingreso)
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1">
+                                  <label className="text-[9px] font-bold text-zinc-500 uppercase block mb-1">Entrada</label>
+                                  <input
+                                    type="time"
+                                    value={d.hora_inicio}
+                                    onChange={(e) => updateHoraDia(d.dia_semana, 'hora_inicio', e.target.value)}
+                                    className="bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-white font-mono text-sm font-bold w-full outline-none focus:border-amber-500"
+                                  />
+                                </div>
+                                <span className="text-zinc-600 font-bold mt-4">→</span>
+                                <div className="flex-1">
+                                  <label className="text-[9px] font-bold text-zinc-500 uppercase block mb-1">Salida</label>
+                                  <input
+                                    type="time"
+                                    value={d.hora_fin}
+                                    onChange={(e) => updateHoraDia(d.dia_semana, 'hora_fin', e.target.value)}
+                                    className="bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-white font-mono text-sm font-bold w-full outline-none focus:border-amber-500"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Turno 2 */}
+                            <div className="bg-zinc-950/70 border border-white/5 p-3.5 rounded-xl space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  Turno 2 (Segundo Ingreso)
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1">
+                                  <label className="text-[9px] font-bold text-zinc-500 uppercase block mb-1">Entrada 2</label>
+                                  <input
+                                    type="time"
+                                    value={d.hora_inicio_2 || '16:00'}
+                                    onChange={(e) => updateHoraDia(d.dia_semana, 'hora_inicio_2', e.target.value)}
+                                    className="bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-white font-mono text-sm font-bold w-full outline-none focus:border-amber-500"
+                                  />
+                                </div>
+                                <span className="text-zinc-600 font-bold mt-4">→</span>
+                                <div className="flex-1">
+                                  <label className="text-[9px] font-bold text-zinc-500 uppercase block mb-1">Salida 2</label>
+                                  <input
+                                    type="time"
+                                    value={d.hora_fin_2 || '20:30'}
+                                    onChange={(e) => updateHoraDia(d.dia_semana, 'hora_fin_2', e.target.value)}
+                                    className="bg-zinc-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-white font-mono text-sm font-bold w-full outline-none focus:border-amber-500"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Receso visual informativo */}
+                          <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/5 border border-amber-500/10 rounded-xl text-[11px] text-zinc-400">
+                            <Coffee className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span>
+                              <strong className="text-amber-400">Receso Intermedio:</strong> {d.hora_fin} a {d.hora_inicio_2 || '16:00'} (Sin reservas — espacio reservado para descanso / almuerzo)
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   ))
                 )}
@@ -593,33 +754,100 @@ export default function AdminHorariosPage() {
               </CardHeader>
               <CardContent className="p-5 space-y-4">
                 <p className="text-xs text-zinc-400">Aplica el mismo horario de entrada y salida a todos los días marcados como activos.</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-zinc-500 block mb-1">Entrada Lote</label>
-                    <input
-                      type="time"
-                      value={batchInicio}
-                      onChange={(e) => setBatchInicio(e.target.value)}
-                      className="bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-zinc-500 block mb-1">Salida Lote</label>
-                    <input
-                      type="time"
-                      value={batchFin}
-                      onChange={(e) => setBatchFin(e.target.value)}
-                      className="bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full"
-                    />
-                  </div>
+
+                <div className="flex items-center justify-between bg-zinc-900 p-2.5 rounded-xl border border-white/5">
+                  <label htmlFor="check-fraccionado" className="text-xs font-bold text-zinc-300 flex items-center gap-1.5 cursor-pointer">
+                    <Split className="w-3.5 h-3.5 text-amber-500" />
+                    Turno Fraccionado en Lote
+                  </label>
+                  <input
+                    id="check-fraccionado"
+                    type="checkbox"
+                    checked={batchFraccionado}
+                    onChange={(e) => setBatchFraccionado(e.target.checked)}
+                    className="w-4 h-4 accent-amber-500 cursor-pointer"
+                  />
                 </div>
+
+                {!batchFraccionado ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-zinc-500 block mb-1">Entrada Lote</label>
+                      <input
+                        type="time"
+                        value={batchInicio}
+                        onChange={(e) => setBatchInicio(e.target.value)}
+                        className="bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-zinc-500 block mb-1">Salida Lote</label>
+                      <input
+                        type="time"
+                        value={batchFin}
+                        onChange={(e) => setBatchFin(e.target.value)}
+                        className="bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-sm font-bold w-full"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="bg-zinc-900/60 p-2.5 rounded-xl border border-white/5 space-y-2">
+                      <span className="text-[10px] font-black uppercase text-amber-400 block">Turno 1 (Primer Ingreso)</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[8px] text-zinc-500 uppercase block mb-0.5">Entrada 1</label>
+                          <input
+                            type="time"
+                            value={batchInicio}
+                            onChange={(e) => setBatchInicio(e.target.value)}
+                            className="bg-zinc-900 border border-white/10 rounded-lg px-2 py-1.5 text-white font-mono text-xs font-bold w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[8px] text-zinc-500 uppercase block mb-0.5">Salida 1</label>
+                          <input
+                            type="time"
+                            value={batchFin}
+                            onChange={(e) => setBatchFin(e.target.value)}
+                            className="bg-zinc-900 border border-white/10 rounded-lg px-2 py-1.5 text-white font-mono text-xs font-bold w-full"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-zinc-900/60 p-2.5 rounded-xl border border-white/5 space-y-2">
+                      <span className="text-[10px] font-black uppercase text-amber-400 block">Turno 2 (Segundo Ingreso)</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[8px] text-zinc-500 uppercase block mb-0.5">Entrada 2</label>
+                          <input
+                            type="time"
+                            value={batchInicio2}
+                            onChange={(e) => setBatchInicio2(e.target.value)}
+                            className="bg-zinc-900 border border-white/10 rounded-lg px-2 py-1.5 text-white font-mono text-xs font-bold w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[8px] text-zinc-500 uppercase block mb-0.5">Salida 2</label>
+                          <input
+                            type="time"
+                            value={batchFin2}
+                            onChange={(e) => setBatchFin2(e.target.value)}
+                            className="bg-zinc-900 border border-white/10 rounded-lg px-2 py-1.5 text-white font-mono text-xs font-bold w-full"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <Button
-                  onClick={() => aplicarATodosLosDias(batchInicio, batchFin)}
+                  onClick={() => aplicarATodosLosDias(batchInicio, batchFin, batchFraccionado, batchInicio2, batchFin2)}
                   variant="outline"
                   className="w-full font-bold text-xs uppercase"
                 >
                   <Copy className="w-4 h-4 mr-2" />
-                  Aplicar a todos los días
+                  Aplicar a todos los días activos
                 </Button>
               </CardContent>
             </Card>
