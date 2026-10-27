@@ -232,7 +232,7 @@ async function _registrarEgresoBono(supabase: any, bono: any, usuarioRegistro: s
     fecha: getBoliviaDateString(),
     ci,
     nombre,
-    cuenta_codigo: '4.1.3',
+    cuenta_codigo: 'EGR-BONO',
     cuenta_detalle: 'Bonos a Personal',
     glosa: `Bono ${bono.tipo} (${metodo_pago}) — ${bono.descripcion || ''} (${periodoLabel}) [bono_id: ${bono.id}]`,
     costo: Number(bono.monto),

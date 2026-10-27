@@ -43,10 +43,10 @@ export default function ComisionesPage() {
 
     // Citas completadas del mes
     const [year, month] = mesActual.split('-').map(Number)
-    const desde = `${year}-${String(month).padStart(2, '0')}-01`
+    const desde = `${year}-${String(month).padStart(2, '0')}-01T00:00:00-04:00`
     const hasta = month === 12
-      ? `${year + 1}-01-01`
-      : `${year}-${String(month + 1).padStart(2, '0')}-01`
+      ? `${year + 1}-01-01T00:00:00-04:00`
+      : `${year}-${String(month + 1).padStart(2, '0')}-01T00:00:00-04:00`
 
     const { data: citas } = await supabase
       .from('citas')

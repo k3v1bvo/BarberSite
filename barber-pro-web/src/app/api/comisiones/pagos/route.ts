@@ -31,9 +31,8 @@ export async function POST(req: Request) {
     .eq('barbero_id', barbero_id)
     .eq('estado', 'completado')
     .eq('comision_pagada', false)
-    .gte('fecha_hora', fecha_inicio)
-    // Add 1 day to fecha_fin to make it inclusive up to the end of the day if it's just a date
-    .lte('fecha_hora', `${fecha_fin}T23:59:59`)
+    .gte('fecha_hora', fecha_inicio.includes('T') ? fecha_inicio : `${fecha_inicio}T00:00:00-04:00`)
+    .lte('fecha_hora', fecha_fin.includes('T') ? fecha_fin : `${fecha_fin}T23:59:59-04:00`)
 
   if (citasError) {
     return NextResponse.json({ error: citasError.message }, { status: 500 })
@@ -133,6 +132,9 @@ export async function POST(req: Request) {
 
     const monto_bruto_pago = comision_bruta + total_bonos
 
+    const mEfEgreso = mpLower === 'efectivo' ? monto_bruto_pago : (mpLower === 'mixto' ? Number(body.monto_efectivo) || 0 : 0)
+    const mQrEgreso = esDigital ? monto_bruto_pago : (mpLower === 'mixto' ? Number(body.monto_qr) || 0 : 0)
+
     // 1. EGRESO por el Total Bruto de la comisión
     const { error: egresoError } = await supabase.from('transactions').insert({
       libro: libroCaja,
@@ -147,6 +149,8 @@ export async function POST(req: Request) {
       es_sancion: false,
       empleado_id: barbero_id,
       metodo_pago: mpLower,
+      monto_efectivo: mEfEgreso,
+      monto_qr: mQrEgreso,
       subcategoria: 'COMISION_PAGO',
       notas: mpLower === 'mixto' ? `Efectivo: Bs ${Number(body.monto_efectivo) || 0} | QR: Bs ${Number(body.monto_qr) || 0}` : null,
       usuario_registro: adminProfile?.full_name || 'Sistema',
@@ -159,6 +163,8 @@ export async function POST(req: Request) {
 
     // 2. INGRESO por Sanciones cobradas (si hay)
     if (total_sanciones > 0) {
+      const mEfSancion = mpLower === 'efectivo' ? total_sanciones : 0
+      const mQrSancion = esDigital ? total_sanciones : 0
       const { error: ingSancionError } = await supabase.from('transactions').insert({
         libro: libroCaja,
         fecha: fechaActual,
@@ -172,6 +178,8 @@ export async function POST(req: Request) {
         es_sancion: false,
         empleado_id: barbero_id,
         metodo_pago: mpLower,
+        monto_efectivo: mEfSancion,
+        monto_qr: mQrSancion,
         usuario_registro: adminProfile?.full_name || 'Sistema',
       })
       if (ingSancionError) console.error("Error ingreso sanción:", ingSancionError)
@@ -179,6 +187,9 @@ export async function POST(req: Request) {
 
     // 3. INGRESO por Adelantos cobrados (si hay)
     if (Number(descuento_adelanto) > 0) {
+      const mAdelanto = Number(descuento_adelanto)
+      const mEfAdelanto = mpLower === 'efectivo' ? mAdelanto : 0
+      const mQrAdelanto = esDigital ? mAdelanto : 0
       const { error: ingAdelantoError } = await supabase.from('transactions').insert({
         libro: libroCaja,
         fecha: fechaActual,
@@ -187,11 +198,13 @@ export async function POST(req: Request) {
         cuenta_codigo: 'ACT-001', // O el que usen para adelantos
         cuenta_detalle: 'Devolución de Adelanto',
         glosa: `Descuento automático de adelanto en pago ID: ${pago.id}`,
-        costo: Number(descuento_adelanto),
+        costo: mAdelanto,
         tipo_movimiento: 'INGRESO',
         es_sancion: false,
         empleado_id: barbero_id,
         metodo_pago: mpLower,
+        monto_efectivo: mEfAdelanto,
+        monto_qr: mQrAdelanto,
         usuario_registro: adminProfile?.full_name || 'Sistema',
       })
       if (ingAdelantoError) console.error("Error ingreso adelanto:", ingAdelantoError)

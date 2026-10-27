@@ -22,25 +22,25 @@ export async function GET(request: Request) {
     // Obtener fecha actual en zona horaria de Bolivia (UTC-4)
     const fechaStr = getBoliviaDateString()
 
-    // 1. Citas completadas hoy
+    // 1. Citas completadas hoy (en zona horaria de Bolivia UTC-4)
     const { data: citas } = await supabase
       .from('citas')
       .select('id, precio')
       .eq('estado', 'completado')
-      .gte('fecha_hora', `${fechaStr}T00:00:00.000Z`)
-      .lte('fecha_hora', `${fechaStr}T23:59:59.999Z`)
+      .gte('fecha_hora', `${fechaStr}T00:00:00-04:00`)
+      .lte('fecha_hora', `${fechaStr}T23:59:59-04:00`)
 
     const totalCitas = citas?.length || 0
     const ingresosServicios = citas?.reduce((sum, c) => sum + Number(c.precio), 0) || 0
 
     // 2. Transacciones de ventas de productos hoy
-    // Usamos el libro 'VENTAS' y fecha = hoy
+    // Usamos el libro 'VENTAS' y fecha = hoy (soporta tanto 'VENTA_PRODUCTO' como 'INGRESO')
     const { data: ventasProds } = await supabase
       .from('transactions')
       .select('id, costo, glosa')
       .eq('libro', 'VENTAS')
       .eq('fecha', fechaStr)
-      .eq('tipo_movimiento', 'VENTA_PRODUCTO')
+      .in('tipo_movimiento', ['VENTA_PRODUCTO', 'INGRESO'])
 
     const totalVentasProductos = ventasProds?.length || 0
     const ingresosProductos = ventasProds?.reduce((sum, v) => sum + Number(v.costo), 0) || 0

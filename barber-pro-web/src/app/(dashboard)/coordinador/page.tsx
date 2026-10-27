@@ -170,13 +170,13 @@ export default function CoordinadorDashboard() {
           .from('citas')
           .select('precio')
           .eq('estado', 'completado')
-          .gte('fecha_hora', `${start}T00:00:00`)
-          .lte('fecha_hora', `${end}T23:59:59`),
+          .gte('fecha_hora', `${start}T00:00:00-04:00`)
+          .lte('fecha_hora', `${end}T23:59:59-04:00`),
         supabase
           .from('citas')
           .select('*', { count: 'exact', head: true })
-          .gte('fecha_hora', `${start}T00:00:00`)
-          .lte('fecha_hora', `${end}T23:59:59`),
+          .gte('fecha_hora', `${start}T00:00:00-04:00`)
+          .lte('fecha_hora', `${end}T23:59:59-04:00`),
         supabase.from('clientes').select('*', { count: 'exact', head: true }),
         supabase.from('productos').select('id').lte('stock_actual', 5),
         supabase
@@ -196,8 +196,8 @@ export default function CoordinadorDashboard() {
           servicios (nombre)
         `
           )
-          .gte('fecha_hora', `${start}T00:00:00`)
-          .lte('fecha_hora', `${end}T23:59:59`)
+          .gte('fecha_hora', `${start}T00:00:00-04:00`)
+          .lte('fecha_hora', `${end}T23:59:59-04:00`)
           .order('fecha_hora', { ascending: false })
           .limit(10),
       ])
@@ -206,8 +206,8 @@ export default function CoordinadorDashboard() {
         .from('citas')
         .select('precio, fecha_hora, barberos:profiles!barbero_id(full_name)')
         .eq('estado', 'completado')
-        .gte('fecha_hora', `${start}T00:00:00`)
-        .lte('fecha_hora', `${end}T23:59:59`)
+        .gte('fecha_hora', `${start}T00:00:00-04:00`)
+        .lte('fecha_hora', `${end}T23:59:59-04:00`)
 
       const startDate = new Date(`${start}T00:00:00`)
       const endDate = new Date(`${end}T23:59:59`)
@@ -268,13 +268,13 @@ export default function CoordinadorDashboard() {
       const [ { data: txPeriodo }, { data: citasPeriodo }, { data: arqueoData } ] = await Promise.all([
         supabase
           .from('transactions')
-          .select('libro, costo, tipo_movimiento, metodo_pago, monto_qr, monto_efectivo, cuenta_codigo, notas, fecha')
+          .select('id, cita_id, libro, costo, tipo_movimiento, metodo_pago, monto_qr, monto_efectivo, cuenta_codigo, subcategoria, notas, fecha')
           .gte('fecha', start)
           .lte('fecha', end)
           .limit(10000),
         supabase
           .from('citas')
-          .select('id, total, metodo_pago, anticipo_monto, estado, fecha_hora')
+          .select('id, precio, metodo_pago, anticipo_monto, estado, fecha_hora, notas, monto_efectivo, monto_transferencia')
           .eq('estado', 'completado')
           .gte('fecha_hora', `${start}T00:00:00-04:00`)
           .lte('fecha_hora', `${end}T23:59:59-04:00`)
@@ -292,50 +292,80 @@ export default function CoordinadorDashboard() {
       let qrEgresos = 0
       let totalVentasFacturadas = 0
 
-      // 1. Sumar citas completadas en el período
-      if (citasPeriodo) {
-        citasPeriodo.forEach((c: any) => {
-          const m = Number(c.total || 0)
-          totalVentasFacturadas += m
-          const mp = String(c.metodo_pago || '').toLowerCase()
-          if (mp === 'efectivo') {
-            efIngresos += m
-          } else if (mp === 'qr' || mp === 'tarjeta') {
-            qrIngresos += m
-          } else if (mp === 'mixto') {
-            const matchEf = String(c.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
-            const matchQr = String(c.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
-            const ef = matchEf ? parseFloat(matchEf[1]) : Math.max(0, m - 20)
-            const qr = matchQr ? parseFloat(matchQr[1]) : 20
-            efIngresos += ef
-            qrIngresos += qr
-          } else {
-            efIngresos += m
-          }
+      // Conjunto de cita_ids ya registradas en transactions para evitar duplicidad
+      const txCitaIds = new Set<string>()
+      if (txPeriodo) {
+        txPeriodo.forEach((tx: any) => {
+          if (tx.cita_id) txCitaIds.add(String(tx.cita_id))
         })
       }
 
-      // 2. Sumar transacciones del período
+      // 1. Sumar transacciones del período (SERVICIOS, VENTAS, CAJA_CHICA, BANCO, EGRESOS)
       if (txPeriodo) {
         txPeriodo.forEach((tx: any) => {
           const costo = Number(tx.costo || 0)
           const mpLower = String(tx.metodo_pago || '').toLowerCase()
-          const esIngreso = tx.tipo_movimiento === 'INGRESO' || tx.tipo_movimiento === 'VENTA_PRODUCTO' || String(tx.cuenta_codigo || '').startsWith('4')
+          const mEf = Number(tx.monto_efectivo || 0)
+          const mQr = Number(tx.monto_qr || 0)
+
+          // Movimiento de ingreso: INGRESO, VENTA_PRODUCTO, o DEPOSITO bancario (anticipos QR)
+          const esIngreso = tx.tipo_movimiento === 'INGRESO'
+            || tx.tipo_movimiento === 'VENTA_PRODUCTO'
+            || (tx.tipo_movimiento === 'DEPOSITO' && (tx.libro === 'BANCO' || tx.subcategoria === 'ANTICIPO_RESERVA'))
+            || String(tx.cuenta_codigo || '').startsWith('4')
+            || String(tx.cuenta_codigo || '').startsWith('ING')
 
           if (esIngreso) {
             totalVentasFacturadas += costo
-            if (mpLower === 'qr' || mpLower === 'tarjeta' || tx.libro === 'BANCO') {
-              qrIngresos += costo
+            if (mpLower === 'mixto') {
+              efIngresos += (mEf > 0 || mQr > 0) ? mEf : costo
+              qrIngresos += mQr > 0 ? mQr : 0
+            } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower) || tx.libro === 'BANCO' || mQr > 0) {
+              qrIngresos += mQr > 0 ? mQr : costo
+              if (mEf > 0) efIngresos += mEf
             } else {
               efIngresos += costo
             }
           } else {
             // Egreso
-            if (mpLower === 'qr' || mpLower === 'tarjeta' || tx.libro === 'BANCO') {
-              qrEgresos += costo
+            if (mpLower === 'mixto') {
+              efEgresos += (mEf > 0 || mQr > 0) ? mEf : costo
+              qrEgresos += mQr > 0 ? mQr : 0
+            } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower) || tx.libro === 'BANCO' || mQr > 0) {
+              qrEgresos += mQr > 0 ? mQr : costo
+              if (mEf > 0) efEgresos += mEf
             } else {
               efEgresos += costo
             }
+          }
+        })
+      }
+
+      // 2. Sumar citas completadas del período que NO tengan transacción en transactions
+      if (citasPeriodo) {
+        citasPeriodo.forEach((c: any) => {
+          if (txCitaIds.has(String(c.id))) return // Ya sumada en transacciones
+
+          const m = Number(c.precio || 0)
+          totalVentasFacturadas += m
+          const mp = String(c.metodo_pago || 'efectivo').toLowerCase()
+          const anticipo = Number(c.anticipo_monto || 0)
+          const saldo = Math.max(0, m - anticipo)
+
+          if (mp === 'efectivo') {
+            efIngresos += saldo
+            qrIngresos += anticipo
+          } else if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mp)) {
+            qrIngresos += m
+          } else if (mp === 'mixto') {
+            const matchEf = String(c.notas || '').match(/Efectivo:\s*Bs\s*([0-9.]+)/i)
+            const matchQr = String(c.notas || '').match(/QR:\s*Bs\s*([0-9.]+)/i)
+            const ef = matchEf ? parseFloat(matchEf[1]) : (Number(c.monto_efectivo) || saldo)
+            const qr = matchQr ? parseFloat(matchQr[1]) : ((Number(c.monto_transferencia) || 0) + anticipo)
+            efIngresos += ef
+            qrIngresos += qr
+          } else {
+            efIngresos += m
           }
         })
       }
@@ -351,6 +381,12 @@ export default function CoordinadorDashboard() {
         total: saldoCajaFisica + saldoBancoQr,
         arqueoCerrado: arqueoData?.cerrado ?? false
       })
+
+      // Total de ventas del período sincronizado en las tarjetas superiores
+      setStats(prev => ({
+        ...prev,
+        ventasHoy: totalVentasFacturadas,
+      }))
 
       // Últimos movimientos contables
       const { data: recTx } = await supabase

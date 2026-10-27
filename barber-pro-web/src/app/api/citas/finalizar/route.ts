@@ -97,8 +97,20 @@ export async function POST(request: Request) {
     const precioCita = Number(cita.precio || 0)
     const mpRaw = String(metodo_pago || 'efectivo').toLowerCase()
 
+    // Verificar si el anticipo ya fue registrado previamente en el Libro de BANCO (en la reserva)
+    let anticipoEnBanco = false
+    if (cita_id && anticipoQr > 0) {
+      const { data: bTx } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('cita_id', cita_id)
+        .eq('libro', 'BANCO')
+        .maybeSingle()
+      if (bTx) anticipoEnBanco = true
+    }
+
     let realEf = 0
-    let realQr = anticipoQr
+    let realQr = anticipoEnBanco ? 0 : anticipoQr
     let realMetodo = mpRaw
 
     const resto = Math.max(0, precioCita - anticipoQr)
@@ -110,35 +122,53 @@ export async function POST(request: Request) {
       realEf = resto
     }
 
-    if (anticipoQr > 0 && realEf > 0) {
+    if (anticipoQr > 0 && realEf > 0 && !anticipoEnBanco) {
       realMetodo = 'mixto'
-    } else if (anticipoQr > 0 && realEf === 0) {
+    } else if (anticipoQr > 0 && realEf === 0 && !anticipoEnBanco) {
       realMetodo = 'qr'
     }
 
-    await supabase
+    const txFinPayload = {
+      libro: 'SERVICIOS',
+      fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
+      ci: '0000000',
+      nombre: 'Cliente',
+      cuenta_codigo: '4.1.2',
+      cuenta_detalle: `Servicio: ${(cita.servicios as any)?.nombre || ''}`,
+      glosa: `Atendido por ${barberoProfile?.full_name || 'Desconocido'} — Cita #${cita_id.substring(0, 6)}`,
+      costo: precioCita,
+      tipo_movimiento: 'INGRESO',
+      subcategoria: 'SERVICIO',
+      es_sancion: false,
+      empleado_id: cita.barbero_id,
+      cliente_id: cita.cliente_id,
+      cita_id: cita_id,
+      metodo_pago: realMetodo,
+      monto_efectivo: realEf,
+      monto_qr: realQr,
+      notas: anticipoQr > 0 ? `Anticipo QR: Bs ${anticipoQr}${anticipoEnBanco ? ' (Registrado en BANCO)' : ''} | Cobrado en local (${mpRaw}): Bs ${resto}` : null,
+      usuario_registro: barberoProfile?.full_name || 'Sistema (Auto)',
+    }
+
+    const { data: existingServTx } = await supabase
       .from('transactions')
-      .insert({
-        libro: 'SERVICIOS',
-        fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
-        ci: '0000000',
-        nombre: 'Cliente',
-        cuenta_codigo: 'ING-001',
-        cuenta_detalle: `Servicio: ${(cita.servicios as any)?.nombre || ''}`,
-        glosa: `Atendido por ${barberoProfile?.full_name || 'Desconocido'} — Cita #${cita_id.substring(0, 6)}`,
-        costo: precioCita,
-        tipo_movimiento: 'INGRESO',
-        subcategoria: 'SERVICIO',
-        es_sancion: false,
-        empleado_id: cita.barbero_id,
-        cliente_id: cita.cliente_id,
-        cita_id: cita_id,
-        metodo_pago: realMetodo,
-        monto_efectivo: realEf,
-        monto_qr: realQr,
-        notas: anticipoQr > 0 ? `Anticipo QR: Bs ${anticipoQr} | Cobrado (${mpRaw}): Bs ${resto}` : null,
-        usuario_registro: barberoProfile?.full_name || 'Sistema (Auto)',
-      })
+      .select('id')
+      .eq('cita_id', cita_id)
+      .eq('libro', 'SERVICIOS')
+      .maybeSingle()
+
+    if (existingServTx?.id) {
+      const { error: upTxErr } = await supabase
+        .from('transactions')
+        .update(txFinPayload)
+        .eq('id', existingServTx.id)
+      if (upTxErr) console.error('Error actualizando transaccion al finalizar cita:', upTxErr)
+    } else {
+      const { error: inTxErr } = await supabase
+        .from('transactions')
+        .insert(txFinPayload)
+      if (inTxErr) console.error('Error al insertar transaccion al finalizar cita:', inTxErr)
+    }
 
     // Obtener info del cliente si no se sacó arriba
     const { data: clienteData } = await supabase

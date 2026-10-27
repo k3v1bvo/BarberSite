@@ -163,11 +163,11 @@ export default function VentasPage() {
     let productoId = null
 
     if (form.cuenta_codigo.startsWith('srv-')) {
-      realCuentaCodigo = '4.1.1'
+      realCuentaCodigo = '4.1.2'
       const srv = servicios.find(s => s.id === form.cuenta_codigo.replace('srv-', ''))
       realCuentaDetalle = srv ? srv.nombre : 'Servicio'
     } else if (form.cuenta_codigo.startsWith('prd-')) {
-      realCuentaCodigo = '4.1.2'
+      realCuentaCodigo = '4.1.1'
       const prd = productos.find(p => p.id === form.cuenta_codigo.replace('prd-', ''))
       realCuentaDetalle = prd ? prd.nombre : 'Producto'
       productoId = prd ? prd.id : null

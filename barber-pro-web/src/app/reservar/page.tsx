@@ -1870,10 +1870,6 @@ function ReservarContent() {
                     // Si el 2x1 está seleccionado, solo mostrar servicios válidos
                     if (promoElegida?.tipo === '2x1' && !esServicio2x1Valido(s)) return false
                     if (!formData.barbero_id) return true
-                    const tieneConfigComisiones = barberoServicios.some(bs => bs.barbero_id === formData.barbero_id)
-                    if (tieneConfigComisiones) {
-                      return barberoServicios.some(bs => bs.barbero_id === formData.barbero_id && bs.servicio_id === s.id)
-                    }
                     if (s.barberos_excluidos?.length) {
                       return !s.barberos_excluidos.includes(formData.barbero_id)
                     }
@@ -2006,11 +2002,6 @@ function ReservarContent() {
                   {barberos
                     .filter(b => {
                       if (!formData.servicio_id) return true
-                      // Si el barbero tiene servicios configurados en comisiones, solo mostrarlo si realiza este servicio
-                      const tieneConfigComisiones = barberoServicios.some(bs => bs.barbero_id === b.id)
-                      if (tieneConfigComisiones) {
-                        return barberoServicios.some(bs => bs.barbero_id === b.id && bs.servicio_id === formData.servicio_id)
-                      }
                       const servicio = servicios.find(s => s.id === formData.servicio_id)
                       if (!servicio?.barberos_excluidos?.length) return true
                       return !servicio.barberos_excluidos.includes(b.id)

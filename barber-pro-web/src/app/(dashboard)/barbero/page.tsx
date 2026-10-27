@@ -168,12 +168,15 @@ export default function BarberoPage() {
         .gte('fecha_hora', `${hoy}T00:00:00-04:00`)
         .lte('fecha_hora', `${hoy}T23:59:59-04:00`)
 
-      const hoyStats = citasHoy?.reduce((acc, c) => ({
-        citas: acc.citas + 1,
-        completadas: acc.completadas + (c.estado === 'completado' ? 1 : 0),
-        ventas: acc.ventas + c.precio,
-        comision: acc.comision + (c.comision_barbero || 0)
-      }), { citas: 0, completadas: 0, ventas: 0, comision: 0 }) || { citas: 0, completadas: 0, ventas: 0, comision: 0 }
+      const hoyStats = citasHoy?.reduce((acc, c) => {
+        const isComp = c.estado === 'completado'
+        return {
+          citas: acc.citas + 1,
+          completadas: acc.completadas + (isComp ? 1 : 0),
+          ventas: acc.ventas + (isComp ? c.precio : 0),
+          comision: acc.comision + (isComp ? (c.comision_barbero || 0) : 0)
+        }
+      }, { citas: 0, completadas: 0, ventas: 0, comision: 0 }) || { citas: 0, completadas: 0, ventas: 0, comision: 0 }
 
       // Stats Semana
       const { data: citasSemana } = await supabase
@@ -461,7 +464,10 @@ export default function BarberoPage() {
           </h1>
           <p className="text-zinc-500 font-medium mt-1">Sigue tu progreso y gestiona tus citas hoy</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
+          <Button onClick={() => setShowWalkinModal(true)} variant="outline" size="lg" className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 uppercase tracking-wider font-black">
+            <Scissors className="w-5 h-5 mr-2" /> Venta Rápida
+          </Button>
           <Button onClick={() => userId && router.push(`/agenda/${userId}`)} variant="primary" size="lg" className="shadow-lg shadow-amber-500/20 uppercase tracking-wider font-black">
             <CalendarDays className="w-5 h-5 mr-2" /> Ver Mi Agenda
           </Button>

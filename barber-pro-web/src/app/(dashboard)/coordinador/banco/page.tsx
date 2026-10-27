@@ -105,7 +105,7 @@ export default function BancoPage() {
       supabase.from('transactions')
         .select('*')
         .neq('libro', 'BANCO')
-        .or('metodo_pago.eq.qr,metodo_pago.eq.tarjeta,metodo_pago.eq.mixto,monto_qr.gt.0')
+        .or('metodo_pago.eq.qr,metodo_pago.eq.tarjeta,metodo_pago.eq.transferencia,metodo_pago.eq.banco,metodo_pago.eq.mixto,monto_qr.gt.0')
         .order('fecha', { ascending: false })
         .order('creado_en', { ascending: false })
         .limit(10000),
@@ -135,8 +135,8 @@ export default function BancoPage() {
     if (t.libro === 'BANCO') return Number(t.costo || 0)
     // Pago mixto → solo la parte QR va al banco
     if (mpLower === 'mixto') return Number(t.monto_qr || 0)
-    // QR/tarjeta en cualquier libro → usar monto_qr si existe, sino costo
-    if (['qr', 'tarjeta'].includes(mpLower)) {
+    // QR/tarjeta/transferencia/banco en cualquier libro → usar monto_qr si existe, sino costo
+    if (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)) {
       return Number(t.monto_qr || 0) > 0 ? Number(t.monto_qr) : Number(t.costo || 0)
     }
     // Si tiene monto_qr > 0 por otra razón
@@ -152,7 +152,7 @@ export default function BancoPage() {
     // Cobros QR de clientes registrados como EGRESO de CAJA_CHICA/SERVICIOS/VENTAS
     // → es dinero que ENTRA al banco (el cliente pagó por QR), NO un retiro
     if ((libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
-      && ['qr', 'tarjeta'].includes(mpLower)
+      && ['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)
       && t.tipo_movimiento === 'EGRESO') {
       return false
     }

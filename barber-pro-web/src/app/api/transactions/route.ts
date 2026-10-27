@@ -95,9 +95,9 @@ export async function GET(request: NextRequest) {
           .limit(limit)
 
         if (fecha) {
-          citasQuery = citasQuery.gte('fecha_hora', `${fecha}T00:00:00`).lte('fecha_hora', `${fecha}T23:59:59`)
+          citasQuery = citasQuery.gte('fecha_hora', `${fecha}T00:00:00-04:00`).lte('fecha_hora', `${fecha}T23:59:59-04:00`)
         } else if (fechaDesde && fechaHasta) {
-          citasQuery = citasQuery.gte('fecha_hora', `${fechaDesde}T00:00:00`).lte('fecha_hora', `${fechaHasta}T23:59:59`)
+          citasQuery = citasQuery.gte('fecha_hora', `${fechaDesde}T00:00:00-04:00`).lte('fecha_hora', `${fechaHasta}T23:59:59-04:00`)
         }
         const { data: citasData, error: citasErr } = await citasQuery
         if (!citasErr && citasData && citasData.length > 0) {
@@ -193,7 +193,7 @@ export async function GET(request: NextRequest) {
                 fecha: fechaCita,
                 ci: clienteCi || '—',
                 nombre: clienteNombre,
-                cuenta_codigo: 'ING-001',
+                cuenta_codigo: '4.1.2',
                 cuenta_detalle: `Servicio: ${servicioNombre}`,
                 glosa: glosaFinal,
                 costo: precioCita,
@@ -535,7 +535,7 @@ export async function PATCH(request: NextRequest) {
           fecha: fecha || (cita.fecha_hora ? cita.fecha_hora.split('T')[0] : getTodayBolivia()),
           ci: clienteCi,
           nombre: clienteNombre,
-          cuenta_codigo: cuenta_codigo || 'ING-001',
+          cuenta_codigo: cuenta_codigo || '4.1.2',
           cuenta_detalle: cuenta_detalle || `Servicio: ${servicioNombre}`,
           glosa: glosa || `Atendido por ${barberoNombre} — Cita #${citaId.slice(0, 6)}`,
           costo: precioCita,

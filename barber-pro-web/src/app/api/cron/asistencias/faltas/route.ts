@@ -57,8 +57,14 @@ export async function GET() {
       }
     }
 
-    // 3. Obtener el tipo de sanción para Falta desde plan_cuentas
-    const { data: cuentasSancion } = await supabase.from('plan_cuentas').select('detalle').eq('es_sancion', true)
+    // 3. Obtener el tipo de sanción para Falta desde plan_cuentas y monto desde configuraciones
+    const [cuentasSancionRes, cfgAsistRes] = await Promise.all([
+      supabase.from('plan_cuentas').select('detalle').eq('es_sancion', true),
+      supabase.from('configuraciones').select('valor').eq('llave', 'asistencia_config').maybeSingle()
+    ])
+    const cuentasSancion = cuentasSancionRes.data
+    const montoFalta = Number(cfgAsistRes.data?.valor?.monto_falta) || 30
+
     let tipoSancionFalta = 'falta_injustificada'
     if (cuentasSancion && cuentasSancion.length > 0) {
       const match = cuentasSancion.find(c => c.detalle.toLowerCase().includes('falta') || c.detalle.toLowerCase().includes('ausen'))
@@ -103,7 +109,7 @@ export async function GET() {
         barbero_id: horario.barbero_id,
         tipo: tipoSancionFalta,
         descripcion: `Falta injustificada (Tenía turno ${horario.hora_inicio} - ${horario.hora_fin})`,
-        monto: 30, // Monto por defecto para faltas
+        monto: montoFalta,
         estado: 'pendiente'
       })
 

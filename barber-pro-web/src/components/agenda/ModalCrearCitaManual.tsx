@@ -19,6 +19,7 @@ import {
   Zap
 } from 'lucide-react'
 import { generateSmartSlots, isTimeSlotAvailable, minutesToTimeString, timeStringToMinutes, formatTime12h } from '@/lib/booking/booking-slots'
+import { getBoliviaDateString } from '@/lib/asistencia/helpers'
 
 interface Servicio {
   id: string
@@ -31,6 +32,7 @@ interface Barbero {
   id: string
   full_name: string
   avatar_url?: string | null
+  role?: string
 }
 
 interface Cliente {
@@ -82,7 +84,7 @@ export function ModalCrearCitaManual({
   const [emailCliente, setEmailCliente] = useState('')
   const [servicioId, setServicioId] = useState('')
   const [barberoId, setBarberoId] = useState(defaultBarberoId || '')
-  const [fechaCita, setFechaCita] = useState(defaultDate || new Date().toISOString().split('T')[0])
+  const [fechaCita, setFechaCita] = useState(defaultDate || getBoliviaDateString())
   const [horaCita, setHoraCita] = useState('10:00')
   const [notas, setNotas] = useState('')
 
@@ -109,7 +111,7 @@ export function ModalCrearCitaManual({
       try {
         const [servRes, barbRes] = await Promise.all([
           supabase.from('servicios').select('id, nombre, precio, duracion_minutos').eq('is_active', true).order('nombre'),
-          supabase.from('profiles').select('id, full_name, avatar_url').in('role', ['barbero', 'admin', 'coordinador']).eq('is_active', true).order('full_name')
+          supabase.from('profiles').select('id, full_name, avatar_url, role').in('role', ['barbero', 'admin', 'coordinador']).eq('is_active', true).order('full_name')
         ])
 
         if (servRes.data) {
@@ -117,9 +119,19 @@ export function ModalCrearCitaManual({
           if (servRes.data.length > 0 && !servicioId) setServicioId(servRes.data[0].id)
         }
         if (barbRes.data) {
-          setBarberos(barbRes.data)
-          if (barbRes.data.length > 0 && !barberoId) {
-            setBarberoId(defaultBarberoId || barbRes.data[0].id)
+          const cleanBarberos = barbRes.data.map(b => ({
+            ...b,
+            full_name: (b.full_name || '').trim()
+          })).sort((a, b) => {
+            if (a.role === 'barbero' && b.role !== 'barbero') return -1
+            if (a.role !== 'barbero' && b.role === 'barbero') return 1
+            return a.full_name.localeCompare(b.full_name)
+          })
+          setBarberos(cleanBarberos)
+          if (defaultBarberoId) {
+            setBarberoId(defaultBarberoId)
+          } else if (!barberoId && cleanBarberos.length > 0) {
+            setBarberoId(cleanBarberos[0].id)
           }
         }
       } catch (err) {
@@ -130,6 +142,18 @@ export function ModalCrearCitaManual({
     }
     loadResources()
   }, [isOpen, defaultBarberoId, supabase])
+
+  // Sincronizar barbero por defecto y fecha al abrir modal
+  useEffect(() => {
+    if (isOpen) {
+      if (defaultBarberoId) {
+        setBarberoId(defaultBarberoId)
+      }
+      if (defaultDate) {
+        setFechaCita(defaultDate)
+      }
+    }
+  }, [isOpen, defaultBarberoId, defaultDate])
 
   // Buscador Global de Clientes en Vivo con Debounce
   useEffect(() => {
@@ -163,7 +187,7 @@ export function ModalCrearCitaManual({
     if (!barberoId || !fechaCita) return
     setLoadingSlots(true)
     try {
-      const res = await fetch(`/api/citas/disponibilidad?barbero_id=${barberoId}&fecha=${fechaCita}`)
+      const res = await fetch(`/api/citas/disponibilidad?barbero_id=${barberoId}&fecha=${fechaCita}&manual=true`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al obtener disponibilidad')
 
@@ -201,19 +225,18 @@ export function ModalCrearCitaManual({
       setSlots(smartSlots)
 
       // Si la hora seleccionada no está disponible o no existe, preseleccionar la primera libre
-      const horaActualValida = smartSlots.some(s => s.hora === horaCita && s.disponible)
-      if (!horaActualValida) {
+      setHoraCita(prevHora => {
+        const horaActualValida = smartSlots.some(s => s.hora === prevHora && s.disponible)
+        if (horaActualValida) return prevHora
         const primerLibre = smartSlots.find(s => s.disponible)
-        if (primerLibre) {
-          setHoraCita(primerLibre.hora)
-        }
-      }
+        return primerLibre ? primerLibre.hora : prevHora
+      })
     } catch (err) {
       console.error('Error calculando disponibilidad:', err)
     } finally {
       setLoadingSlots(false)
     }
-  }, [barberoId, fechaCita, horaCita, servicioId, servicios])
+  }, [barberoId, fechaCita, servicioId, servicios])
 
   useEffect(() => {
     if (isOpen && barberoId && fechaCita) {
@@ -487,14 +510,19 @@ export function ModalCrearCitaManual({
                 </label>
                 <select
                   value={barberoId}
-                  onChange={e => setBarberoId(e.target.value)}
+                  onChange={e => {
+                    setBarberoId(e.target.value)
+                    setSlots([])
+                    setBarberoDisponibleDia(true)
+                    setMotivoNoDisponible('')
+                  }}
                   className="w-full h-11 bg-zinc-950 border border-zinc-800 rounded-xl px-3 text-xs font-bold text-white focus:border-amber-500 outline-none"
                   required
                 >
                   <option value="">-- Seleccionar Barbero --</option>
                   {barberos.map(b => (
                     <option key={b.id} value={b.id}>
-                      {b.full_name}
+                      {b.full_name} {b.role && b.role !== 'barbero' ? `(${b.role === 'admin' ? 'Admin' : 'Coordinador'})` : ''}
                     </option>
                   ))}
                 </select>

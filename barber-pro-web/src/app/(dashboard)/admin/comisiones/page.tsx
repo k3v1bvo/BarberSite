@@ -88,13 +88,14 @@ export default function AdminComisionesPage() {
       toastError('Selecciona un barbero')
       return
     }
-    const hoy = new Date()
-    let inicio = hoy.toISOString().slice(0, 10)
-    let fin = inicio
+    const hoyStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+    let inicio = hoyStr
+    let fin = hoyStr
     if (periodo === 'semanal') {
-      const d = new Date(hoy)
-      d.setDate(d.getDate() - d.getDay())
-      inicio = d.toISOString().slice(0, 10)
+      const d = new Date()
+      const boliviaDate = new Date(d.toLocaleString('en-US', { timeZone: 'America/La_Paz' }))
+      boliviaDate.setDate(boliviaDate.getDate() - boliviaDate.getDay())
+      inicio = `${boliviaDate.getFullYear()}-${String(boliviaDate.getMonth() + 1).padStart(2, '0')}-${String(boliviaDate.getDate()).padStart(2, '0')}`
     }
     try {
       const res = await fetch('/api/comisiones/pagos', {

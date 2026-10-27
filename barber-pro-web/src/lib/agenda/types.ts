@@ -6,6 +6,9 @@ export interface AgendaCita {
   reprogramacion_estado?: string
   fecha_hora_solicitada?: string
   anticipo_monto?: number
+  metodo_pago?: string | null
+  monto_efectivo?: number | null
+  monto_transferencia?: number | null
   cliente_nombre: string
   cliente_telefono?: string
   cliente_email?: string

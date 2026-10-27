@@ -438,7 +438,7 @@ export function CajaPOS() {
       const fetchDisponibilidad = async () => {
         setLoadingAgenda(true)
         try {
-          const res = await fetch(`/api/citas/disponibilidad?barbero_id=${formData.barbero_id}&fecha=${reservaFecha}`)
+          const res = await fetch(`/api/citas/disponibilidad?barbero_id=${formData.barbero_id}&fecha=${reservaFecha}&manual=true`)
           const data = await res.json()
           if (data.ocupados) {
             setHorasOcupadas(data.ocupados)

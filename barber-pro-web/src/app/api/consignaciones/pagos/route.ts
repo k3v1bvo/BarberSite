@@ -25,8 +25,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Monto inválido' }, { status: 400 })
     }
 
-    const mEfectivo = metodo_pago === 'mixto' ? Number(monto_efectivo) : (metodo_pago === 'efectivo' ? Number(monto) : 0)
-    const mQr = metodo_pago === 'mixto' ? Number(monto_qr) : (metodo_pago === 'qr' ? Number(monto) : 0)
+    const mpLower = String(metodo_pago || 'efectivo').toLowerCase()
+    const esDigital = ['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)
+    const mEfectivo = mpLower === 'mixto' ? Number(monto_efectivo) : (mpLower === 'efectivo' ? Number(monto) : 0)
+    const mQr = mpLower === 'mixto' ? Number(monto_qr) : (esDigital ? Number(monto) : 0)
 
     // 1. Crear el pago
     const { error: pagoError } = await supabase
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
       .insert({
         consignacion_id: consignacion_id || null, // null significa un pago general
         monto: Number(monto),
-        metodo_pago,
+        metodo_pago: mpLower,
         monto_efectivo: mEfectivo,
         monto_qr: mQr,
         notas: notas || null,
@@ -59,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     // 3. Crear el Egreso contable para reflejar la salida de dinero
     await supabase.from('transactions').insert({
-      libro: 'EGRESOS',
+      libro: mpLower === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
       fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
       ci: 'S/N',
       nombre: 'Pago Consignación Proveedor',
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
       costo: Number(monto),
       tipo_movimiento: 'EGRESO',
       subcategoria: 'CONSIGNACION_PAGO',
-      metodo_pago,
+      metodo_pago: mpLower,
       monto_efectivo: mEfectivo,
       monto_qr: mQr,
       usuario_registro: profile?.full_name || 'Admin'

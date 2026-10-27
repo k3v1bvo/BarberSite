@@ -121,6 +121,8 @@ export async function PATCH(request: NextRequest) {
       es_sancion: false, // Es un ingreso normal recuperado
       empleado_id: sancion.barbero_id,
       metodo_pago: mpLower,
+      monto_efectivo: esDigital ? 0 : Number(sancion.monto),
+      monto_qr: esDigital ? Number(sancion.monto) : 0,
       comprobante_url: comprobante_url || null,
       usuario_registro: profile?.full_name || user.email || 'Sistema',
       notas: 'Cobro de sanción (Manual)'

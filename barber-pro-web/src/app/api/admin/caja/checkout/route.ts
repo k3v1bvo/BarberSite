@@ -593,14 +593,14 @@ export async function POST(request: NextRequest) {
         if (itemDescuento > 0) notasProdArr.push(`Desc. Barbería: -Bs ${itemDescuento} (Asumido 100% por barbería)`)
         if (descuentoProductosMotivo) notasProdArr.push(`Motivo: ${descuentoProductosMotivo}`)
 
-        await adminSupabase
+        const { error: prodTxErr } = await adminSupabase
           .from('transactions')
           .insert({
             libro: 'VENTAS',
             fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora),
             ci: ciReal || '—',
             nombre: nombre || 'Cliente en Caja',
-            cuenta_codigo: '4.1.2',
+            cuenta_codigo: '4.1.1',
             cuenta_detalle: item.nombre,
             producto_id: item.id,
             glosa: glosaProd,
@@ -618,6 +618,9 @@ export async function POST(request: NextRequest) {
             comprobante_url: comprobante_url || null,
             usuario_registro: profile.full_name || 'Coordinador',
           })
+        if (prodTxErr) {
+          console.error('Error insertando transaccion de producto:', prodTxErr)
+        }
       }
     }
 
@@ -786,7 +789,7 @@ export async function POST(request: NextRequest) {
           fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora),
           ci: ciReal || '—',
           nombre: nombre || 'Cliente en Caja',
-          cuenta_codigo: 'ING-001',
+          cuenta_codigo: '4.1.2',
           cuenta_detalle: serv.nombre,
           glosa: glosaFinal,
           costo: precioNetoServicio,
@@ -814,19 +817,22 @@ export async function POST(request: NextRequest) {
             .maybeSingle()
 
           if (existingTx?.id) {
-            await adminSupabase
+            const { error: upTxErr } = await adminSupabase
               .from('transactions')
               .update(txData)
               .eq('id', existingTx.id)
+            if (upTxErr) console.error('Error actualizando transaccion servicio:', upTxErr)
           } else {
-            await adminSupabase
+            const { error: inTxErr } = await adminSupabase
               .from('transactions')
               .insert(txData)
+            if (inTxErr) console.error('Error insertando transaccion servicio:', inTxErr)
           }
         } else {
-          await adminSupabase
+          const { error: inTxErr } = await adminSupabase
             .from('transactions')
             .insert(txData)
+          if (inTxErr) console.error('Error insertando transaccion servicio:', inTxErr)
         }
       }
         

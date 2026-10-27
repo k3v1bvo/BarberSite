@@ -123,8 +123,8 @@ export default function ReportesPage() {
 
       const [citasRes, txRes, prevCitasRes, prevTxRes, barberosRes, clientesRes, serviciosRes, inventarioRes, closuresRes] = await Promise.all([
         supabase.from('citas').select('estado, precio, fecha_hora, barbero_id, servicio_id, metodo_pago')
-          .gte('fecha_hora', `${fechaInicio}T00:00:00`)
-          .lte('fecha_hora', `${fechaFin}T23:59:59`)
+          .gte('fecha_hora', `${fechaInicio}T00:00:00-04:00`)
+          .lte('fecha_hora', `${fechaFin}T23:59:59-04:00`)
           .limit(50000),
         supabase.from('transactions').select('id, libro, fecha, ci, nombre, cuenta_codigo, cuenta_detalle, glosa, costo, tipo_movimiento, metodo_pago, usuario_registro, comprobante_url, subcategoria, monto_efectivo, monto_qr, notas')
           .gte('fecha', fechaInicio)
@@ -133,8 +133,8 @@ export default function ReportesPage() {
           .limit(50000),
         // Periodo Anterior
         supabase.from('citas').select('estado, precio')
-          .gte('fecha_hora', `${prevInicioStr}T00:00:00`)
-          .lte('fecha_hora', `${prevFinStr}T23:59:59`)
+          .gte('fecha_hora', `${prevInicioStr}T00:00:00-04:00`)
+          .lte('fecha_hora', `${prevFinStr}T23:59:59-04:00`)
           .limit(50000),
         supabase.from('transactions').select('tipo_movimiento, costo, libro, metodo_pago, monto_qr')
           .gte('fecha', prevInicioStr)
@@ -146,8 +146,8 @@ export default function ReportesPage() {
         supabase.from('servicios').select('id, nombre').limit(5000),
         supabase.from('inventario_movimientos')
           .select('id, tipo, cantidad, created_at, producto:productos(nombre, precio_venta)')
-          .gte('created_at', `${fechaInicio}T00:00:00`)
-          .lte('created_at', `${fechaFin}T23:59:59`)
+          .gte('created_at', `${fechaInicio}T00:00:00-04:00`)
+          .lte('created_at', `${fechaFin}T23:59:59-04:00`)
           .limit(50000),
         supabase.from('daily_closures')
           .select('*')
@@ -169,7 +169,7 @@ export default function ReportesPage() {
       const esCobroQrDeCaja = (tx: any) => {
         const mpLower = String(tx.metodo_pago || '').toLowerCase()
         const libroTx = String(tx.libro || '').toUpperCase()
-        const tieneQr = ['qr', 'tarjeta'].includes(mpLower) || Number(tx.monto_qr || 0) > 0
+        const tieneQr = ['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower) || Number(tx.monto_qr || 0) > 0
         return (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
           && tieneQr
           && tx.tipo_movimiento === 'EGRESO'
@@ -179,18 +179,24 @@ export default function ReportesPage() {
         const nombre = String(tx.nombre || '').toUpperCase()
         const glosa = String(tx.glosa || '').toUpperCase()
         const codigo = String(tx.cuenta_codigo || '').toUpperCase()
-        return codigo.startsWith('1.1.') || nombre.includes('DEPOSITO') || glosa.includes('DEPOSITO') || nombre.includes('TRANSFERENCIA A BANCO') || glosa.includes('TRANSFERENCIA A BANCO')
+        return codigo.startsWith('1.1.') || nombre.includes('DEPOSITO A BANCO') || glosa.includes('TRANSFERENCIA A BANCO')
       }
 
       const checkEsIngreso = (tx: any) => {
-        if (tx.libro === 'USO_TIENDA' || tx.libro === 'BANCO' || esMovimientoInterno(tx)) return false
+        if (tx.libro === 'USO_TIENDA' || esMovimientoInterno(tx)) return false
         if (esCobroQrDeCaja(tx)) return true
-        return tx.tipo_movimiento === 'INGRESO' || tx.tipo_movimiento === 'VENTA_PRODUCTO' || String(tx.cuenta_codigo || '').startsWith('4')
+        if (tx.libro === 'BANCO') {
+          return tx.tipo_movimiento === 'INGRESO' || tx.tipo_movimiento === 'DEPOSITO' || tx.subcategoria === 'ANTICIPO_RESERVA'
+        }
+        return tx.tipo_movimiento === 'INGRESO' || tx.tipo_movimiento === 'VENTA_PRODUCTO' || String(tx.cuenta_codigo || '').startsWith('4') || String(tx.cuenta_codigo || '').startsWith('ING')
       }
       const checkEsEgreso = (tx: any) => {
-        if (tx.libro === 'USO_TIENDA' || tx.libro === 'BANCO' || esMovimientoInterno(tx)) return false
+        if (tx.libro === 'USO_TIENDA' || esMovimientoInterno(tx)) return false
         if (esCobroQrDeCaja(tx)) return false
-        return tx.tipo_movimiento === 'EGRESO'
+        if (tx.libro === 'BANCO') {
+          return tx.tipo_movimiento === 'EGRESO' || tx.tipo_movimiento === 'RETIRO'
+        }
+        return tx.tipo_movimiento === 'EGRESO' || tx.tipo_movimiento === 'RETIRO' || tx.tipo_movimiento === 'ADELANTO' || String(tx.cuenta_codigo || '').startsWith('5') || String(tx.cuenta_codigo || '').startsWith('EGR')
       }
 
       // --- 1. Finanzas y Transacciones ---
@@ -249,7 +255,12 @@ export default function ReportesPage() {
               metodos['qr'] += qrMatch ? parseFloat(qrMatch[1]) : (costo - Math.floor(costo / 2))
             }
           } else if (tx.metodo_pago) {
-            metodos[tx.metodo_pago] = (metodos[tx.metodo_pago] || 0) + costo
+            const mp = String(tx.metodo_pago).toLowerCase()
+            if (['transferencia', 'banco'].includes(mp)) {
+              metodos['qr'] = (metodos['qr'] || 0) + costo
+            } else {
+              metodos[mp] = (metodos[mp] || 0) + costo
+            }
           }
         }
 

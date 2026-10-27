@@ -212,19 +212,21 @@ export default function CajaChicaPage() {
       const [antTxRes, antCitasRes] = await Promise.all([
         supabase
           .from('transactions')
-          .select('costo, tipo_movimiento, metodo_pago, monto_efectivo, monto_qr, notas, libro, fecha')
+          .select('id, cita_id, costo, tipo_movimiento, metodo_pago, monto_efectivo, monto_qr, notas, libro, fecha')
           .gt('fecha', '2026-07-29')
           .lt('fecha', desde),
         supabase
           .from('citas')
-          .select('precio, metodo_pago, anticipo_monto, fecha_hora')
+          .select('id, precio, metodo_pago, anticipo_monto, fecha_hora')
           .eq('estado', 'completado')
-          .gt('fecha_hora', '2026-07-29T23:59:59')
-          .lt('fecha_hora', `${desde}T00:00:00`)
+          .gt('fecha_hora', '2026-07-29T23:59:59-04:00')
+          .lt('fecha_hora', `${desde}T00:00:00-04:00`)
       ])
 
       const antTx = antTxRes.data || []
       const antCitas = antCitasRes.data || []
+      const antTxCitaIds = new Set<string>()
+      antTx.forEach(t => { if (t.cita_id) antTxCitaIds.add(String(t.cita_id)) })
 
       antTx.forEach(tx => {
         const ing = tx.tipo_movimiento === 'INGRESO'
@@ -251,7 +253,7 @@ export default function CajaChicaPage() {
         if (ing) { antEf += ef } else { antEf -= ef }
 
         const esCobroQrDeCaja = (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
-          && ['qr', 'tarjeta'].includes(mpLower)
+          && (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower) || qr > 0)
           && tx.tipo_movimiento === 'EGRESO'
         if (esCobroQrDeCaja) {
           antQr += qr
@@ -264,6 +266,7 @@ export default function CajaChicaPage() {
 
       // Sumar ingresos de citas completadas posteriores al 29/07 que no estén en antTx
       antCitas.forEach(c => {
+        if (antTxCitaIds.has(String(c.id))) return
         const precioCita = Number(c.precio || 0)
         const anticipoQr = Number(c.anticipo_monto || 0)
         const mp = String(c.metodo_pago || 'efectivo').toLowerCase()
@@ -559,7 +562,7 @@ export default function CajaChicaPage() {
     const mpLower = String(tx.metodo_pago || '').toLowerCase()
     const libroTx = String(tx.libro || '').toUpperCase()
     return (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
-      && ['qr', 'tarjeta'].includes(mpLower)
+      && (['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower) || Number(tx.monto_qr || 0) > 0)
       && tx.tipo_movimiento === 'EGRESO'
   }
 
@@ -603,8 +606,8 @@ export default function CajaChicaPage() {
 
   const flujoEfectivoPeriodo = ingresosEfectivo - egresosEfectivo
   const flujoQRPeriodo = ingresosQR - egresosQR
-  const saldoEfectivoTotal = (saldoAnterior?.ef || 210) + flEfTotal
-  const saldoQRTotal = (saldoAnterior?.qr || 642.54) + flQrTotal
+  const saldoEfectivoTotal = (saldoAnterior?.ef ?? 64.50) + flEfTotal
+  const saldoQRTotal = (saldoAnterior?.qr ?? 1088.29) + flQrTotal
 
   const esPeriodoSeleccionado = periodo !== 'todos'
   const mostrandoseEfectivo = saldoEfectivoTotal

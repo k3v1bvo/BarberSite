@@ -123,6 +123,22 @@ export async function calcularComisionBarbero(
       }
     }
 
+    // 4. Fallback final: porcentaje base configurado en el perfil del barbero (si existe)
+    if (resultado.tipo_usado === 'ninguna' && barbero_id) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('comision_porcentaje')
+        .eq('id', barbero_id)
+        .maybeSingle()
+
+      if (prof && prof.comision_porcentaje && Number(prof.comision_porcentaje) > 0) {
+        resultado.tipo_usado = 'perfil'
+        resultado.comision_tipo = 'porcentaje'
+        resultado.comision_valor = Number(prof.comision_porcentaje)
+        resultado.monto = (precio_servicio * resultado.comision_valor) / 100
+      }
+    }
+
     return resultado
   } catch (err) {
     console.error('[calcularComisionBarbero] Error:', err)

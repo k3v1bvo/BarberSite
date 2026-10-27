@@ -108,12 +108,16 @@ export async function POST(request: Request) {
       const { data: barberoProfileServ } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
       const fechaBolivia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora)
 
-      await adminSupabase.from('transactions').insert({
+      const isDigital = ['qr', 'tarjeta', 'transferencia', 'banco'].includes(metodo_pago)
+      const mEfServ = metodo_pago === 'efectivo' ? precioBase : (metodo_pago === 'mixto' ? Number(body.monto_efectivo || 0) : 0)
+      const mQrServ = isDigital ? precioBase : (metodo_pago === 'mixto' ? Number(body.monto_qr || 0) : 0)
+
+      const { error: walkinTxErr } = await adminSupabase.from('transactions').insert({
         libro: 'SERVICIOS',
         fecha: fechaBolivia,
         ci: '0000000',
         nombre: nombreCliente || 'Cliente Walk-in',
-        cuenta_codigo: 'ING-001',
+        cuenta_codigo: '4.1.2',
         cuenta_detalle: 'Ingresos por Servicios (Walk-in)',
         glosa: `Venta Rápida Walk-in - Barbero: ${barberoProfileServ?.full_name || 'Desconocido'}`,
         costo: precioBase,
@@ -123,8 +127,11 @@ export async function POST(request: Request) {
         empleado_id: user.id,
         cliente_id: clienteId,
         metodo_pago: metodo_pago || 'efectivo',
+        monto_efectivo: mEfServ,
+        monto_qr: mQrServ,
         usuario_registro: barberoProfileServ?.full_name || 'Barbero',
       })
+      if (walkinTxErr) console.error('Error insertando transaccion walkin servicio:', walkinTxErr)
     }
 
     // 3. Procesar Productos
@@ -154,24 +161,30 @@ export async function POST(request: Request) {
           })
         } catch (e) { console.error('Error mov inventario:', e) }
 
+        const itemTotal = item.precio * item.cantidad
+        const isDigitalProd = ['qr', 'tarjeta', 'transferencia', 'banco'].includes(metodo_pago)
         // Transacción contable
-        await adminSupabase.from('transactions').insert({
+        const { error: prodTxErr } = await adminSupabase.from('transactions').insert({
           libro: 'VENTAS',
           fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora),
           ci: '0000000',
           nombre: nombreCliente || 'Cliente Walk-in',
-          cuenta_codigo: '4.1.2',
+          cuenta_codigo: '4.1.1',
           cuenta_detalle: item.nombre,
           producto_id: item.id,
           glosa: `Venta Walk-in - ${item.cantidad}x ${item.nombre} - Barbero: ${barberoProfile?.full_name || 'Desconocido'}`,
-          costo: item.precio * item.cantidad,
+          costo: itemTotal,
           tipo_movimiento: 'VENTA_PRODUCTO',
+          subcategoria: 'PRODUCTO_VENTA',
           es_sancion: false,
           empleado_id: user.id,
           cliente_id: clienteId,
           metodo_pago: metodo_pago || 'efectivo',
+          monto_efectivo: metodo_pago === 'efectivo' ? itemTotal : (metodo_pago === 'mixto' ? Math.round((Number(body.monto_efectivo || 0) * (itemTotal / (totalProductos || 1))) * 100) / 100 : 0),
+          monto_qr: isDigitalProd ? itemTotal : (metodo_pago === 'mixto' ? Math.round((Number(body.monto_qr || 0) * (itemTotal / (totalProductos || 1))) * 100) / 100 : 0),
           usuario_registro: barberoProfile?.full_name || 'Barbero',
         })
+        if (prodTxErr) console.error('Error insertando transaccion walkin producto:', prodTxErr)
       }
     }
 

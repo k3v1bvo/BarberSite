@@ -103,9 +103,10 @@ export async function POST(request: NextRequest) {
     const it = body.tiene_factura ? montoBruto * 0.03 : 0
     const montoNeto = montoBruto - iva - it
 
-    const metodoPago = body.metodo_pago || 'efectivo'
+    const metodoPago = String(body.metodo_pago || 'efectivo').toLowerCase()
+    const isDigital = ['qr', 'tarjeta', 'transferencia', 'banco'].includes(metodoPago)
     const montoEfectivo = metodoPago === 'mixto' ? (Number(body.monto_efectivo) || 0) : (metodoPago === 'efectivo' ? montoNeto : 0)
-    const montoQr = metodoPago === 'mixto' ? (Number(body.monto_qr) || 0) : (metodoPago === 'qr' ? montoNeto : 0)
+    const montoQr = metodoPago === 'mixto' ? (Number(body.monto_qr) || 0) : (isDigital ? montoNeto : 0)
 
     const cuentaCodigoFinal = body.cuenta_codigo || 'EGR-GEN'
     // Asegurar que la cuenta exista en plan_cuentas para evitar error de FK (egresos_cuenta_codigo_fkey y transactions_cuenta_codigo_fkey)
@@ -269,7 +270,8 @@ export async function PATCH(request: NextRequest) {
     updatePayload.it = it
     updatePayload.monto_neto = montoNeto
 
-    const metodoPago = body.metodo_pago !== undefined ? body.metodo_pago : (oldEgreso?.metodo_pago || 'efectivo')
+    const metodoPago = String(body.metodo_pago !== undefined ? body.metodo_pago : (oldEgreso?.metodo_pago || 'efectivo')).toLowerCase()
+    const isDigital = ['qr', 'tarjeta', 'transferencia', 'banco'].includes(metodoPago)
     updatePayload.metodo_pago = metodoPago
     if (body.monto_efectivo !== undefined) {
       updatePayload.monto_efectivo = Number(body.monto_efectivo) || 0
@@ -278,7 +280,7 @@ export async function PATCH(request: NextRequest) {
     }
     if (body.monto_qr !== undefined) {
       updatePayload.monto_qr = Number(body.monto_qr) || 0
-    } else if (metodoPago === 'qr') {
+    } else if (isDigital) {
       updatePayload.monto_qr = montoNeto
     }
 

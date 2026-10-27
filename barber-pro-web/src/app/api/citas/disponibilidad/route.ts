@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       .lte('fecha_inicio', finDia),
     supabase
       .from('citas')
-      .select('fecha_hora, duracion_real_minutos')
+      .select('fecha_hora, duracion_real_minutos, servicios(duracion_minutos)')
       .eq('barbero_id', barbero_id)
       .gte('fecha_hora', inicioDia)
       .lte('fecha_hora', finDia)
@@ -90,6 +90,8 @@ export async function GET(request: Request) {
 
   const feriadoCoincidente = feriadosList.find(f => f.fecha === fecha)
 
+  const esManual = searchParams.get('manual') === 'true' || searchParams.get('es_manual') === 'true'
+
   let disponible = true
   let hora_inicio = '09:00'
   let hora_fin = '20:00'
@@ -102,8 +104,16 @@ export async function GET(request: Request) {
   // Prioridad 1: Evaluación de Feriados
   if (feriadoCoincidente) {
     if (feriadoCoincidente.tipo === 'cerrado') {
-      disponible = false
-      motivo = `Feriado: ${feriadoCoincidente.nombre} (Cerrado sin atención al público)`
+      if (esManual) {
+        disponible = true
+        motivo = `Feriado: ${feriadoCoincidente.nombre} (Agendamiento manual)`
+        hora_inicio = '09:00'
+        hora_fin = '20:00'
+        turnos = [{ inicio: hora_inicio, fin: hora_fin }]
+      } else {
+        disponible = false
+        motivo = `Feriado: ${feriadoCoincidente.nombre} (Cerrado sin atención al público)`
+      }
     } else {
       disponible = true
       hora_inicio = feriadoCoincidente.hora_inicio || '10:00'
@@ -115,8 +125,16 @@ export async function GET(request: Request) {
   // Prioridad 2: Horario Semanal Estándar o Fraccionado
   else if (horario) {
     if (!horario.activo) {
-      disponible = false
-      motivo = diaSemana === 0 ? 'El barbero no atiende los domingos.' : 'El barbero no atiende en este día de la semana.'
+      if (esManual) {
+        disponible = true
+        hora_inicio = horario.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
+        hora_fin = horario.hora_fin ? horario.hora_fin.slice(0, 5) : '20:00'
+        turnos = [{ inicio: hora_inicio, fin: hora_fin }]
+        motivo = 'Día libre habitual del barbero (se permite agendamiento manual)'
+      } else {
+        disponible = false
+        motivo = diaSemana === 0 ? 'El barbero no atiende los domingos.' : 'El barbero no atiende en este día de la semana.'
+      }
     } else {
       const cfgHorario = configFraccionadoRes.data?.valor?.horario as any[] | undefined
       const cfgDay = cfgHorario?.find((c: any) => Number(c.dia_semana) === diaSemana)
@@ -146,6 +164,12 @@ export async function GET(request: Request) {
         turnos = [{ inicio: hora_inicio, fin: hora_fin }]
       }
     }
+  } else {
+    // Si no tiene horario configurado para este día (ej: nuevo barbero o staff): horario estándar 09:00 a 20:00
+    hora_inicio = '09:00'
+    hora_fin = '20:00'
+    turnos = [{ inicio: hora_inicio, fin: hora_fin }]
+    disponible = true
   }
 
   // Extraer las horas ocupadas con su duración (citas, bloqueos parciales, recesos fraccionados y permisos por horas)
@@ -193,12 +217,16 @@ export async function GET(request: Request) {
         duracion: durMin
       })
     } else {
-      disponible = false
-      motivo = `El barbero cuenta con un permiso aprobado en esta fecha (${permisoAprobado.motivo || 'Permiso Justificado'}).`
+      if (esManual) {
+        motivo = `El barbero tiene permiso aprobado (${permisoAprobado.motivo || 'Permiso Justificado'}), pero se permite agendar manualmente.`
+      } else {
+        disponible = false
+        motivo = `El barbero cuenta con un permiso aprobado en esta fecha (${permisoAprobado.motivo || 'Permiso Justificado'}).`
+      }
     }
   }
 
-  // Prioridad 5: Evaluación de Asistencia en Tiempo Real si es HOY
+  // Prioridad 5: Evaluación de Asistencia en Tiempo Real si es HOY (Solo para reservas públicas web)
   const nowBolivia = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/La_Paz' }))
   const hoyBolivia = `${nowBolivia.getFullYear()}-${String(nowBolivia.getMonth() + 1).padStart(2, '0')}-${String(nowBolivia.getDate()).padStart(2, '0')}`
   const esHoy = fecha === hoyBolivia
@@ -206,7 +234,7 @@ export async function GET(request: Request) {
   const [hIni] = hora_inicio.split(':').map(Number)
   const startMinutes = (hIni || 9) * 60
 
-  if (esHoy && disponible) {
+  if (esHoy && disponible && !esManual) {
     const asis = asistenciaRes.data
     if (asis) {
       if (asis.estado === 'permiso') {
@@ -256,7 +284,7 @@ export async function GET(request: Request) {
   // Verificar bloqueos de todo el día o día libre/vacación completa
   const bloqueos = bloqueosRes.data || []
   const bloqueoTodoDia = bloqueos.find(b => b.todo_el_dia || b.tipo === 'vacacion' || b.tipo === 'dia_libre')
-  if (bloqueoTodoDia && disponible) {
+  if (bloqueoTodoDia && disponible && !esManual) {
     disponible = false
     motivo = bloqueoTodoDia.tipo === 'vacacion' ? 'El barbero está de vacaciones en esta fecha.' : 'Día libre o bloqueo programado para el barbero.'
   }
@@ -272,7 +300,7 @@ export async function GET(request: Request) {
       })
       ocupados.push({
         hora,
-        duracion: cita.duracion_real_minutos || 30
+        duracion: cita.duracion_real_minutos || (cita.servicios as any)?.duracion_minutos || 30
       })
     })
   }

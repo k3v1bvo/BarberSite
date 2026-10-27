@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getBoliviaDateString, getBusinessNow } from '@/lib/asistencia/helpers'
+import { getBoliviaDateKey } from '@/lib/agenda/date-utils'
 
 export async function GET(req: Request) {
   const supabase = await createServerSupabaseClient()
@@ -98,7 +99,7 @@ export async function GET(req: Request) {
       pendiente += comision
     }
 
-    const dateStr = c.fecha_hora.slice(0, 10)
+    const dateStr = getBoliviaDateKey(c.fecha_hora)
     if (dateStr === todayStr) {
       hoy += comision
     }

@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
         tipo_movimiento: 'EGRESO',
         es_sancion: false,
         empleado_id: empleado_id,
+        metodo_pago: 'efectivo',
+        monto_efectivo: monto,
+        monto_qr: 0,
         usuario_registro: profile.full_name || user.email || 'Sistema',
       })
       .select()

@@ -47,17 +47,6 @@ export async function GET(request: NextRequest) {
 
     const fecha = request.nextUrl.searchParams.get('fecha') || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 
-    const dObj = new Date(`${fecha}T12:00:00Z`)
-    const nextObj = new Date(dObj.getTime() + 86400000)
-    const nextDayStr = nextObj.toISOString().split('T')[0]
-
-    // Auto-reparar registros guardados con fecha UTC errónea en este día boliviano
-    await supabase
-      .from('transactions')
-      .update({ fecha })
-      .eq('fecha', nextDayStr)
-      .not('monto_qr', 'is', null)
-
     const { data: txDia } = await supabase
       .from('transactions')
       .select('libro, costo, metodo_pago, es_sancion, tipo_movimiento, monto_efectivo, monto_qr')
@@ -65,9 +54,9 @@ export async function GET(request: NextRequest) {
 
     const { data: citasDia } = await supabase
       .from('citas')
-      .select('id, precio, anticipo_monto, created_at, metodo_pago, barbero_id, cliente_id, comision_pagada, comision_barbero, notas')
-      .gte('fecha_hora', `${fecha}T00:00:00`)
-      .lte('fecha_hora', `${fecha}T23:59:59`)
+      .select('id, precio, anticipo_monto, created_at, metodo_pago, monto_efectivo, monto_transferencia, barbero_id, cliente_id, comision_pagada, comision_barbero, notas')
+      .gte('fecha_hora', `${fecha}T00:00:00-04:00`)
+      .lte('fecha_hora', `${fecha}T23:59:59-04:00`)
       .eq('estado', 'completado')
 
     const getCitaNeto = (c: any) => {
@@ -106,26 +95,29 @@ export async function GET(request: NextRequest) {
       const costo = Number(t.costo)
       const mpLower = String(t.metodo_pago || '').toLowerCase()
       const libroTx = String(t.libro || '').toUpperCase()
+      const isDigital = ['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)
 
       const esCobroQrDeCaja = (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
-        && ['qr', 'tarjeta'].includes(mpLower)
+        && isDigital
         && t.tipo_movimiento === 'EGRESO'
 
-      const isIngreso = esCobroQrDeCaja ? true : t.tipo_movimiento === 'INGRESO'
-      const isEgreso = esCobroQrDeCaja ? false : t.tipo_movimiento === 'EGRESO'
+      const isIngreso = esCobroQrDeCaja
+        ? true
+        : (t.tipo_movimiento === 'INGRESO' || t.tipo_movimiento === 'VENTA_PRODUCTO' || (t.tipo_movimiento === 'DEPOSITO' && t.libro === 'BANCO'))
+      const isEgreso = esCobroQrDeCaja ? false : (t.tipo_movimiento === 'EGRESO' || t.tipo_movimiento === 'RETIRO')
 
       if (t.libro === 'CAJA_CHICA') resumen.caja_chica += (isIngreso ? costo : -costo)
       else if (t.libro === 'VENTAS') resumen.ventas += (isIngreso ? costo : -costo)
       else if (t.libro === 'SERVICIOS') resumen.servicios += (isIngreso ? costo : -costo)
       else if (t.libro === 'USO_TIENDA') resumen.uso_tienda += (isIngreso ? costo : -costo)
       
-      if (t.libro === 'BANCO' || ['qr', 'tarjeta'].includes(mpLower) || Number(t.monto_qr || 0) > 0) {
+      if (t.libro === 'BANCO' || isDigital || Number(t.monto_qr || 0) > 0) {
         const montoBanco = Number(t.monto_qr || 0) > 0 ? Number(t.monto_qr) : costo
         if (t.libro === 'BANCO') {
           resumen.banco += (t.tipo_movimiento === 'RETIRO' || t.tipo_movimiento === 'EGRESO') ? -montoBanco : montoBanco
         } else if (esCobroQrDeCaja || isIngreso) {
           resumen.banco += montoBanco
-        } else if (isEgreso && ['qr', 'tarjeta'].includes(mpLower)) {
+        } else if (isEgreso && isDigital) {
           resumen.banco -= montoBanco
         }
       }
@@ -139,8 +131,12 @@ export async function GET(request: NextRequest) {
       if (t.es_sancion) resumen.sanciones += costo
       
       // Manejar métodos de pago con montos mixtos
-      const mEfectivo = t.metodo_pago === 'mixto' ? Number(t.monto_efectivo || 0) : (t.metodo_pago === 'efectivo' ? costo : 0)
-      const mQr = t.metodo_pago === 'mixto' ? Number(t.monto_qr || 0) : (t.metodo_pago === 'qr' ? costo : 0)
+      const mEfectivo = t.metodo_pago === 'mixto'
+        ? Number(t.monto_efectivo || 0)
+        : (t.metodo_pago === 'efectivo' ? costo : Number(t.monto_efectivo || 0))
+      const mQr = t.metodo_pago === 'mixto'
+        ? Number(t.monto_qr || 0)
+        : (isDigital ? (Number(t.monto_qr || 0) > 0 ? Number(t.monto_qr) : costo) : Number(t.monto_qr || 0))
       
       if (isIngreso) {
         resumen.total_efectivo += mEfectivo
@@ -149,7 +145,7 @@ export async function GET(request: NextRequest) {
       } else if (isEgreso) {
         resumen.total_efectivo -= mEfectivo
         resumen.total_qr -= mQr
-        if (t.metodo_pago === 'tarjeta') resumen.total_tarjeta += costo
+        if (t.metodo_pago === 'tarjeta') resumen.total_tarjeta -= costo
       }
     })
 
@@ -172,7 +168,12 @@ export async function GET(request: NextRequest) {
         if (fechaReservaBolivia === fecha) {
           citasQrBanco += anticipo
         }
-        if (mp === 'qr' || mp === 'tarjeta' || mp === 'transferencia' || mp === 'banco') {
+        if (mp === 'mixto') {
+          const efPart = Number(c.monto_efectivo) || 0
+          const qrPart = Number(c.monto_transferencia) || (saldo - efPart)
+          citasEfectivo += efPart
+          citasQrBanco += qrPart
+        } else if (mp === 'qr' || mp === 'tarjeta' || mp === 'transferencia' || mp === 'banco') {
           citasQrBanco += saldo
         } else {
           citasEfectivo += saldo
@@ -242,12 +243,13 @@ export async function POST(request: NextRequest) {
 
     if (body.cerrado && body.pago_cierre && Number(body.pago_cierre.monto) > 0) {
       const pMonto = Number(body.pago_cierre.monto)
-      const pMetodo = body.pago_cierre.metodo_pago || 'efectivo'
+      const pMetodo = String(body.pago_cierre.metodo_pago || 'efectivo').toLowerCase()
       const pPersona = body.pago_cierre.persona || usuarioCierre
       const pComprobante = body.pago_cierre.comprobante_url || null
+      const esDigital = ['qr', 'transferencia', 'banco', 'tarjeta'].includes(pMetodo)
 
       await supabase.from('transactions').insert({
-        libro: pMetodo === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
+        libro: esDigital ? 'BANCO' : 'CAJA_CHICA',
         fecha,
         ci: '0000000',
         nombre: `Pago Cierre de Caja a ${pPersona}`,
@@ -259,8 +261,8 @@ export async function POST(request: NextRequest) {
         es_sancion: false,
         metodo_pago: pMetodo,
         subcategoria: 'PAGO_CIERRE_CAJA',
-        monto_efectivo: pMetodo === 'efectivo' ? pMonto : 0,
-        monto_qr: pMetodo === 'qr' ? pMonto : 0,
+        monto_efectivo: esDigital ? 0 : pMonto,
+        monto_qr: esDigital ? pMonto : 0,
         usuario_registro: profile?.full_name || 'Sistema',
         comprobante_url: pComprobante
       })
@@ -276,8 +278,8 @@ export async function POST(request: NextRequest) {
         monto_neto: pMonto,
         cuenta_codigo: 'EGR-CIE',
         metodo_pago: pMetodo,
-        monto_efectivo: pMetodo === 'efectivo' ? pMonto : 0,
-        monto_qr: pMetodo === 'qr' ? pMonto : 0,
+        monto_efectivo: esDigital ? 0 : pMonto,
+        monto_qr: esDigital ? pMonto : 0,
         usuario_registro: profile?.full_name || 'Sistema',
         notas: `Bono por cerrar caja el día ${fecha}`
       })

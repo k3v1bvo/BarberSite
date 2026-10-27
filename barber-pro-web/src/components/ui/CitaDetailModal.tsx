@@ -100,7 +100,7 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
     const fetchDisponibilidad = async () => {
       setLoadingSlots(true)
       try {
-        const res = await fetch(`/api/citas/disponibilidad?barbero_id=${newBarberoId}&fecha=${newDate}`)
+        const res = await fetch(`/api/citas/disponibilidad?barbero_id=${newBarberoId}&fecha=${newDate}&manual=true`)
         const json = await res.json()
         if (json.disponible) {
           const srvObj = serviciosList.find(s => s.id === newServicioId || s.nombre === cita?.servicio_nombre)
@@ -469,9 +469,55 @@ export function CitaDetailModal({ cita, onClose, showBarbero = true, onUpdate }:
                 </div>
               )}
 
-              {/* Desglose Financiero y Tipo de Reserva */}
+              {/* Desglose Financiero y Estado de Cobro */}
               {cita.precio > 0 && (
-                cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 ? (
+                cita.estado === 'completado' ? (
+                  <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/25 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-emerald-400 font-black uppercase tracking-wider flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5" /> Cobro Completado
+                      </span>
+                      <span className="text-emerald-300 font-black text-sm">{formatCurrency(cita.precio)}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between text-xs pt-1.5 border-t border-white/5 gap-2">
+                      <span className="text-zinc-400 font-medium">Método registrado:</span>
+                      <div className="flex items-center gap-1.5">
+                        {cita.metodo_pago === 'efectivo' && (
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[11px] border border-emerald-500/30">
+                            💵 Efectivo ({formatCurrency(cita.monto_efectivo ?? cita.precio)})
+                          </span>
+                        )}
+                        {(cita.metodo_pago === 'qr' || cita.metodo_pago === 'transferencia' || cita.metodo_pago === 'banco') && (
+                          <span className="px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-bold text-[11px] border border-cyan-500/30">
+                            📱 Banco / QR ({formatCurrency(cita.monto_transferencia ?? cita.precio)})
+                          </span>
+                        )}
+                        {cita.metodo_pago === 'mixto' && (
+                          <div className="flex items-center gap-1">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+                              💵 {formatCurrency(cita.monto_efectivo || 0)}
+                            </span>
+                            <span className="text-zinc-500">+</span>
+                            <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold text-[10px] border border-cyan-500/30">
+                              📱 {formatCurrency(cita.monto_transferencia || 0)}
+                            </span>
+                          </div>
+                        )}
+                        {!cita.metodo_pago && (
+                          <span className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 font-bold text-[11px] border border-zinc-700">
+                            {cita.anticipo_monto && cita.anticipo_monto >= cita.precio ? '📱 Pagado QR Online' : '✅ Liquidado en Local'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 && cita.anticipo_monto < cita.precio && (
+                      <div className="flex justify-between items-center text-[11px] text-zinc-400 pt-1 border-t border-white/5">
+                        <span>Anticipo digital previo:</span>
+                        <span className="text-amber-400 font-bold">{formatCurrency(cita.anticipo_monto)}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : cita.anticipo_monto !== undefined && cita.anticipo_monto > 0 ? (
                   <div className="p-3 bg-amber-500/5 rounded-xl border border-amber-500/20 space-y-2">
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-zinc-400 font-bold uppercase tracking-widest">

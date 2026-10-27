@@ -81,12 +81,28 @@ export async function POST(request: Request) {
         precio_unitario: item.precio_venta
       })
       
-      // Restar stock
+      // Restar stock y registrar movimiento de inventario
       const { data: pActual } = await supabase.from('productos').select('stock_actual').eq('id', item.id).single()
       if (pActual) {
+        const stockAnt = pActual.stock_actual || 0
+        const nuevoStock = Math.max(0, stockAnt - item.cantidad)
         await supabase.from('productos')
-          .update({ stock_actual: pActual.stock_actual - item.cantidad })
+          .update({ stock_actual: nuevoStock })
           .eq('id', item.id)
+
+        try {
+          await supabase.from('inventario_movimientos').insert({
+            producto_id: item.id,
+            tipo: 'venta',
+            cantidad: -item.cantidad,
+            stock_anterior: stockAnt,
+            stock_nuevo: nuevoStock,
+            referencia: `pedido-${pedidoNuevo.id.slice(0, 8)}`,
+            notas: `Pedido Online #${pedidoNuevo.id.slice(0, 8)} (${clienteData.nombre || 'Cliente'})`,
+          })
+        } catch (e) {
+          console.error('Error insertando movimiento de inventario en pedido:', e)
+        }
       }
     }
 

@@ -11,6 +11,7 @@ import { useAgendaCitas } from '@/hooks/useAgendaCitas'
 import type { AgendaCita } from '@/lib/agenda/types'
 import type { AgendaView } from '@/lib/agenda/date-range'
 import { ModalCrearCitaManual } from '@/components/agenda/ModalCrearCitaManual'
+import { getBoliviaDateString } from '@/lib/asistencia/helpers'
 import { AlertCircle, CalendarDays, Users, Scissors } from 'lucide-react'
 import Link from 'next/link'
 import clsx from 'clsx'
@@ -131,7 +132,11 @@ export default function AgendaGeneralPage() {
           .eq('is_active', true)
 
         if (barberosList?.length) {
-          setBarberos(barberosList)
+          const cleanBarberos = barberosList.map(b => ({
+            ...b,
+            full_name: (b.full_name || '').trim()
+          })).sort((a, b) => a.full_name.localeCompare(b.full_name))
+          setBarberos(cleanBarberos)
           setSelectedBarbero('todos')
         }
       } catch {
@@ -338,6 +343,7 @@ export default function AgendaGeneralPage() {
         onClose={() => setIsModalManualOpen(false)}
         onSuccess={() => reload()}
         defaultBarberoId={selectedBarbero !== 'todos' ? selectedBarbero : undefined}
+        defaultDate={getBoliviaDateString(selectedDate)}
       />
     </div>
   )
