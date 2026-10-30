@@ -15,9 +15,10 @@ export async function GET() {
         .like('llave', 'horario_fraccionado_%'),
       supabase
         .from('profiles')
-        .select('id')
+        .select('id, full_name, email, avatar_url, phone, role')
         .in('role', ['barbero', 'coordinador'])
         .eq('is_active', true)
+        .order('full_name', { ascending: true })
     ])
 
     const data = horariosRes.data || []
@@ -36,8 +37,9 @@ export async function GET() {
       dbMap.set(`${row.barbero_id}_${row.dia_semana}`, row)
     })
 
+    const barberList = barberosRes.data || []
     const barberIds = new Set<string>([
-      ...(barberosRes.data || []).map(b => b.id),
+      ...barberList.map(b => b.id),
       ...data.map(h => h.barbero_id),
       ...Array.from(configMap.keys())
     ])
@@ -73,9 +75,12 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ horarios: merged })
+    return NextResponse.json({
+      horarios: merged,
+      barberos: barberList
+    })
   } catch (err: any) {
     console.error('[GET /api/barberos/horarios] Excepción:', err?.message)
-    return NextResponse.json({ horarios: [] })
+    return NextResponse.json({ horarios: [], barberos: [] })
   }
 }

@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { PasswordInput } from '@/components/ui/PasswordInput'
 import { Card, CardContent } from '@/components/ui/Card'
-import { formatCurrency, toTitleCase, toSentenceCase } from '@/lib/utils'
+import { formatCurrency, toTitleCase, toSentenceCase, cn } from '@/lib/utils'
+import { getTurnoInfo } from '@/components/cliente/HorariosBarberosWidget'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Calendar, User, Scissors, CheckCircle, Package, Plus, Minus, X, Info, AlertTriangle, Clock, UserPlus, Gift, Shield, Smartphone, Mail, IdCard, ArrowLeft, Home, Sparkles, Zap, Users, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
@@ -281,6 +282,8 @@ function ReservarContent() {
   const [disponibleAgenda, setDisponibleAgenda] = useState(true)
   const [motivoAgenda, setMotivoAgenda] = useState('')
   const [rangoHorario, setRangoHorario] = useState({ inicio: '09:00', fin: '20:00' })
+  const [modalHorarioBarbero, setModalHorarioBarbero] = useState<string | null>(null)
+  const [filtroTurnoSlots, setFiltroTurnoSlots] = useState<'todos' | 'manana' | 'tarde'>('todos')
   const [turnosAgenda, setTurnosAgenda] = useState<Array<{ inicio: string; fin: string }> | undefined>(undefined)
   const [loadingDisponibilidad, setLoadingDisponibilidad] = useState(false)
   const [lealtadInfo, setLealtadInfo] = useState<{descuento: number, mensaje: string} | null>(null)
@@ -306,7 +309,7 @@ function ReservarContent() {
   useEffect(() => {
     loadData()
     const servicioId = searchParams.get('servicio')
-    const barberoId = searchParams.get('barbero')
+    const barberoId = searchParams.get('barbero') || searchParams.get('barberoId')
 
     if (servicioId || barberoId) {
       setFormData(prev => ({
@@ -670,7 +673,14 @@ function ReservarContent() {
         await loadUserProfile(authUser)
         // If user arrived with a pre-selected service, jump to step 2 (Barbero)
         const preServicio = searchParams.get('servicio')
-        setStep(preServicio ? 2 : 1)
+        const preBarbero = searchParams.get('barbero') || searchParams.get('barberoId')
+        if (preServicio && preBarbero) {
+          setStep(3)
+        } else if (preServicio) {
+          setStep(2)
+        } else {
+          setStep(1)
+        }
       }
 
       const hoyLocal = new Date()
@@ -2174,8 +2184,8 @@ function ReservarContent() {
                       <div
                         key={s.id}
                         onClick={() => {
-                          setFormData({ ...formData, servicio_id: s.id, barbero_id: '' })
-                          setTimeout(() => setStep(2), 250)
+                          setFormData(prev => ({ ...prev, servicio_id: s.id }))
+                          setTimeout(() => setStep(formData.barbero_id ? 3 : 2), 250)
                         }}
                         className={`rounded-2xl cursor-pointer overflow-hidden transition-all duration-300 border-2 group hover:-translate-y-1 ${
                           formData.servicio_id === s.id
@@ -2404,6 +2414,27 @@ function ReservarContent() {
                               <Clock className={`w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 ${!horarioDisponible ? 'text-zinc-600' : 'text-amber-500'}`} />
                               <span className="truncate">{horarioTexto}</span>
                             </div>
+                            {(() => {
+                              const tInfo = getTurnoInfo(horarioConfig?.hora_inicio, horarioConfig?.hora_fin, horarioDisponible && (horarioConfig ? horarioConfig.activo : true))
+                              return (
+                                <div className="mt-1.5 space-y-1">
+                                  <span className={cn("inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-md border", tInfo.badgeClass)}>
+                                    <span>{tInfo.icon}</span>
+                                    <span>{tInfo.label}</span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setModalHorarioBarbero(b.id)
+                                    }}
+                                    className="block mx-auto text-[10px] text-amber-400 hover:text-amber-300 font-bold underline transition-colors pt-0.5"
+                                  >
+                                    Ver Horario Semanal
+                                  </button>
+                                </div>
+                              )
+                            })()}
                           </div>
                         </div>
                       )
@@ -2420,6 +2451,100 @@ function ReservarContent() {
               </CardContent>
             </Card>
           )}
+
+          {/* Modal Horario Semanal del Barbero */}
+          {modalHorarioBarbero && (() => {
+            const bObj = barberos.find(b => b.id === modalHorarioBarbero)
+            if (!bObj) return null
+            const diasNombres = [
+              { dia: 1, nombre: 'Lunes' },
+              { dia: 2, nombre: 'Martes' },
+              { dia: 3, nombre: 'Miércoles' },
+              { dia: 4, nombre: 'Jueves' },
+              { dia: 5, nombre: 'Viernes' },
+              { dia: 6, nombre: 'Sábado' },
+              { dia: 0, nombre: 'Domingo' },
+            ]
+            const targetDia = (() => {
+              if (formData.fecha) {
+                try {
+                  const [y, m, d] = formData.fecha.split('-').map(Number)
+                  return new Date(y, m - 1, d).getDay()
+                } catch {
+                  return getDiaHoyLaPaz()
+                }
+              }
+              return getDiaHoyLaPaz()
+            })()
+            return (
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[120] flex items-center justify-center p-4 animate-in fade-in">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-900 border border-zinc-700 flex items-center justify-center shrink-0">
+                        {bObj.avatar_url ? (
+                          <img src={bObj.avatar_url} alt={bObj.full_name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="font-black text-amber-500">{bObj.full_name.charAt(0)}</span>
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="font-black text-white text-sm">{toTitleCase(bObj.full_name)}</h4>
+                        <p className="text-[11px] text-zinc-400">Horario Semanal de Atención</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setModalHorarioBarbero(null)}
+                      className="w-8 h-8 rounded-full bg-zinc-900 text-zinc-400 hover:text-white flex items-center justify-center border border-zinc-800"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                    {diasNombres.map(d => {
+                      const h = barberoHorarios.find(item => item.barbero_id === bObj.id && Number(item.dia_semana) === d.dia)
+                      const tInfo = getTurnoInfo(h?.hora_inicio, h?.hora_fin, h?.activo)
+                      const esDiaSeleccionado = d.dia === targetDia
+                      return (
+                        <div
+                          key={d.dia}
+                          className={cn(
+                            "flex items-center justify-between p-2.5 rounded-xl text-xs border",
+                            esDiaSeleccionado ? "bg-amber-500/15 border-amber-500/40 text-amber-300 font-bold" : "bg-black/40 border-zinc-800/80 text-zinc-300"
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>{tInfo.icon}</span>
+                            <span className={esDiaSeleccionado ? "font-black" : "font-medium"}>{d.nombre} {esDiaSeleccionado && '(Seleccionado)'}:</span>
+                          </div>
+                          <div className="text-right">
+                            <span className={h?.activo ? "font-mono font-bold" : "text-zinc-500 italic"}>
+                              {h?.activo ? `${h.hora_inicio.slice(0, 5)} - ${h.hora_fin.slice(0, 5)}` : 'Día Libre'}
+                            </span>
+                            {h?.activo && (
+                              <span className="text-[9px] text-zinc-400 block font-normal">{tInfo.label}</span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <Button
+                    onClick={() => {
+                      setFormData({ ...formData, barbero_id: bObj.id, fecha: '', hora: '' })
+                      setModalHorarioBarbero(null)
+                      setTimeout(() => setStep(3), 200)
+                    }}
+                    className="w-full bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-wider py-3 rounded-xl"
+                  >
+                    Elegir a {toTitleCase(bObj.full_name.split(' ')[0])} y Continuar
+                  </Button>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* PASO 3: FECHA Y HORA */}
           {/* PASO 3: FECHA Y HORA (DISEÑO EMBEBIDO TIPO CALENDLY / CAL.COM) */}
@@ -2454,9 +2579,20 @@ function ReservarContent() {
                               }
                             })()}
                           </span>
-                          <span className="text-xs text-zinc-400">
-                            🕒 {rangoHorario.inicio} a {rangoHorario.fin} · ⏱️ {duracionServicioMin} min
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <span className="text-xs font-bold text-amber-400">
+                              💈 {toTitleCase(barberos.find(b => b.id === formData.barbero_id)?.full_name || 'Especialista')}
+                            </span>
+                            <span className="text-zinc-600">·</span>
+                            <span className={cn(
+                              "text-[10px] font-black uppercase px-2 py-0.5 rounded-md border inline-flex items-center gap-1",
+                              getTurnoInfo(rangoHorario.inicio, rangoHorario.fin, disponibleAgenda).badgeClass
+                            )}>
+                              {getTurnoInfo(rangoHorario.inicio, rangoHorario.fin, disponibleAgenda).icon} {rangoHorario.inicio} a {rangoHorario.fin} ({getTurnoInfo(rangoHorario.inicio, rangoHorario.fin, disponibleAgenda).label})
+                            </span>
+                            <span className="text-zinc-600">·</span>
+                            <span className="text-xs text-zinc-400">⏱️ {duracionServicioMin} min</span>
+                          </div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
@@ -2674,8 +2810,81 @@ function ReservarContent() {
                                     )}
                                   </div>
 
+                                  {/* Filtro de Turno Mañana vs Tarde */}
+                                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setFiltroTurnoSlots('todos')}
+                                      className={cn(
+                                        "px-3 py-1.5 rounded-xl text-xs font-bold transition-all border",
+                                        filtroTurnoSlots === 'todos'
+                                          ? "bg-amber-500 text-black border-amber-400 font-black shadow-md"
+                                          : "bg-black/40 text-zinc-400 border-zinc-800 hover:text-white"
+                                      )}
+                                    >
+                                      ⚡ Todos los Turnos ({slotsTodos.length})
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setFiltroTurnoSlots('manana')}
+                                      className={cn(
+                                        "px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5",
+                                        filtroTurnoSlots === 'manana'
+                                          ? "bg-amber-500/30 text-amber-200 border-amber-500 font-black shadow-md"
+                                          : "bg-black/40 text-zinc-400 border-zinc-800 hover:text-white"
+                                      )}
+                                    >
+                                      ☀️ Turno Mañana (&lt; 13:00)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setFiltroTurnoSlots('tarde')}
+                                      className={cn(
+                                        "px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5",
+                                        filtroTurnoSlots === 'tarde'
+                                          ? "bg-blue-500/30 text-blue-200 border-blue-500 font-black shadow-md"
+                                          : "bg-black/40 text-zinc-400 border-zinc-800 hover:text-white"
+                                      )}
+                                    >
+                                      🌙 Turno Tarde (≥ 13:00)
+                                    </button>
+                                  </div>
+
+                                  {(() => {
+                                    const slotsFiltrados = slotsTodos.filter(s => {
+                                      if (filtroTurnoSlots === 'manana') {
+                                        const h = parseInt(s.hora.split(':')[0], 10)
+                                        return h < 13
+                                      }
+                                      if (filtroTurnoSlots === 'tarde') {
+                                        const h = parseInt(s.hora.split(':')[0], 10)
+                                        return h >= 13
+                                      }
+                                      return true
+                                    })
+
+                                    if (slotsFiltrados.length === 0) {
+                                      return (
+                                        <div className="p-6 bg-black/40 border border-zinc-800 rounded-2xl text-center space-y-2 max-w-sm mx-auto my-3">
+                                          <p className="text-zinc-300 text-xs font-bold">
+                                            {filtroTurnoSlots === 'manana'
+                                              ? `☀️ Este especialista no cuenta con horarios de mañana en esta fecha (su jornada inicia a las ${rangoHorario.inicio}).`
+                                              : `🌙 Este especialista no cuenta con horarios de tarde en esta fecha (su jornada concluye a las ${rangoHorario.fin}).`}
+                                          </p>
+                                          <button
+                                            type="button"
+                                            onClick={() => setFiltroTurnoSlots('todos')}
+                                            className="text-xs text-amber-400 hover:underline font-bold"
+                                          >
+                                            Ver todos los turnos disponibles ({slotsTodos.length})
+                                          </button>
+                                        </div>
+                                      )
+                                    }
+
+                                    return (
                                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                                    {slotsTodos.map((slot) => {
+                                    {slotsFiltrados.map((slot) => {
                                       const hora = slot.hora
                                       const hora12 = formatTime12h(hora)
                                       
@@ -2743,6 +2952,8 @@ function ReservarContent() {
                                       )
                                     })}
                                   </div>
+                                    )
+                                  })()}
 
                                   {slotsLibres.length === 0 && (
                                     <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center text-xs text-amber-300 space-y-1 mt-3">

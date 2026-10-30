@@ -14,6 +14,7 @@ import { ImageUpload } from '@/components/ui/ImageUpload'
 import { ModalPaseDigitalCita, CitaPaseDigital } from '@/components/cliente/ModalPaseDigitalCita'
 import { ModalDetallePromocion, PromocionDetalle } from '@/components/cliente/ModalDetallePromocion'
 import { BannerPromoSplashModal } from '@/components/ui/BannerPromoSplashModal'
+import { HorariosBarberosWidget } from '@/components/cliente/HorariosBarberosWidget'
 import {
   Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
@@ -648,6 +649,11 @@ export default function ClientePage() {
             </CardContent>
           </Card>
 
+          {/* ——— HORARIOS Y TURNOS DE BARBEROS ——— */}
+          <div id="horarios-barberos-widget">
+            <HorariosBarberosWidget />
+          </div>
+
           {/* ——— INCENTIVOS Y PROMOCIONES ACTIVAS ——— */}
           {(() => {
             const promosHoyDeduplicadas = Array.from(
@@ -912,13 +918,30 @@ export default function ClientePage() {
         <div className="xl:col-span-2 space-y-6">
 
           {/* Botón reservar */}
-          <Button
-            variant="primary"
-            onClick={() => router.push('/reservar')}
-            className="w-full h-14 font-black uppercase tracking-widest text-base shadow-xl shadow-amber-500/20"
-          >
-            <Scissors size={20} className="mr-3" /> Agendar Nuevo Corte
-          </Button>
+          <div className="space-y-2.5">
+            <Button
+              variant="primary"
+              onClick={() => router.push('/reservar')}
+              className="w-full h-14 font-black uppercase tracking-widest text-base shadow-xl shadow-amber-500/20"
+            >
+              <Scissors size={20} className="mr-3" /> Agendar Nuevo Corte
+            </Button>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('horarios-barberos-widget')
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                } else {
+                  router.push('/reservar')
+                }
+              }}
+              className="w-full h-11 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/60 font-black text-xs uppercase tracking-wider rounded-2xl gap-2 transition-all flex items-center justify-center"
+            >
+              <Clock size={16} /> Ver Horarios y Turnos del Equipo
+            </Button>
+          </div>
 
           {/* Banner Prominente de Reseña del Servicio Reciente */}
           {citasPasadas.find(c => c.estado === 'completado') && (
