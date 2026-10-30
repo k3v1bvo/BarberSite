@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
-import { User, Scissors, DollarSign, Search, CheckCircle, Check, Clock, Package, Plus, Minus, X, Store, Gift, UserPlus, Edit3, Save, Star, Tag, QrCode, AlertTriangle, Calendar, Zap, CreditCard, History, ShoppingBag } from 'lucide-react'
+import { Printer, User, Scissors, DollarSign, Search, CheckCircle, Check, Clock, Package, Plus, Minus, X, Store, Gift, UserPlus, Edit3, Save, Star, Tag, QrCode, AlertTriangle, Calendar, Zap, CreditCard, History, ShoppingBag } from 'lucide-react'
 import { formatCurrency, toTitleCase } from '@/lib/utils'
 import { getBusinessDateString } from '@/lib/asistencia/helpers'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import { imprimirTicketPOS } from '@/lib/impresion/imprimirDocumento'
 import { CATEGORIAS_SERVICIOS } from '@/types'
 import { ClienteHistorialModal } from '@/components/pos/ClienteHistorialModal'
 import { ClienteSearchModal } from '@/components/pos/ClienteSearchModal'
@@ -824,6 +825,49 @@ export function CajaPOS() {
       if (!res.ok) throw new Error(data.error || 'Error al procesar')
 
       toastSuccess(`Cita registrada como ${estado === 'completado' ? 'Completada y Cobrada' : 'En Proceso'}`)
+      if (estado === 'completado') {
+        const ticketId = (data.cita?.id || data.id || Math.random().toString(36).substring(2, 8)).slice(0, 6).toUpperCase()
+        const clienteNom = formData.nombre || 'Cliente General'
+        const barberoNom = barberos.find(b => b.id === formData.barbero_id)?.full_name || 'Barbero'
+        const itemsTicket: Array<{ tipo: 'servicio' | 'producto'; nombre: string; cantidad: number; precioUnitario: number; subtotal: number }> = []
+        let subtotalServ = 0
+        if (formData.servicio_id) {
+          const sObj = servicios.find(s => s.id === formData.servicio_id)
+          subtotalServ = precioServicioCustom !== null ? precioServicioCustom : (sObj?.precio || 0)
+          itemsTicket.push({
+            tipo: 'servicio',
+            nombre: sObj?.nombre || 'Servicio de Barbería',
+            cantidad: 1,
+            precioUnitario: subtotalServ,
+            subtotal: subtotalServ
+          })
+        }
+        carrito.forEach(it => {
+          itemsTicket.push({
+            tipo: 'producto',
+            nombre: it.producto.nombre,
+            cantidad: it.cantidad,
+            precioUnitario: precioItemCarrito(it),
+            subtotal: precioItemCarrito(it) * it.cantidad
+          })
+        })
+        imprimirTicketPOS({
+          ticketNumero: ticketId,
+          fecha: new Date().toLocaleDateString('es-BO'),
+          hora: new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }),
+          clienteNombre: clienteNom,
+          clienteCi: formData.ci || undefined,
+          barberoNombre: barberoNom,
+          cajeroNombre: 'Caja POS',
+          items: itemsTicket,
+          subtotal: subtotalServ + totalProductos,
+          descuento: descuentoTotal,
+          total: totalACobrar,
+          metodoPago: formData.metodo_pago,
+          montoEfectivo: formData.monto_efectivo,
+          montoQr: formData.monto_qr,
+        })
+      }
       
       // Refresh pending appointments
       const hoy = getBusinessDateString()
@@ -1187,6 +1231,7 @@ export function CajaPOS() {
                     <th className="pb-3">Barbero / Empleado</th>
                     <th className="pb-3">Método Pago</th>
                     <th className="pb-3 text-right pr-2">Monto / Impacto</th>
+                    <th className="pb-3 text-center">Ticket</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/60">
@@ -1286,6 +1331,40 @@ export function CajaPOS() {
                                 </div>
                               )
                             })()}
+                          </td>
+                          <td className="py-3.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const ticketId = String(item.id || Math.random().toString(36).substring(2, 8)).slice(0, 6).toUpperCase()
+                                const isEgreso = isTx && item.tipo_movimiento === 'EGRESO'
+                                imprimirTicketPOS({
+                                  ticketNumero: ticketId,
+                                  fecha: item.fecha || new Date().toLocaleDateString('es-BO'),
+                                  hora: dateFormatted.split(' · ')[0] || '12:00',
+                                  clienteNombre: nombreCliente,
+                                  barberoNombre: barberoNombre,
+                                  cajeroNombre: 'Caja POS',
+                                  items: [{
+                                    tipo: isTx && item.libro === 'VENTAS' ? 'producto' : 'servicio',
+                                    nombre: detalle,
+                                    cantidad: 1,
+                                    precioUnitario: Math.abs(monto),
+                                    subtotal: Math.abs(monto)
+                                  }],
+                                  subtotal: Math.abs(monto),
+                                  descuento: (item as any).descuento ? Number((item as any).descuento) : 0,
+                                  total: Math.abs(monto),
+                                  metodoPago: mp,
+                                  montoEfectivo: mp === 'efectivo' ? Math.abs(monto) : (Number(item.monto_efectivo) || 0),
+                                  montoQr: mp === 'qr' ? Math.abs(monto) : (Number(item.monto_qr) || 0),
+                                })
+                              }}
+                              className="p-1.5 rounded-lg border border-white/10 hover:border-amber-500/40 hover:bg-amber-500/10 text-zinc-400 hover:text-amber-400 transition"
+                              title="Reimprimir Ticket de Venta"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                            </button>
                           </td>
                         </tr>
                       )

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { imprimirReporteCajaChica } from '@/lib/impresion/imprimirDocumento'
 import { formatCurrency, getTodayBolivia, exportToCSV } from '@/lib/utils'
 import { Wallet, Plus, X, User, Building, Image as ImageIcon, ArrowUpCircle, ArrowDownCircle, Search, TrendingUp, TrendingDown, Scale, ShoppingCart, Receipt, ArrowUpDown, ArrowUp, ArrowDown, Printer, Download, Edit3, Trash2 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
@@ -632,6 +633,27 @@ export default function CajaChicaPage() {
     pagoMap[mp] = (pagoMap[mp] || 0) + Number(tx.costo)
   })
 
+  const handleImprimirReporte = () => {
+    const list = txBuscadas.length > 0 ? txBuscadas : transactions
+    const movs = list.map((t: any) => ({
+      fecha: t.fecha || (t.creado_en ? new Date(t.creado_en).toLocaleDateString('es-BO') : ''),
+      concepto: t.glosa || t.cuenta_detalle || t.nombre || 'Movimiento de Caja Chica',
+      categoria: t.subcategoria || t.cuenta_codigo || 'Gasto General',
+      tipo: (esIngreso(t) ? 'INGRESO' : 'EGRESO') as 'INGRESO' | 'EGRESO',
+      metodoPago: t.metodo_pago || 'efectivo',
+      monto: Number(t.costo || 0),
+    }))
+
+    imprimirReporteCajaChica({
+      periodo: periodoLabel,
+      saldoInicial: Number(saldoAnterior.ef + saldoAnterior.qr || 0),
+      totalIngresos: Number(totalIngresos || 0),
+      totalEgresos: Number(totalEgresos || 0),
+      saldoFinal: Number((saldoAnterior.ef + saldoAnterior.qr || 0) + totalIngresos - totalEgresos),
+      movimientos: movs,
+    })
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -670,7 +692,7 @@ export default function CajaChicaPage() {
             <Plus className="w-4 h-4" />
             Mov. Manual
           </Button>
-          <Button variant="outline" onClick={() => window.print()} className="gap-2 font-bold uppercase tracking-wider text-xs border-white/20 text-white hover:bg-white/10 print:hidden">
+          <Button variant="outline" onClick={handleImprimirReporte} className="gap-2 font-bold uppercase tracking-wider text-xs border-white/20 text-white hover:bg-white/10 print:hidden">
             <Printer className="w-3.5 h-3.5" />
             Imprimir
           </Button>

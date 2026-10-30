@@ -7,6 +7,7 @@ import { formatCurrency, getTodayBolivia, exportToCSV } from '@/lib/utils'
 import { Scale, CheckCircle, AlertCircle, Store, DollarSign, ExternalLink, Printer, Download, Wallet, Calendar, Search, Filter, ArrowUpRight, ArrowDownLeft, Clock, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import { imprimirActaArqueo } from '@/lib/impresion/imprimirDocumento'
 
 interface ExcelMetrics {
   saldo_apertura: number
@@ -208,6 +209,42 @@ export default function ArqueoPage() {
   const totalFisico = contadoEfectivo + contadoQr
   const diferencia = totalFisico - esperadoTotal
 
+  const handleImprimirActa = (cierreCustom?: any) => {
+    if (!resumen) return
+    const saldoEsperado = Number(resumen.excel?.saldo_total_sistema ?? 180.50)
+    const saldoFisico = cierreCustom ? Number(cierreCustom.total_efectivo_fisico || 0) : (parseFloat(efectivoFisico) || 0)
+    const diff = tieneConteoFisico ? (saldoFisico - saldoEsperado) : 0
+
+    const movs = (movimientos || []).map((m: any) => {
+      const horaStr = m.creado_en ? new Date(m.creado_en).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '--:--'
+      return {
+        id: m.id,
+        hora: horaStr,
+        libro: m.libro || 'SERVICIOS',
+        tipo: m.tipo_movimiento || 'INGRESO',
+        concepto: m.glosa || m.cuenta_detalle || m.nombre || 'Servicio en barbería',
+        metodo_pago: m.metodo_pago || 'efectivo',
+        monto: Number(m.costo || 0),
+      }
+    })
+
+    imprimirActaArqueo({
+      fecha: cierreCustom?.fecha || fechaSeleccionada,
+      usuario: cierreCustom?.usuario_cierre || personaCierre || cierre?.usuario_cierre || 'Coordinador de Turno',
+      saldoApertura: Number(resumen.excel?.saldo_apertura ?? 180.50),
+      totalIngresoDia: Number(resumen.excel?.total_ingreso_dia ?? 0),
+      totalEgresoDia: Number(resumen.excel?.total_egreso_dia ?? 0),
+      saldoTotalSistema: saldoEsperado,
+      saldoFisicoContado: saldoFisico,
+      diferencia: diff,
+      totalBancoDia: Number(resumen.excel?.total_banco_dia ?? 0),
+      totalBancoAcumulado: Number(resumen.excel?.total_banco_acumulado ?? 1571.94),
+      totalFacturado: Number(resumen.total_registrado || 0),
+      observaciones: cierreCustom?.observaciones || observaciones || cierre?.observaciones || undefined,
+      movimientos: movs,
+    })
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20 lg:pb-0">
       <div className="border-b border-white/5 pb-6">
@@ -281,7 +318,7 @@ export default function ArqueoPage() {
                         <th className="py-3 px-4 text-right">QR / Banco</th>
                         <th className="py-3 px-4">Estado</th>
                         <th className="py-3 px-4">Observaciones</th>
-                        <th className="py-3 px-4 text-center">Comprobante QR Pago</th>
+                        <th className="py-3 px-4 text-center">Acta / Comprobante</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 text-sm">
@@ -298,20 +335,31 @@ export default function ArqueoPage() {
                           </td>
                           <td className="py-3 px-4 text-zinc-400 text-xs">{h.observaciones || '—'}</td>
                           <td className="py-3 px-4 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedHistorialQr(h)
-                                setQrHistorialUrl(h.comprobante_url || '')
-                              }}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
-                                h.comprobante_url
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                                  : 'bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
-                              }`}
-                            >
-                              {h.comprobante_url ? '📱 Ver / Cambiar QR' : '📄 + Subir QR Cierre'}
-                            </button>
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleImprimirActa(h)}
+                                className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border border-white/10 text-zinc-300 hover:text-white hover:bg-white/10 flex items-center gap-1"
+                                title="Imprimir Acta Oficial de este cierre"
+                              >
+                                <Printer className="w-3 h-3 text-amber-400" />
+                                Acta
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedHistorialQr(h)
+                                  setQrHistorialUrl(h.comprobante_url || '')
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                                  h.comprobante_url
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                                    : 'bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
+                                }`}
+                              >
+                                {h.comprobante_url ? '📱 Ver QR' : '📄 + Subir QR'}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -488,6 +536,16 @@ export default function ArqueoPage() {
               </div>
 
               <div className="flex items-center gap-2 self-start sm:self-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleImprimirActa()}
+                  className="gap-1.5 font-bold uppercase tracking-wider text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10 h-8 px-3 print:hidden shadow-lg shadow-amber-500/5"
+                  title="Imprimir Acta Oficial de Arqueo y Cierre"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  Imprimir Acta
+                </Button>
                 <span className="text-xs font-mono font-black text-white bg-zinc-950 px-3 py-1 rounded-lg border border-white/10">
                   {fechaSeleccionada.split('-').reverse().join('/')}
                 </span>
