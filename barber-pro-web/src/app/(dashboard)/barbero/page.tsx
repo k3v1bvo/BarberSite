@@ -367,26 +367,17 @@ export default function BarberoPage() {
   }
 
   const finalizarServicio = async (id: string) => {
-    const { data: cData } = await supabase.from('citas').select('*, clientes(nombre), servicios(nombre)').eq('id', id).single()
-    await supabase.from('citas').update({ estado: 'completado' }).eq('id', id)
-    if (cData) {
-      await supabase.from('transactions').insert({
-        libro: 'SERVICIOS',
-        fecha: getTodayBolivia(),
-        ci: '0000000',
-        nombre: (cData.clientes as any)?.nombre || 'Cliente',
-        cuenta_codigo: 'ING-001',
-        cuenta_detalle: 'Ingresos por Servicios',
-        glosa: `Servicio ${(cData.servicios as any)?.nombre || ''} - Cita #${id.slice(0, 6)}`,
-        costo: Number(cData.precio || 0),
-        tipo_movimiento: 'INGRESO',
-        subcategoria: 'SERVICIO',
-        es_sancion: false,
-        empleado_id: cData.barbero_id,
-        cliente_id: cData.cliente_id,
-        metodo_pago: 'efectivo',
-        usuario_registro: 'Barbero'
+    try {
+      const res = await fetch('/api/citas/finalizar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cita_id: id, metodo_pago: 'efectivo' })
       })
+      if (!res.ok) {
+        await supabase.from('citas').update({ estado: 'completado' }).eq('id', id)
+      }
+    } catch {
+      await supabase.from('citas').update({ estado: 'completado' }).eq('id', id)
     }
     loadData()
   }
@@ -1151,7 +1142,7 @@ export default function BarberoPage() {
                   </div>
                 </div>
               )}
-              {selectedCita.estado === 'pendiente' && (
+              {(selectedCita.estado === 'pendiente' || selectedCita.estado === 'confirmado') && (
                 <div className="flex gap-2 w-full">
                   <Button onClick={() => { iniciarServicio(selectedCita.id); setSelectedCita(null) }} className="flex-1 h-12 uppercase tracking-widest font-black" variant="primary">
                     ▶ Iniciar Servicio

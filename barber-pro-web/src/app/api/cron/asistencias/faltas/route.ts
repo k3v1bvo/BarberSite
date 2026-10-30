@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getBusinessDateString, getBusinessNow } from '@/lib/asistencia/helpers'
 
@@ -9,7 +9,7 @@ import { getBusinessDateString, getBusinessNow } from '@/lib/asistencia/helpers'
  */
 export async function GET() {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = await createServerAdminClient()
     
     // Auth check for cron jobs if needed (optional if you secure via headers or Vercel Cron Secret)
     // For manual triggering by admin, we can check auth.

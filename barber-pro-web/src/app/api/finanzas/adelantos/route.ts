@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
@@ -24,32 +24,77 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
     }
 
+    const adminSupabase = await createServerAdminClient()
+
+    // Asegurar que ACT-001 existe en plan_cuentas
+    await adminSupabase.from('plan_cuentas').upsert({
+      codigo: 'ACT-001',
+      detalle: 'Adelantos al Personal',
+      tipo: 'ACTIVO',
+      nivel: 1,
+      es_sancion: false
+    }, { onConflict: 'codigo', ignoreDuplicates: true })
+
+    const { data: empProfile } = await adminSupabase
+      .from('profiles')
+      .select('full_name, ci')
+      .eq('id', empleado_id)
+      .single()
+
+    const fechaHoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+
     // Insertar en transactions como Egreso de Caja Chica
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('transactions')
       .insert({
         libro: 'CAJA_CHICA',
-        fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
-        ci: '0000000', // Valor por defecto
-        nombre: 'Adelanto a Personal',
-        cuenta_codigo: 'ACT-001', // Código que definimos para adelantos
+        fecha: fechaHoy,
+        ci: empProfile?.ci || '0000000',
+        nombre: empProfile?.full_name || 'Adelanto a Personal',
+        cuenta_codigo: 'ACT-001',
         cuenta_detalle: 'Adelantos a Personal',
-        glosa: glosa || 'Adelanto',
-        costo: monto,
+        glosa: glosa || `Adelanto a ${empProfile?.full_name || 'Personal'}`,
+        costo: Number(monto),
         tipo_movimiento: 'EGRESO',
+        subcategoria: 'ADELANTO',
         es_sancion: false,
         empleado_id: empleado_id,
         metodo_pago: 'efectivo',
-        monto_efectivo: monto,
+        monto_efectivo: Number(monto),
         monto_qr: 0,
         usuario_registro: profile.full_name || user.email || 'Sistema',
       })
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      if (error.code === '42703' || (error as any).code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('schema cache')) {
+        const { data: fbData, error: fbError } = await adminSupabase
+          .from('transactions')
+          .insert({
+            libro: 'CAJA_CHICA',
+            fecha: fechaHoy,
+            ci: empProfile?.ci || '0000000',
+            nombre: empProfile?.full_name || 'Adelanto a Personal',
+            cuenta_codigo: 'ACT-001',
+            cuenta_detalle: 'Adelantos a Personal',
+            glosa: glosa || 'Adelanto',
+            costo: Number(monto),
+            tipo_movimiento: 'EGRESO',
+            es_sancion: false,
+            empleado_id: empleado_id,
+            usuario_registro: profile.full_name || user.email || 'Sistema',
+          })
+          .select()
+          .single()
+        if (fbError) return NextResponse.json({ error: fbError.message }, { status: 500 })
+        return NextResponse.json(fbData, { status: 201 })
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
     return NextResponse.json(data, { status: 201 })
-  } catch (err) {
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 })
   }
 }

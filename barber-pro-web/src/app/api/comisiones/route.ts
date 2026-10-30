@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { getBoliviaDateString, getBusinessNow } from '@/lib/asistencia/helpers'
 import { getBoliviaDateKey } from '@/lib/agenda/date-utils'
 
 export async function GET(req: Request) {
   const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
+  const adminSupabase = await createServerAdminClient()
   const { searchParams } = new URL(req.url)
   const barbero_id = searchParams.get('barbero_id')
   const estado = searchParams.get('estado')
 
-  let query = supabase
+  let query = adminSupabase
     .from('citas')
     .select('*, barbero:profiles!citas_barbero_id_fkey(full_name), servicios(nombre), clientes(nombre)')
     .eq('estado', 'completado')
@@ -40,7 +46,7 @@ export async function GET(req: Request) {
   let total_bonos = 0
 
   if (barbero_id) {
-    const { data: txAdelantos } = await supabase
+    const { data: txAdelantos } = await adminSupabase
       .from('transactions')
       .select('costo, tipo_movimiento, cuenta_codigo')
       .eq('empleado_id', barbero_id)
@@ -56,18 +62,36 @@ export async function GET(req: Request) {
       }
     })
 
-    const { data: sanciones } = await supabase
+    const { data: sanciones, error: sErr } = await adminSupabase
       .from('sanciones')
       .select('*')
       .eq('barbero_id', barbero_id)
       .eq('estado', 'pendiente')
 
-    if (sanciones) {
+    if (!sErr && sanciones) {
       sanciones_pendientes = sanciones
       total_sanciones = sanciones_pendientes.reduce((sum, s) => sum + Number(s.monto), 0)
+    } else {
+      // Fallback a transactions para sanciones pendientes
+      const { data: txSanciones } = await adminSupabase
+        .from('transactions')
+        .select('*')
+        .eq('empleado_id', barbero_id)
+        .eq('es_sancion', true)
+        .eq('metodo_pago', 'descuento_caja')
+      if (txSanciones) {
+        sanciones_pendientes = txSanciones.map((tx: any) => ({
+          id: tx.id,
+          tipo: tx.cuenta_detalle || 'Sanción',
+          descripcion: tx.glosa || '',
+          monto: Number(tx.costo) || 0,
+          estado: 'pendiente'
+        }))
+        total_sanciones = sanciones_pendientes.reduce((sum, s) => sum + Number(s.monto), 0)
+      }
     }
 
-    const { data: pendingBonos } = await supabase
+    const { data: pendingBonos } = await adminSupabase
       .from('bonos')
       .select('*')
       .eq('barbero_id', barbero_id)

@@ -6,12 +6,12 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const adminSupabase = await createServerAdminClient()
     const { id: barberoId } = await context.params
     const desde = request.nextUrl.searchParams.get('desde')
     const hasta = request.nextUrl.searchParams.get('hasta')
 
-    let query = supabase
+    let query = adminSupabase
       .from('barbero_bloqueos')
       .select('*')
       .eq('barbero_id', barberoId)

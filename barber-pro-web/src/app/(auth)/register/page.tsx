@@ -192,7 +192,7 @@ function RegisterContent() {
       }).catch(err => console.error('Error enviando email de bienvenida:', err))
 
       if (authData.session) {
-        success(`¡Bienvenido a Barber Pro, ${formData.full_name.split(' ')[0]}!`)
+        success(`¡Bienvenido a BarberSite, ${formData.full_name.split(' ')[0]}!`)
         router.push('/cliente')
         router.refresh()
         return

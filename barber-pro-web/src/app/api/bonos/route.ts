@@ -227,21 +227,33 @@ async function _registrarEgresoBono(supabase: any, bono: any, usuarioRegistro: s
   const monto_efectivo = esQrOrBanco ? 0 : Number(bono.monto)
   const monto_qr = esQrOrBanco ? Number(bono.monto) : 0
 
-  await supabase.from('transactions').insert({
-    libro,
-    fecha: getBoliviaDateString(),
-    ci,
-    nombre,
-    cuenta_codigo: 'EGR-BONO',
-    cuenta_detalle: 'Bonos a Personal',
-    glosa: `Bono ${bono.tipo} (${metodo_pago}) — ${bono.descripcion || ''} (${periodoLabel}) [bono_id: ${bono.id}]`,
-    costo: Number(bono.monto),
-    metodo_pago,
-    monto_efectivo,
-    monto_qr,
-    tipo_movimiento: 'EGRESO',
-    es_sancion: false,
-    empleado_id: bono.barbero_id,
-    usuario_registro: usuarioRegistro,
-  })
+  try {
+    await supabase.from('plan_cuentas').upsert({
+      codigo: 'EGR-BONO',
+      detalle: 'Bonos e Incentivos al Personal',
+      tipo: 'EGRESO',
+      nivel: 1,
+      es_sancion: false
+    }, { onConflict: 'codigo', ignoreDuplicates: true })
+
+    await supabase.from('transactions').insert({
+      libro,
+      fecha: getBoliviaDateString(),
+      ci,
+      nombre,
+      cuenta_codigo: 'EGR-BONO',
+      cuenta_detalle: 'Bonos a Personal',
+      glosa: `Bono ${bono.tipo} (${metodo_pago}) — ${bono.descripcion || ''} (${periodoLabel}) [bono_id: ${bono.id}]`,
+      costo: Number(bono.monto),
+      metodo_pago,
+      monto_efectivo,
+      monto_qr,
+      tipo_movimiento: 'EGRESO',
+      es_sancion: false,
+      empleado_id: bono.barbero_id,
+      usuario_registro: usuarioRegistro,
+    })
+  } catch (err) {
+    console.error('Error registrando transaccion egreso bono:', err)
+  }
 }

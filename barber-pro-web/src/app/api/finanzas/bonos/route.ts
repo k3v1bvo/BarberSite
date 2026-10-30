@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { getBoliviaMonth, getBoliviaYear } from '@/lib/asistencia/helpers'
 
@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
     const barbero_id = searchParams.get('barbero_id')
     const solo_pendientes = searchParams.get('pendientes') === 'true'
 
-    let query = supabase
+    const adminSupabase = await createServerAdminClient()
+    let query = adminSupabase
       .from('bonos')
       .select('*, perfiles:profiles!barbero_id(full_name)')
       .order('creado_en', { ascending: false })
@@ -69,7 +70,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Datos requeridos incompletos' }, { status: 400 })
     }
 
-    const { data: bono, error: bonoError } = await supabase
+    const adminSupabase = await createServerAdminClient()
+    const { data: bono, error: bonoError } = await adminSupabase
       .from('bonos')
       .insert({ barbero_id, tipo, descripcion: descripcion || '', monto, mes: mesFinal, anio: anioFinal, pagado: false })
       .select()
@@ -77,27 +79,39 @@ export async function POST(request: NextRequest) {
 
     if (bonoError) return NextResponse.json({ error: bonoError.message }, { status: 500 })
 
-    // Intentar registrar en transactions (no falla si no existe la cuenta)
-    await supabase.from('transactions').insert({
-      libro: 'CAJA_CHICA',
-      fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now),
-      ci: '0000000',
-      nombre: 'Bono a Personal',
-      cuenta_codigo: 'EGR-BONO',
-      cuenta_detalle: 'Bonos al Personal',
-      glosa: descripcion || `Bono ${tipo}`,
-      costo: monto,
-      tipo_movimiento: 'EGRESO',
-      es_sancion: false,
-      empleado_id: barbero_id,
-      metodo_pago: 'efectivo',
-      monto_efectivo: monto,
-      monto_qr: 0,
-      usuario_registro: profile.full_name || user.email || 'Sistema',
-    }).single()
+    // Intentar registrar en transactions asegurando plan_cuentas
+    try {
+      await adminSupabase.from('plan_cuentas').upsert({
+        codigo: 'EGR-BONO',
+        detalle: 'Bonos e Incentivos al Personal',
+        tipo: 'EGRESO',
+        nivel: 1,
+        es_sancion: false
+      }, { onConflict: 'codigo', ignoreDuplicates: true })
+
+      await adminSupabase.from('transactions').insert({
+        libro: 'CAJA_CHICA',
+        fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now),
+        ci: '0000000',
+        nombre: 'Bono a Personal',
+        cuenta_codigo: 'EGR-BONO',
+        cuenta_detalle: 'Bonos al Personal',
+        glosa: descripcion || `Bono ${tipo}`,
+        costo: monto,
+        tipo_movimiento: 'EGRESO',
+        es_sancion: false,
+        empleado_id: barbero_id,
+        metodo_pago: 'efectivo',
+        monto_efectivo: monto,
+        monto_qr: 0,
+        usuario_registro: profile.full_name || user.email || 'Sistema',
+      })
+    } catch (txErr) {
+      console.error('Error no crítico registrando transacción de bono:', txErr)
+    }
 
     return NextResponse.json(bono, { status: 201 })
-  } catch {
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 })
   }
 }

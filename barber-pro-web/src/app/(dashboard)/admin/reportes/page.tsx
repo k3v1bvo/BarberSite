@@ -670,7 +670,7 @@ export default function ReportesPage() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Reporte General & Financiero - Barber Pro (${fechaInicio} al ${fechaFin})</title>
+          <title>Reporte General & Financiero - BarberSite (${fechaInicio} al ${fechaFin})</title>
           <style>
             body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 30px; color: #18181b; background: #fff; line-height: 1.5; }
             .header { border-bottom: 3px solid #f59e0b; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end; }
@@ -784,7 +784,7 @@ export default function ReportesPage() {
           </table>
 
           <div class="footer">
-            Reporte generado automáticamente por Barber Pro Admin Suite · ${new Date().toLocaleString('es-BO')}
+            Reporte generado automáticamente por BarberSite Admin Suite · ${new Date().toLocaleString('es-BO')}
           </div>
 
           <script>

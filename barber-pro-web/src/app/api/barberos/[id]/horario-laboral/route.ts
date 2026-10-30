@@ -10,59 +10,58 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const adminSupabase = await createServerAdminClient()
     const { id: barberoId } = await context.params
 
     const [dbRes, cfgRes] = await Promise.all([
-      supabase
+      adminSupabase
         .from('barbero_horario_semanal')
         .select('*')
         .eq('barbero_id', barberoId)
         .order('dia_semana', { ascending: true }),
-      supabase
+      adminSupabase
         .from('configuraciones')
         .select('valor')
         .eq('llave', `horario_fraccionado_${barberoId}`)
         .maybeSingle()
     ])
 
-    const { data, error } = dbRes
+    const data = dbRes.data || []
     const cfgHorario = cfgRes.data?.valor?.horario as Array<any> | undefined
 
-    if (error && error.code !== '42P01') {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    const merged = DIAS.map((nombre, i) => {
+      const dbDay = data.find((d: any) => Number(d.dia_semana) === i)
+      const cfgDay = cfgHorario?.find((c: any) => Number(c.dia_semana) === i)
 
-    const baseHorario = data?.length ? data : DIAS.map((_, i) => ({
-      barbero_id: barberoId,
-      dia_semana: i,
-      hora_inicio: '09:00',
-      hora_fin: '20:00',
-      activo: i !== 0,
-    }))
-
-    // Combinar con la configuración de turnos fraccionados
-    const merged = baseHorario.map((d: any) => {
-      const cfgDay = cfgHorario?.find((c: any) => Number(c.dia_semana) === Number(d.dia_semana))
-      const hasDbT2 = Boolean(d.hora_inicio_2 && d.hora_fin_2)
+      const hasDbT2 = Boolean(dbDay?.hora_inicio_2 && dbDay?.hora_fin_2)
       const hasCfgT2 = Boolean(cfgDay?.fraccionado && cfgDay?.hora_inicio_2 && cfgDay?.hora_fin_2)
-
       const fraccionado = hasDbT2 || hasCfgT2
-      const hora_inicio_2 = d.hora_inicio_2 || cfgDay?.hora_inicio_2 || '17:00'
-      const hora_fin_2 = d.hora_fin_2 || cfgDay?.hora_fin_2 || '21:00'
+
+      const activo = cfgDay?.activo !== undefined 
+        ? Boolean(cfgDay.activo) 
+        : (dbDay?.activo !== undefined ? Boolean(dbDay.activo) : i !== 0)
+
+      const hora_inicio = (cfgDay?.hora_inicio || dbDay?.hora_inicio || '09:00').slice(0, 5)
+      const hora_fin = (cfgDay?.hora_fin || dbDay?.hora_fin || '20:00').slice(0, 5)
+      const hora_inicio_2 = (cfgDay?.hora_inicio_2 || dbDay?.hora_inicio_2 || '16:00').slice(0, 5)
+      const hora_fin_2 = (cfgDay?.hora_fin_2 || dbDay?.hora_fin_2 || '20:30').slice(0, 5)
 
       return {
-        ...d,
-        hora_inicio: d.hora_inicio?.slice(0, 5) || '09:00',
-        hora_fin: d.hora_fin?.slice(0, 5) || '20:00',
+        barbero_id: barberoId,
+        dia_semana: i,
+        nombre,
+        activo,
+        hora_inicio,
+        hora_fin,
         fraccionado,
-        hora_inicio_2: hora_inicio_2?.slice(0, 5) || '17:00',
-        hora_fin_2: hora_fin_2?.slice(0, 5) || '21:00',
+        hora_inicio_2,
+        hora_fin_2,
       }
     })
 
     return NextResponse.json({ horario: merged })
-  } catch (err) {
+  } catch (err: any) {
+    console.error('[horario-laboral GET] Error:', err?.message)
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
 }
@@ -91,64 +90,81 @@ export async function PUT(
     }
 
     const { horario } = await request.json()
+    if (!Array.isArray(horario)) {
+      return NextResponse.json({ error: 'Formato de horario inválido' }, { status: 400 })
+    }
 
-    // Usar adminClient para bypasear RLS cuando es admin/coordinador
-    const dbWrite = isAdminOrCoord ? await createServerAdminClient() : supabase
+    // Usar adminClient para bypasear RLS y asegurar escritura garantizada
+    const dbWrite = await createServerAdminClient()
 
     for (const row of horario) {
-      const payloadConT2: any = {
-        barbero_id: barberoId,
-        dia_semana: row.dia_semana,
-        hora_inicio: row.hora_inicio,
-        hora_fin: row.hora_fin,
-        activo: row.activo,
-        hora_inicio_2: row.fraccionado ? (row.hora_inicio_2 || null) : null,
-        hora_fin_2: row.fraccionado ? (row.hora_fin_2 || null) : null,
+      const diaNum = Number(row.dia_semana)
+      const hIni = (row.hora_inicio || '09:00').slice(0, 5)
+      const hFin = (row.hora_fin || '20:00').slice(0, 5)
+      const isActivo = Boolean(row.activo)
+
+      let savedWithT2 = false
+      if (row.fraccionado && row.hora_inicio_2 && row.hora_fin_2) {
+        const payloadConT2 = {
+          barbero_id: barberoId,
+          dia_semana: diaNum,
+          hora_inicio: hIni,
+          hora_fin: hFin,
+          activo: isActivo,
+          tipo_horario: 'personalizado',
+          hora_inicio_2: row.hora_inicio_2.slice(0, 5),
+          hora_fin_2: row.hora_fin_2.slice(0, 5),
+        }
+
+        const { error: t2Err } = await dbWrite
+          .from('barbero_horario_semanal')
+          .upsert(payloadConT2, { onConflict: 'barbero_id,dia_semana' })
+
+        if (!t2Err) {
+          savedWithT2 = true
+        }
       }
 
-      // Intentar primero con las columnas de turno 2
-      const { error: upsertErr } = await dbWrite
-        .from('barbero_horario_semanal')
-        .upsert(payloadConT2, { onConflict: 'barbero_id,dia_semana' })
+      if (!savedWithT2) {
+        // Upsert estándar garantizado en todas las versiones de schema
+        const payloadBase = {
+          barbero_id: barberoId,
+          dia_semana: diaNum,
+          hora_inicio: hIni,
+          hora_fin: hFin,
+          activo: isActivo,
+          tipo_horario: 'personalizado',
+        }
 
-      if (upsertErr) {
-        // Si las columnas aún no existen en la base de datos (código 42703), upsert base
-        if (upsertErr.code === '42703') {
-          const { error: fallbackErr } = await dbWrite.from('barbero_horario_semanal').upsert(
-            {
-              barbero_id: barberoId,
-              dia_semana: row.dia_semana,
-              hora_inicio: row.hora_inicio,
-              hora_fin: row.hora_fin,
-              activo: row.activo,
-            },
-            { onConflict: 'barbero_id,dia_semana' }
-          )
-          if (fallbackErr) {
-            console.error(`[horario-laboral] Error fallback dia ${row.dia_semana}:`, fallbackErr.message)
-          }
-        } else {
-          console.error(`[horario-laboral] Error upsert dia ${row.dia_semana}:`, upsertErr.message)
+        const { error: baseErr } = await dbWrite
+          .from('barbero_horario_semanal')
+          .upsert(payloadBase, { onConflict: 'barbero_id,dia_semana' })
+
+        if (baseErr) {
+          console.error(`[horario-laboral PUT] Error guardando día ${diaNum}:`, baseErr.message)
+          throw new Error(`Error al guardar día ${diaNum}: ${baseErr.message}`)
         }
       }
     }
 
-    // Persistir siempre la configuración completa de turnos fraccionados en configuraciones para máxima resiliencia
+    // Persistir siempre la configuración completa en configuraciones para máxima resiliencia
+    const sanitizedConfig = horario.map((h: any) => ({
+      dia_semana: Number(h.dia_semana),
+      activo: Boolean(h.activo),
+      hora_inicio: (h.hora_inicio || '09:00').slice(0, 5),
+      hora_fin: (h.hora_fin || '20:00').slice(0, 5),
+      fraccionado: Boolean(h.fraccionado),
+      hora_inicio_2: h.fraccionado && h.hora_inicio_2 ? h.hora_inicio_2.slice(0, 5) : null,
+      hora_fin_2: h.fraccionado && h.hora_fin_2 ? h.hora_fin_2.slice(0, 5) : null,
+    }))
+
     try {
       await dbWrite.from('configuraciones').upsert({
         llave: `horario_fraccionado_${barberoId}`,
         valor: {
           barbero_id: barberoId,
           updated_at: new Date().toISOString(),
-          horario: horario.map((h: any) => ({
-            dia_semana: h.dia_semana,
-            activo: h.activo,
-            hora_inicio: h.hora_inicio,
-            hora_fin: h.hora_fin,
-            fraccionado: Boolean(h.fraccionado),
-            hora_inicio_2: h.fraccionado ? h.hora_inicio_2 : null,
-            hora_fin_2: h.fraccionado ? h.hora_fin_2 : null,
-          }))
+          horario: sanitizedConfig
         },
         descripcion: `Configuración de horarios fraccionados para barbero ${barberoId}`
       }, { onConflict: 'llave' })
@@ -162,9 +178,9 @@ export async function PUT(
       payload: { barberoId },
     })
 
-    return NextResponse.json({ ok: true })
-  } catch (err) {
-    console.error('[horario-laboral] Error interno:', err)
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 })
+    return NextResponse.json({ ok: true, horario: sanitizedConfig })
+  } catch (err: any) {
+    console.error('[horario-laboral PUT] Error interno:', err?.message)
+    return NextResponse.json({ error: err?.message || 'Error interno' }, { status: 500 })
   }
 }

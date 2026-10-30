@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { getNotificationDbClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { isAfterAutoCloseHour, getBoliviaDayOfWeek, getBoliviaTime } from '@/lib/asistencia/helpers'
@@ -153,15 +153,16 @@ export async function POST(
     try {
       // Check for early departure (Salida temprano) — usar hora Bolivia
       const dayOfWeek = getBoliviaDayOfWeek()
+      const adminSupabase = await createServerAdminClient()
       const [horarioRes, configFraccionadoRes] = await Promise.all([
-        supabase
+        adminSupabase
           .from('barbero_horario_semanal')
           .select('*')
           .eq('barbero_id', user.id)
           .eq('dia_semana', dayOfWeek)
           .eq('activo', true)
           .maybeSingle(),
-        supabase
+        adminSupabase
           .from('configuraciones')
           .select('valor')
           .eq('llave', `horario_fraccionado_${user.id}`)

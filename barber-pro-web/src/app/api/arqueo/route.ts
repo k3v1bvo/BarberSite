@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { getBoliviaDateString } from '@/lib/asistencia/helpers'
 
@@ -239,6 +239,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'El arqueo de este día ya fue cerrado' }, { status: 400 })
     }
 
+    const adminSupabase = await createServerAdminClient()
     const usuarioCierre = body.usuario_cierre || profile?.full_name || user.email || 'Sistema'
 
     if (body.cerrado && body.pago_cierre && Number(body.pago_cierre.monto) > 0) {
@@ -248,7 +249,16 @@ export async function POST(request: NextRequest) {
       const pComprobante = body.pago_cierre.comprobante_url || null
       const esDigital = ['qr', 'transferencia', 'banco', 'tarjeta'].includes(pMetodo)
 
-      await supabase.from('transactions').insert({
+      // Asegurar que EGR-CIE exista en plan_cuentas
+      await adminSupabase.from('plan_cuentas').upsert({
+        codigo: 'EGR-CIE',
+        detalle: 'Pago por Cierre de Caja Diario',
+        tipo: 'EGRESO',
+        nivel: 1,
+        es_sancion: false
+      }, { onConflict: 'codigo', ignoreDuplicates: true })
+
+      const { error: txError } = await adminSupabase.from('transactions').insert({
         libro: esDigital ? 'BANCO' : 'CAJA_CHICA',
         fecha,
         ci: '0000000',
@@ -267,7 +277,24 @@ export async function POST(request: NextRequest) {
         comprobante_url: pComprobante
       })
 
-      await supabase.from('egresos').insert({
+      if (txError) {
+        console.error("Error inserting transaction pago_cierre, trying base fallback:", txError)
+        await adminSupabase.from('transactions').insert({
+          libro: esDigital ? 'BANCO' : 'CAJA_CHICA',
+          fecha,
+          ci: '0000000',
+          nombre: `Pago Cierre de Caja a ${pPersona}`,
+          cuenta_codigo: 'EGR-CIE',
+          cuenta_detalle: 'Pago por Cierre de Caja Diario',
+          glosa: `Bono por cerrar caja el día ${fecha}`,
+          costo: pMonto,
+          tipo_movimiento: 'EGRESO',
+          es_sancion: false,
+          usuario_registro: profile?.full_name || 'Sistema',
+        })
+      }
+
+      const { error: egrError } = await adminSupabase.from('egresos').insert({
         fecha,
         concepto: 'Pago por Cierre de Caja Diario',
         proveedor: pPersona,
@@ -283,6 +310,24 @@ export async function POST(request: NextRequest) {
         usuario_registro: profile?.full_name || 'Sistema',
         notas: `Bono por cerrar caja el día ${fecha}`
       })
+
+      if (egrError) {
+        if (egrError.code === '42703' || (egrError as any).code === 'PGRST204' || egrError.message?.includes('column') || egrError.message?.includes('schema cache')) {
+          await adminSupabase.from('egresos').insert({
+            fecha,
+            concepto: 'Pago por Cierre de Caja Diario',
+            proveedor: pPersona,
+            monto_bruto: pMonto,
+            tiene_factura: false,
+            iva: 0,
+            it: 0,
+            monto_neto: pMonto,
+            cuenta_codigo: 'EGR-CIE',
+            usuario_registro: profile?.full_name || 'Sistema',
+            notas: `Bono por cerrar caja el día ${fecha}`
+          })
+        }
+      }
     }
 
     const row = {
@@ -300,7 +345,7 @@ export async function POST(request: NextRequest) {
 
     let result
     if (existing) {
-      const { data, error } = await supabase
+      const { data, error } = await adminSupabase
         .from('daily_closures')
         .update(row)
         .eq('id', existing.id)
@@ -309,7 +354,7 @@ export async function POST(request: NextRequest) {
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       result = data
     } else {
-      const { data, error } = await supabase
+      const { data, error } = await adminSupabase
         .from('daily_closures')
         .insert(row)
         .select()
@@ -319,8 +364,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(result, { status: existing ? 200 : 201 })
-  } catch {
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 })
   }
 }
 

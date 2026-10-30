@@ -504,7 +504,7 @@ export default function AdminPage() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Reporte Ejecutivo - Barber Pro (${start} al ${end})</title>
+          <title>Reporte Ejecutivo - BarberSite (${start} al ${end})</title>
           <style>
             body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 30px; color: #18181b; background: #fff; line-height: 1.5; }
             .header { border-bottom: 3px solid #f59e0b; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end; }
@@ -608,7 +608,7 @@ export default function AdminPage() {
           </table>
 
           <div class="footer">
-            Generado automáticamente por Barber Pro Admin Suite · ${new Date().toLocaleString('es-BO')}
+            Generado automáticamente por BarberSite Admin Suite · ${new Date().toLocaleString('es-BO')}
           </div>
 
           <script>

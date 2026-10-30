@@ -1,34 +1,33 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerAdminClient } from '@/lib/supabase/server'
 import { getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabaseClient()
-  
   try {
+    const adminSupabase = await createServerAdminClient()
     const body = await request.json()
-    const { clienteData, cart, metodo_entrega, notas } = body
+    const { clienteData, cart, metodo_entrega } = body
     
     // 1. Manejar Cliente (Buscar o Crear)
     let clienteId = null
-    let emailAEnviar = clienteData.email
+    const emailAEnviar = clienteData.email
 
     if (clienteData.usuario_registrado_id) {
       clienteId = clienteData.usuario_registrado_id
     } else if (clienteData.email || clienteData.telefono) {
       // Buscar si existe un perfil/cliente con ese correo o teléfono
-      let query = supabase.from('clientes').select('id')
+      let query = adminSupabase.from('clientes').select('id')
       if (clienteData.email) query = query.eq('email', clienteData.email)
       else query = query.eq('telefono', clienteData.telefono)
         
-      const { data: exCliente } = await query.single()
+      const { data: exCliente } = await query.maybeSingle()
       
       if (exCliente) {
         clienteId = exCliente.id
       } else {
         // Crear cliente "shadow" (solo registro de negocio, no Auth)
-        const { data: newCliente, error: clError } = await supabase
+        const { data: newCliente, error: clError } = await adminSupabase
           .from('clientes')
           .insert({
             nombre: clienteData.nombre,
@@ -46,20 +45,20 @@ export async function POST(request: Request) {
     }
 
     if (!clienteId) {
-       return NextResponse.json({ error: 'Se requiere información del cliente válida' }, { status: 400 })
+      return NextResponse.json({ error: 'Se requiere información del cliente válida' }, { status: 400 })
     }
 
     // 2. Calcular Totales y Crear Pedido
     let total = 0
     for (const item of cart) {
-      total += (item.precio_venta * item.cantidad)
+      total += ((Number(item.precio_venta) || 0) * (Number(item.cantidad) || 1))
     }
 
     if (metodo_entrega === 'con_reserva' && cart.length > 0) {
       total = Math.max(0, total - 10)
     }
 
-    const { data: pedidoNuevo, error: pedError } = await supabase
+    const { data: pedidoNuevo, error: pedError } = await adminSupabase
       .from('pedidos')
       .insert({
         cliente_id: clienteId,
@@ -74,7 +73,7 @@ export async function POST(request: Request) {
 
     // 3. Crear Items del Pedido y Descontar Stock
     for (const item of cart) {
-      await supabase.from('pedido_items').insert({
+      await adminSupabase.from('pedido_items').insert({
         pedido_id: pedidoNuevo.id,
         producto_id: item.id,
         cantidad: item.cantidad,
@@ -82,16 +81,16 @@ export async function POST(request: Request) {
       })
       
       // Restar stock y registrar movimiento de inventario
-      const { data: pActual } = await supabase.from('productos').select('stock_actual').eq('id', item.id).single()
+      const { data: pActual } = await adminSupabase.from('productos').select('stock_actual').eq('id', item.id).single()
       if (pActual) {
         const stockAnt = pActual.stock_actual || 0
         const nuevoStock = Math.max(0, stockAnt - item.cantidad)
-        await supabase.from('productos')
+        await adminSupabase.from('productos')
           .update({ stock_actual: nuevoStock })
           .eq('id', item.id)
 
         try {
-          await supabase.from('inventario_movimientos').insert({
+          await adminSupabase.from('inventario_movimientos').insert({
             producto_id: item.id,
             tipo: 'venta',
             cantidad: -item.cantidad,
@@ -106,7 +105,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const db = getNotificationDbClient(supabase)
+    const db = getNotificationDbClient(adminSupabase)
     await dispatchNotification(db, {
       event: 'venta_nueva',
       payload: {
@@ -120,6 +119,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, pedidoId: pedidoNuevo.id })
   } catch (error: any) {
     console.error('Error Checkout:', error)
-    return NextResponse.json({ error: 'Error procesando el pedido' }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Error procesando el pedido' }, { status: 500 })
   }
 }

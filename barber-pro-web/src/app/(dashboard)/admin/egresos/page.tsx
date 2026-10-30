@@ -235,41 +235,29 @@ export default function EgresosPage() {
         ? (formData.notas ? `${formData.notas} | Efectivo: Bs ${montoEf} | QR: Bs ${montoQr}` : `Efectivo: Bs ${montoEf} | QR: Bs ${montoQr}`)
         : (formData.notas || null)
 
-      const { error: egresoError } = await supabase.from('egresos').insert({
-        fecha: fechaHoyLaPaz,
-        concepto: formData.concepto,
-        proveedor: formData.proveedor || null,
-        monto_bruto: montoTotal,
-        monto_neto: montoTotal,
-        metodo_pago: formData.metodo_pago,
-        monto_efectivo: montoEf,
-        monto_qr: montoQr,
-        usuario_registro: userName,
-        notas: notasFinal,
-        comprobante_url: formData.comprobante_url || null
-      })
-      if (egresoError) throw egresoError
-
       const selectedCat = categorias.find(c => c.id === selectedCategoriaId)
-      const { error: txError } = await supabase.from('transactions').insert({
-        libro: formData.metodo_pago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
-        fecha: fechaHoyLaPaz,
-        ci: '0000000',
-        nombre: formData.proveedor || 'Gasto General',
-        cuenta_codigo: selectedCat?.codigo || 'EGRESO',
-        cuenta_detalle: formData.concepto,
-        glosa: formData.notas || `Egreso por ${formData.concepto}`,
-        costo: montoTotal,
-        tipo_movimiento: 'EGRESO',
-        subcategoria: 'GASTO_GENERAL',
-        metodo_pago: formData.metodo_pago,
-        monto_efectivo: montoEf,
-        monto_qr: montoQr,
-        notas: notasFinal,
-        usuario_registro: userName,
-        comprobante_url: formData.comprobante_url || null
+      const res = await fetch('/api/egresos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fecha: fechaHoyLaPaz,
+          concepto: formData.concepto,
+          proveedor: formData.proveedor || null,
+          monto_bruto: montoTotal,
+          tiene_factura: false,
+          cuenta_codigo: selectedCat?.codigo || 'EGR-GEN',
+          metodo_pago: formData.metodo_pago,
+          monto_efectivo: montoEf,
+          monto_qr: montoQr,
+          notas: notasFinal,
+          comprobante_url: formData.comprobante_url || null,
+        }),
       })
-      if (txError) throw txError
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}))
+        throw new Error(errJson.error || 'Error al guardar el egreso')
+      }
 
       success('Egreso registrado correctamente')
       setFormData({ concepto: '', proveedor: '', monto_neto: '', notas: '', metodo_pago: 'efectivo', monto_efectivo: '', monto_qr: '', comprobante_url: '' })

@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // ─── GET: todos los datos para el panel de reglas laborales ───
@@ -43,13 +43,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
+    const adminSupabase = await createServerAdminClient()
     const body = await request.json()
     const { accion, ...payload } = body
 
     // ── Actualizar comisión de un servicio ──
     if (accion === 'update_servicio_comision') {
       const { servicio_id, comision_activa, comision_tipo, comision_valor, comision_acumulable, comision_notas } = payload
-      const { error } = await supabase.from('servicios').update({ comision_activa, comision_tipo, comision_valor, comision_acumulable, comision_notas }).eq('id', servicio_id)
+      const { error } = await adminSupabase.from('servicios').update({ comision_activa, comision_tipo, comision_valor, comision_acumulable, comision_notas }).eq('id', servicio_id)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ success: true })
     }
@@ -59,10 +60,10 @@ export async function PATCH(request: NextRequest) {
     if (accion === 'upsert_plan_cuenta') {
       const { id, codigo, detalle, tipo, nivel, es_sancion } = payload
       if (id) {
-        const { error } = await supabase.from('plan_cuentas').update({ codigo, detalle, tipo, nivel, es_sancion }).eq('id', id)
+        const { error } = await adminSupabase.from('plan_cuentas').update({ codigo, detalle, tipo, nivel, es_sancion }).eq('id', id)
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       } else {
-        const { error } = await supabase.from('plan_cuentas').insert({ codigo, detalle, tipo, nivel: nivel ?? 1, es_sancion: es_sancion ?? false })
+        const { error } = await adminSupabase.from('plan_cuentas').insert({ codigo, detalle, tipo, nivel: nivel ?? 1, es_sancion: es_sancion ?? false })
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       }
       return NextResponse.json({ success: true })
@@ -71,7 +72,7 @@ export async function PATCH(request: NextRequest) {
     // ── Eliminar cuenta contable (sanción) ──
     if (accion === 'delete_plan_cuenta') {
       const { id } = payload
-      const { error } = await supabase.from('plan_cuentas').delete().eq('id', id)
+      const { error } = await adminSupabase.from('plan_cuentas').delete().eq('id', id)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ success: true })
     }
@@ -79,7 +80,7 @@ export async function PATCH(request: NextRequest) {
     // ── Guardar config de bonos (montos sugeridos y descripciones por tipo) ──
     if (accion === 'update_bonos_config') {
       const { valor } = payload
-      const { error } = await supabase.from('configuraciones').upsert({ llave: 'bonos_config', valor, descripcion: 'Configuración de tipos y montos sugeridos de bonos' }, { onConflict: 'llave' })
+      const { error } = await adminSupabase.from('configuraciones').upsert({ llave: 'bonos_config', valor, descripcion: 'Configuración de tipos y montos sugeridos de bonos' }, { onConflict: 'llave' })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ success: true })
     }
@@ -87,7 +88,7 @@ export async function PATCH(request: NextRequest) {
     // ── Guardar config de asistencia (tolerancia, etc) ──
     if (accion === 'update_asistencia_config') {
       const { valor } = payload
-      const { error } = await supabase.from('configuraciones').upsert({ llave: 'asistencia_config', valor, descripcion: 'Configuración general de asistencia (tolerancia)' }, { onConflict: 'llave' })
+      const { error } = await adminSupabase.from('configuraciones').upsert({ llave: 'asistencia_config', valor, descripcion: 'Configuración general de asistencia (tolerancia)' }, { onConflict: 'llave' })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ success: true })
     }
@@ -95,13 +96,13 @@ export async function PATCH(request: NextRequest) {
     // ── Guardar ubicación del negocio (geolocalización) ──
     if (accion === 'update_ubicacion_negocio') {
       const { valor } = payload
-      const { error } = await supabase.from('configuraciones').upsert({ llave: 'ubicacion_negocio', valor, descripcion: 'Ubicación del negocio para verificación GPS de asistencia' }, { onConflict: 'llave' })
+      const { error } = await adminSupabase.from('configuraciones').upsert({ llave: 'ubicacion_negocio', valor, descripcion: 'Ubicación del negocio para verificación GPS de asistencia' }, { onConflict: 'llave' })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ success: true })
     }
 
     return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })
-  } catch {
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 })
   }
 }

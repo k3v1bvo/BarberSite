@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // POST /api/consignaciones/pagos - Registrar pago al proveedor
@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Solo administradores y coordinadores pueden hacer esto' }, { status: 403 })
     }
 
+    const adminSupabase = await createServerAdminClient()
     const body = await request.json()
     const { consignacion_id, monto, metodo_pago, monto_efectivo, monto_qr, notas } = body
 
@@ -31,10 +32,10 @@ export async function POST(request: NextRequest) {
     const mQr = mpLower === 'mixto' ? Number(monto_qr) : (esDigital ? Number(monto) : 0)
 
     // 1. Crear el pago
-    const { error: pagoError } = await supabase
+    const { error: pagoError } = await adminSupabase
       .from('consignacion_pagos')
       .insert({
-        consignacion_id: consignacion_id || null, // null significa un pago general
+        consignacion_id: consignacion_id || null,
         monto: Number(monto),
         metodo_pago: mpLower,
         monto_efectivo: mEfectivo,
@@ -47,20 +48,28 @@ export async function POST(request: NextRequest) {
 
     // 2. Si se especificó una consignación, actualizar el total pagado y estado
     if (consignacion_id) {
-      const { data: cons } = await supabase.from('consignaciones').select('total_costo, total_pagado').eq('id', consignacion_id).single()
+      const { data: cons } = await adminSupabase.from('consignaciones').select('total_costo, total_pagado').eq('id', consignacion_id).single()
       if (cons) {
         const nuevoTotal = (cons.total_pagado || 0) + Number(monto)
         const nuevoEstado = nuevoTotal >= cons.total_costo ? 'pagado' : 'pagado_parcial'
         
-        await supabase.from('consignaciones').update({
+        await adminSupabase.from('consignaciones').update({
           total_pagado: nuevoTotal,
           estado: nuevoEstado
         }).eq('id', consignacion_id)
       }
     }
 
-    // 3. Crear el Egreso contable para reflejar la salida de dinero
-    await supabase.from('transactions').insert({
+    // 3. Crear el Egreso contable para reflejar la salida de dinero asegurando plan_cuentas
+    await adminSupabase.from('plan_cuentas').upsert({
+      codigo: 'EGRESO',
+      detalle: 'Pago a Proveedores / Consignaciones',
+      tipo: 'EGRESO',
+      nivel: 1,
+      es_sancion: false
+    }, { onConflict: 'codigo', ignoreDuplicates: true })
+
+    const { error: txError } = await adminSupabase.from('transactions').insert({
       libro: mpLower === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
       fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
       ci: 'S/N',
@@ -76,6 +85,22 @@ export async function POST(request: NextRequest) {
       monto_qr: mQr,
       usuario_registro: profile?.full_name || 'Admin'
     })
+
+    if (txError) {
+      console.error('Error insertando transaccion de pago consignacion, intentando fallback base:', txError)
+      await adminSupabase.from('transactions').insert({
+        libro: mpLower === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
+        fecha: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
+        ci: 'S/N',
+        nombre: 'Pago Consignación Proveedor',
+        cuenta_codigo: 'EGRESO',
+        cuenta_detalle: 'Pago Consignación',
+        glosa: notas || 'Pago semanal por productos en consignación',
+        costo: Number(monto),
+        tipo_movimiento: 'EGRESO',
+        usuario_registro: profile?.full_name || 'Admin'
+      })
+    }
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

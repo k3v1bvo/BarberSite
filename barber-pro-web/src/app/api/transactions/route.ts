@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { getTodayBolivia } from '@/lib/utils'
 
@@ -386,8 +386,10 @@ export async function POST(request: NextRequest) {
       tipoMovFinal = 'EGRESO'
     }
 
+    const dbWrite = (profile.role === 'admin' || profile.role === 'coordinador') ? await createServerAdminClient() : supabase
+
     // Asegurar que la cuenta exista en plan_cuentas para evitar violación de foreign key (transactions_cuenta_codigo_fkey)
-    await supabase.from('plan_cuentas').upsert({
+    await dbWrite.from('plan_cuentas').upsert({
       codigo: cuentaCodigoFinal,
       detalle: body.cuenta_codigo ? (body.cuenta_detalle || 'Movimiento Financiero') : 'Movimiento General / Varios',
       tipo: tipoMovFinal === 'INGRESO' || tipoMovFinal === 'DEPOSITO' ? 'INGRESO' : 'EGRESO',
@@ -395,7 +397,7 @@ export async function POST(request: NextRequest) {
       es_sancion: !!body.es_sancion
     }, { onConflict: 'codigo', ignoreDuplicates: true })
 
-    const { data, error } = await supabase
+    const { data, error } = await dbWrite
       .from('transactions')
       .insert({
         libro: body.libro,
@@ -421,8 +423,8 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      if (error.code === '42703' || error.message?.includes('column') || error.message?.includes('subcategoria') || error.message?.includes('monto_')) {
-        const { data: fallbackData, error: fallbackError } = await supabase
+      if (error.code === '42703' || (error as any).code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('subcategoria') || error.message?.includes('monto_')) {
+        const { data: fallbackData, error: fallbackError } = await dbWrite
           .from('transactions')
           .insert({
             libro: body.libro,
@@ -470,13 +472,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
+    const adminSupabase = await createServerAdminClient()
     const body = await request.json()
     const { id, comprobante_url, costo, nombre, ci, cuenta_codigo, cuenta_detalle, glosa, metodo_pago, monto_efectivo, monto_qr, tipo_movimiento, fecha, notas, empleado_id, servicio_id } = body
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
     if (id.startsWith('virtual-cita-')) {
       const citaId = id.replace('virtual-cita-', '')
-      const { data: cita } = await supabase
+      const { data: cita } = await adminSupabase
         .from('citas')
         .select('notas, cliente_id, barbero_id, servicio_id, precio, fecha_hora, metodo_pago, anticipo_monto, clientes(nombre, ci), servicios(nombre), profiles!barbero_id(full_name)')
         .eq('id', citaId)
@@ -490,7 +493,7 @@ export async function PATCH(request: NextRequest) {
           } else {
             currentNotas = currentNotas.replace(/\[Comprobante\]: .*/, `[Comprobante]: ${comprobante_url}`)
           }
-          await supabase.from('citas').update({ notas: currentNotas }).eq('id', citaId)
+          await adminSupabase.from('citas').update({ notas: currentNotas }).eq('id', citaId)
         }
 
         const barberoIdFinal = empleado_id || cita.barbero_id
@@ -498,13 +501,13 @@ export async function PATCH(request: NextRequest) {
 
         let barberoNombre = (cita.profiles as any)?.full_name || 'Barbero'
         if (empleado_id && empleado_id !== cita.barbero_id) {
-          const { data: newBarber } = await supabase.from('profiles').select('full_name').eq('id', empleado_id).single()
+          const { data: newBarber } = await adminSupabase.from('profiles').select('full_name').eq('id', empleado_id).single()
           if (newBarber?.full_name) barberoNombre = newBarber.full_name
         }
 
         let servicioNombre = (cita.servicios as any)?.nombre || 'Servicio'
         if (servicio_id && servicio_id !== cita.servicio_id) {
-          const { data: newServ } = await supabase.from('servicios').select('nombre').eq('id', servicio_id).single()
+          const { data: newServ } = await adminSupabase.from('servicios').select('nombre').eq('id', servicio_id).single()
           if (newServ?.nombre) servicioNombre = newServ.nombre
         }
 
@@ -515,7 +518,7 @@ export async function PATCH(request: NextRequest) {
         const mpRaw = String(metodo_pago || cita.metodo_pago || 'qr').toLowerCase()
         const resto = Math.max(0, precioCita - anticipoQr)
 
-        const { data: bTx } = await supabase
+        const { data: bTx } = await adminSupabase
           .from('transactions')
           .select('id')
           .eq('cita_id', citaId)
@@ -530,7 +533,16 @@ export async function PATCH(request: NextRequest) {
         if (anticipoQr > 0 && realEf > 0 && !tieneAnticipoEnBanco) realMetodo = 'mixto'
         else if (anticipoQr > 0 && realEf === 0 && !tieneAnticipoEnBanco) realMetodo = 'qr'
 
-        const { data: txNueva } = await supabase.from('transactions').insert({
+        // Asegurar cuenta 4.1.2 en plan_cuentas
+        await adminSupabase.from('plan_cuentas').upsert({
+          codigo: cuenta_codigo || '4.1.2',
+          detalle: cuenta_detalle || `Servicio: ${servicioNombre}`,
+          tipo: 'INGRESO',
+          nivel: 1,
+          es_sancion: false
+        }, { onConflict: 'codigo', ignoreDuplicates: true })
+
+        const { data: txNueva, error: txInsErr } = await adminSupabase.from('transactions').insert({
           libro: 'SERVICIOS',
           fecha: fecha || (cita.fecha_hora ? cita.fecha_hora.split('T')[0] : getTodayBolivia()),
           ci: clienteCi,
@@ -553,8 +565,27 @@ export async function PATCH(request: NextRequest) {
           usuario_registro: profile?.full_name || 'Coordinador',
         }).select().single()
 
+        if (txInsErr) {
+          if (txInsErr.code === '42703' || (txInsErr as any).code === 'PGRST204' || txInsErr.message?.includes('column') || txInsErr.message?.includes('schema cache')) {
+            await adminSupabase.from('transactions').insert({
+              libro: 'SERVICIOS',
+              fecha: fecha || (cita.fecha_hora ? cita.fecha_hora.split('T')[0] : getTodayBolivia()),
+              ci: clienteCi,
+              nombre: clienteNombre,
+              cuenta_codigo: cuenta_codigo || '4.1.2',
+              cuenta_detalle: cuenta_detalle || `Servicio: ${servicioNombre}`,
+              glosa: glosa || `Atendido por ${barberoNombre} — Cita #${citaId.slice(0, 6)}`,
+              costo: precioCita,
+              tipo_movimiento: tipo_movimiento || 'INGRESO',
+              es_sancion: false,
+              empleado_id: barberoIdFinal,
+              usuario_registro: profile?.full_name || 'Coordinador',
+            })
+          }
+        }
+
         // Sincronizar también la tabla citas
-        await supabase.from('citas').update({
+        await adminSupabase.from('citas').update({
           metodo_pago: realMetodo,
           monto_efectivo: realEf,
           monto_transferencia: realQr,
@@ -584,7 +615,7 @@ export async function PATCH(request: NextRequest) {
     if (notas !== undefined) updatePayload.notas = notas
     if (empleado_id !== undefined) updatePayload.empleado_id = empleado_id || null
 
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('transactions')
       .update(updatePayload)
       .eq('id', id)
@@ -605,7 +636,7 @@ export async function PATCH(request: NextRequest) {
       if (servicio_id !== undefined && servicio_id) citaUpdate.servicio_id = servicio_id
 
       if (Object.keys(citaUpdate).length > 0) {
-        await supabase.from('citas').update(citaUpdate).eq('id', data.cita_id)
+        await adminSupabase.from('citas').update(citaUpdate).eq('id', data.cita_id)
       }
     }
 
@@ -631,48 +662,81 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
+    const adminSupabase = await createServerAdminClient()
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
+    let citaIdToCancel = null
+
     if (id.startsWith('virtual-cita-')) {
-      const citaId = id.replace('virtual-cita-', '')
-      const { error: cancelErr } = await supabase
+      citaIdToCancel = id.replace('virtual-cita-', '')
+    } else {
+      const { data: txRow } = await adminSupabase
+        .from('transactions')
+        .select('cita_id, cliente_id, costo')
+        .eq('id', id)
+        .single()
+      if (txRow?.cita_id) {
+        citaIdToCancel = txRow.cita_id
+      }
+    }
+
+    if (citaIdToCancel) {
+      // 1. Cancelar cita
+      await adminSupabase
         .from('citas')
         .update({
           estado: 'cancelado',
           notas: `Cancelado por eliminación de registro contable (${new Date().toISOString()})`
         })
-        .eq('id', citaId)
+        .eq('id', citaIdToCancel)
 
-      if (cancelErr) throw cancelErr
-      return NextResponse.json({ success: true, message: 'Cita cancelada y retirada de caja' })
-    }
+      // 2. Eliminar todas las transacciones vinculadas a esa cita (en SERVICIOS, VENTAS, BANCO)
+      await adminSupabase
+        .from('transactions')
+        .delete()
+        .eq('cita_id', citaIdToCancel)
 
-    // Si tiene cita vinculada, cancelar la cita también
-    const { data: txRow } = await supabase
-      .from('transactions')
-      .select('cita_id')
-      .eq('id', id)
-      .single()
-
-    if (txRow?.cita_id) {
-      await supabase
+      // 3. Revertir visitas y total gastado del cliente
+      const { data: citaRow } = await adminSupabase
         .from('citas')
-        .update({
-          estado: 'cancelado',
-          notas: `Cancelado por eliminación de registro contable (${new Date().toISOString()})`
-        })
-        .eq('id', txRow.cita_id)
+        .select('cliente_id, precio')
+        .eq('id', citaIdToCancel)
+        .single()
+
+      if (citaRow?.cliente_id) {
+        const { data: clData } = await adminSupabase
+          .from('clientes')
+          .select('total_visitas, total_gastado')
+          .eq('id', citaRow.cliente_id)
+          .single()
+
+        if (clData) {
+          const nuevasVisitas = Math.max(0, (clData.total_visitas || 1) - 1)
+          const nuevoGastado = Math.max(0, (clData.total_gastado || 0) - Number(citaRow.precio || 0))
+          await adminSupabase
+            .from('clientes')
+            .update({
+              total_visitas: nuevasVisitas,
+              total_gastado: nuevoGastado
+            })
+            .eq('id', citaRow.cliente_id)
+        }
+      }
     }
 
-    const { error } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', id)
+    // Asegurar que si era una transacción contable directa, se elimine de la base de datos
+    if (!id.startsWith('virtual-cita-')) {
+      const { error } = await adminSupabase
+        .from('transactions')
+        .delete()
+        .eq('id', id)
 
-    if (error) throw error
-    return NextResponse.json({ success: true })
+      if (error) throw error
+    }
+
+    return NextResponse.json({ success: true, message: 'Registro y cita vinculada eliminados con éxito' })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

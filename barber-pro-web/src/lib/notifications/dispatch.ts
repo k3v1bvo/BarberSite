@@ -813,6 +813,8 @@ export async function dispatchNotification(
           await sendNotificationEmail(p.acompananteEmail, 'invitacion_2x1', {
             nombre: p.acompananteNombre,
             clienteNombre: p.clienteNombre,
+            barberoNombre: p.barberoNombre,
+            servicioNombre: p.servicioNombre,
             fecha: p.fecha,
             hora: p.hora,
           })
@@ -971,7 +973,7 @@ export async function dispatchNotification(
         if (p.clienteId) {
           await notifyUser(db, p.clienteId as string, 'sistema', {
             titulo: `🎉 ¡Feliz Cumpleaños ${p.clienteNombre}! 🎂`,
-            mensaje: `¡Te deseamos un muy feliz cumpleaños de parte de todo el equipo de Barber Pro! Tu documento y fecha han sido verificados en el sistema. Ven en tu semana de cumpleaños a disfrutar tu regalo o descuento especial. ¡Te esperamos!`,
+            mensaje: `¡Te deseamos un muy feliz cumpleaños de parte de todo el equipo de BarberSite! Tu documento y fecha han sido verificados en el sistema. Ven en tu semana de cumpleaños a disfrutar tu regalo o descuento especial. ¡Te esperamos!`,
             tipo: 'info',
             categoria: 'sistema',
             link: '/reservar',

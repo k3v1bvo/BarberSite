@@ -70,16 +70,18 @@ function detailBox(rows: { label: string; value: string }[]): string {
   const items = rows
     .map(
       (r) =>
-        `<tr><td style="padding:8px 0;color:#a1a1aa;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;">${r.label}</td></tr>
-         <tr><td style="padding:0 0 12px;color:#fff;font-size:15px;font-weight:600;">${r.value}</td></tr>`
+        `<tr>
+          <td style="padding:10px 14px;color:#a1a1aa;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid rgba(255,255,255,0.06);width:38%;">${r.label}</td>
+          <td style="padding:10px 14px;color:#ffffff;font-size:14px;font-weight:700;text-align:right;border-bottom:1px solid rgba(255,255,255,0.06);">${r.value}</td>
+        </tr>`
     )
     .join('')
-  return `<table width="100%" style="background:#27272a;border-radius:12px;padding:16px 20px;margin:20px 0;">${items}</table>`
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="background:#1e1e24;border:1px solid #2d2d35;border-radius:14px;overflow:hidden;margin:20px 0;">${items}</table>`
 }
 
 function cta(href: string, label: string): string {
-  return `<p style="margin:24px 0 0;">
-    <a href="${href}" style="display:inline-block;background:#f59e0b;color:#000;font-weight:800;text-decoration:none;padding:14px 28px;border-radius:999px;font-size:13px;text-transform:uppercase;letter-spacing:0.06em;">${label}</a>
+  return `<p style="margin:26px 0 0;text-align:center;">
+    <a href="${href}" style="display:inline-block;background:linear-gradient(135deg,#f59e0b 0%,#ea580c 100%);color:#000;font-weight:900;text-decoration:none;padding:14px 32px;border-radius:12px;font-size:13px;text-transform:uppercase;letter-spacing:0.08em;box-shadow:0 4px 15px rgba(245,158,11,0.3);">${label}</a>
   </p>`
 }
 
@@ -165,57 +167,63 @@ export function buildEmail(
 
     case 'reserva_confirmacion_cliente':
       return {
-        subject: '✂️ Tu cita está confirmada',
+        subject: `✂️ Tu cita en ${BRAND} está confirmada`,
         html: layout(
-          `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">¡Hola ${nombre}!</h2>
-          <p>Tu reserva quedó registrada correctamente.</p>
+          `<h2 style="margin:0 0 8px;color:#fff;font-size:22px;font-weight:800;">¡Hola ${nombre}!</h2>
+          <p style="color:#d4d4d8;margin:0 0 16px;">Tu reserva en <strong>${BRAND}</strong> ha quedado confirmada y programada en la agenda.</p>
           ${detailBox([
             { label: 'Servicio', value: data.servicio || '—' },
             { label: 'Fecha', value: data.fecha || '—' },
-            { label: 'Hora', value: data.hora || '—' },
-            { label: 'Barbero', value: data.barbero || '—' },
+            { label: 'Hora', value: `${data.hora || '—'} hrs` },
+            { label: 'Especialista', value: data.barbero || 'Barbero asignado' },
             { label: 'Modalidad de Pago', value: data.metodoPago || 'Pago en el local' },
           ])}
-          <p>Te esperamos puntual en la barbería. Si necesitas cambiar algo, contáctanos con anticipación.</p>
-          ${cta(`${SITE}/cliente`, 'Ver mis citas')}`,
+          <div style="margin:20px 0;padding:14px 16px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:12px;color:#fcd34d;font-size:13px;line-height:1.5;">
+            📍 <strong>Instrucciones para tu visita:</strong> Preséntate 5 minutos antes de tu hora e indica tu nombre al barbero en recepción. Tu horario ya está reservado y garantizado.
+          </div>
+          <p style="color:#a1a1aa;font-size:13px;">Si necesitas reprogramar o cancelar, puedes hacerlo ingresando a tu cuenta con anticipación.</p>
+          ${cta(`${SITE}/cliente`, 'Ver Mi Comprobante de Cita')}`,
           `Tu cita en ${BRAND} está confirmada`
         ),
       }
 
     case 'reserva_nueva_barbero':
       return {
-        subject: `📅 Nueva cita: ${nombre}`,
+        subject: `📅 Nueva cita en ${BRAND}: ${nombre}`,
         html: layout(
-          `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">Nueva reserva en tu agenda</h2>
-          <p><strong>${nombre}</strong> agendó un servicio contigo.</p>
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:22px;font-weight:800;">Nueva reserva en tu agenda</h2>
+          <p style="color:#d4d4d8;">Hola, el cliente <strong>${nombre}</strong> ha agendado una cita contigo.</p>
           ${detailBox([
+            { label: 'Cliente', value: nombre },
             { label: 'Servicio', value: data.servicio || '—' },
             { label: 'Fecha', value: data.fecha || '—' },
-            { label: 'Hora', value: data.hora || '—' },
+            { label: 'Hora', value: `${data.hora || '—'} hrs` },
             { label: 'Modalidad de Pago', value: data.metodoPago || 'Pago en el local' },
           ])}
-          ${cta(`${SITE}/agenda`, 'Abrir mi agenda')}`,
-          'Tienes una nueva cita agendada'
+          <div style="margin:16px 0;padding:12px 16px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:10px;color:#6ee7b7;font-size:13px;">
+            ✅ Este turno ha sido bloqueado en tu agenda para que te prepares adecuadamente.
+          </div>
+          ${cta(`${SITE}/agenda`, 'Abrir Mi Agenda')}`,
+          `Tienes una nueva cita agendada en ${BRAND}`
         ),
       }
 
     case 'reserva_nueva_admin':
       return {
-        subject: `🎉 ¡Nueva Reserva Confirmada! — ${nombre}`,
+        subject: `🎉 ¡Nueva Reserva en ${BRAND}! — ${nombre}`,
         html: layout(
-          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Gran noticia, Administrador!</h2>
-          <p>Se ha registrado una <strong>nueva reserva</strong> en el sistema exitosamente.</p>
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:22px;font-weight:800;">Nueva Reserva Registrada</h2>
+          <p style="color:#d4d4d8;">Se ha registrado una nueva reserva en el sistema de <strong>${BRAND}</strong>.</p>
           ${detailBox([
             { label: 'Cliente', value: nombre },
             { label: 'Servicio', value: data.servicio || '—' },
             { label: 'Fecha', value: data.fecha || '—' },
-            { label: 'Hora', value: data.hora || '—' },
-            { label: 'Barbero', value: data.barbero || '—' },
+            { label: 'Hora', value: `${data.hora || '—'} hrs` },
+            { label: 'Especialista', value: data.barbero || '—' },
             { label: 'Modalidad de Pago', value: data.metodoPago || 'Pago en el local' },
           ])}
-          <p>Todo está fluyendo excelente. Puedes revisar los detalles en tu agenda administrativa.</p>
-          ${cta(`${SITE}/admin`, 'Ver Agenda Admin')}`,
-          'Una nueva reserva ingresó al sistema'
+          ${cta(`${SITE}/admin`, 'Ver Agenda General')}`,
+          `Nueva reserva en ${BRAND}`
         ),
       }
 
@@ -233,29 +241,31 @@ export function buildEmail(
 
     case 'invitacion_referido':
       return {
-        subject: `🎁 ¡${data.acompananteNombre || 'Un amigo'} te ha recomendado nuestra barbería!`,
+        subject: `🎁 ¡${data.acompananteNombre || 'Un amigo'} te ha recomendado ${BRAND}!`,
         html: layout(
-          `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">¡Hola ${data.clienteNombre || 'Cliente'}!</h2>
-          <p>Tu amigo <strong>${data.acompananteNombre || 'alguien especial'}</strong> nos contó sobre ti y te ha enviado una invitación exclusiva para visitarnos.</p>
-          <p>Ven y descubre el mejor estilo en nuestra barbería. Regístrate en nuestra plataforma para agendar tu primera cita y empezar a disfrutar de beneficios y puntos de fidelidad.</p>
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:22px;font-weight:800;">¡Hola ${data.clienteNombre || 'Cliente'}!</h2>
+          <p style="color:#d4d4d8;">Tu amigo <strong>${data.acompananteNombre || 'alguien especial'}</strong> nos contó sobre ti y te ha enviado una invitación exclusiva para visitarnos en <strong>${BRAND}</strong>.</p>
+          <p style="color:#d4d4d8;">Ven y descubre el mejor estilo y atención profesional. Regístrate en nuestra plataforma para agendar tu primera cita y empezar a disfrutar de beneficios y puntos de fidelidad.</p>
           ${cta(`${SITE}/login`, 'Crear mi cuenta')}`,
-          'Tienes una invitación especial'
+          `Tienes una invitación especial en ${BRAND}`
         ),
       }
 
     case 'reserva_cancelada':
       return {
-        subject: '❌ Cita cancelada',
+        subject: `❌ Cita cancelada en ${BRAND}`,
         html: layout(
-          `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">Reserva cancelada</h2>
-          <p>La siguiente cita fue cancelada${data.motivo ? `: <em>${data.motivo}</em>` : ''}.</p>
+          `<h2 style="margin:0 0 8px;color:#ef4444;font-size:22px;font-weight:800;">Reserva Cancelada</h2>
+          <p style="color:#d4d4d8;">La siguiente cita en <strong>${BRAND}</strong> fue cancelada${data.motivo ? `: <em>${data.motivo}</em>` : ''}.</p>
           ${detailBox([
             { label: 'Cliente', value: nombre },
             { label: 'Servicio', value: data.servicio || '—' },
             { label: 'Fecha', value: data.fecha || '—' },
-            { label: 'Hora', value: data.hora || '—' },
-          ])}`,
-          'Una cita fue cancelada'
+            { label: 'Hora', value: `${data.hora || '—'} hrs` },
+          ])}
+          <p style="color:#a1a1aa;font-size:13px;">El horario ha quedado libre. Cuando gustes puedes agendar un nuevo turno en línea.</p>
+          ${cta(`${SITE}/reservar`, 'Agendar Nueva Cita')}`,
+          `Una cita fue cancelada en ${BRAND}`
         ),
       }
 
@@ -326,18 +336,22 @@ export function buildEmail(
 
     case 'recordatorio_cita':
       return {
-        subject: '⏰ Recordatorio: tu cita es en breve',
+        subject: `⏰ Recordatorio: Tu cita en ${BRAND} es en breve`,
         html: layout(
-          `<h2 style="margin:0 0 8px;color:#fff;font-size:20px;">Te recordamos tu cita</h2>
-          <p>Hola ${nombre}, en breve tienes un servicio programado con nosotros.</p>
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:22px;font-weight:800;">Te recordamos tu cita</h2>
+          <p style="color:#d4d4d8;">Hola <strong>${nombre}</strong>, en breve tienes un servicio programado con nosotros en <strong>${BRAND}</strong>.</p>
           ${detailBox([
             { label: 'Servicio', value: data.servicio || '—' },
             { label: 'Fecha', value: data.fecha || '—' },
-            { label: 'Hora', value: data.hora || '—' },
-            { label: 'Barbero', value: data.barbero || '—' },
+            { label: 'Hora', value: `${data.hora || '—'} hrs` },
+            { label: 'Especialista', value: data.barbero || 'Barbero asignado' },
           ])}
-          <p style="color:#a1a1aa;font-size:13px;">Si no puedes asistir, avísanos para liberar el horario.</p>`,
-          'Recordatorio de cita en breve'
+          <div style="margin:16px 0;padding:12px 16px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:10px;color:#fcd34d;font-size:13px;line-height:1.5;">
+            📍 <strong>Instrucciones:</strong> Preséntate 5 minutos antes con tu nombre en <strong>${BRAND}</strong>.
+          </div>
+          <p style="color:#a1a1aa;font-size:13px;">Si no puedes asistir, por favor avísanos o cancela desde tu cuenta para liberar el turno.</p>
+          ${cta(`${SITE}/cliente`, 'Ver Mi Comprobante')}`,
+          `Recordatorio de cita en ${BRAND}`
         ),
       }
 
@@ -466,26 +480,27 @@ export function buildEmail(
 
     case 'pago_verificado_cliente':
       return {
-        subject: '✅ ¡Reserva Aceptada y Verificada! — Te esperamos',
+        subject: `✅ ¡Reserva Confirmada y Verificada! — ${BRAND}`,
         html: layout(
-          `<h2 style="margin:0 0 8px;color:#22c55e;font-size:20px;">¡Tu reserva está confirmada!</h2>
-          <p>Hola <strong>${nombre}</strong>, tu comprobante de pago fue revisado y <strong style="color:#22c55e;">aceptado</strong>. Tu cita quedó 100% confirmada.</p>
+          `<h2 style="margin:0 0 8px;color:#22c55e;font-size:22px;font-weight:800;">¡Tu reserva está 100% confirmada!</h2>
+          <p style="color:#d4d4d8;">Hola <strong>${nombre}</strong>, tu comprobante de pago fue revisado y <strong style="color:#22c55e;">aprobado</strong> exitosamente.</p>
           ${detailBox([
             { label: 'Servicio', value: data.servicio || '—' },
             { label: 'Anticipo pagado', value: data.anticipo || '—' },
             { label: 'Fecha', value: data.fecha || '—' },
-            { label: 'Hora', value: data.hora || '—' },
-            { label: 'Barbero', value: data.barbero || '—' },
+            { label: 'Hora', value: `${data.hora || '—'} hrs` },
+            { label: 'Especialista', value: data.barbero || 'Barbero asignado' },
           ])}
           ${data.comprobante_url ? `<div style="margin-top:16px;margin-bottom:16px;text-align:center;background-color:#09090b;padding:12px;border-radius:12px;border:1px solid #27272a;">
             <p style="margin:0 0 8px;font-size:11px;font-weight:bold;color:#22c55e;text-transform:uppercase;letter-spacing:1px;">📷 Comprobante Aprobado</p>
             <img src="${data.comprobante_url}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid #3f3f46;" alt="Comprobante QR" />
             ${!data.comprobante_url.startsWith('data:') ? `<p style="margin:8px 0 0;"><a href="${data.comprobante_url}" target="_blank" style="color:#f59e0b;font-size:12px;font-weight:bold;text-decoration:underline;">🔍 Ver foto completa</a></p>` : ''}
           </div>` : ''}
-          <p style="margin-top:16px;">Te esperamos puntual el <strong>${data.fecha || ''}</strong> a las <strong>${data.hora || ''}</strong> con <strong>${data.barbero || 'tu barbero'}</strong>. El saldo restante se paga directamente en la barbería.</p>
-          <p style="color:#a1a1aa;font-size:13px;margin-top:8px;">Recibirás un recordatorio antes de tu cita. Si no puedes asistir, avísanos con tiempo.</p>
-          ${cta(`${SITE}/cliente`, 'Ver mis citas')}`,
-          'Tu anticipo fue verificado y la cita confirmada'
+          <div style="margin:16px 0;padding:12px 16px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:10px;color:#fcd34d;font-size:13px;line-height:1.5;">
+            📍 <strong>Instrucciones:</strong> Te esperamos puntual en <strong>${BRAND}</strong>. Indica tu nombre al llegar. El saldo restante se cancela directamente en caja.
+          </div>
+          ${cta(`${SITE}/cliente`, 'Ver Mi Comprobante de Cita')}`,
+          `Tu anticipo fue verificado y la cita confirmada en ${BRAND}`
         ),
       }
 
@@ -532,18 +547,23 @@ export function buildEmail(
 
     case 'invitacion_2x1':
       return {
-        subject: `🎁 ¡Estás invitado a un 2x1! — ${BRAND}`,
+        subject: `🎁 ¡Tienes una Cita 2×1 en ${BRAND}! — ${nombre}`,
         html: layout(
-          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:20px;">¡Tienes una promoción 2x1!</h2>
-          <p>Hola <strong>${nombre}</strong>, tu amigo/a <strong>${data.clienteNombre}</strong> te ha invitado a aprovechar una promoción 2x1 en nuestra barbería.</p>
+          `<h2 style="margin:0 0 8px;color:#f59e0b;font-size:22px;font-weight:800;">¡Tienes una cita 2×1 reservada!</h2>
+          <p style="color:#d4d4d8;">Hola <strong>${nombre}</strong>, tu amigo/a <strong>${data.clienteNombre}</strong> ha agendado una cita con la promoción 2×1 para ti en <strong>${BRAND}</strong>.</p>
           ${detailBox([
             { label: 'Invitado por', value: data.clienteNombre || 'Un amigo' },
+            { label: 'Servicio', value: data.servicioNombre || 'Corte 2×1 (Gratis Bs 0)' },
+            { label: 'Especialista', value: data.barberoNombre || BRAND },
             { label: 'Fecha de la Cita', value: data.fecha || '—' },
-            { label: 'Hora', value: data.hora || '—' },
+            { label: 'Hora Asignada', value: data.hora ? `${data.hora} hrs` : '—' },
           ])}
-          <p>Si aún no tienes cuenta en nuestro sistema, puedes registrarte haciendo clic abajo y así tener todo tu historial y bonos guardados.</p>
-          ${cta(`${SITE}/login`, 'Registrarme / Iniciar Sesión')}`,
-          'Un amigo te ha invitado a una promoción 2x1'
+          <div style="margin:16px 0;padding:12px 16px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:10px;color:#fcd34d;font-size:13px;line-height:1.5;">
+            📍 <strong>Instrucciones de llegada:</strong> Preséntate 5 minutos antes de tu hora en <strong>${BRAND}</strong> e indica tu nombre al barbero o recepción. Tu turno ya está asegurado en la agenda sin necesidad de escanear nada.
+          </div>
+          <p style="color:#a1a1aa;font-size:13px;">Si deseas llevar el control de tus citas, acumular visitas y ganar cortes gratis, puedes acceder a tu cuenta:</p>
+          ${cta(`${SITE}/login`, 'Ver Mi Portal de Cliente')}`,
+          `Tienes una cita 2×1 reservada en ${BRAND}`
         ),
       }
 

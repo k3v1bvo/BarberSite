@@ -21,26 +21,26 @@ export async function GET(request: Request) {
   const dBolivia = new Date(`${fecha}T12:00:00-04:00`)
   const diaSemana = dBolivia.getDay()
 
-  // 2. Consultar horario semanal, tiempo mínimo de reserva, bloqueos, citas, feriados, permisos y asistencia
+  // 2. Consultar horario semanal, tiempo mínimo de reserva, bloqueos, citas, feriados, permisos y asistencia con adminSupabase
   const [horarioRes, configRes, bloqueosRes, citasRes, feriadosRes, permisosRes, asistenciaRes, configFraccionadoRes] = await Promise.all([
-    supabase
+    adminSupabase
       .from('barbero_horario_semanal')
       .select('*')
       .eq('barbero_id', barbero_id)
       .eq('dia_semana', diaSemana)
       .maybeSingle(),
-    supabase
+    adminSupabase
       .from('configuraciones')
       .select('valor')
       .eq('llave', 'tiempo_minimo_reserva')
       .maybeSingle(),
-    supabase
+    adminSupabase
       .from('barbero_bloqueos')
       .select('fecha_inicio, fecha_fin, tipo, todo_el_dia')
       .eq('barbero_id', barbero_id)
       .gte('fecha_fin', inicioDia)
       .lte('fecha_inicio', finDia),
-    supabase
+    adminSupabase
       .from('citas')
       .select('fecha_hora, duracion_real_minutos, servicios(duracion_minutos)')
       .eq('barbero_id', barbero_id)
@@ -122,32 +122,37 @@ export async function GET(request: Request) {
       turnos = [{ inicio: hora_inicio, fin: hora_fin }]
     }
   } 
-  // Prioridad 2: Horario Semanal Estándar o Fraccionado
-  else if (horario) {
-    if (!horario.activo) {
+  // Prioridad 2: Horario Semanal Estándar o Fraccionado (Unificando barbero_horario_semanal y configuraciones)
+  else {
+    const cfgHorario = configFraccionadoRes.data?.valor?.horario as any[] | undefined
+    const cfgDay = cfgHorario?.find((c: any) => Number(c.dia_semana) === diaSemana)
+
+    const hasConfig = Boolean(horario || cfgDay)
+    const isActivo = cfgDay?.activo !== undefined 
+      ? Boolean(cfgDay.activo) 
+      : (horario?.activo !== undefined ? Boolean(horario.activo) : diaSemana !== 0)
+
+    if (hasConfig && !isActivo) {
       if (esManual) {
         disponible = true
-        hora_inicio = horario.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
-        hora_fin = horario.hora_fin ? horario.hora_fin.slice(0, 5) : '20:00'
+        hora_inicio = (cfgDay?.hora_inicio || horario?.hora_inicio || '09:00').slice(0, 5)
+        hora_fin = (cfgDay?.hora_fin || horario?.hora_fin || '20:00').slice(0, 5)
         turnos = [{ inicio: hora_inicio, fin: hora_fin }]
         motivo = 'Día libre habitual del barbero (se permite agendamiento manual)'
       } else {
         disponible = false
         motivo = diaSemana === 0 ? 'El barbero no atiende los domingos.' : 'El barbero no atiende en este día de la semana.'
       }
-    } else {
-      const cfgHorario = configFraccionadoRes.data?.valor?.horario as any[] | undefined
-      const cfgDay = cfgHorario?.find((c: any) => Number(c.dia_semana) === diaSemana)
-
-      const hasDbT2 = Boolean(horario.hora_inicio_2 && horario.hora_fin_2)
+    } else if (hasConfig && isActivo) {
+      const hasDbT2 = Boolean(horario?.hora_inicio_2 && horario?.hora_fin_2)
       const hasCfgT2 = Boolean(cfgDay?.fraccionado && cfgDay?.hora_inicio_2 && cfgDay?.hora_fin_2)
 
       if (hasDbT2 || hasCfgT2) {
         esFraccionado = true
-        const t1_ini = (horario.hora_inicio || cfgDay?.hora_inicio || '09:00').slice(0, 5)
-        const t1_fin = (horario.hora_fin || cfgDay?.hora_fin || '12:00').slice(0, 5)
-        const t2_ini = (horario.hora_inicio_2 || cfgDay?.hora_inicio_2 || '17:00').slice(0, 5)
-        const t2_fin = (horario.hora_fin_2 || cfgDay?.hora_fin_2 || '21:00').slice(0, 5)
+        const t1_ini = (cfgDay?.hora_inicio || horario?.hora_inicio || '09:00').slice(0, 5)
+        const t1_fin = (cfgDay?.hora_fin || horario?.hora_fin || '13:00').slice(0, 5)
+        const t2_ini = (cfgDay?.hora_inicio_2 || horario?.hora_inicio_2 || '16:00').slice(0, 5)
+        const t2_fin = (cfgDay?.hora_fin_2 || horario?.hora_fin_2 || '20:30').slice(0, 5)
 
         hora_inicio = t1_ini
         hora_fin = t2_fin
@@ -159,17 +164,22 @@ export async function GET(request: Request) {
           { inicio: t2_ini, fin: t2_fin }
         ]
       } else {
-        hora_inicio = horario.hora_inicio ? horario.hora_inicio.slice(0, 5) : '09:00'
-        hora_fin = horario.hora_fin ? horario.hora_fin.slice(0, 5) : '20:00'
+        hora_inicio = (cfgDay?.hora_inicio || horario?.hora_inicio || '09:00').slice(0, 5)
+        hora_fin = (cfgDay?.hora_fin || horario?.hora_fin || '20:00').slice(0, 5)
         turnos = [{ inicio: hora_inicio, fin: hora_fin }]
       }
+    } else {
+      // Sin configuración para este día: Domingo cerrado por defecto, resto 09:00 a 20:00
+      if (diaSemana === 0 && !esManual) {
+        disponible = false
+        motivo = 'El barbero no atiende los domingos.'
+      } else {
+        hora_inicio = '09:00'
+        hora_fin = '20:00'
+        turnos = [{ inicio: hora_inicio, fin: hora_fin }]
+        disponible = true
+      }
     }
-  } else {
-    // Si no tiene horario configurado para este día (ej: nuevo barbero o staff): horario estándar 09:00 a 20:00
-    hora_inicio = '09:00'
-    hora_fin = '20:00'
-    turnos = [{ inicio: hora_inicio, fin: hora_fin }]
-    disponible = true
   }
 
   // Extraer las horas ocupadas con su duración (citas, bloqueos parciales, recesos fraccionados y permisos por horas)

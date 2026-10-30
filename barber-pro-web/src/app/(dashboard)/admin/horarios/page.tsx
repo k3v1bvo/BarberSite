@@ -314,7 +314,30 @@ export default function AdminHorariosPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ horario: horarioSemanal }),
       })
-      if (!res.ok) throw new Error((await res.json()).error)
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Error al guardar horario')
+
+      if (json.horario && Array.isArray(json.horario)) {
+        setHorarioSemanal(prev =>
+          prev.map(d => {
+            const confirmed = json.horario.find((h: any) => Number(h.dia_semana) === d.dia_semana)
+            if (confirmed) {
+              return {
+                ...d,
+                activo: Boolean(confirmed.activo),
+                hora_inicio: confirmed.hora_inicio?.slice(0, 5) || d.hora_inicio,
+                hora_fin: confirmed.hora_fin?.slice(0, 5) || d.hora_fin,
+                fraccionado: Boolean(confirmed.fraccionado),
+                hora_inicio_2: confirmed.hora_inicio_2?.slice(0, 5) || d.hora_inicio_2 || '16:00',
+                hora_fin_2: confirmed.hora_fin_2?.slice(0, 5) || d.hora_fin_2 || '20:30',
+              }
+            }
+            return d
+          })
+        )
+      } else {
+        await loadHorarioBarbero(barberoId)
+      }
       success('¡Horario semanal guardado correctamente!')
     } catch (err: any) {
       toastError(err.message || 'Error al guardar el horario')

@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getBoliviaDateString } from '@/lib/asistencia/helpers'
 
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = await createServerAdminClient()
     
     // Obtener fecha actual de Bolivia y buscar citas antes de hoy
     const hoyBolivia = getBoliviaDateString()

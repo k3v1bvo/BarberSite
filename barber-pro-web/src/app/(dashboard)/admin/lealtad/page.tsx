@@ -713,7 +713,7 @@ export default function AdminLealtadPage() {
               <div className="space-y-2 max-w-2xl">
                 <div className="flex items-center gap-2">
                   <Badge variant="warning" className="uppercase font-black text-[10px] tracking-wider px-2.5 py-0.5">Sistema Integrado</Badge>
-                  <span className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Barber Pro Core</span>
+                  <span className="text-zinc-400 text-xs font-bold uppercase tracking-widest">BarberSite Core</span>
                 </div>
                 <h2 className="text-2xl font-black text-white uppercase tracking-tight">Promociones Base del Local</h2>
                 <p className="text-zinc-300 text-sm leading-relaxed">

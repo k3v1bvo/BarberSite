@@ -1,4 +1,4 @@
-// Tipos principales para Barber Pro Web
+// Tipos principales para BarberSite Web
 
 export type Role = 'admin' | 'coordinador' | 'barbero' | 'cliente'
 

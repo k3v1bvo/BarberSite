@@ -2,9 +2,9 @@
 
 import React, { useState } from 'react'
 import {
-  X, Calendar, Clock, Scissors, User, MapPin, QrCode,
-  Download, Share2, MessageSquare, CheckCircle, AlertCircle,
-  ExternalLink, Sparkles, Printer, ArrowRight, ShieldCheck
+  X, Calendar, Clock, Scissors, User, MapPin,
+  Share2, MessageSquare, CheckCircle, AlertCircle,
+  ExternalLink, Sparkles, Printer, ShieldCheck, Copy, Receipt
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -51,8 +51,8 @@ export function ModalPaseDigitalCita({
   onReprogramar,
   onCancelar,
 }: ModalPaseDigitalCitaProps) {
-  const { success, error } = useToast()
-  const [downloading, setDownloading] = useState(false)
+  const { success } = useToast()
+  const [copiado, setCopiado] = useState(false)
 
   if (!cita) return null
 
@@ -78,18 +78,6 @@ export function ModalPaseDigitalCita({
       })
     : 'Hora no disponible'
 
-  // Datos para el QR Code
-  const qrPayload = JSON.stringify({
-    reserva_id: cita.id,
-    cliente: clienteNombre,
-    ci: clienteCi || 'N/A',
-    fecha_hora: cita.fecha_hora,
-    servicio: cita.servicios?.nombre || 'Servicio',
-    tipo: 'CHECKIN_BARBER_PRO'
-  })
-
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(qrPayload)}&bgcolor=ffffff&color=000000&margin=10`
-
   // Generar link de Google Calendar
   const getGoogleCalendarUrl = () => {
     if (!esFechaValida) return '#'
@@ -97,9 +85,9 @@ export function ModalPaseDigitalCita({
     const endObj = new Date(fechaObj.getTime() + (cita.servicios?.duracion_minutos || 45) * 60000)
     const endIso = endObj.toISOString().replace(/-|:|\.\d\d\d/g, '')
     
-    const title = encodeURIComponent(`Corte en Barber Pro - ${cita.servicios?.nombre || 'Servicio'}`)
-    const details = encodeURIComponent(`Cita con ${cita.profiles?.full_name || 'Barbero'}. Pase VIP ID: ${cita.id.slice(0, 8)}`)
-    const location = encodeURIComponent('Barber Pro Studio')
+    const title = encodeURIComponent(`Corte en BarberSite - ${cita.servicios?.nombre || 'Servicio'}`)
+    const details = encodeURIComponent(`Cita con ${cita.profiles?.full_name || 'Barbero'}. Comprobante: #${cita.id.slice(0, 8)}`)
+    const location = encodeURIComponent('BarberSite')
     
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startIso}/${endIso}&details=${details}&location=${location}`
   }
@@ -108,7 +96,7 @@ export function ModalPaseDigitalCita({
   const getWhatsappUrl = () => {
     const telefono = cita.profiles?.phone ? cita.profiles.phone.replace(/\D/g, '') : ''
     const msg = encodeURIComponent(
-      `Hola! Soy ${clienteNombre}, tengo mi cita agendada en Barber Pro para el servicio de *${cita.servicios?.nombre || 'Corte'}* el día *${fechaFormateada}* a las *${horaFormateada}*. (Pase VIP: #${cita.id.slice(0, 8)})`
+      `Hola! Soy ${clienteNombre}, tengo mi cita agendada en BarberSite para el servicio de *${cita.servicios?.nombre || 'Corte'}* el día *${fechaFormateada}* a las *${horaFormateada}*. (Comprobante: #${cita.id.slice(0, 8)})`
     )
     if (telefono) {
       return `https://wa.me/${telefono.startsWith('591') ? telefono : `591${telefono}`}?text=${msg}`
@@ -116,58 +104,35 @@ export function ModalPaseDigitalCita({
     return `https://wa.me/?text=${msg}`
   }
 
-  const handleDescargarQR = async () => {
-    setDownloading(true)
+  const handleCopiarDetalles = async () => {
+    const shareText = `✂️ Mi Cita en BarberSite:\n• Servicio: ${cita.servicios?.nombre || 'Corte'}\n• Fecha: ${fechaFormateada}\n• Hora: ${horaFormateada} hrs\n• Especialista: ${cita.profiles?.full_name || 'Barbero'}\n• Titular: ${clienteNombre}\n• Comprobante: #${cita.id.slice(0, 8).toUpperCase()}`
     try {
-      const response = await fetch(qrCodeUrl)
-      const blob = await response.blob()
-      const blobUrl = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = blobUrl
-      link.download = `Pase_VIP_BarberPro_${cita.id.slice(0, 8)}.png`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(blobUrl)
-      success('Pase Digital con QR descargado con éxito')
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareText)
+        setCopiado(true)
+        success('Detalles de tu cita copiados al portapapeles 📋')
+        setTimeout(() => setCopiado(false), 2500)
+      }
     } catch {
-      window.open(qrCodeUrl, '_blank')
-    } finally {
-      setDownloading(false)
+      // Fallback
     }
   }
 
-  const handleCompartir = async () => {
-    const shareText = `🎟️ Mi Pase VIP Barber Pro:\nCorte: ${cita.servicios?.nombre}\nFecha: ${fechaFormateada} a las ${horaFormateada}\nEspecialista: ${cita.profiles?.full_name || 'Barber Pro'}`
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Pase Digital Barber Pro',
-          text: shareText,
-          url: window.location.href,
-        })
-      } catch {
-        // Share dismiss
-      }
-    } else {
-      navigator.clipboard.writeText(shareText)
-      success('Detalles de tu cita copiados al portapapeles 📋')
-    }
-  }
+  const saldoPendiente = (cita.precio || 0) - (cita.anticipo_pagado || 0)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
       <div className="relative w-full max-w-lg bg-zinc-950 border border-amber-500/30 rounded-[2.5rem] shadow-[0_0_50px_rgba(245,158,11,0.15)] overflow-hidden my-auto max-h-[95vh] flex flex-col">
         
-        {/* Header Decorativo */}
+        {/* Header Oficial */}
         <div className="relative bg-gradient-to-r from-amber-600 via-amber-500 to-orange-500 p-5 sm:p-6 text-black flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-black/20 backdrop-blur-md flex items-center justify-center font-black">
-              <Scissors size={20} className="text-black" />
+              <Receipt size={20} className="text-black" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-black/70 leading-none">BARBER PRO VIP</p>
-              <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-black mt-0.5">Pase & Check-in Digital</h2>
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-black/70 leading-none">BARBERSITE</p>
+              <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-black mt-0.5">Comprobante de Reserva</h2>
             </div>
           </div>
           <button
@@ -181,16 +146,16 @@ export function ModalPaseDigitalCita({
         {/* Contenido Scrollable */}
         <div className="p-5 sm:p-7 overflow-y-auto space-y-6 flex-1">
           
-          {/* Tarjeta Tipo Ticket / Boarding Pass */}
+          {/* Tarjeta Tipo Ticket de Reserva */}
           <div className="relative bg-zinc-900 border border-zinc-800 rounded-3xl p-6 overflow-hidden shadow-2xl">
             {/* Perforación lateral decorativa */}
             <div className="absolute top-1/2 -left-3 -translate-y-1/2 w-6 h-6 rounded-full bg-zinc-950 border-r border-zinc-800" />
             <div className="absolute top-1/2 -right-3 -translate-y-1/2 w-6 h-6 rounded-full bg-zinc-950 border-l border-zinc-800" />
             
-            {/* Estado y N° de Pase */}
+            {/* Estado y N° de Comprobante */}
             <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-4">
               <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block mb-0.5">Ticket ID</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block mb-0.5">N° Comprobante</span>
                 <span className="font-mono text-xs font-bold text-amber-400">#{cita.id.slice(0, 8).toUpperCase()}</span>
               </div>
               <Badge
@@ -216,7 +181,7 @@ export function ModalPaseDigitalCita({
               {cita.servicios?.duracion_minutos && (
                 <p className="text-xs text-zinc-400 mt-1 flex items-center gap-1.5 font-medium">
                   <Clock size={13} className="text-amber-500" />
-                  Duración estimada: <strong className="text-white">{cita.servicios.duracion_minutos} minutos</strong>
+                  Duración aproximada: <strong className="text-white">{cita.servicios.duracion_minutos} minutos</strong>
                 </p>
               )}
             </div>
@@ -229,51 +194,53 @@ export function ModalPaseDigitalCita({
                 <p className="text-amber-400 font-black text-base mt-0.5">{horaFormateada} hrs</p>
               </div>
               <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block mb-1">Especialista</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block mb-1">Barbero Especialista</span>
                 <p className="text-sm font-black text-white flex items-center gap-1.5">
                   <User size={14} className="text-amber-500 shrink-0" />
                   <span>{cita.profiles?.full_name ? toTitleCase(cita.profiles.full_name) : 'Cualquier Barbero'}</span>
                 </p>
-                <span className="text-[10px] text-zinc-500 uppercase font-bold">Barber Pro Artist</span>
+                <span className="text-[10px] text-zinc-500 uppercase font-bold">BarberSite Specialist</span>
               </div>
             </div>
 
-            {/* Titular y QR de Check-in */}
-            <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-5">
+            {/* Titular de la Cita */}
+            <div className="py-4 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block mb-1">Titular de la Cita</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block mb-0.5">Titular de la Reserva</span>
                 <p className="text-base font-black text-white">{clienteNombre}</p>
                 {clienteCi && (
-                  <p className="text-xs font-mono text-emerald-400 font-bold mt-0.5">CI: {clienteCi}</p>
+                  <p className="text-xs font-mono text-zinc-400 font-bold mt-0.5">CI: {clienteCi}</p>
                 )}
-                <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold">
-                  <ShieldCheck size={13} />
-                  <span>Pase Válido para Recepción</span>
-                </div>
               </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold self-start sm:self-auto">
+                <ShieldCheck size={14} />
+                <span>Horario Bloqueado en Agenda</span>
+              </div>
+            </div>
 
-              {/* QR Code de Checkin */}
-              <div className="flex flex-col items-center shrink-0">
-                <div className="p-2.5 bg-white rounded-2xl shadow-xl shadow-black/60 border border-white/20">
-                  <img
-                    src={qrCodeUrl}
-                    alt="QR Check-in"
-                    className="w-28 h-28 object-contain rounded-lg"
-                  />
-                </div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mt-1.5">
-                  Muestra este QR al llegar
-                </span>
-              </div>
+            {/* Instrucciones Claras de Atención (Sin QR inventado) */}
+            <div className="py-4 bg-zinc-950/70 border border-zinc-800/80 rounded-2xl p-4 my-2">
+              <p className="text-xs font-black uppercase tracking-wider text-amber-400 mb-1 flex items-center gap-1.5">
+                <span>📍</span> Instrucciones de llegada:
+              </p>
+              <ul className="text-xs text-zinc-300 space-y-1 font-medium">
+                <li>• Preséntate <strong>5 minutos antes</strong> de tu hora en BarberSite.</li>
+                <li>• Indica tu <strong>nombre y apellido</strong> al llegar en recepción o a tu barbero.</li>
+                <li>• No necesitas escanear nada: tu cita ya figura en la agenda de tu barbero.</li>
+              </ul>
             </div>
 
             {/* Desglose de Montos */}
-            <div className="mt-5 pt-4 border-t border-dashed border-zinc-700/80 flex items-center justify-between">
+            <div className="pt-3 border-t border-dashed border-zinc-700/80 flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Monto del Servicio</span>
-                {cita.anticipo_pagado !== undefined && cita.anticipo_pagado !== null && cita.anticipo_pagado > 0 && (
-                  <span className="text-[10px] text-emerald-400 font-bold">
-                    Anticipo: {formatCurrency(cita.anticipo_pagado)} pagado
+                {cita.anticipo_pagado !== undefined && cita.anticipo_pagado !== null && cita.anticipo_pagado > 0 ? (
+                  <span className="text-[10px] text-emerald-400 font-bold block">
+                    Anticipo: {formatCurrency(cita.anticipo_pagado)} pagado (Saldo en caja: {formatCurrency(Math.max(0, saldoPendiente))})
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-zinc-400 font-medium block">
+                    Pago directo en caja al finalizar
                   </span>
                 )}
               </div>
@@ -283,24 +250,13 @@ export function ModalPaseDigitalCita({
             </div>
           </div>
 
-          {/* Acciones Rápidas VIP */}
+          {/* Acciones Rápidas */}
           <div className="space-y-3">
             <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
-              <Sparkles size={14} className="text-amber-500" /> Acciones Rápidas
+              <Sparkles size={14} className="text-amber-500" /> Acciones Útiles
             </h4>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {/* Descargar Pase */}
-              <Button
-                onClick={handleDescargarQR}
-                disabled={downloading}
-                variant="outline"
-                className="w-full h-12 bg-zinc-900 border-zinc-800 hover:border-amber-500/50 hover:bg-amber-500/10 text-white font-bold text-xs flex items-center justify-center gap-2 rounded-2xl"
-              >
-                <Download size={16} className="text-amber-400" />
-                <span>{downloading ? 'Descargando...' : 'Guardar Pase con QR'}</span>
-              </Button>
-
               {/* Agregar a Google Calendar */}
               <a
                 href={getGoogleCalendarUrl()}
@@ -323,15 +279,25 @@ export function ModalPaseDigitalCita({
                 <span>Contactar por WhatsApp</span>
               </a>
 
-              {/* Compartir Cita */}
+              {/* Copiar Datos de la Cita */}
               <Button
-                onClick={handleCompartir}
+                onClick={handleCopiarDetalles}
                 variant="outline"
                 className="w-full h-12 bg-zinc-900 border-zinc-800 hover:border-white/20 text-zinc-300 font-bold text-xs flex items-center justify-center gap-2 rounded-2xl"
               >
-                <Share2 size={16} className="text-zinc-400" />
-                <span>Compartir / Copiar Pase</span>
+                <Copy size={16} className="text-zinc-400" />
+                <span>{copiado ? '¡Copiado al portapapeles!' : 'Copiar Datos de la Cita'}</span>
               </Button>
+
+              {/* Imprimir Comprobante */}
+              <button
+                onClick={() => window.print()}
+                type="button"
+                className="w-full h-12 bg-zinc-900 border border-zinc-800 hover:border-white/20 text-zinc-300 hover:text-white font-bold text-xs flex items-center justify-center gap-2 rounded-2xl transition"
+              >
+                <Printer size={16} className="text-amber-400" />
+                <span>Imprimir Comprobante</span>
+              </button>
             </div>
           </div>
 
@@ -370,7 +336,7 @@ export function ModalPaseDigitalCita({
         <div className="p-4 bg-zinc-900/60 border-t border-white/5 flex items-center justify-between text-[11px] text-zinc-500 font-medium shrink-0">
           <div className="flex items-center gap-1.5">
             <MapPin size={13} className="text-amber-500" />
-            <span>Barber Pro Studio • Presenta 5 min antes</span>
+            <span>BarberSite • Presentarse 5 min antes</span>
           </div>
           <button
             onClick={() => window.print()}

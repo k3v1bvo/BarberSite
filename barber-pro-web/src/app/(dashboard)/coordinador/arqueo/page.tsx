@@ -346,29 +346,114 @@ export default function ArqueoPage() {
             </Card>
           )}
 
-          {/* Resumen por libro */}
+          {/* Resumen por concepto detallado y claro */}
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
             {[
-              { label: 'Caja Chica', value: resumen.caja_chica, color: 'text-amber-400' },
-              { label: 'Ventas', value: resumen.ventas, color: 'text-green-400' },
-              { label: 'Servicios', value: resumen.servicios, color: 'text-emerald-400' },
-              { label: 'Banco', value: resumen.banco, color: 'text-blue-400' },
-              { label: 'Uso Tienda', value: resumen.uso_tienda, color: 'text-violet-400' },
-              { label: 'Total Sistema', value: resumen.total_registrado, color: 'text-white' },
+              { 
+                label: 'Servicios', 
+                sublabel: 'Cortes y sillón',
+                value: resumen.servicios, 
+                color: 'text-emerald-400',
+                badge: 'Ingreso',
+                icon: '💈'
+              },
+              { 
+                label: 'Venta Productos', 
+                sublabel: 'Al público / clientes',
+                value: resumen.ventas, 
+                color: 'text-green-400',
+                badge: 'Ingreso',
+                icon: '🛍️'
+              },
+              { 
+                label: 'Banco / QR', 
+                sublabel: 'Transferencias y QR',
+                value: resumen.banco, 
+                color: 'text-blue-400',
+                badge: 'Digital',
+                icon: '📱'
+              },
+              { 
+                label: 'Caja Chica', 
+                sublabel: 'Gastos menores en efectivo',
+                value: resumen.caja_chica, 
+                color: resumen.caja_chica < 0 ? 'text-red-400' : 'text-amber-400',
+                badge: resumen.caja_chica < 0 ? 'Egreso' : 'Neto',
+                icon: '🪙'
+              },
+              { 
+                label: 'Uso Tienda', 
+                sublabel: 'Insumos gastados (local)',
+                value: resumen.uso_tienda, 
+                color: 'text-violet-400',
+                badge: 'No entra dinero',
+                icon: '📦'
+              },
+              { 
+                label: 'Total Facturado', 
+                sublabel: 'Total neto cobrado hoy',
+                value: resumen.total_registrado, 
+                color: 'text-white',
+                badge: 'Total',
+                icon: '📊'
+              },
             ].map((item) => (
-              <Card key={item.label} className={`border-white/5 bg-zinc-900/80 ${item.label === 'Uso Tienda' && resumen.uso_tienda > 0 ? 'border-violet-500/20' : ''}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-zinc-500 font-bold uppercase">{item.label}</span>
-                    <DollarSign className="w-4 h-4 text-zinc-600" />
+              <Card key={item.label} className={`border-white/5 bg-zinc-900/80 ${item.label === 'Uso Tienda' ? 'border-violet-500/20' : ''}`}>
+                <CardContent className="p-4 flex flex-col justify-between h-full">
+                  <div>
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <span className="text-xs text-zinc-300 font-bold uppercase truncate">{item.icon} {item.label}</span>
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/5 shrink-0">
+                        {item.badge}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-zinc-500 leading-tight mb-2">
+                      {item.sublabel}
+                    </p>
                   </div>
-                  <p className={`text-xl font-black mt-2 ${item.color}`}>
+                  <p className={`text-xl font-black ${item.color}`}>
                     {formatCurrency(item.value)}
                   </p>
                 </CardContent>
               </Card>
             ))}
           </div>
+
+          {/* Tarjeta Didáctica: Explicación de Caja Chica & Efectivo */}
+          <Card className="border-amber-500/20 bg-gradient-to-r from-amber-500/10 via-zinc-900 to-zinc-900">
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">💡</span>
+                    <h3 className="text-sm font-black text-amber-400 uppercase tracking-wider">
+                      Guía Rápida: Cuadre de Efectivo & Caja Chica
+                    </h3>
+                  </div>
+                  <p className="text-xs text-zinc-400 max-w-2xl leading-relaxed">
+                    • <strong>Uso Tienda:</strong> Refleja el costo de productos e insumos consumidos internamente en el local (champús, ceras, hojas de afeitar). <u>No es dinero que entra en caja ni falta de dinero</u>.<br />
+                    • <strong>Caja Chica:</strong> Agrupa gastos menores o compras pagadas en efectivo hoy. El <strong>Esperado Efectivo</strong> ya resta automáticamente estos gastos para cuadrar el dinero real en el cajón.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0 bg-black/50 p-3 rounded-xl border border-white/10 text-xs">
+                  <div className="text-center">
+                    <p className="text-[10px] uppercase text-zinc-500 font-bold">💵 Efectivo Caja</p>
+                    <p className="font-mono font-black text-emerald-400">{formatCurrency(esperadoEfectivo)}</p>
+                  </div>
+                  <span className="text-zinc-600 font-bold">+</span>
+                  <div className="text-center">
+                    <p className="text-[10px] uppercase text-zinc-500 font-bold">📱 QR / Banco</p>
+                    <p className="font-mono font-black text-blue-400">{formatCurrency(esperadoQr)}</p>
+                  </div>
+                  <span className="text-zinc-600 font-bold">=</span>
+                  <div className="text-center">
+                    <p className="text-[10px] uppercase text-zinc-500 font-bold">💰 Total Esperado</p>
+                    <p className="font-mono font-black text-white">{formatCurrency(esperadoTotal)}</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Conteo físico */}
           <Card className="border-white/5 bg-zinc-900/80">

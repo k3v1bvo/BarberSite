@@ -276,7 +276,10 @@ export async function POST(request: NextRequest) {
         
       if (!servData) return NextResponse.json({ error: 'Servicio no encontrado' }, { status: 404 })
       serv = servData
-      precioBase = serv.precio || 0
+      const precioCustom = body.precio_servicio_custom !== undefined && body.precio_servicio_custom !== null && body.precio_servicio_custom !== ''
+        ? Number(body.precio_servicio_custom)
+        : null
+      precioBase = precioCustom !== null && !isNaN(precioCustom) ? Math.max(0, precioCustom) : (serv.precio || 0)
 
       if (estado === 'completado' && finalBarberoId) {
         // Calcular comisión personalizada por barbero

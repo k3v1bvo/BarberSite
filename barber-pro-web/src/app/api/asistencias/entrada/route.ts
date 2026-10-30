@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { computeEstadoFromRecord, getBusinessDateString, getBusinessNow } from '@/lib/asistencia/helpers'
 
@@ -107,17 +107,19 @@ export async function POST(request: NextRequest) {
     const entrada = getBusinessNow() // Bolivia local time for calculations
     const dayOfWeek = entrada.getUTCDay() // Day of week in Bolivia time
     
+    const adminSupabase = await createServerAdminClient()
+
     // 1. Fetch configuraciones, plan_cuentas, horario y configuración de turnos fraccionados
     const [configRes, cuentasRes, horarioRes, configFraccionadoRes] = await Promise.all([
-      supabase.from('configuraciones').select('valor').eq('llave', 'asistencia_config').single(),
-      supabase.from('plan_cuentas').select('detalle').eq('es_sancion', true),
-      supabase.from('barbero_horario_semanal')
+      adminSupabase.from('configuraciones').select('valor').eq('llave', 'asistencia_config').maybeSingle(),
+      adminSupabase.from('plan_cuentas').select('detalle').eq('es_sancion', true),
+      adminSupabase.from('barbero_horario_semanal')
         .select('*')
         .eq('barbero_id', user.id)
         .eq('dia_semana', dayOfWeek)
         .eq('activo', true)
         .maybeSingle(),
-      supabase.from('configuraciones')
+      adminSupabase.from('configuraciones')
         .select('valor')
         .eq('llave', `horario_fraccionado_${user.id}`)
         .maybeSingle()
@@ -262,7 +264,7 @@ export async function POST(request: NextRequest) {
                 <p><strong>${nombre}</strong> marcó entrada con <strong>${minutosAtraso} minutos de retraso</strong>.</p>
                 ${turnoInicioStr ? `<p>Horario programado: <strong>${turnoInicioStr}</strong></p>` : ''}
                 <p>Se generó una sanción automática de <strong>Bs 12</strong>.</p>
-                <p style="color: #888; font-size: 12px;">— Sistema BarberPro</p>
+                <p style="color: #888; font-size: 12px;">— Sistema BarberSite</p>
               </div>
             `,
           })

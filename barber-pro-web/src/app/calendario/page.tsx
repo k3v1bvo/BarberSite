@@ -71,7 +71,7 @@ export default function CalendarioPublicoPage() {
         <div className="text-center space-y-4 animate-in fade-in duration-500">
           <div className="inline-flex items-center gap-2 text-amber-500 font-black uppercase tracking-[0.3em] text-xs">
             <Scissors className="w-4 h-4" />
-            Barber Pro
+            BarberSite
           </div>
           <h1 className="text-4xl lg:text-5xl font-black uppercase tracking-tight">
             Calendario de <span className="text-amber-500">disponibilidad</span>

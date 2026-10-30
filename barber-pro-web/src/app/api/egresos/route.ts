@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // GET /api/egresos — listar egresos
@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
+    const adminSupabase = await createServerAdminClient()
     const body = await request.json()
 
     const montoBruto = Number(body.monto_bruto) || 0
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     const cuentaCodigoFinal = body.cuenta_codigo || 'EGR-GEN'
     // Asegurar que la cuenta exista en plan_cuentas para evitar error de FK (egresos_cuenta_codigo_fkey y transactions_cuenta_codigo_fkey)
-    await supabase.from('plan_cuentas').upsert({
+    await adminSupabase.from('plan_cuentas').upsert({
       codigo: cuentaCodigoFinal,
       detalle: body.cuenta_codigo ? (body.concepto || 'Egreso Registrado') : 'Gastos Generales / Varios',
       tipo: 'EGRESO',
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
       es_sancion: false
     }, { onConflict: 'codigo', ignoreDuplicates: true })
 
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('egresos')
       .insert({
         fecha: body.fecha || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
@@ -141,9 +142,10 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
+    let egresoGuardado = data
     if (error) {
-      if (error.code === '42703' || error.message?.includes('column') || error.message?.includes('metodo_pago') || error.message?.includes('monto_')) {
-        const { data: fbData, error: fbError } = await supabase
+      if (error.code === '42703' || (error as any).code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('schema cache') || error.message?.includes('metodo_pago') || error.message?.includes('monto_')) {
+        const { data: fbData, error: fbError } = await adminSupabase
           .from('egresos')
           .insert({
             fecha: body.fecha || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
@@ -163,13 +165,14 @@ export async function POST(request: NextRequest) {
           .select()
           .single()
         if (fbError) return NextResponse.json({ error: fbError.message }, { status: 500 })
-        return NextResponse.json(fbData, { status: 201 })
+        egresoGuardado = fbData
+      } else {
+        return NextResponse.json({ error: error.message }, { status: 500 })
       }
-      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     // Insertar en transactions para el reporte financiero
-    const { error: txError } = await supabase.from('transactions').insert({
+    const { error: txError } = await adminSupabase.from('transactions').insert({
       libro: metodoPago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
       fecha: body.fecha || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
       ci: '0000000',
@@ -190,10 +193,23 @@ export async function POST(request: NextRequest) {
     })
 
     if (txError) {
-      console.error("Error inserting into transactions for egreso:", txError)
+      console.error("Error inserting into transactions for egreso, trying base fallback:", txError)
+      await adminSupabase.from('transactions').insert({
+        libro: metodoPago === 'efectivo' ? 'CAJA_CHICA' : 'BANCO',
+        fecha: body.fecha || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
+        ci: '0000000',
+        nombre: body.proveedor || 'Egreso General',
+        cuenta_codigo: cuentaCodigoFinal,
+        cuenta_detalle: body.concepto,
+        glosa: body.notas || body.concepto,
+        costo: montoBruto,
+        tipo_movimiento: 'EGRESO',
+        es_sancion: false,
+        usuario_registro: profile?.full_name || 'Sistema',
+      })
     }
 
-    return NextResponse.json(data, { status: 201 })
+    return NextResponse.json(egresoGuardado, { status: 201 })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Error interno' }, { status: 500 })
   }
@@ -216,6 +232,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
+    const adminSupabase = await createServerAdminClient()
     const body = await request.json()
     const { id } = body
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
@@ -229,7 +246,7 @@ export async function PATCH(request: NextRequest) {
       if (body.metodo_pago !== undefined) txUpdate.metodo_pago = body.metodo_pago
       if (body.notas !== undefined) txUpdate.glosa = body.notas
 
-      const { data, error } = await supabase
+      const { data, error } = await adminSupabase
         .from('transactions')
         .update(txUpdate)
         .eq('id', txId)
@@ -240,7 +257,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Obtener egreso anterior
-    const { data: oldEgreso } = await supabase
+    const { data: oldEgreso } = await adminSupabase
       .from('egresos')
       .select('*')
       .eq('id', id)
@@ -284,7 +301,7 @@ export async function PATCH(request: NextRequest) {
       updatePayload.monto_qr = montoNeto
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('egresos')
       .update(updatePayload)
       .eq('id', id)
@@ -311,7 +328,7 @@ export async function PATCH(request: NextRequest) {
         txUpdate.glosa = updatePayload.notas || updatePayload.concepto || oldEgreso.concepto
       }
 
-      await supabase
+      await adminSupabase
         .from('transactions')
         .update(txUpdate)
         .eq('tipo_movimiento', 'EGRESO')
@@ -343,13 +360,14 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
     }
 
+    const adminSupabase = await createServerAdminClient()
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
     if (String(id).startsWith('comision_tx_')) {
       const txId = String(id).replace('comision_tx_', '')
-      const { error } = await supabase
+      const { error } = await adminSupabase
         .from('transactions')
         .delete()
         .eq('id', txId)
@@ -358,13 +376,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Obtener datos del egreso antes de borrar
-    const { data: egresoData } = await supabase
+    const { data: egresoData } = await adminSupabase
       .from('egresos')
       .select('*')
       .eq('id', id)
       .single()
 
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from('egresos')
       .delete()
       .eq('id', id)
@@ -373,7 +391,7 @@ export async function DELETE(request: NextRequest) {
 
     // Eliminar también de transactions
     if (egresoData) {
-      await supabase
+      await adminSupabase
         .from('transactions')
         .delete()
         .eq('tipo_movimiento', 'EGRESO')

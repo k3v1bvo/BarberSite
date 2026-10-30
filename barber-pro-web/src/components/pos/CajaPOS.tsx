@@ -143,6 +143,8 @@ export function CajaPOS() {
   const [savingCliente, setSavingCliente] = useState(false)
   const [promoSeleccionada, setPromoSeleccionada] = useState<string>('')
   const [aplicarReferido, setAplicarReferido] = useState(false)
+  const [aplicarLealtad, setAplicarLealtad] = useState(true)
+  const [precioServicioCustom, setPrecioServicioCustom] = useState<number | null>(null)
   
   const [acompanante, setAcompanante] = useState({ nombre: '', email: '' })
   const [showAcompananteDropdown, setShowAcompananteDropdown] = useState(false)
@@ -562,6 +564,8 @@ export function CajaPOS() {
     setClienteDetalle(cl)
     setAplicarReferido(false)
     setPromoSeleccionada('')
+    setAplicarLealtad(true)
+    setPrecioServicioCustom(null)
     setCumpleanosVerifData(null)
     setPareja2x1PendienteData(null)
     setLoadingHistorial(true)
@@ -793,6 +797,7 @@ export function CajaPOS() {
           estado,
           cita_id: formData.cita_id || undefined,
           referido_por_id: referidoPorId || undefined,
+          precio_servicio_custom: precioServicioCustom,
           descuento: descuentoTotal,
           descuento_manual: descuentoManual,
           descuento_manual_tipo: descuentoManual > 0 ? descuentoManualTipo : null,
@@ -832,6 +837,8 @@ export function CajaPOS() {
         .lte('fecha_hora', finDia)
         .order('fecha_hora', { ascending: true })
       setCitasPendientes(citasPendientesData || [])
+      setPrecioServicioCustom(null)
+      setAplicarLealtad(true)
 
       // Refresh last completed services
       const { data: ultimosData } = await supabase
@@ -904,7 +911,7 @@ export function CajaPOS() {
   }
 
   const servicioSeleccionado = servicios.find(s => s.id === formData.servicio_id)
-  const subtotalServicio = servicioSeleccionado?.precio || 0
+  const subtotalServicio = precioServicioCustom !== null ? precioServicioCustom : (servicioSeleccionado?.precio || 0)
 
   // Discount calculations
   const promoActiva = promociones.find(p => p.id === promoSeleccionada)
@@ -924,6 +931,7 @@ export function CajaPOS() {
   // Descuento automático por lealtad (metas de visitas)
   let descuentoLealtad = 0
   let metaAlcanzadaNombre = ''
+  let metaCumplidaDisponible: LealtadMeta | null = null
   if (clienteDetalle && lealtadMetas.length > 0) {
     const proximasVisitas = (clienteDetalle.total_visitas || 0) + 1
     // Buscar la meta más alta que cumpla la visita actual
@@ -931,15 +939,18 @@ export function CajaPOS() {
     if (metasCumplidas.length > 0) {
       // Tomar la que requiere más visitas
       const meta = metasCumplidas.sort((a, b) => b.visitas_requeridas - a.visitas_requeridas)[0]
-      metaAlcanzadaNombre = meta.nombre
-      if (meta.tipo_recompensa === 'porcentaje') {
-        descuentoLealtad = (subtotalServicio * meta.valor_recompensa) / 100
-      } else if (meta.tipo_recompensa === 'monto_fijo') {
-        descuentoLealtad = meta.valor_recompensa
-      } else if (meta.tipo_recompensa === 'servicio_gratis') {
-        const allowedServices = meta.servicio_id ? meta.servicio_id.split(',').filter(Boolean) : []
-        if (allowedServices.length === 0 || (formData.servicio_id && allowedServices.includes(formData.servicio_id))) {
-          descuentoLealtad = subtotalServicio
+      metaCumplidaDisponible = meta
+      if (aplicarLealtad) {
+        metaAlcanzadaNombre = meta.nombre
+        if (meta.tipo_recompensa === 'porcentaje') {
+          descuentoLealtad = (subtotalServicio * meta.valor_recompensa) / 100
+        } else if (meta.tipo_recompensa === 'monto_fijo') {
+          descuentoLealtad = meta.valor_recompensa
+        } else if (meta.tipo_recompensa === 'servicio_gratis') {
+          const allowedServices = meta.servicio_id ? meta.servicio_id.split(',').filter(Boolean) : []
+          if (allowedServices.length === 0 || (formData.servicio_id && allowedServices.includes(formData.servicio_id))) {
+            descuentoLealtad = subtotalServicio
+          }
         }
       }
     }
@@ -2650,11 +2661,119 @@ export function CajaPOS() {
                 </div>
                 
                 <div className="pt-4 border-t border-zinc-800">
-                  {/* Subtotal servicio + descuento manual */}
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-zinc-400 text-sm">Servicio</span>
-                    <span>{formatCurrency(subtotalServicio)}</span>
+                  {/* Subtotal servicio editable + atajos de precio */}
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-zinc-400 text-sm">Servicio</span>
+                      {precioServicioCustom !== null && (
+                        <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30 font-bold">
+                          Manual
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-zinc-500 font-mono">Bs.</span>
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        value={precioServicioCustom !== null ? precioServicioCustom : (servicioSeleccionado ? servicioSeleccionado.precio : '')}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? null : Number(e.target.value)
+                          setPrecioServicioCustom(val)
+                        }}
+                        placeholder="0"
+                        className="w-20 h-8 bg-zinc-950 border border-zinc-700 hover:border-amber-500/50 focus:border-amber-500 rounded-lg px-2 text-right text-sm font-black text-white outline-none transition"
+                        title="Modificar precio del servicio (ej. Combo Bs 40 o Promo 2x1 Bs 25)"
+                      />
+                      {precioServicioCustom !== null && (
+                        <button
+                          type="button"
+                          onClick={() => setPrecioServicioCustom(null)}
+                          className="text-[10px] text-zinc-500 hover:text-amber-400 underline transition"
+                          title="Restaurar precio de lista"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Atajos rápidos para montos especiales frecuentes */}
+                  {formData.servicio_id && (
+                    <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                      <span className="text-[10px] text-zinc-500 font-bold">Fijar rápido:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPrecioServicioCustom(25)
+                          setAplicarLealtad(false)
+                        }}
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition border ${
+                          precioServicioCustom === 25 ? 'bg-amber-500 text-black border-amber-500' : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'
+                        }`}
+                      >
+                        ✂️ 2x1 (Bs 25)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPrecioServicioCustom(40)
+                          setAplicarLealtad(false)
+                        }}
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition border ${
+                          precioServicioCustom === 40 ? 'bg-amber-500 text-black border-amber-500' : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'
+                        }`}
+                      >
+                        💈 Combo (Bs 40)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPrecioServicioCustom(50)
+                        }}
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition border ${
+                          precioServicioCustom === 50 ? 'bg-amber-500 text-black border-amber-500' : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'
+                        }`}
+                      >
+                        Bs 50
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Banner interactivo de Recompensa de Lealtad (10mo servicio) */}
+                  {metaCumplidaDisponible && (
+                    <div className={`p-2.5 rounded-xl border mb-3 transition-all ${
+                      aplicarLealtad 
+                        ? 'bg-gradient-to-r from-pink-500/15 via-pink-500/10 to-zinc-900 border-pink-500/40 text-pink-300' 
+                        : 'bg-zinc-900 border-zinc-700/60 text-zinc-400'
+                    }`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Star className={`w-4 h-4 shrink-0 ${aplicarLealtad ? 'text-pink-400 fill-pink-400' : 'text-zinc-500'}`} />
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-white truncate">
+                              🎉 {metaCumplidaDisponible.nombre}
+                            </p>
+                            <p className="text-[10px] text-zinc-400 leading-tight">
+                              {aplicarLealtad ? 'Beneficio aplicado hoy (Bs 0)' : 'Pospuesto / Guardado para la próxima visita'}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setAplicarLealtad(!aplicarLealtad)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-black shrink-0 transition ${
+                            aplicarLealtad 
+                              ? 'bg-pink-500 hover:bg-pink-600 text-white' 
+                              : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-600'
+                          }`}
+                        >
+                          {aplicarLealtad ? 'Cobrar Hoy' : 'Aplicar Gratis'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {formData.servicio_id && (
                     <div className="mb-2 p-2.5 bg-zinc-800/50 rounded-xl border border-white/5 space-y-2">
                       {/* Fila principal: label + input monto */}

@@ -59,13 +59,13 @@ export function ModalDetallePromocion({
   const handleCompartirWhatsApp = () => {
     let msg = ''
     if (is2x1) {
-      msg = `✂️ ¡Hola! En Barber Pro tienen la promo *2×1 Todos los Martes* (pagamos 1 solo corte y entramos los 2). ¿Vamos este martes? Agenda aquí: ${window.location.origin}/reservar`
+      msg = `✂️ ¡Hola! En BarberSite tienen la promo *2×1 Todos los Martes* (pagamos 1 solo corte y entramos los 2). ¿Vamos este martes? Agenda aquí: ${window.location.origin}/reservar`
     } else if (isReferido) {
-      msg = `🤝 ¡Hola! Te invito a cortarte en Barber Pro Studio. Usa mi código o enlace de referido para recibir un descuento especial en tu 1er corte: ${window.location.origin}/reservar${clienteReferralCode ? `?ref=${clienteReferralCode}` : ''}`
+      msg = `🤝 ¡Hola! Te invito a cortarte en BarberSite. Usa mi código o enlace de referido para recibir un descuento especial en tu 1er corte: ${window.location.origin}/reservar${clienteReferralCode ? `?ref=${clienteReferralCode}` : ''}`
     } else if (isCumple) {
-      msg = `🎂 ¡En Barber Pro te regalan un corte de cortesía en tu semana de cumpleaños! Puedes registrarte aquí: ${window.location.origin}/reservar`
+      msg = `🎂 ¡En BarberSite te regalan un corte de cortesía en tu semana de cumpleaños! Puedes registrarte aquí: ${window.location.origin}/reservar`
     } else {
-      msg = `🔥 ¡Mira esta promoción en Barber Pro: *${promo.nombre}*! Reserva tu turno aquí: ${window.location.origin}/reservar`
+      msg = `🔥 ¡Mira esta promoción en BarberSite: *${promo.nombre}*! Reserva tu turno aquí: ${window.location.origin}/reservar`
     }
 
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
@@ -111,7 +111,7 @@ export function ModalDetallePromocion({
                   ? 'Ven acompañado los días martes y paguen únicamente por 1 servicio. Ambos reciben atención de primer nivel.'
                   : isReferido
                   ? 'Descuento directo de Bs. 10 por venir recomendado o invitar a tus amigos a la barbería.'
-                  : 'Aprovecha este beneficio exclusivo en tu próxima visita a Barber Pro.'
+                  : 'Aprovecha este beneficio exclusivo en tu próxima visita a BarberSite.'
               )}
             </p>
           </div>
@@ -263,7 +263,7 @@ export function ModalDetallePromocion({
         <div className="p-4 bg-zinc-900/60 border-t border-white/5 flex items-center justify-between text-[11px] text-zinc-500 font-medium shrink-0">
           <div className="flex items-center gap-1.5">
             <ShieldCheck size={13} className="text-amber-500" />
-            <span>Promoción Oficial Barber Pro Studio</span>
+            <span>Promoción Oficial BarberSite</span>
           </div>
           <button onClick={onClose} className="text-zinc-400 hover:text-white font-bold">
             Cerrar

@@ -18,7 +18,7 @@ import {
   Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
   Trophy, Zap, Shield, Crown, Flame, Users, UserPlus,
-  Edit3, Save, CreditCard, Upload, QrCode, Lock, KeyRound, LogOut, UserCog, Megaphone
+  Edit3, Save, CreditCard, Upload, Receipt, Lock, KeyRound, LogOut, UserCog, Megaphone
 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 
@@ -457,7 +457,7 @@ export default function ClientePage() {
                       <Scissors size={20} className="text-white" />
                     </div>
                     <div>
-                      <p className="text-white/60 text-[9px] font-black uppercase tracking-[0.3em] leading-none">BARBER PRO</p>
+                      <p className="text-white/60 text-[9px] font-black uppercase tracking-[0.3em] leading-none">BARBERSITE</p>
                       <p className="text-white text-[11px] font-black uppercase tracking-widest">Loyalty Card</p>
                     </div>
                   </div>
@@ -988,14 +988,14 @@ export default function ClientePage() {
                         </div>
                       </div>
 
-                      {/* Botón Destacado de Pase Digital con QR */}
+                      {/* Botón Destacado de Comprobante de Cita */}
                       <div className="mt-3.5 pt-3 border-t border-white/5 flex items-center gap-2">
                         <button
                           onClick={() => setSelectedCitaForPass(cita as unknown as CitaPaseDigital)}
                           className="flex-1 py-2 px-3 bg-gradient-to-r from-amber-500/20 to-orange-500/15 hover:from-amber-500 hover:to-amber-400 text-amber-400 hover:text-black font-black uppercase tracking-wider text-[11px] rounded-xl border border-amber-500/40 transition-all flex items-center justify-center gap-2 shadow-md"
                         >
-                          <QrCode size={14} />
-                          <span>Pase VIP & Check-in QR</span>
+                          <Receipt size={14} />
+                          <span>Ver Comprobante de Cita</span>
                         </button>
                       </div>
 
@@ -1359,7 +1359,7 @@ export default function ClientePage() {
         </div>
       )}
 
-      {/* Modal de Pase Digital con Código QR */}
+      {/* Modal de Comprobante de Reserva */}
       {selectedCitaForPass && (
         <ModalPaseDigitalCita
           cita={selectedCitaForPass}

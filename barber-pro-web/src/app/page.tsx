@@ -667,7 +667,7 @@ export default function HomePage() {
                       {portafolio[carouselIndex]?.categoria}
                     </span>
                     <p className="text-white font-medium mt-1 max-w-lg">
-                      {portafolio[carouselIndex]?.descripcion || 'Estilo Barber Pro'}
+                      {portafolio[carouselIndex]?.descripcion || 'Estilo BarberSite'}
                     </p>
                   </div>
                   <div className="flex gap-2">

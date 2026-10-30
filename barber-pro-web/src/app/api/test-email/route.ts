@@ -17,7 +17,7 @@ export async function GET() {
     })
 
     const info = await transporter.sendMail({
-      from: `"Test Barber Pro" <${SMTP_USER}>`,
+      from: `"Test BarberSite" <${SMTP_USER}>`,
       to: SMTP_USER,
       subject: 'Prueba de Correo',
       text: 'Si te llega esto, el correo funciona.',
