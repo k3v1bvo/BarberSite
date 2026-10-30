@@ -103,47 +103,22 @@ export async function PUT(
       const hFin = (row.hora_fin || '20:00').slice(0, 5)
       const isActivo = Boolean(row.activo)
 
-      let savedWithT2 = false
-      if (row.fraccionado && row.hora_inicio_2 && row.hora_fin_2) {
-        const payloadConT2 = {
-          barbero_id: barberoId,
-          dia_semana: diaNum,
-          hora_inicio: hIni,
-          hora_fin: hFin,
-          activo: isActivo,
-          tipo_horario: 'personalizado',
-          hora_inicio_2: row.hora_inicio_2.slice(0, 5),
-          hora_fin_2: row.hora_fin_2.slice(0, 5),
-        }
-
-        const { error: t2Err } = await dbWrite
-          .from('barbero_horario_semanal')
-          .upsert(payloadConT2, { onConflict: 'barbero_id,dia_semana' })
-
-        if (!t2Err) {
-          savedWithT2 = true
-        }
+      const payloadBase = {
+        barbero_id: barberoId,
+        dia_semana: diaNum,
+        hora_inicio: hIni,
+        hora_fin: hFin,
+        activo: isActivo,
+        tipo_horario: 'personalizado',
       }
 
-      if (!savedWithT2) {
-        // Upsert estándar garantizado en todas las versiones de schema
-        const payloadBase = {
-          barbero_id: barberoId,
-          dia_semana: diaNum,
-          hora_inicio: hIni,
-          hora_fin: hFin,
-          activo: isActivo,
-          tipo_horario: 'personalizado',
-        }
+      const { error: baseErr } = await dbWrite
+        .from('barbero_horario_semanal')
+        .upsert(payloadBase, { onConflict: 'barbero_id,dia_semana' })
 
-        const { error: baseErr } = await dbWrite
-          .from('barbero_horario_semanal')
-          .upsert(payloadBase, { onConflict: 'barbero_id,dia_semana' })
-
-        if (baseErr) {
-          console.error(`[horario-laboral PUT] Error guardando día ${diaNum}:`, baseErr.message)
-          throw new Error(`Error al guardar día ${diaNum}: ${baseErr.message}`)
-        }
+      if (baseErr) {
+        console.error(`[horario-laboral PUT] Error guardando día ${diaNum}:`, baseErr.message)
+        throw new Error(`Error al guardar día ${diaNum}: ${baseErr.message}`)
       }
     }
 
@@ -172,11 +147,15 @@ export async function PUT(
       console.error('[horario-laboral] Error guardando configuraciones:', e.message)
     }
 
-    const db = getNotificationDbClient(supabase)
-    await dispatchNotification(db, {
-      event: 'horario_cambio',
-      payload: { barberoId },
-    })
+    try {
+      const db = getNotificationDbClient(supabase)
+      await dispatchNotification(db, {
+        event: 'horario_cambio',
+        payload: { barberoId },
+      })
+    } catch (notifErr: any) {
+      console.warn('[horario-laboral] No se pudo enviar notificación de horario:', notifErr?.message)
+    }
 
     return NextResponse.json({ ok: true, horario: sanitizedConfig })
   } catch (err: any) {

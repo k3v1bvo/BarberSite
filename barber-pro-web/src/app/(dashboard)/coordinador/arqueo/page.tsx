@@ -195,13 +195,14 @@ export default function ArqueoPage() {
     return <div className="flex items-center justify-center h-96"><div className="w-12 h-12 border-4 border-zinc-700 border-t-orange-500 rounded-full animate-spin" /></div>
   }
 
-  const esperadoEfectivo = resumen.total_efectivo || 0
-  const esperadoQr = (resumen.total_qr || 0) + (resumen.total_tarjeta || 0)
+  const esperadoEfectivo = Number(resumen.excel?.saldo_total_sistema ?? 180.50)
+  const esperadoQr = Number(resumen.excel?.total_banco_dia ?? ((resumen.total_qr || 0) + (resumen.total_tarjeta || 0)))
   const esperadoTotal = esperadoEfectivo + esperadoQr
   const contadoEfectivo = parseFloat(efectivoFisico) || 0
   const contadoQr = parseFloat(qrFisico) || 0
 
-  const difEfectivo = contadoEfectivo - esperadoEfectivo
+  const tieneConteoFisico = efectivoFisico !== '' && efectivoFisico !== '0'
+  const difEfectivo = tieneConteoFisico ? (contadoEfectivo - esperadoEfectivo) : 0
   const difQr = contadoQr - esperadoQr
 
   const totalFisico = contadoEfectivo + contadoQr
@@ -627,37 +628,47 @@ export default function ArqueoPage() {
                   ARQUEO (DIFERENCIA)
                 </span>
                 <p className={`text-2xl font-mono font-black ${
-                  Math.abs((parseFloat(efectivoFisico) || 0) - (resumen.excel?.saldo_total_sistema ?? 180.50)) < 0.1 && efectivoFisico !== ''
+                  tieneConteoFisico && Math.abs(contadoEfectivo - esperadoEfectivo) < 0.1
                     ? 'text-emerald-400'
-                    : 'text-red-400'
+                    : tieneConteoFisico
+                    ? 'text-red-400'
+                    : 'text-amber-400'
                 }`}>
-                  {efectivoFisico !== ''
-                    ? formatCurrency((parseFloat(efectivoFisico) || 0) - (resumen.excel?.saldo_total_sistema ?? 180.50))
-                    : formatCurrency(0 - (resumen.excel?.saldo_total_sistema ?? 180.50))}
+                  {tieneConteoFisico
+                    ? (contadoEfectivo - esperadoEfectivo >= 0 ? '+' : '') + formatCurrency(contadoEfectivo - esperadoEfectivo)
+                    : formatCurrency(esperadoEfectivo)}
                 </p>
                 <p className="text-[11px] text-zinc-500 mt-1">
-                  {efectivoFisico !== '' && Math.abs((parseFloat(efectivoFisico) || 0) - (resumen.excel?.saldo_total_sistema ?? 180.50)) < 0.1
+                  {tieneConteoFisico && Math.abs(contadoEfectivo - esperadoEfectivo) < 0.1
                     ? 'Efectivo coincide exactamente con el sistema'
-                    : (parseFloat(efectivoFisico) || 0) > (resumen.excel?.saldo_total_sistema ?? 180.50)
-                    ? 'Sobrante en caja'
-                    : 'Faltante en caja frente a sistema'}
+                    : tieneConteoFisico && contadoEfectivo > esperadoEfectivo
+                    ? 'Sobrante en caja frente a sistema'
+                    : tieneConteoFisico
+                    ? 'Faltante en caja frente a sistema'
+                    : 'Monto esperado en gaveta para validar'}
                 </p>
               </div>
 
               <div className="flex flex-col items-start md:items-end justify-center">
                 <div className={`px-6 py-3 rounded-2xl font-black text-base uppercase tracking-widest border-2 shadow-2xl ${
-                  efectivoFisico !== '' && Math.abs((parseFloat(efectivoFisico) || 0) - (resumen.excel?.saldo_total_sistema ?? 180.50)) < 0.1
+                  tieneConteoFisico && Math.abs(contadoEfectivo - esperadoEfectivo) < 0.1
                     ? 'bg-emerald-500 text-black border-emerald-400 shadow-emerald-500/20'
-                    : 'bg-red-600 text-white border-red-500 shadow-red-600/30'
+                    : tieneConteoFisico
+                    ? 'bg-red-600 text-white border-red-500 shadow-red-600/30'
+                    : 'bg-zinc-800 text-amber-400 border-amber-500/30 shadow-none'
                 }`}>
-                  {efectivoFisico !== '' && Math.abs((parseFloat(efectivoFisico) || 0) - (resumen.excel?.saldo_total_sistema ?? 180.50)) < 0.1
+                  {tieneConteoFisico && Math.abs(contadoEfectivo - esperadoEfectivo) < 0.1
                     ? '✔ CUADRA'
-                    : '✖ NO CUADRA'}
+                    : tieneConteoFisico
+                    ? '✖ NO CUADRA'
+                    : '⏳ PENDIENTE'}
                 </div>
                 <p className="text-[10px] text-zinc-400 mt-2 font-bold">
-                  {efectivoFisico !== '' && Math.abs((parseFloat(efectivoFisico) || 0) - (resumen.excel?.saldo_total_sistema ?? 180.50)) < 0.1
+                  {tieneConteoFisico && Math.abs(contadoEfectivo - esperadoEfectivo) < 0.1
                     ? 'Gaveta cuadrada con el sistema'
-                    : 'Anota el monto contado en físico para validar'}
+                    : tieneConteoFisico
+                    ? 'Revisa el efectivo o egresos registrados'
+                    : 'Ingresa los billetes contados para validar'}
                 </p>
               </div>
             </div>

@@ -92,109 +92,55 @@ export async function GET(request: NextRequest) {
       comisiones_pendientes_count,
       comisiones_pendientes_monto,
     }
+
+    let totalEgresosEfectivo = 0
+
     txDia?.forEach((t: any) => {
-      const costo = Number(t.costo)
+      const costo = Math.abs(Number(t.costo) || 0)
       const mpLower = String(t.metodo_pago || '').toLowerCase()
       const libroTx = String(t.libro || '').toUpperCase()
       const isDigital = ['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)
 
-      const esCobroQrDeCaja = (libroTx === 'CAJA_CHICA' || libroTx === 'SERVICIOS' || libroTx === 'VENTAS')
-        && isDigital
-        && t.tipo_movimiento === 'EGRESO'
+      const isIngreso = t.tipo_movimiento === 'INGRESO' || t.tipo_movimiento === 'VENTA_PRODUCTO' || (t.tipo_movimiento === 'DEPOSITO' && libroTx === 'BANCO')
+      const isEgreso = t.tipo_movimiento === 'EGRESO' || t.tipo_movimiento === 'RETIRO'
 
-      const isIngreso = esCobroQrDeCaja
-        ? true
-        : (t.tipo_movimiento === 'INGRESO' || t.tipo_movimiento === 'VENTA_PRODUCTO' || (t.tipo_movimiento === 'DEPOSITO' && t.libro === 'BANCO'))
-      const isEgreso = esCobroQrDeCaja ? false : (t.tipo_movimiento === 'EGRESO' || t.tipo_movimiento === 'RETIRO')
-
-      if (t.libro === 'CAJA_CHICA') resumen.caja_chica += (isIngreso ? costo : -costo)
-      else if (t.libro === 'VENTAS') resumen.ventas += (isIngreso ? costo : -costo)
-      else if (t.libro === 'SERVICIOS') resumen.servicios += (isIngreso ? costo : -costo)
-      else if (t.libro === 'USO_TIENDA') resumen.uso_tienda += (isIngreso ? costo : -costo)
-      
-      if (t.libro === 'BANCO' || isDigital || Number(t.monto_qr || 0) > 0) {
-        const montoBanco = Number(t.monto_qr || 0) > 0 ? Number(t.monto_qr) : costo
-        if (t.libro === 'BANCO') {
-          resumen.banco += (t.tipo_movimiento === 'RETIRO' || t.tipo_movimiento === 'EGRESO') ? -montoBanco : montoBanco
-        } else if (esCobroQrDeCaja || isIngreso) {
-          resumen.banco += montoBanco
-        } else if (isEgreso && isDigital) {
-          resumen.banco -= montoBanco
-        }
-      }
-      
       if (isIngreso) {
-        resumen.total_registrado += costo
+        if (libroTx === 'SERVICIOS') resumen.servicios += costo
+        else if (libroTx === 'VENTAS') resumen.ventas += costo
+        else if (libroTx === 'BANCO') resumen.banco += costo
+
+        // Desglose de ingresos por método de pago
+        const mEfectivo = mpLower === 'mixto'
+          ? Math.max(0, Number(t.monto_efectivo || 0))
+          : (mpLower === 'efectivo' ? costo : 0)
+        const mQr = mpLower === 'mixto'
+          ? Math.max(0, Number(t.monto_qr || 0))
+          : (isDigital ? costo : 0)
+
+        resumen.total_efectivo += mEfectivo
+        resumen.total_qr += mQr
+        if (mpLower === 'tarjeta') resumen.total_tarjeta += costo
       } else if (isEgreso) {
-        resumen.total_registrado -= costo
+        if (libroTx === 'CAJA_CHICA') {
+          resumen.caja_chica += costo
+        } else if (libroTx === 'USO_TIENDA') {
+          resumen.uso_tienda += costo
+        }
+        if (mpLower === 'efectivo' || Number(t.monto_efectivo || 0) > 0) {
+          totalEgresosEfectivo += Number(t.monto_efectivo || costo)
+        }
       }
 
       if (t.es_sancion) resumen.sanciones += costo
-      
-      // Manejar métodos de pago con montos mixtos
-      const mEfectivo = t.metodo_pago === 'mixto'
-        ? Number(t.monto_efectivo || 0)
-        : (t.metodo_pago === 'efectivo' ? costo : Number(t.monto_efectivo || 0))
-      const mQr = t.metodo_pago === 'mixto'
-        ? Number(t.monto_qr || 0)
-        : (isDigital ? (Number(t.monto_qr || 0) > 0 ? Number(t.monto_qr) : costo) : Number(t.monto_qr || 0))
-      
-      if (isIngreso) {
-        resumen.total_efectivo += mEfectivo
-        resumen.total_qr += mQr
-        if (t.metodo_pago === 'tarjeta') resumen.total_tarjeta += costo
-      } else if (isEgreso) {
-        resumen.total_efectivo -= mEfectivo
-        resumen.total_qr -= mQr
-        if (t.metodo_pago === 'tarjeta') resumen.total_tarjeta -= costo
-      }
     })
 
     const citasMonto = (citasDia || []).reduce((acc, c) => acc + getCitaNeto(c), 0)
     if (resumen.servicios < citasMonto) {
-      const diff = citasMonto - resumen.servicios
       resumen.servicios = citasMonto
-      resumen.total_registrado += diff
-
-      let citasQrBanco = 0
-      let citasEfectivo = 0
-      ;(citasDia || []).forEach(c => {
-        const total = getCitaNeto(c)
-        const anticipo = Number(c.anticipo_monto || 0)
-        const saldo = Math.max(0, total - anticipo)
-        const mp = String(c.metodo_pago || 'efectivo').toLowerCase()
-
-        // El anticipo de reserva solo ingresó al banco HOY si la reserva se creó en la misma fecha del arqueo
-        const fechaReservaBolivia = c.created_at ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(c.created_at)) : ''
-        if (fechaReservaBolivia === fecha) {
-          citasQrBanco += anticipo
-        }
-        if (mp === 'mixto') {
-          const efPart = Number(c.monto_efectivo) || 0
-          const qrPart = Number(c.monto_transferencia) || (saldo - efPart)
-          citasEfectivo += efPart
-          citasQrBanco += qrPart
-        } else if (mp === 'qr' || mp === 'tarjeta' || mp === 'transferencia' || mp === 'banco') {
-          citasQrBanco += saldo
-        } else {
-          citasEfectivo += saldo
-        }
-      })
-
-      const qrActual = resumen.total_qr + resumen.total_tarjeta
-      if (qrActual < citasQrBanco) {
-        const diffQr = citasQrBanco - qrActual
-        resumen.total_qr += diffQr
-        resumen.banco += diffQr
-      }
-      const efActual = resumen.total_efectivo
-      if (efActual < citasEfectivo) {
-        const diffEf = citasEfectivo - efActual
-        resumen.total_efectivo += diffEf
-      }
     }
 
-    resumen.total_registrado = resumen.total_efectivo + resumen.total_qr + resumen.total_tarjeta
+    // Total facturado (suma de servicios y ventas)
+    resumen.total_registrado = resumen.servicios + resumen.ventas
 
     // Traer cierre existente
     const { data: cierre } = await supabase
@@ -203,42 +149,18 @@ export async function GET(request: NextRequest) {
       .eq('fecha', fecha)
       .maybeSingle()
 
-        // =========================================================================
+    // =========================================================================
     // MÉTRICAS EXACTAS FORMATO EXCEL "ARQUEO DE CAJA" (BARBER SITE)
     // =========================================================================
     const BASE_SALDO_SISTEMA_OCT29 = 180.50
     const BASE_TOTAL_BANCO_OCT29 = 1571.94
 
-    let total_ingreso_efectivo = 0
-    let total_egreso_efectivo = 0
-    let total_banco_dia = 0
-    let total_egreso_banco_dia = 0
+    const total_ingreso_dia = resumen.total_efectivo
+    const total_egreso_dia = totalEgresosEfectivo
+    const regis_dia_sistema = total_ingreso_dia - total_egreso_dia
 
-    txDia?.forEach((t: any) => {
-      const costo = Number(t.costo || 0)
-      const mpLower = String(t.metodo_pago || 'efectivo').toLowerCase()
-      const isDigital = ['qr', 'tarjeta', 'transferencia', 'banco'].includes(mpLower)
-      const isIng = t.tipo_movimiento === 'INGRESO'
-      const isEgr = t.tipo_movimiento === 'EGRESO'
-
-      const mEfectivo = t.metodo_pago === 'mixto'
-        ? Number(t.monto_efectivo || 0)
-        : (t.metodo_pago === 'efectivo' ? costo : 0)
-      const mQr = t.metodo_pago === 'mixto'
-        ? Number(t.monto_qr || 0)
-        : (isDigital ? (Number(t.monto_qr || 0) > 0 ? Number(t.monto_qr) : costo) : 0)
-
-      if (isIng) {
-        total_ingreso_efectivo += mEfectivo
-        total_banco_dia += mQr
-      } else if (isEgr) {
-        total_egreso_efectivo += mEfectivo
-        total_egreso_banco_dia += mQr
-      }
-    })
-
-    const regis_dia_sistema = total_ingreso_efectivo - total_egreso_efectivo
-    const diario_banco = total_banco_dia - total_egreso_banco_dia
+    const total_banco_dia = resumen.total_qr + resumen.total_tarjeta
+    const diario_banco = total_banco_dia
 
     let saldo_apertura = BASE_SALDO_SISTEMA_OCT29
     let saldo_total_sistema = BASE_SALDO_SISTEMA_OCT29
@@ -257,11 +179,11 @@ export async function GET(request: NextRequest) {
     const excelMetrics = {
       saldo_apertura,
       saldo_total_sistema,
-      total_ingreso_dia: total_ingreso_efectivo,
-      total_egreso_dia: total_egreso_efectivo,
+      total_ingreso_dia,
+      total_egreso_dia,
       regis_dia_sistema,
       total_banco_dia,
-      total_egreso_banco_dia,
+      total_egreso_banco_dia: 0,
       diario_banco,
       total_banco_acumulado,
     }
