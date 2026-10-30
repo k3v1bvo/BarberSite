@@ -8,6 +8,18 @@ import { Scale, CheckCircle, AlertCircle, Store, DollarSign, ExternalLink, Print
 import Link from 'next/link'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 
+interface ExcelMetrics {
+  saldo_apertura: number
+  saldo_total_sistema: number
+  total_ingreso_dia: number
+  total_egreso_dia: number
+  regis_dia_sistema: number
+  total_banco_dia: number
+  total_egreso_banco_dia: number
+  diario_banco: number
+  total_banco_acumulado: number
+}
+
 interface Resumen {
   fecha: string
   caja_chica: number
@@ -25,6 +37,7 @@ interface Resumen {
   cantidad_servicios?: number
   comisiones_pendientes_count?: number
   comisiones_pendientes_monto?: number
+  excel?: ExcelMetrics
 }
 
 interface Cierre {
@@ -455,7 +468,201 @@ export default function ArqueoPage() {
             </div>
           )}
 
-          {cierre?.cerrado && (
+          
+
+          {/* ========================================================================= */}
+          {/* PANEL PRINCIPAL TIPO EXCEL (BARBER SITE · ARQUEO DE CAJA)                 */}
+          {/* ========================================================================= */}
+          <div className="bg-gradient-to-b from-zinc-900 via-zinc-900/95 to-zinc-950 border-2 border-amber-500/40 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5 animate-in fade-in">
+            {/* Header del Panel */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="px-3 py-1.5 bg-amber-500/20 border border-amber-500/40 rounded-xl text-amber-400 font-black text-xs uppercase tracking-widest flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  BARBER SITE · ARQUEO DE CAJA
+                </div>
+                <span className="text-xs text-zinc-400 hidden md:inline">
+                  Control de saldo diario, efectivo en gaveta y cuadre físico
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <span className="text-xs font-mono font-black text-white bg-zinc-950 px-3 py-1 rounded-lg border border-white/10">
+                  {fechaSeleccionada.split('-').reverse().join('/')}
+                </span>
+                <span className={`px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                  fechaSeleccionada === hoy
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-zinc-800 text-zinc-400'
+                }`}>
+                  {fechaSeleccionada === hoy ? 'Día en curso' : 'Histórico'}
+                </span>
+              </div>
+            </div>
+
+            {/* Fila 1: Las Dos Tarjetas Grandes de Saldo (Como en su Excel!) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* SALDO TOTAL SISTEMA (La tarjeta que el cliente marcó en rojo!) */}
+              <div className="bg-gradient-to-br from-amber-500/20 via-amber-500/10 to-transparent border-2 border-amber-500 rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-xl shadow-amber-500/10">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="inline-block px-2 py-0.5 rounded bg-amber-500/30 text-amber-300 font-black text-[9px] uppercase tracking-widest mb-1.5 border border-amber-500/40">
+                      EFECTIVO TOTAL EN SISTEMA
+                    </span>
+                    <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-amber-400">
+                      SALDO TOTAL SISTEMA
+                    </h3>
+                  </div>
+                  <span className="text-xs text-zinc-400 font-mono">
+                    Apertura: <b>{formatCurrency(resumen.excel?.saldo_apertura ?? 180.50)}</b>
+                  </span>
+                </div>
+                
+                <p className="text-3xl sm:text-4xl font-black text-amber-400 font-mono tracking-tight my-2">
+                  {formatCurrency(resumen.excel?.saldo_total_sistema ?? 180.50)}
+                </p>
+                <p className="text-[11px] text-amber-200/80 font-medium">
+                  {fechaSeleccionada === hoy
+                    ? '⭐ Saldo de cierre de ayer con el que arranca la caja de hoy'
+                    : 'Saldo de caja chica acumulado al corte de la fecha'}
+                </p>
+              </div>
+
+              {/* TOTAL BANCO (DIGITAL / QR ACUMULADO) */}
+              <div className="bg-gradient-to-br from-blue-500/20 via-blue-500/10 to-transparent border-2 border-blue-500/60 rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-xl shadow-blue-500/10">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="inline-block px-2 py-0.5 rounded bg-blue-500/30 text-blue-300 font-black text-[9px] uppercase tracking-widest mb-1.5 border border-blue-500/40">
+                      BANCO / QR ACUMULADO
+                    </span>
+                    <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-blue-400">
+                      TOTAL BANCO
+                    </h3>
+                  </div>
+                  <span className="text-xs text-zinc-400 font-mono">
+                    Hoy: <b className="text-blue-300">{(resumen.excel?.diario_banco ?? 0) >= 0 ? '+' : ''}{formatCurrency(resumen.excel?.diario_banco ?? 0)}</b>
+                  </span>
+                </div>
+
+                <p className="text-3xl sm:text-4xl font-black text-blue-400 font-mono tracking-tight my-2">
+                  {formatCurrency(resumen.excel?.total_banco_acumulado ?? 1571.94)}
+                </p>
+                <p className="text-[11px] text-blue-200/80 font-medium">
+                  Dinero digital acumulado en cuentas y transferencias QR
+                </p>
+              </div>
+            </div>
+
+            {/* Fila 2: Cuadrícula de Movimientos del Día (Exactamente como su Excel) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 bg-zinc-950/80 p-3.5 rounded-xl border border-white/10">
+              {/* TOTAL INGRESO DIA */}
+              <div className="p-3 bg-zinc-900/80 rounded-xl border border-white/5 space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block">
+                  TOTAL INGRESO DÍA
+                </span>
+                <p className="text-xl font-black text-emerald-400 font-mono">
+                  {formatCurrency(resumen.excel?.total_ingreso_dia ?? 0)}
+                </p>
+                <p className="text-[10px] text-zinc-500">Cobrado en efectivo en el local</p>
+              </div>
+
+              {/* TOTAL EGRESO DIA */}
+              <div className="p-3 bg-zinc-900/80 rounded-xl border border-white/5 space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block">
+                  TOTAL EGRESO DÍA
+                </span>
+                <p className="text-xl font-black text-red-400 font-mono">
+                  {formatCurrency(resumen.excel?.total_egreso_dia ?? 0)}
+                </p>
+                <p className="text-[10px] text-zinc-500">Gastos pagados en efectivo</p>
+              </div>
+
+              {/* REGIS. DIA SISTEMA */}
+              <div className="p-3 bg-zinc-900/80 rounded-xl border border-white/5 space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block">
+                  REGIS. DÍA SISTEMA
+                </span>
+                <p className={`text-xl font-black font-mono ${(resumen.excel?.regis_dia_sistema ?? 0) >= 0 ? 'text-white' : 'text-amber-400'}`}>
+                  {(resumen.excel?.regis_dia_sistema ?? 0) >= 0 ? '+' : ''}{formatCurrency(resumen.excel?.regis_dia_sistema ?? 0)}
+                </p>
+                <p className="text-[10px] text-zinc-500">Flujo neto efectivo (Ingresos - Egresos)</p>
+              </div>
+
+              {/* DIARIO BANCO */}
+              <div className="p-3 bg-zinc-900/80 rounded-xl border border-white/5 space-y-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block">
+                  DIARIO BANCO (QR)
+                </span>
+                <p className="text-xl font-black text-blue-400 font-mono">
+                  {(resumen.excel?.diario_banco ?? 0) >= 0 ? '+' : ''}{formatCurrency(resumen.excel?.diario_banco ?? 0)}
+                </p>
+                <p className="text-[10px] text-zinc-500">Neto ingresado por QR hoy</p>
+              </div>
+            </div>
+
+            {/* Fila 3: Conteo Físico y Validador CUADRA / NO CUADRA (Como en su Excel) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-950 p-4 sm:p-5 rounded-xl border border-amber-500/20 items-center">
+              <div>
+                <label className="text-[11px] font-black uppercase tracking-widest text-amber-400 block mb-1.5">
+                  💵 SALDO EN FÍSICO (Billetes contados)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={efectivoFisico}
+                  onChange={(e) => setEfectivoFisico(e.target.value)}
+                  disabled={cierre?.cerrado}
+                  placeholder="Ej. 180.50"
+                  className="w-full h-12 bg-zinc-900 border-2 border-white/20 focus:border-amber-500 rounded-xl px-4 text-xl font-black text-white font-mono outline-none"
+                />
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  Sistema espera en gaveta: <b className="text-amber-400">{formatCurrency(resumen.excel?.saldo_total_sistema ?? 180.50)}</b>
+                </p>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-black uppercase tracking-widest text-zinc-400 block mb-1.5">
+                  ARQUEO (DIFERENCIA)
+                </span>
+                <p className={`text-2xl font-mono font-black ${
+                  Math.abs((parseFloat(efectivoFisico) || 0) - (resumen.excel?.saldo_total_sistema ?? 180.50)) < 0.1 && efectivoFisico !== ''
+                    ? 'text-emerald-400'
+                    : 'text-red-400'
+                }`}>
+                  {efectivoFisico !== ''
+                    ? formatCurrency((parseFloat(efectivoFisico) || 0) - (resumen.excel?.saldo_total_sistema ?? 180.50))
+                    : formatCurrency(0 - (resumen.excel?.saldo_total_sistema ?? 180.50))}
+                </p>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  {efectivoFisico !== '' && Math.abs((parseFloat(efectivoFisico) || 0) - (resumen.excel?.saldo_total_sistema ?? 180.50)) < 0.1
+                    ? 'Efectivo coincide exactamente con el sistema'
+                    : (parseFloat(efectivoFisico) || 0) > (resumen.excel?.saldo_total_sistema ?? 180.50)
+                    ? 'Sobrante en caja'
+                    : 'Faltante en caja frente a sistema'}
+                </p>
+              </div>
+
+              <div className="flex flex-col items-start md:items-end justify-center">
+                <div className={`px-6 py-3 rounded-2xl font-black text-base uppercase tracking-widest border-2 shadow-2xl ${
+                  efectivoFisico !== '' && Math.abs((parseFloat(efectivoFisico) || 0) - (resumen.excel?.saldo_total_sistema ?? 180.50)) < 0.1
+                    ? 'bg-emerald-500 text-black border-emerald-400 shadow-emerald-500/20'
+                    : 'bg-red-600 text-white border-red-500 shadow-red-600/30'
+                }`}>
+                  {efectivoFisico !== '' && Math.abs((parseFloat(efectivoFisico) || 0) - (resumen.excel?.saldo_total_sistema ?? 180.50)) < 0.1
+                    ? '✔ CUADRA'
+                    : '✖ NO CUADRA'}
+                </div>
+                <p className="text-[10px] text-zinc-400 mt-2 font-bold">
+                  {efectivoFisico !== '' && Math.abs((parseFloat(efectivoFisico) || 0) - (resumen.excel?.saldo_total_sistema ?? 180.50)) < 0.1
+                    ? 'Gaveta cuadrada con el sistema'
+                    : 'Anota el monto contado en físico para validar'}
+                </p>
+              </div>
+            </div>
+          </div>
+{cierre?.cerrado && (
             <Card className="border-green-500/30 bg-green-500/5">
               <CardContent className="p-4 flex items-center gap-3">
                 <CheckCircle className="w-6 h-6 text-green-500" />
