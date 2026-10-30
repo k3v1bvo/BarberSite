@@ -14,7 +14,6 @@ import { ImageUpload } from '@/components/ui/ImageUpload'
 import { ModalPaseDigitalCita, CitaPaseDigital } from '@/components/cliente/ModalPaseDigitalCita'
 import { ModalDetallePromocion, PromocionDetalle } from '@/components/cliente/ModalDetallePromocion'
 import { BannerPromoSplashModal } from '@/components/ui/BannerPromoSplashModal'
-import { HorariosBarberosWidget } from '@/components/cliente/HorariosBarberosWidget'
 import {
   Scissors, Calendar, Clock, CheckCircle, XCircle, X,
   ChevronRight, MessageSquare, Star, Sparkles, Gift,
@@ -362,6 +361,15 @@ export default function ClientePage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => router.push('/cliente/horarios')}
+            className="text-xs font-bold gap-1 border-white/10 hover:bg-white/5 text-zinc-300"
+          >
+            <Clock size={14} className="text-amber-500" /> Horarios
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => router.push('/perfil')}
             className="text-xs font-bold gap-1 border-white/10 hover:bg-white/5 text-zinc-300"
           >
@@ -649,9 +657,32 @@ export default function ClientePage() {
             </CardContent>
           </Card>
 
-          {/* ——— HORARIOS Y TURNOS DE BARBEROS ——— */}
-          <div id="horarios-barberos-widget">
-            <HorariosBarberosWidget />
+          {/* ——— ACCESO A HORARIOS Y TURNOS DE BARBEROS ——— */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gradient-to-r from-amber-500/10 via-zinc-900/90 to-zinc-900/90 border border-amber-500/20 hover:border-amber-500/40 p-4 rounded-2xl shadow-md transition-all">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                <Clock size={20} />
+              </div>
+              <div>
+                <p className="text-sm font-black text-white flex items-center gap-2">
+                  Horarios y Turnos del Equipo
+                  <span className="text-[9px] bg-amber-400 text-black font-black uppercase px-2 py-0.5 rounded-full">
+                    Mañana / Tarde
+                  </span>
+                </p>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Revisa qué especialista atiende hoy y sus turnos disponibles antes de agendar
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => router.push('/cliente/horarios')}
+              className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 shrink-0 gap-1.5"
+            >
+              <Clock size={14} /> Ver Horarios
+            </Button>
           </div>
 
           {/* ——— INCENTIVOS Y PROMOCIONES ACTIVAS ——— */}

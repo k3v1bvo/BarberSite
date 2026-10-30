@@ -187,6 +187,7 @@ export const barberoNavItems = (agendaHref: string): NavItem[] => [
 
 export const clienteNavItems: NavItem[] = [
   { label: 'Mis Citas', href: '/cliente', icon: Calendar },
+  { label: 'Horarios Barberos', href: '/cliente/horarios', icon: Clock, description: 'Turnos y horarios del equipo' },
   { label: 'Reservar', href: '/reservar', icon: Scissors },
   { label: 'Tienda', href: '/tienda', icon: ShoppingBag },
   { label: 'Aprende / Referidos', href: '/manual', icon: BookOpen },
@@ -213,6 +214,8 @@ export function isDashboardRoute(pathname: string): boolean {
 export function isNavItemActive(pathname: string, href: string): boolean {
   if (href === '/admin') return pathname === '/admin'
   if (href === '/coordinador') return pathname === '/coordinador'
+  if (href === '/barbero') return pathname === '/barbero'
+  if (href === '/cliente') return pathname === '/cliente'
   if (href.startsWith('/agenda')) {
     return pathname === href || pathname.startsWith('/agenda/')
   }
