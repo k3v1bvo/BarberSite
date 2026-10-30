@@ -104,6 +104,24 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // 3.b ¿Ya tiene un servicio completado hoy este cliente? (Regla: 1 servicio contado por día)
+    let yaTieneServicioHoy = false
+    if (resolvedClienteId) {
+      const { data: servsHoy } = await supabase
+        .from('citas')
+        .select('id')
+        .eq('cliente_id', resolvedClienteId)
+        .eq('estado', 'completado')
+        .not('servicio_id', 'is', null)
+        .gte('fecha_hora', `${hoyStr}T00:00:00-04:00`)
+        .lte('fecha_hora', `${hoyStr}T23:59:59-04:00`)
+        .limit(1)
+
+      if (servsHoy && servsHoy.length > 0) {
+        yaTieneServicioHoy = true
+      }
+    }
+
     // 4. Historial de Citas / Servicios Anteriores
     let historialCitas: any[] = []
     let barberoFrecuente = ''
@@ -203,6 +221,7 @@ export async function GET(request: NextRequest) {
       historialCitas,
       historialProductos,
       transaccionesCaja,
+      yaTieneServicioHoy,
       stats: {
         barberoFrecuente,
         ultimaVisitaFecha

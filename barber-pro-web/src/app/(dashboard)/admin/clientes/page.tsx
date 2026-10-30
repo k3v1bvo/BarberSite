@@ -788,7 +788,7 @@ export default function ClientesAdminPage() {
                 <div className="grid grid-cols-3 gap-3 pb-5">
                   <div className="bg-black/30 rounded-xl p-3 text-center">
                     <p className="text-xl font-black text-amber-400">{clienteSeleccionado.total_visitas || 0}</p>
-                    <p className="text-[9px] uppercase tracking-widest text-zinc-500 mt-0.5">Visitas</p>
+                    <p className="text-[9px] uppercase tracking-widest text-zinc-500 mt-0.5" title="Conteo de servicios (máximo 1 contado por día)">Servicios (1/día)</p>
                   </div>
                   <div className="bg-black/30 rounded-xl p-3 text-center">
                     <p className="text-lg font-black text-emerald-400">{formatCurrency(clienteSeleccionado.total_gastado || 0)}</p>

@@ -3,6 +3,7 @@ import { createAdminSupabaseClient, getNotificationDbClient } from '@/lib/supaba
 import { dispatchNotification, dispatchCitaReprogramada } from '@/lib/notifications/dispatch'
 import { calcularNivelFidelidad } from '@/lib/lealtad/calcular-nivel'
 import { calcularComisionBarbero } from '@/lib/comisiones/calcular'
+import { getBoliviaDateString } from '@/lib/asistencia/helpers'
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 
@@ -677,7 +678,30 @@ export async function POST(request: NextRequest) {
 
         const { data: cData } = await supabase.from('clientes').select('total_visitas, total_gastado').eq('id', finalClienteId).single()
         if (cData) {
-          const nuevoTotalVisitas = (cData.total_visitas || 0) + 1
+          // REGLA DE NEGOCIO: Si el cliente se hace varios servicios el MISMO DÍA (ej. combo y perfilado),
+          // en el conteo de servicios hechos solo marca UNO por día.
+          // Que sí se vean todos los servicios en el historial y contabilidad, pero en el contador solo suma 1 por día.
+          const fechaCitaStr = (reserva_fecha || '').trim() || getBoliviaDateString()
+          let yaTieneServicioHoy = false
+
+          if (servicio_id) {
+            const { data: citasMismoDia } = await adminSupabase
+              .from('citas')
+              .select('id')
+              .eq('cliente_id', finalClienteId)
+              .eq('estado', 'completado')
+              .not('servicio_id', 'is', null)
+              .gte('fecha_hora', `${fechaCitaStr}T00:00:00-04:00`)
+              .lte('fecha_hora', `${fechaCitaStr}T23:59:59-04:00`)
+
+            const otrasCitas = (citasMismoDia || []).filter(c => c.id !== citaId)
+            if (otrasCitas.length > 0) {
+              yaTieneServicioHoy = true
+            }
+          }
+
+          const debeSumarVisita = Boolean(servicio_id) && !yaTieneServicioHoy
+          const nuevoTotalVisitas = (cData.total_visitas || 0) + (debeSumarVisita ? 1 : 0)
           const nuevoNivel = await calcularNivelFidelidad(supabase, nuevoTotalVisitas)
           
           // Usar el precio NETO (después de descuentos) para el total gastado del cliente
@@ -688,7 +712,8 @@ export async function POST(request: NextRequest) {
             .update({
               total_visitas: nuevoTotalVisitas,
               total_gastado: (cData.total_gastado || 0) + gastoRealCliente,
-              nivel_fidelidad: nuevoNivel
+              nivel_fidelidad: nuevoNivel,
+              ultima_visita: fechaCitaStr
             })
             .eq('id', finalClienteId)
         }

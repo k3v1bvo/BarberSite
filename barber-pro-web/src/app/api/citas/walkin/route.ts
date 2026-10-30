@@ -1,3 +1,4 @@
+import { getBoliviaDateString } from '@/lib/asistencia/helpers'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 import { calcularComisionBarbero } from '@/lib/comisiones/calcular'
@@ -188,14 +189,35 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Actualizar Lealtad
+    // 4. Actualizar Lealtad (1 servicio contado por día)
     if (clienteId) {
+      const hoyBolivia = getBoliviaDateString()
+      let yaTieneServicioHoy = false
+
+      if (servicio_id) {
+        const { data: otrasCitasHoy } = await adminSupabase
+          .from('citas')
+          .select('id')
+          .eq('cliente_id', clienteId)
+          .eq('estado', 'completado')
+          .not('servicio_id', 'is', null)
+          .gte('fecha_hora', `${hoyBolivia}T00:00:00-04:00`)
+          .lte('fecha_hora', `${hoyBolivia}T23:59:59-04:00`)
+
+        // Dado que la cita del servicio actual ya fue insertada en la BD, si hay más de 1 cita completada hoy, ya tenía servicio hoy
+        if ((otrasCitasHoy || []).length > 1) {
+          yaTieneServicioHoy = true
+        }
+      }
+
+      const debeSumarVisita = Boolean(servicio_id) && !yaTieneServicioHoy
       const { data: cData } = await supabase.from('clientes').select('total_visitas, total_gastado').eq('id', clienteId).single()
       if (cData) {
         await adminSupabase.from('clientes')
           .update({
-            total_visitas: (cData.total_visitas || 0) + (servicio_id ? 1 : 0),
-            total_gastado: (cData.total_gastado || 0) + precioBase + totalProductos
+            total_visitas: (cData.total_visitas || 0) + (debeSumarVisita ? 1 : 0),
+            total_gastado: (cData.total_gastado || 0) + precioBase + totalProductos,
+            ultima_visita: hoyBolivia
           })
           .eq('id', clienteId)
       }

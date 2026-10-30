@@ -136,8 +136,8 @@ export function ClienteHistorialModal({
           {/* TARJETAS RESUMEN RÁPIDO */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-5">
             <div className="p-2.5 bg-black/40 border border-white/5 rounded-xl">
-              <p className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Total Visitas</p>
-              <p className="text-sm font-black text-white">{cliente.total_visitas || 0} visitas</p>
+              <p className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Servicios / Visitas</p>
+              <p className="text-sm font-black text-white">{cliente.total_visitas || 0} (1 por día)</p>
             </div>
             <div className="p-2.5 bg-black/40 border border-white/5 rounded-xl">
               <p className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Total Gastado</p>

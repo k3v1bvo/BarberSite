@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     // Obtener la cita con el cliente_id
     const { data: cita } = await supabase
       .from('citas')
-      .select('barbero_id, estado, precio, comision_barbero, cliente_id, servicios(nombre)')
+      .select('barbero_id, estado, precio, comision_barbero, cliente_id, servicio_id, fecha_hora, servicios(nombre)')
       .eq('id', cita_id)
       .single()
 
@@ -72,15 +72,37 @@ export async function POST(request: Request) {
         .single()
 
       if (clienteActual) {
-        const nuevoTotalVisitas = (clienteActual.total_visitas || 0) + 1
+        // REGLA: Si el cliente hace varios servicios el mismo día, solo cuenta 1 en visitas
+        const fechaCitaStr = (cita.fecha_hora || '').split('T')[0]
+        let yaAtendidoEseDia = false
+
+        if (cita.servicio_id && fechaCitaStr) {
+          const { data: otrasHoy } = await supabase
+            .from('citas')
+            .select('id')
+            .eq('cliente_id', cita.cliente_id)
+            .eq('estado', 'completado')
+            .not('servicio_id', 'is', null)
+            .neq('id', cita_id)
+            .gte('fecha_hora', `${fechaCitaStr}T00:00:00-04:00`)
+            .lte('fecha_hora', `${fechaCitaStr}T23:59:59-04:00`)
+
+          if ((otrasHoy || []).length > 0) {
+            yaAtendidoEseDia = true
+          }
+        }
+
+        const debeSumarVisita = Boolean(cita.servicio_id) && !yaAtendidoEseDia
+        const nuevoTotalVisitas = (clienteActual.total_visitas || 0) + (debeSumarVisita ? 1 : 0)
         const nuevoNivel = await calcularNivelFidelidad(supabase, nuevoTotalVisitas)
         
         await supabase
           .from('clientes')
           .update({
             total_visitas: nuevoTotalVisitas,
-            total_gastado: (clienteActual.total_gastado || 0) + cita.precio,
-            nivel_fidelidad: nuevoNivel
+            total_gastado: (clienteActual.total_gastado || 0) + Number(cita.precio || 0),
+            nivel_fidelidad: nuevoNivel,
+            ...(fechaCitaStr ? { ultima_visita: fechaCitaStr } : {})
           })
           .eq('id', cita.cliente_id)
       }

@@ -163,6 +163,7 @@ export function CajaPOS() {
 
   // Operador Caja (Encargado de Caja)
   const [cajaOperator, setCajaOperator] = useState<{ id: string; full_name: string; avatar_url?: string } | null>(null)
+  const [yaTieneServicioHoy, setYaTieneServicioHoy] = useState(false)
 
   // Turno rotation & agenda
   const [barberoTurno, setBarberoTurno] = useState<string | null>(null)
@@ -577,6 +578,7 @@ export function CajaPOS() {
         setReferralBonuses(data.referralBonuses || [])
         setCumpleanosVerifData(data.cumpleanosVerificado || null)
         setPareja2x1PendienteData(data.pareja2x1Pendiente || null)
+        setYaTieneServicioHoy(Boolean(data.yaTieneServicioHoy))
         setHistorialCitasCliente(data.historialCitas || [])
         setHistorialProductosCliente(data.historialProductos || [])
         setHistorialTransaccionesCliente(data.transaccionesCaja || [])
@@ -977,7 +979,9 @@ export function CajaPOS() {
   let metaAlcanzadaNombre = ''
   let metaCumplidaDisponible: LealtadMeta | null = null
   if (clienteDetalle && lealtadMetas.length > 0) {
-    const proximasVisitas = (clienteDetalle.total_visitas || 0) + 1
+    // Si el cliente ya tuvo un servicio completado hoy, este servicio adicional no incrementa visitas (1 por día)
+    const debeSumarVisita = !yaTieneServicioHoy
+    const proximasVisitas = (clienteDetalle.total_visitas || 0) + (debeSumarVisita ? 1 : 0)
     // Buscar la meta más alta que cumpla la visita actual
     const metasCumplidas = lealtadMetas.filter(m => proximasVisitas % m.visitas_requeridas === 0)
     if (metasCumplidas.length > 0) {
@@ -1483,7 +1487,7 @@ export function CajaPOS() {
                           </p>
                           {clienteDetalle?.nivel_fidelidad && (
                             <span className="text-[9px] font-black uppercase text-black bg-amber-400 px-2 py-0.5 rounded-full">
-                              {clienteDetalle.nivel_fidelidad} · {clienteDetalle.total_visitas || 0} visitas
+                              {clienteDetalle.nivel_fidelidad} · {clienteDetalle.total_visitas || 0} visitas (1 por día)
                             </span>
                           )}
                         </div>
@@ -1967,7 +1971,7 @@ export function CajaPOS() {
                       <h3 className="text-sm font-black text-white uppercase tracking-wider">Historial y Movimientos del Cliente</h3>
                       {clienteDetalle?.nivel_fidelidad && (
                         <span className="text-[9px] font-black uppercase text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
-                          {clienteDetalle.nivel_fidelidad} · {clienteDetalle.total_visitas || 0} visitas
+                          {clienteDetalle.nivel_fidelidad} · {clienteDetalle.total_visitas || 0} visitas (1 por día)
                         </span>
                       )}
                     </div>
@@ -2712,7 +2716,7 @@ export function CajaPOS() {
                     </div>
                     {clienteDetalle?.nivel_fidelidad && (
                       <span className="text-[10px] text-amber-400 font-bold">
-                        ★ {clienteDetalle.nivel_fidelidad} · {clienteDetalle.total_visitas || 0} visitas
+                        ★ {clienteDetalle.nivel_fidelidad} · {clienteDetalle.total_visitas || 0} visitas (1 por día)
                       </span>
                     )}
                   </div>

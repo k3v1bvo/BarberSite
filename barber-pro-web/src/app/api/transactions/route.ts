@@ -701,7 +701,7 @@ export async function DELETE(request: NextRequest) {
       // 3. Revertir visitas y total gastado del cliente
       const { data: citaRow } = await adminSupabase
         .from('citas')
-        .select('cliente_id, precio')
+        .select('cliente_id, precio, fecha_hora')
         .eq('id', citaIdToCancel)
         .single()
 
@@ -713,7 +713,23 @@ export async function DELETE(request: NextRequest) {
           .single()
 
         if (clData) {
-          const nuevasVisitas = Math.max(0, (clData.total_visitas || 1) - 1)
+          const fechaCitaStr = (citaRow.fecha_hora || '').split('T')[0]
+          let otrasMismoDia = 0
+          if (fechaCitaStr) {
+            const { count } = await adminSupabase
+              .from('citas')
+              .select('id', { count: 'exact', head: true })
+              .eq('cliente_id', citaRow.cliente_id)
+              .eq('estado', 'completado')
+              .not('servicio_id', 'is', null)
+              .neq('id', citaIdToCancel)
+              .gte('fecha_hora', `${fechaCitaStr}T00:00:00-04:00`)
+              .lte('fecha_hora', `${fechaCitaStr}T23:59:59-04:00`)
+            otrasMismoDia = count || 0
+          }
+
+          const debeRestarVisita = otrasMismoDia === 0
+          const nuevasVisitas = Math.max(0, (clData.total_visitas || 1) - (debeRestarVisita ? 1 : 0))
           const nuevoGastado = Math.max(0, (clData.total_gastado || 0) - Number(citaRow.precio || 0))
           await adminSupabase
             .from('clientes')
