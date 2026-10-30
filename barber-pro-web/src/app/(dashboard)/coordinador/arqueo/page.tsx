@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { formatCurrency, getTodayBolivia, exportToCSV } from '@/lib/utils'
-import { Scale, CheckCircle, AlertCircle, Store, DollarSign, ExternalLink, Printer, Download } from 'lucide-react'
+import { Scale, CheckCircle, AlertCircle, Store, DollarSign, ExternalLink, Printer, Download, Wallet, Calendar, Search, Filter, ArrowUpRight, ArrowDownLeft, Clock, RefreshCw } from 'lucide-react'
+import Link from 'next/link'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface Resumen {
@@ -45,6 +46,30 @@ export default function ArqueoPage() {
   const [qrFisico, setQrFisico] = useState('')
   const [observaciones, setObservaciones] = useState('')
   const hoy = getTodayBolivia()
+  const getAyer = () => {
+    const [y, m, d] = hoy.split('-').map(Number)
+    const dt = new Date(y, m - 1, d)
+    dt.setDate(dt.getDate() - 1)
+    const yyyy = dt.getFullYear()
+    const mm = String(dt.getMonth() + 1).padStart(2, '0')
+    const dd = String(dt.getDate()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}`
+  }
+  const ayer = getAyer()
+  const getAntier = () => {
+    const [y, m, d] = hoy.split('-').map(Number)
+    const dt = new Date(y, m - 1, d)
+    dt.setDate(dt.getDate() - 2)
+    const yyyy = dt.getFullYear()
+    const mm = String(dt.getMonth() + 1).padStart(2, '0')
+    const dd = String(dt.getDate()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}`
+  }
+  const antier = getAntier()
+  const [fechaSeleccionada, setFechaSeleccionada] = useState<string>(hoy)
+  const [movimientos, setMovimientos] = useState<any[]>([])
+  const [filtroLibro, setFiltroLibro] = useState<'todos' | 'SERVICIOS' | 'VENTAS' | 'EGRESOS' | 'QR'>('todos')
+  const [busquedaMov, setBusquedaMov] = useState('')
 
   const [activeTab, setActiveTab] = useState<'arqueo' | 'historial'>('arqueo')
   const [historialList, setHistorialList] = useState<any[]>([])
@@ -81,21 +106,28 @@ export default function ArqueoPage() {
     setSavingQrHistorial(false)
   }
 
-  const loadData = useCallback(async () => {
-    const res = await fetch(`/api/arqueo?fecha=${hoy}`)
+  const loadData = useCallback(async (targetFecha: string) => {
+    setLoading(true)
+    const res = await fetch(`/api/arqueo?fecha=${targetFecha}`)
     if (res.ok) {
       const data = await res.json()
       setResumen(data.resumen)
       setCierre(data.cierre)
+      setMovimientos(data.movimientos || [])
       if (data.cierre) {
         setEfectivoFisico(String(data.cierre.total_efectivo_fisico || 0))
         setQrFisico(String(data.cierre.total_qr || 0))
         setObservaciones(data.cierre.observaciones || '')
         if (data.cierre.usuario_cierre) setPersonaCierre(data.cierre.usuario_cierre)
+      } else {
+        setEfectivoFisico('')
+        setQrFisico('')
+        setObservaciones('')
+        setPersonaCierre('')
       }
     }
     setLoading(false)
-  }, [hoy])
+  }, [])
 
   const loadHistorial = async () => {
     setLoadingHistorial(true)
@@ -109,7 +141,9 @@ export default function ArqueoPage() {
     }
   }
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    loadData(fechaSeleccionada)
+  }, [fechaSeleccionada, loadData])
 
   useEffect(() => {
     if (activeTab === 'historial') {
@@ -124,7 +158,7 @@ export default function ArqueoPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        fecha: hoy,
+        fecha: fechaSeleccionada,
         caja_chica: resumen.caja_chica,
         ventas: resumen.ventas,
         servicios: resumen.servicios,
@@ -139,7 +173,7 @@ export default function ArqueoPage() {
     })
     if (res.ok) {
       setShowCierreModal(false)
-      loadData()
+      loadData(fechaSeleccionada)
     }
     setSaving(false)
   }
@@ -167,7 +201,12 @@ export default function ArqueoPage() {
           Arqueo de <span className="text-orange-500">Caja</span>
         </h1>
         <p className="text-zinc-500 font-medium mt-1">
-          Cierre diario — {new Date().toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long' })}
+          {fechaSeleccionada === hoy
+            ? `Cierre diario — Hoy (${new Date().toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long' })})`
+            : fechaSeleccionada === ayer
+            ? `Cierre diario — Ayer (${ayer.split('-').reverse().join('/')})`
+            : `Cierre diario — Fecha seleccionada: ${fechaSeleccionada.split('-').reverse().join('/')}`
+          }
         </p>
       </div>
 
@@ -334,6 +373,88 @@ export default function ArqueoPage() {
         </>
       ) : (
         <>
+          {/* Selector de Fecha para Arqueo */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-900/80 p-3.5 rounded-2xl border border-white/10 shadow-lg">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-black uppercase text-zinc-400 tracking-wider">
+                Ver Arqueo de:
+              </span>
+              <button
+                type="button"
+                onClick={() => setFechaSeleccionada(hoy)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                  fechaSeleccionada === hoy
+                    ? 'bg-orange-500 text-black shadow-lg shadow-orange-500/20'
+                    : 'bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700'
+                }`}
+              >
+                📅 Hoy (${hoy.split('-').slice(1).reverse().join('/')})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFechaSeleccionada(ayer)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                  fechaSeleccionada === ayer
+                    ? 'bg-orange-500 text-black shadow-lg shadow-orange-500/20'
+                    : 'bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700'
+                }`}
+              >
+                ⏮️ Ayer (${ayer.split('-').slice(1).reverse().join('/')})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFechaSeleccionada(antier)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                  fechaSeleccionada === antier
+                    ? 'bg-orange-500 text-black shadow-lg shadow-orange-500/20'
+                    : 'bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700'
+                }`}
+              >
+                ⏪ Antier (${antier.split('-').slice(1).reverse().join('/')})
+              </button>
+              <div className="flex items-center gap-1.5 bg-zinc-950 border border-white/10 rounded-xl px-3 py-1">
+                <span className="text-zinc-500 text-xs">🗓️</span>
+                <input
+                  type="date"
+                  value={fechaSeleccionada}
+                  max={hoy}
+                  onChange={(e) => {
+                    if (e.target.value) setFechaSeleccionada(e.target.value)
+                  }}
+                  className="bg-transparent text-white text-xs font-mono outline-none cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <Link href="/coordinador/caja-chica">
+              <Button
+                variant="outline"
+                className="text-xs font-bold border-amber-500/30 text-amber-400 hover:bg-amber-500/10 gap-2 w-full sm:w-auto"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                Saldo Acumulado en Caja Chica →
+              </Button>
+            </Link>
+          </div>
+
+          {fechaSeleccionada !== hoy && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-amber-300 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>
+                  Visualizando arqueo histórico del <b>${fechaSeleccionada.split('-').reverse().join('/')}</b>. Los números corresponden a esa fecha.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFechaSeleccionada(hoy)}
+                className="underline font-black text-amber-400 hover:text-white ml-2 text-xs"
+              >
+                Volver a Hoy
+              </button>
+            </div>
+          )}
+
           {cierre?.cerrado && (
             <Card className="border-green-500/30 bg-green-500/5">
               <CardContent className="p-4 flex items-center gap-3">
@@ -566,6 +687,163 @@ export default function ArqueoPage() {
               </Card>
             ))}
           </div>
+
+          {/* TABLA DE MOVIMIENTOS Y COBROS DEL DÍA */}
+          <Card className="border-white/10 bg-zinc-900/90 shadow-2xl">
+            <CardContent className="p-5 sm:p-6 space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📜</span>
+                    <h2 className="text-sm font-black uppercase tracking-wider text-white">
+                      Movimientos y Cobros de la Fecha ({movimientos.length})
+                    </h2>
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Detalle de todos los cortes, ventas y movimientos registrados el {fechaSeleccionada.split('-').reverse().join('/')}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Buscador */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por cliente, glosa..."
+                      value={busquedaMov}
+                      onChange={(e) => setBusquedaMov(e.target.value)}
+                      className="h-8 pl-8 pr-3 bg-zinc-950 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 outline-none focus:border-orange-500/50 w-44 sm:w-56"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Filtros por Categoría */}
+              <div className="flex gap-1.5 flex-wrap">
+                {[
+                  { id: 'todos', label: 'Todos', count: movimientos.length },
+                  { id: 'SERVICIOS', label: '💈 Servicios', count: movimientos.filter((m: any) => m.libro === 'SERVICIOS').length },
+                  { id: 'VENTAS', label: '🛍️ Ventas', count: movimientos.filter((m: any) => m.libro === 'VENTAS').length },
+                  { id: 'EGRESOS', label: '💸 Gastos / Egresos', count: movimientos.filter((m: any) => m.tipo_movimiento === 'EGRESO' || m.libro === 'EGRESOS').length },
+                  { id: 'QR', label: '📱 QR / Banco', count: movimientos.filter((m: any) => ['qr', 'tarjeta', 'transferencia', 'banco'].includes(String(m.metodo_pago || '').toLowerCase())).length },
+                ].map((chip) => (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    onClick={() => setFiltroLibro(chip.id as any)}
+                    className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                      filtroLibro === chip.id
+                        ? 'bg-orange-500 text-black shadow-lg shadow-orange-500/20'
+                        : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'
+                    }`}
+                  >
+                    {chip.label} ({chip.count})
+                  </button>
+                ))}
+              </div>
+
+              {/* Lista / Tabla */}
+              {(() => {
+                const q = busquedaMov.toLowerCase().trim()
+                const filtrados = movimientos.filter((m: any) => {
+                  if (filtroLibro === 'SERVICIOS' && m.libro !== 'SERVICIOS') return false
+                  if (filtroLibro === 'VENTAS' && m.libro !== 'VENTAS') return false
+                  if (filtroLibro === 'EGRESOS' && m.tipo_movimiento !== 'EGRESO' && m.libro !== 'EGRESOS') return false
+                  if (filtroLibro === 'QR' && !['qr', 'tarjeta', 'transferencia', 'banco'].includes(String(m.metodo_pago || '').toLowerCase())) return false
+
+                  if (q) {
+                    const matchNom = String(m.nombre || '').toLowerCase().includes(q)
+                    const matchGlo = String(m.glosa || '').toLowerCase().includes(q)
+                    const matchCta = String(m.cuenta_detalle || '').toLowerCase().includes(q)
+                    const matchMet = String(m.metodo_pago || '').toLowerCase().includes(q)
+                    if (!matchNom && !matchGlo && !matchCta && !matchMet) return false
+                  }
+                  return true
+                })
+
+                if (filtrados.length === 0) {
+                  return (
+                    <div className="py-10 text-center text-zinc-500 text-xs">
+                      No se encontraron movimientos registrados para esta fecha con el filtro seleccionado.
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="overflow-x-auto rounded-xl border border-white/5">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-white/10 bg-zinc-950/60 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                          <th className="py-2.5 px-3">Hora / Ref</th>
+                          <th className="py-2.5 px-3">Cliente / Destinatario</th>
+                          <th className="py-2.5 px-3">Concepto / Glosa</th>
+                          <th className="py-2.5 px-3">Categoría</th>
+                          <th className="py-2.5 px-3">Método</th>
+                          <th className="py-2.5 px-3 text-right">Monto</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {filtrados.map((m: any) => {
+                          const esIng = m.tipo_movimiento === 'INGRESO'
+                          const hora = m.creado_en
+                            ? new Date(m.creado_en).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })
+                            : '—'
+                          const mp = String(m.metodo_pago || 'efectivo').toLowerCase()
+                          return (
+                            <tr key={m.id} className="hover:bg-white/5 transition-colors">
+                              <td className="py-2.5 px-3 text-zinc-400 font-mono flex items-center gap-1.5">
+                                <Clock className="w-3 h-3 text-zinc-500" />
+                                {hora}
+                              </td>
+                              <td className="py-2.5 px-3 font-bold text-white">
+                                {m.nombre || 'Sin nombre'}
+                                {m.ci && m.ci !== 'S/N' && (
+                                  <span className="text-[10px] text-zinc-500 block font-normal">CI: {m.ci}</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-zinc-300 max-w-xs truncate" title={m.glosa || m.cuenta_detalle}>
+                                {m.glosa || m.cuenta_detalle || 'Sin detalle'}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
+                                  m.libro === 'SERVICIOS'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    : m.libro === 'VENTAS'
+                                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                    : m.libro === 'CAJA_CHICA'
+                                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                    : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                }`}>
+                                  {m.libro || m.tipo_movimiento}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                  mp === 'efectivo'
+                                    ? 'bg-zinc-800 text-amber-400'
+                                    : mp === 'qr' || mp === 'transferencia'
+                                    ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                    : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                                }`}>
+                                  {mp === 'efectivo' ? '💵 Efectivo' : mp === 'qr' ? '📱 QR' : mp === 'tarjeta' ? '💳 Tarjeta' : mp}
+                                </span>
+                              </td>
+                              <td className={`py-2.5 px-3 text-right font-mono font-bold text-sm ${
+                                esIng ? 'text-emerald-400' : 'text-red-400'
+                              }`}>
+                                {esIng ? '+' : '-'}{formatCurrency(Number(m.costo || 0))}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              })()}
+            </CardContent>
+          </Card>
         </>
       )}
 
@@ -600,7 +878,7 @@ export default function ArqueoPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-[11px] font-black uppercase tracking-widest text-zinc-400 block mb-1.5">
-                  ¿Quién realiza el cierre hoy? (Nombre) *
+                  ¿Quién realiza el cierre de esta fecha? (Nombre) *
                 </label>
                 <input
                   type="text"

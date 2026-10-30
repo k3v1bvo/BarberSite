@@ -453,3 +453,4 @@ export function HorariosBarberosWidget({ className, onSelectBarbero }: HorariosB
     </Card>
   )
 }
+

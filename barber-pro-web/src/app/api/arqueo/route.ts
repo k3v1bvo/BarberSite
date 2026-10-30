@@ -49,7 +49,8 @@ export async function GET(request: NextRequest) {
 
     const { data: txDia } = await supabase
       .from('transactions')
-      .select('libro, costo, metodo_pago, es_sancion, tipo_movimiento, monto_efectivo, monto_qr')
+      .select('id, libro, costo, metodo_pago, es_sancion, tipo_movimiento, monto_efectivo, monto_qr, glosa, nombre, cuenta_detalle, cuenta_codigo, creado_en')
+      .order('creado_en', { ascending: false })
       .eq('fecha', fecha)
 
     const { data: citasDia } = await supabase
@@ -202,7 +203,7 @@ export async function GET(request: NextRequest) {
       .eq('fecha', fecha)
       .maybeSingle()
 
-    return NextResponse.json({ resumen, cierre })
+    return NextResponse.json({ resumen, cierre, movimientos: txDia || [] })
   } catch {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 })
   }
