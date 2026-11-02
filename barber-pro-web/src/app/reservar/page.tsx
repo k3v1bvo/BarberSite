@@ -195,16 +195,19 @@ function ReservarContent() {
     }
   }
 
-  // Función dinámica que usa config para validar servicios del 2x1 (Corte de Cabello autorizado)
+  // Función dinámica que valida servicios válidos para el 2x1 (Cortes, Barbas y Combos)
   const esServicio2x1Valido = (servicio: Servicio | undefined): boolean => {
     if (!servicio) return false
-    // El servicio principal del 2x1 es el configurado en servicios_acompanante (por defecto Corte de cabello)
+    // Si está explícito en la configuración de servicios autorizados
     if (config2x1.servicios_acompanante && config2x1.servicios_acompanante.length > 0) {
-      return config2x1.servicios_acompanante.includes(servicio.id)
+      if (config2x1.servicios_acompanante.includes(servicio.id)) return true
     }
     const nom = servicio.nombre.toLowerCase().trim()
-    const esCombo = (servicio as any).es_combo || nom.includes('+') || nom.includes('combo')
-    return !esCombo && (nom.includes('corte de cabello') || nom === 'corte' || nom.includes('corte de niño'))
+    const cat = (servicio.categoria || '').toLowerCase().trim()
+    const esCombo = (servicio as any).es_combo || cat === 'combos' || nom.includes('+') || nom.includes('combo')
+    const esCorte = nom.includes('corte')
+    const esBarba = nom.includes('barba')
+    return esCorte || esCombo || esBarba
   }
   
   const [loading, setLoading] = useState(true)
@@ -1230,13 +1233,18 @@ function ReservarContent() {
         const barberoAcompObj = barberos.find(b => b.id === acompBarberoId)
         const acompNotas = `[Promo 2×1 Acompañante de: ${formData.nombre}]${acompanante.email ? ` | Email: ${acompanante.email}` : ''}\nVinculada a Cita Principal #${citaNueva.id}${formData.comprobante_url ? `\n[Comprobante]: ${formData.comprobante_url}` : ''}`
 
+        // El acompañante recibe un Corte de Cabello autorizado
+        const corteServAcomp = servicios.find(s => s.nombre.toLowerCase().trim() === 'corte de cabello') ||
+                               servicios.find(s => s.nombre.toLowerCase().includes('corte de cabello') && !s.nombre.includes('+')) ||
+                               servicio
+
         const insertPayloadAcomp: any = {
           cliente_id: clienteId,
           barbero_id: acompBarberoId,
-          servicio_id: formData.servicio_id || null,
+          servicio_id: corteServAcomp?.id || formData.servicio_id || null,
           fecha_hora: acompFechaHora,
           precio: 0,
-          duracion_real_minutos: servicio?.duracion_minutos || 30,
+          duracion_real_minutos: corteServAcomp?.duracion_minutos || 30,
           estado: (esGratis || tipoReservaEfectivo === 'sin_adelanto') ? 'confirmado' : 'pendiente_pago',
           notas: acompNotas,
           anticipo_monto: 0,
@@ -2117,41 +2125,45 @@ function ReservarContent() {
                   </div>
                 )}
                 
-                {/* Pestañas / Filtros de Categorías (Ocultar si está en 2x1 con acompañante para mostrar solo Corte de Cabello) */}
-                {!promoElegida || promoElegida.tipo !== '2x1' ? (
-                  <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
-                    <button
-                      type="button"
-                      onClick={() => setFilterCategoria('todos')}
-                      className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
-                        filterCategoria === 'todos'
-                          ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
-                          : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
-                      }`}
-                    >
-                      Todos ({servicios.length})
-                    </button>
-                    {CATEGORIAS_SERVICIOS.map(cat => {
-                      const count = servicios.filter(s => (s.categoria || 'Cortes') === cat.id).length
-                      if (count === 0 && filterCategoria !== cat.id) return null
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => setFilterCategoria(cat.id)}
-                          className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
-                            filterCategoria === cat.id
-                              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
-                              : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
-                          }`}
-                        >
-                          <span>{cat.id}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/30 font-mono">{count}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : null}
+                {/* Pestañas / Filtros de Categorías */}
+                <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
+                  <button
+                    type="button"
+                    onClick={() => setFilterCategoria('todos')}
+                    className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
+                      filterCategoria === 'todos'
+                        ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
+                        : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
+                    }`}
+                  >
+                    Todos ({promoElegida?.tipo === '2x1' ? servicios.filter(s => esServicio2x1Valido(s)).length : servicios.length})
+                  </button>
+                  {CATEGORIAS_SERVICIOS.map(cat => {
+                    const count = servicios.filter(s => {
+                      const matchCat = (s.categoria || 'Cortes') === cat.id
+                      if (promoElegida?.tipo === '2x1') {
+                        return matchCat && esServicio2x1Valido(s)
+                      }
+                      return matchCat
+                    }).length
+                    if (count === 0 && filterCategoria !== cat.id) return null
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setFilterCategoria(cat.id)}
+                        className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                          filterCategoria === cat.id
+                            ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
+                            : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
+                        }`}
+                      >
+                        <span>{cat.id}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/30 font-mono">{count}</span>
+                      </button>
+                    )
+                  })}
+                </div>
 
                 {/* Renderizado de Servicios (Filtro Todos o por Categoría) */}
                 {promoElegida?.tipo === '2x1' && (
@@ -2163,19 +2175,19 @@ function ReservarContent() {
                       </p>
                       <p className="text-zinc-300 font-medium mt-0.5">
                         {modo2x1 === 'acompanante'
-                          ? 'Esta promoción aplica exclusivamente para Corte de Cabello (ambos reciben su corte pagando solo Bs 50 en total, Bs 25 c/u).'
-                          : 'Pagas tu Corte de Cabello (Bs 50) y te llevas 1 Servicio Extra completamente GRATIS en tu cita.'}
+                          ? 'Válido para Cortes y Combos. El titular paga su servicio/combo completo y su acompañante se corta GRATIS (Bs 0).'
+                          : 'Elige tu Corte o Combo y llévate 1 Servicio Extra completamente GRATIS en tu cita.'}
                       </p>
                     </div>
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {(filterCategoria === 'todos' || promoElegida?.tipo === '2x1'
+                  {(filterCategoria === 'todos'
                     ? servicios
                     : servicios.filter(s => (s.categoria || 'Cortes') === filterCategoria)
                   )
                   .filter(s => {
-                    // Si el 2x1 está seleccionado, solo mostrar los servicios autorizados para 2x1 (Corte de cabello)
+                    // Si el 2x1 está seleccionado, filtrar por servicios autorizados (Cortes y Combos)
                     if (promoElegida?.tipo === '2x1' && !esServicio2x1Valido(s)) return false
                     if (!formData.barbero_id) return true
                     if (s.barberos_excluidos?.length) {
