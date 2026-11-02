@@ -338,6 +338,46 @@ function ReservarContent() {
     }
   }, [formData.servicio_id, promoSeleccionada, promociones, servicios])
 
+  // Auto-activación automática de la promoción 2×1 al seleccionar Martes
+  useEffect(() => {
+    if (!formData.fecha || promociones.length === 0) return
+    try {
+      const [y, m, d] = formData.fecha.split('-').map(Number)
+      const diaSem = new Date(y, m - 1, d).getDay()
+      const diaMartes = config2x1.dia_semana ?? 2 // 2 = Martes
+      const esMartes = diaSem === diaMartes
+      const promo2x1Obj = promociones.find(p => p.tipo === '2x1')
+
+      const diaHoy = getDiaHoyLaPaz()
+      const diaPermitidoReserva = config2x1.dia_reserva_permitido ?? 1 // 1 = Lunes
+      const is2x1BloqueadoPorDia = config2x1.solo_reserva_lunes && diaHoy !== diaPermitidoReserva
+
+      if (esMartes && promo2x1Obj && !is2x1BloqueadoPorDia) {
+        if (promoSeleccionada !== promo2x1Obj.id) {
+          setPromoSeleccionada(promo2x1Obj.id)
+          setModo2x1('acompanante')
+        }
+        // Si no tiene un corte de cabello válido seleccionado, auto-asignarlo
+        const servActual = servicios.find(s => s.id === formData.servicio_id)
+        if (!servActual || !esServicio2x1Valido(servActual)) {
+          const corteServ = servicios.find(s => (config2x1.servicios_acompanante?.length ? config2x1.servicios_acompanante.includes(s.id) : s.nombre.toLowerCase().includes('corte de cabello')))
+          if (corteServ) {
+            setFormData(prev => ({ ...prev, servicio_id: corteServ.id }))
+          }
+        }
+      } else if (!esMartes) {
+        // Si el cliente cambió a un día diferente a Martes y tenía 2x1 activo, desactivarlo
+        const promoActual = promociones.find(p => p.id === promoSeleccionada)
+        if (promoActual?.tipo === '2x1') {
+          setPromoSeleccionada('')
+          setAcompanante({ nombre: '', email: '' })
+          setAcompBarberoId('')
+          setAcompHora('')
+        }
+      }
+    } catch (_) {}
+  }, [formData.fecha, promociones, config2x1, servicios])
+
   useEffect(() => {
     if (formData.barbero_id && formData.fecha) {
       const fetchDisponibilidad = async () => {
@@ -2565,7 +2605,42 @@ function ReservarContent() {
                   <div className="flex flex-col items-center">
                     <InlineCalendarPicker
                       selectedDate={formData.fecha}
-                      onSelectDate={(f) => setFormData(p => ({ ...p, fecha: f, hora: '' }))}
+                      onSelectDate={(f) => {
+                        try {
+                          const [y, m, d] = f.split('-').map(Number)
+                          const diaSem = new Date(y, m - 1, d).getDay()
+                          const esMartes = diaSem === (config2x1.dia_semana ?? 2)
+                          const promo2x1Obj = promociones.find(p => p.tipo === '2x1')
+                          const diaHoy = getDiaHoyLaPaz()
+                          const diaPermitido = config2x1.dia_reserva_permitido ?? 1
+                          const is2x1BloqueadoPorDia = config2x1.solo_reserva_lunes && diaHoy !== diaPermitido
+
+                          if (esMartes && promo2x1Obj && !is2x1BloqueadoPorDia) {
+                            if (promoSeleccionada !== promo2x1Obj.id) {
+                              setPromoSeleccionada(promo2x1Obj.id)
+                              setModo2x1('acompanante')
+                            }
+                            const corteServ = servicios.find(s => (config2x1.servicios_acompanante?.length ? config2x1.servicios_acompanante.includes(s.id) : s.nombre.toLowerCase().includes('corte de cabello')))
+                            setFormData(p => ({
+                              ...p,
+                              fecha: f,
+                              hora: '',
+                              servicio_id: (corteServ && (!p.servicio_id || !esServicio2x1Valido(servicios.find(s => s.id === p.servicio_id)))) ? corteServ.id : p.servicio_id
+                            }))
+                          } else {
+                            const promoActual = promociones.find(p => p.id === promoSeleccionada)
+                            if (!esMartes && promoActual?.tipo === '2x1') {
+                              setPromoSeleccionada('')
+                              setAcompanante({ nombre: '', email: '' })
+                              setAcompBarberoId('')
+                              setAcompHora('')
+                            }
+                            setFormData(p => ({ ...p, fecha: f, hora: '' }))
+                          }
+                        } catch (_) {
+                          setFormData(p => ({ ...p, fecha: f, hora: '' }))
+                        }
+                      }}
                       minDate={hoy}
                     />
                   </div>
@@ -2633,7 +2708,53 @@ function ReservarContent() {
                         return null
                       })()}
 
-                      {/* Detección Inteligente: Si el cliente eligió Martes pero no activó 2x1 aún */}
+                      {/* Banner Informativo: Promoción 2×1 Activada Automáticamente */}
+                      {formData.fecha && promoElegida?.tipo === '2x1' && (() => {
+                        try {
+                          const [y, m, d] = formData.fecha.split('-').map(Number)
+                          const diaSem = new Date(y, m - 1, d).getDay()
+                          if (diaSem === (config2x1.dia_semana ?? 2)) {
+                            return (
+                              <div className="p-4 bg-gradient-to-r from-amber-500/20 via-zinc-900 to-black border-2 border-amber-500/50 rounded-2xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-in fade-in">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-xl shrink-0">
+                                    ✂️
+                                  </div>
+                                  <div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="font-black text-amber-400 uppercase tracking-wide">
+                                        ¡Promoción 2×1 de los Martes Activada!
+                                      </p>
+                                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                        ✓ Automática
+                                      </span>
+                                    </div>
+                                    <p className="text-zinc-300 font-medium mt-0.5">
+                                      Pagan 1 corte y se cortan 2 (Bs 25 c/u). En horario de {config2x1.hora_inicio} a {config2x1.hora_fin}. Ingresa los datos y horario de tu acompañante abajo.
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPromoSeleccionada('')
+                                    setAcompanante({ nombre: '', email: '' })
+                                    setAcompBarberoId('')
+                                    setAcompHora('')
+                                  }}
+                                  className="text-[11px] text-zinc-400 hover:text-white underline font-semibold transition shrink-0 self-start sm:self-center"
+                                  title="Reservar con tarifa regular sin promoción"
+                                >
+                                  No usar 2×1
+                                </button>
+                              </div>
+                            )
+                          }
+                        } catch (_) {}
+                        return null
+                      })()}
+
+                      {/* Si el cliente eligió Martes y desactivó voluntariamente el 2x1, ofrecer botón para volver a activarlo */}
                       {formData.fecha && !promoElegida && (() => {
                         try {
                           const [y, m, d] = formData.fecha.split('-').map(Number)
@@ -2643,19 +2764,12 @@ function ReservarContent() {
                             if (!promo2x1Obj) return null
 
                             return (
-                              <div className="p-4 bg-gradient-to-r from-amber-500/20 via-zinc-900 to-black border-2 border-amber-500/50 rounded-2xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-in fade-in">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-xl shrink-0">
-                                    ✂️
-                                  </div>
-                                  <div>
-                                    <p className="font-black text-amber-400 uppercase tracking-wide">
-                                      ¡Has elegido un Martes de 2×1!
-                                    </p>
-                                    <p className="text-zinc-300 font-medium">
-                                      Pagan 1 corte y se cortan 2 (Bs 25 c/u). ¿Deseas activar el 2×1 y traer a tu acompañante gratis?
-                                    </p>
-                                  </div>
+                              <div className="p-3.5 bg-zinc-950/80 border border-zinc-800 rounded-2xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-lg">✂️</span>
+                                  <p className="text-zinc-300 font-medium">
+                                    Esta fecha es Martes de 2×1. Puedes reactivar la promoción si vienes con un acompañante.
+                                  </p>
                                 </div>
                                 <button
                                   type="button"
@@ -2665,9 +2779,9 @@ function ReservarContent() {
                                     const corteServ = servicios.find(s => (config2x1.servicios_acompanante?.length ? config2x1.servicios_acompanante.includes(s.id) : s.nombre.toLowerCase().includes('corte de cabello')))
                                     if (corteServ) setFormData(prev => ({ ...prev, servicio_id: corteServ.id }))
                                   }}
-                                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs rounded-xl shadow-md transition shrink-0 self-start sm:self-center"
+                                  className="px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-black uppercase text-[11px] rounded-xl transition shrink-0"
                                 >
-                                  👤 Sí, activar 2×1
+                                  Reactivar 2×1
                                 </button>
                               </div>
                             )
