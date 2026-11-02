@@ -2057,6 +2057,9 @@ function ReservarContent() {
                               onChange={(e) => setAcompanante({ ...acompanante, nombre: e.target.value })}
                               className="bg-black/70 border-amber-500/30 text-xs h-9"
                             />
+                            <p className="text-[10px] text-amber-400/90 font-medium bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 mt-1.5">
+                              <span>⏰</span> En el Paso 3 podrás elegir si se atienden juntos (al mismo tiempo con otro barbero) o uno tras otro con el mismo barbero.
+                            </p>
                           </div>
                         ) : (
                           <div className="space-y-2 pt-1">
