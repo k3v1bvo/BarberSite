@@ -2639,11 +2639,8 @@ function ReservarContent() {
                           const [y, m, d] = formData.fecha.split('-').map(Number)
                           const diaSem = new Date(y, m - 1, d).getDay()
                           if (diaSem === (config2x1.dia_semana ?? 2)) {
-                            const diaHoy = getDiaHoyLaPaz()
-                            const diaPermitido = config2x1.dia_reserva_permitido ?? 1
-                            const isPermitido = !config2x1.solo_reserva_lunes || diaHoy === diaPermitido
                             const promo2x1Obj = promociones.find(p => p.tipo === '2x1')
-                            if (!promo2x1Obj || !isPermitido) return null
+                            if (!promo2x1Obj) return null
 
                             return (
                               <div className="p-4 bg-gradient-to-r from-amber-500/20 via-zinc-900 to-black border-2 border-amber-500/50 rounded-2xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-in fade-in">
@@ -2979,7 +2976,13 @@ function ReservarContent() {
                                               return
                                             }
                                             setFormData({ ...formData, hora })
-                                            if (promoElegida?.tipo !== '2x1' || modo2x1 !== 'acompanante') {
+                                            let esMartes = false
+                                            try {
+                                              const [y, m, d] = formData.fecha.split('-').map(Number)
+                                              esMartes = new Date(y, m - 1, d).getDay() === (config2x1.dia_semana ?? 2)
+                                            } catch (_) {}
+
+                                            if (!esMartes && (promoElegida?.tipo !== '2x1' || modo2x1 !== 'acompanante')) {
                                               setTimeout(() => setStep(4), 300)
                                             }
                                           }}
@@ -3024,7 +3027,7 @@ function ReservarContent() {
                       )}
 
                       {/* PANEL DE HORARIO DEL ACOMPAÑANTE EN 2x1 */}
-                      {promoElegida?.tipo === '2x1' && modo2x1 === 'acompanante' && formData.hora && (
+                      {promoElegida?.tipo === '2x1' && modo2x1 === 'acompanante' && (
                         <div className="mt-8 p-5 sm:p-7 bg-gradient-to-br from-zinc-950 via-zinc-900 to-black border-2 border-amber-500/50 rounded-3xl shadow-[0_0_40px_rgba(245,158,11,0.15)] space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-400">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
                             <div className="flex items-center gap-3">
@@ -3036,12 +3039,12 @@ function ReservarContent() {
                                   Promoción 2×1 · 2da Cita Gratis (Bs 0)
                                 </span>
                                 <h3 className="text-lg font-black text-white">
-                                  Horario y Especialista de {acompanante.nombre || 'tu Acompañante'}
+                                  Datos y Horario de {acompanante.nombre.trim() ? acompanante.nombre : 'tu Acompañante'}
                                 </h3>
                               </div>
                             </div>
                             <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-black self-start sm:self-center">
-                              ✓ Horario bloqueado en agenda
+                              ✓ 2da Cita Incluida (Bs 0)
                             </span>
                           </div>
 
@@ -3062,12 +3065,25 @@ function ReservarContent() {
                               className="bg-zinc-950 border-amber-500/40 text-sm text-white h-11 font-bold rounded-xl focus:border-amber-400"
                             />
                             <p className="text-[11px] text-zinc-400 leading-tight">
-                              Este nombre aparecerá en la agenda del especialista y en el ticket oficial de atención.
+                              Este nombre aparecerá en la agenda del especialista y en el ticket oficial de atención de tu acompañante.
                             </p>
                           </div>
 
-                          {/* Selector de las 3 Opciones de Agendamiento 2x1 */}
-                          <div className="space-y-2">
+                          {/* Si el titular aún no ha seleccionado su hora, mostrar aviso guía */}
+                          {!formData.hora ? (
+                            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-3 text-xs text-amber-300">
+                              <span className="text-xl">⏰</span>
+                              <div>
+                                <p className="font-black uppercase tracking-wide">Paso siguiente: Selecciona tu horario arriba</p>
+                                <p className="text-zinc-300 font-normal mt-0.5">
+                                  Elige la hora de tu cita en la cuadrícula de arriba para ver las 3 opciones de atención disponibles para tu acompañante.
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {/* Selector de las 3 Opciones de Agendamiento 2x1 */}
+                              <div className="space-y-2">
                             <label className="text-xs font-black uppercase tracking-wider text-zinc-300 block">
                               ¿Cómo desean atenderse? (Selecciona una de las 3 opciones)
                             </label>
@@ -3446,6 +3462,8 @@ function ReservarContent() {
                               </div>
                             )
                           })()}
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
