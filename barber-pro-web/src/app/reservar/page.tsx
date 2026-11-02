@@ -208,8 +208,8 @@ function ReservarContent() {
     servicios_extra: [] as string[],
   })
 
-  // Estados para agendamiento del acompañante en 2x1 (consecutivo, simultáneo u otra hora)
-  const [acompModo, setAcompModo] = useState<'consecutivo' | 'simultaneo' | 'personalizado'>('consecutivo')
+  // Estados para agendamiento del acompañante en 2x1 (consecutivo o simultáneo)
+  const [acompModo, setAcompModo] = useState<'consecutivo' | 'simultaneo'>('consecutivo')
   const [acompBarberoId, setAcompBarberoId] = useState<string>('')
   const [acompHora, setAcompHora] = useState<string>('')
   const [disponibilidadBarberos, setDisponibilidadBarberos] = useState<Record<string, {
@@ -238,14 +238,22 @@ function ReservarContent() {
   // Función dinámica que usa config para validar servicios 2x1
   const esServicio2x1Valido = (servicio: Servicio | undefined): boolean => {
     if (!servicio) return false
-    // Si hay servicios configurados por el admin, verificar si está incluido
-    if (modo2x1 === 'acompanante' && config2x1.servicios_acompanante.length > 0) {
-      if (config2x1.servicios_acompanante.includes(servicio.id)) return true
+    // Si es con acompañante, debe ser estrictamente Corte de cabello autorizado (sin combos)
+    if (modo2x1 === 'acompanante') {
+      if (config2x1.servicios_acompanante && config2x1.servicios_acompanante.length > 0) {
+        return config2x1.servicios_acompanante.includes(servicio.id)
+      }
+      const nom = servicio.nombre.toLowerCase().trim()
+      const esCombo = (servicio as any).es_combo || nom.includes('+') || nom.includes('combo')
+      return !esCombo && (nom.includes('corte de cabello') || nom === 'corte' || nom.includes('corte de niño'))
     }
-    if (modo2x1 === 'servicio_extra' && config2x1.servicios_extra.length > 0) {
-      if (config2x1.servicios_extra.includes(servicio.id)) return true
+    // Si es servicio extra, verificar lista de servicios extra
+    if (modo2x1 === 'servicio_extra') {
+      if (config2x1.servicios_extra && config2x1.servicios_extra.length > 0) {
+        return config2x1.servicios_extra.includes(servicio.id)
+      }
+      return esServicio2x1ValidoPorNombre(servicio)
     }
-    // Si no está explícito en la lista o es fallback, validar por nombre (incluye cortes, barbas y combos con corte/barba)
     return esServicio2x1ValidoPorNombre(servicio)
   }
   
@@ -503,6 +511,7 @@ function ReservarContent() {
       setAcompHora(consecutivo)
     } else if (acompModo === 'simultaneo') {
       setAcompHora(formData.hora)
+      // Si acompBarberoId no está seleccionado o es el mismo que el titular, asignar el primer otro barbero disponible
       if (!acompBarberoId || acompBarberoId === formData.barbero_id) {
         const otros = barberos.filter(b => b.id !== formData.barbero_id)
         const otroDisponible = otros.find(b => {
@@ -514,10 +523,6 @@ function ReservarContent() {
         } else if (otros.length > 0) {
           setAcompBarberoId(otros[0].id)
         }
-      }
-    } else if (acompModo === 'personalizado') {
-      if (!acompBarberoId) {
-        setAcompBarberoId(formData.barbero_id)
       }
     }
   }, [formData.hora, formData.barbero_id, acompModo, promoSeleccionada, promociones, modo2x1, duracionServicioMin, disponibilidadBarberos, barberos, formData.fecha, tiempoMinimoReserva])
@@ -1974,8 +1979,15 @@ function ReservarContent() {
                                   key={p.id}
                                   onClick={() => {
                                     if (is2x1DisabledServicio) return
-                                    setPromoSeleccionada(isSelected ? '' : p.id)
-                                    if (!isSelected) setModo2x1('acompanante')
+                                    const willSelect = !isSelected
+                                    setPromoSeleccionada(willSelect ? p.id : '')
+                                    if (willSelect) {
+                                      setModo2x1('acompanante')
+                                      const corteServ = servicios.find(s => (config2x1.servicios_acompanante?.length ? config2x1.servicios_acompanante.includes(s.id) : s.nombre.toLowerCase().includes('corte de cabello')))
+                                      if (corteServ) {
+                                        setFormData(prev => ({ ...prev, servicio_id: corteServ.id }))
+                                      }
+                                    }
                                   }}
                                   className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left ${
                                     is2x1DisabledServicio
@@ -2117,61 +2129,65 @@ function ReservarContent() {
                   </div>
                 )}
                 
-                {/* Pestañas / Filtros de Categorías */}
-                <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
-                  <button
-                    type="button"
-                    onClick={() => setFilterCategoria('todos')}
-                    className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
-                      filterCategoria === 'todos'
-                        ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
-                        : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
-                    }`}
-                  >
-                    Todos ({servicios.length})
-                  </button>
-                  {CATEGORIAS_SERVICIOS.map(cat => {
-                    const count = servicios.filter(s => (s.categoria || 'Cortes') === cat.id).length
-                    if (count === 0 && filterCategoria !== cat.id) return null
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setFilterCategoria(cat.id)}
-                        className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
-                          filterCategoria === cat.id
-                            ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
-                            : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
-                        }`}
-                      >
-                        <span>{cat.id}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/30 font-mono">{count}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+                {/* Pestañas / Filtros de Categorías (Ocultar si está en 2x1 con acompañante para mostrar solo Corte de Cabello) */}
+                {!(promoElegida?.tipo === '2x1' && modo2x1 === 'acompanante') && (
+                  <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
+                    <button
+                      type="button"
+                      onClick={() => setFilterCategoria('todos')}
+                      className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
+                        filterCategoria === 'todos'
+                          ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
+                          : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
+                      }`}
+                    >
+                      Todos ({servicios.length})
+                    </button>
+                    {CATEGORIAS_SERVICIOS.map(cat => {
+                      const count = servicios.filter(s => (s.categoria || 'Cortes') === cat.id).length
+                      if (count === 0 && filterCategoria !== cat.id) return null
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setFilterCategoria(cat.id)}
+                          className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                            filterCategoria === cat.id
+                              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
+                              : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
+                          }`}
+                        >
+                          <span>{cat.id}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/30 font-mono">{count}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
 
                 {/* Renderizado de Servicios (Filtro Todos o por Categoría) */}
                 {promoElegida?.tipo === '2x1' && (
-                  <div className="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-3">
+                  <div className="mb-6 p-4 bg-gradient-to-r from-amber-500/20 via-zinc-900 to-black border-2 border-amber-500/40 rounded-2xl flex items-center gap-3 shadow-lg">
                     <span className="text-2xl">✂️</span>
                     <div className="text-xs">
                       <p className="font-black text-amber-400 uppercase tracking-wide">
-                        Promo 2×1 de los Martes Activa
+                        {modo2x1 === 'acompanante' ? 'Promo 2×1 con Acompañante Activa' : 'Promo 2×1 con Servicio Extra Activa'}
                       </p>
                       <p className="text-zinc-300 font-medium mt-0.5">
-                        Cortes individuales a <strong>mitad de precio (Bs 25)</strong>. En combos, <strong>solo el corte recibe la mitad de precio (-Bs 25)</strong>, el resto del combo mantiene su tarifa normal.
+                        {modo2x1 === 'acompanante'
+                          ? 'Esta promoción aplica exclusivamente para Corte de Cabello (ambos reciben su corte pagando solo Bs 50 en total, Bs 25 c/u).'
+                          : 'Cortes individuales a mitad de precio (Bs 25). En combos, solo el corte recibe la mitad de precio (-Bs 25), el resto del combo mantiene su tarifa normal.'}
                       </p>
                     </div>
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {(filterCategoria === 'todos'
+                  {(filterCategoria === 'todos' || (promoElegida?.tipo === '2x1' && modo2x1 === 'acompanante')
                     ? servicios
                     : servicios.filter(s => (s.categoria || 'Cortes') === filterCategoria)
                   )
                   .filter(s => {
-                    // Si el 2x1 está seleccionado, solo mostrar servicios válidos
+                    // Si el 2x1 está seleccionado, solo mostrar servicios válidos según el modo
                     if (promoElegida?.tipo === '2x1' && !esServicio2x1Valido(s)) return false
                     if (!formData.barbero_id) return true
                     if (s.barberos_excluidos?.length) {
@@ -2629,6 +2645,52 @@ function ReservarContent() {
                         return null
                       })()}
 
+                      {/* Detección Inteligente: Si el cliente eligió Martes pero no activó 2x1 aún */}
+                      {formData.fecha && !promoElegida && (() => {
+                        try {
+                          const [y, m, d] = formData.fecha.split('-').map(Number)
+                          const diaSem = new Date(y, m - 1, d).getDay()
+                          if (diaSem === (config2x1.dia_semana ?? 2)) {
+                            const diaHoy = getDiaHoyLaPaz()
+                            const diaPermitido = config2x1.dia_reserva_permitido ?? 1
+                            const isPermitido = !config2x1.solo_reserva_lunes || diaHoy === diaPermitido
+                            const promo2x1Obj = promociones.find(p => p.tipo === '2x1')
+                            if (!promo2x1Obj || !isPermitido) return null
+
+                            return (
+                              <div className="p-4 bg-gradient-to-r from-amber-500/20 via-zinc-900 to-black border-2 border-amber-500/50 rounded-2xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-in fade-in">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-xl shrink-0">
+                                    ✂️
+                                  </div>
+                                  <div>
+                                    <p className="font-black text-amber-400 uppercase tracking-wide">
+                                      ¡Has elegido un Martes de 2×1!
+                                    </p>
+                                    <p className="text-zinc-300 font-medium">
+                                      Pagan 1 corte y se cortan 2 (Bs 25 c/u). ¿Deseas activar el 2×1 y traer a tu acompañante gratis?
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPromoSeleccionada(promo2x1Obj.id)
+                                    setModo2x1('acompanante')
+                                    const corteServ = servicios.find(s => (config2x1.servicios_acompanante?.length ? config2x1.servicios_acompanante.includes(s.id) : s.nombre.toLowerCase().includes('corte de cabello')))
+                                    if (corteServ) setFormData(prev => ({ ...prev, servicio_id: corteServ.id }))
+                                  }}
+                                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs rounded-xl shadow-md transition shrink-0 self-start sm:self-center"
+                                >
+                                  👤 Sí, activar 2×1
+                                </button>
+                              </div>
+                            )
+                          }
+                        } catch (_) {}
+                        return null
+                      })()}
+
                       {!disponibleAgenda ? (
                         <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-2xl text-center">
                           <p className="text-red-300 font-black text-base mb-1">⚠️ Barbero No Disponible</p>
@@ -2986,7 +3048,7 @@ function ReservarContent() {
                                   Promoción 2×1 · 2da Cita Gratis (Bs 0)
                                 </span>
                                 <h3 className="text-lg font-black text-white">
-                                  Horario de {acompanante.nombre || 'tu Acompañante'}
+                                  Horario y Especialista de {acompanante.nombre || 'tu Acompañante'}
                                 </h3>
                               </div>
                             </div>
@@ -2995,78 +3057,84 @@ function ReservarContent() {
                             </span>
                           </div>
 
-                          {/* Selector de las 3 Opciones */}
+                          {/* Campo Obligatorio del Nombre del Acompañante */}
+                          <div className="p-4 bg-black/60 border border-amber-500/40 rounded-2xl space-y-2">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5">
+                                <span>👤</span> Nombre del Acompañante * <span className="text-[10px] text-zinc-400 font-normal">(Requerido para continuar)</span>
+                              </label>
+                              {acompanante.nombre.trim() && (
+                                <span className="text-[10px] font-bold text-emerald-400">✓ Ingresado</span>
+                              )}
+                            </div>
+                            <Input
+                              placeholder="Escribe el Nombre y Apellido de tu acompañante"
+                              value={acompanante.nombre}
+                              onChange={(e) => setAcompanante(prev => ({ ...prev, nombre: e.target.value }))}
+                              className="bg-zinc-950 border-amber-500/40 text-sm text-white h-11 font-bold rounded-xl focus:border-amber-400"
+                            />
+                            <p className="text-[11px] text-zinc-400 leading-tight">
+                              Este nombre aparecerá en la agenda del especialista y en el ticket oficial de atención.
+                            </p>
+                          </div>
+
+                          {/* Selector de las 2 Opciones Exclusivas */}
                           <div className="space-y-2">
-                            <label className="text-xs font-black uppercase tracking-wider text-zinc-400 block">
-                              ¿Cómo desean atenderse?
+                            <label className="text-xs font-black uppercase tracking-wider text-zinc-300 block">
+                              ¿Cómo desean atenderse? (Selecciona una de las 2 opciones)
                             </label>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                              {/* Opción 1: Consecutivo */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {/* Opción 1: Mismo Barbero */}
                               <button
                                 type="button"
                                 onClick={() => setAcompModo('consecutivo')}
-                                className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-1.5 ${
+                                className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between gap-2 ${
                                   acompModo === 'consecutivo'
-                                    ? 'border-amber-500 bg-amber-500/15 shadow-[0_0_20px_rgba(245,158,11,0.2)] ring-1 ring-amber-400'
+                                    ? 'border-amber-500 bg-amber-500/15 shadow-[0_0_20px_rgba(245,158,11,0.2)] ring-2 ring-amber-400'
                                     : 'border-zinc-800 bg-zinc-950/60 hover:border-zinc-700 text-zinc-400 hover:text-white'
                                 }`}
                               >
                                 <div className="flex items-center justify-between">
-                                  <span className="text-xs font-black text-white flex items-center gap-1.5">
-                                    <span>⏰</span> Mismo Barbero
+                                  <span className="text-sm font-black text-white flex items-center gap-2">
+                                    <span>⏰</span> Opción 1: Mismo Barbero
                                   </span>
-                                  {acompModo === 'consecutivo' && <Check className="w-4 h-4 text-amber-400" />}
+                                  {acompModo === 'consecutivo' && <Check className="w-5 h-5 text-amber-400" />}
                                 </div>
-                                <p className="text-[11px] text-zinc-400 leading-tight">
-                                  Uno tras otro. Tu acompañante espera al mismo barbero al terminar tu turno.
+                                <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider">
+                                  Uno tras otro (Turno consecutivo)
+                                </span>
+                                <p className="text-xs text-zinc-400 leading-relaxed">
+                                  Tu barbero te atiende primero a ti y luego atiende a tu acompañante inmediatamente al terminar tu corte.
                                 </p>
                               </button>
 
-                              {/* Opción 2: Simultáneo */}
+                              {/* Opción 2: Al Mismo Tiempo */}
                               <button
                                 type="button"
                                 onClick={() => setAcompModo('simultaneo')}
-                                className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-1.5 ${
+                                className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between gap-2 ${
                                   acompModo === 'simultaneo'
-                                    ? 'border-amber-500 bg-amber-500/15 shadow-[0_0_20px_rgba(245,158,11,0.2)] ring-1 ring-amber-400'
+                                    ? 'border-amber-500 bg-amber-500/15 shadow-[0_0_20px_rgba(245,158,11,0.2)] ring-2 ring-amber-400'
                                     : 'border-zinc-800 bg-zinc-950/60 hover:border-zinc-700 text-zinc-400 hover:text-white'
                                 }`}
                               >
                                 <div className="flex items-center justify-between">
-                                  <span className="text-xs font-black text-white flex items-center gap-1.5">
-                                    <span>✂️</span> Al Mismo Tiempo
+                                  <span className="text-sm font-black text-white flex items-center gap-2">
+                                    <span>✂️</span> Opción 2: Al Mismo Tiempo
                                   </span>
-                                  {acompModo === 'simultaneo' && <Check className="w-4 h-4 text-amber-400" />}
+                                  {acompModo === 'simultaneo' && <Check className="w-5 h-5 text-amber-400" />}
                                 </div>
-                                <p className="text-[11px] text-zinc-400 leading-tight">
-                                  Juntos a la misma hora con otro especialista disponible en el local.
-                                </p>
-                              </button>
-
-                              {/* Opción 3: Personalizado */}
-                              <button
-                                type="button"
-                                onClick={() => setAcompModo('personalizado')}
-                                className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-1.5 ${
-                                  acompModo === 'personalizado'
-                                    ? 'border-amber-500 bg-amber-500/15 shadow-[0_0_20px_rgba(245,158,11,0.2)] ring-1 ring-amber-400'
-                                    : 'border-zinc-800 bg-zinc-950/60 hover:border-zinc-700 text-zinc-400 hover:text-white'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-black text-white flex items-center gap-1.5">
-                                    <span>🗓️</span> Otra Hora en 2×1
-                                  </span>
-                                  {acompModo === 'personalizado' && <Check className="w-4 h-4 text-amber-400" />}
-                                </div>
-                                <p className="text-[11px] text-zinc-400 leading-tight">
-                                  Elige otra hora y especialista dentro del horario 2×1 ({config2x1.hora_inicio} - {config2x1.hora_fin}).
+                                <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider">
+                                  En paralelo (Con otro especialista)
+                                </span>
+                                <p className="text-xs text-zinc-400 leading-relaxed">
+                                  Ambos se atienden a la misma hora en sillones paralelos, seleccionando a otro especialista disponible en el local.
                                 </p>
                               </button>
                             </div>
                           </div>
 
-                          {/* Detalle según modo seleccionado */}
+                          {/* Detalle Opción 1: Consecutivo */}
                           {acompModo === 'consecutivo' && (() => {
                             const barberoTitular = barberos.find(b => b.id === formData.barbero_id)
                             const consecutivo = minutesToTimeString(timeStringToMinutes(formData.hora) + duracionServicioMin)
@@ -3078,19 +3146,19 @@ function ReservarContent() {
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                   <div>
                                     <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-0.5">
-                                      Especialista Asignado:
+                                      Especialista Asignado para ambos:
                                     </span>
                                     <p className="text-sm font-black text-white flex items-center gap-2">
-                                      <span>💈</span> {barberoTitular?.full_name || 'Mismo Especialista'}
+                                      <span>💈</span> {toTitleCase(barberoTitular?.full_name || 'Especialista')}
                                     </p>
                                   </div>
 
-                                  <div className="flex items-center gap-3 bg-black/60 px-4 py-2 rounded-xl border border-white/5">
+                                  <div className="flex items-center gap-3 bg-black/60 px-4 py-2.5 rounded-xl border border-white/5">
                                     <div>
                                       <span className="text-[9px] font-black uppercase text-zinc-500 block">Tu Turno</span>
                                       <span className="text-xs font-black text-zinc-300">{formatTime12h(formData.hora)}</span>
                                     </div>
-                                    <span className="text-amber-500 font-bold">➔</span>
+                                    <span className="text-amber-500 font-bold text-base">➔</span>
                                     <div>
                                       <span className="text-[9px] font-black uppercase text-amber-400 block">Acompañante</span>
                                       <span className="text-sm font-black text-amber-400">{formatTime12h(consecutivo)}</span>
@@ -3113,7 +3181,7 @@ function ReservarContent() {
                                     </p>
                                     <p className="text-zinc-300 text-[11px] leading-relaxed">
                                       {val.motivo || 'El especialista ya tiene otra reserva en ese horario o excede la ventana de la promoción 2×1'}.
-                                      Te sugerimos cambiar a la opción <strong>"Al Mismo Tiempo"</strong> para cortarse juntos con otro barbero o elegir <strong>"Otra Hora en 2×1"</strong>.
+                                      Te sugerimos cambiar a la <strong>"Opción 2: Al Mismo Tiempo"</strong> para cortarse juntos con otro barbero.
                                     </p>
                                   </div>
                                 )}
@@ -3121,14 +3189,16 @@ function ReservarContent() {
                             )
                           })()}
 
+                          {/* Detalle Opción 2: Simultáneo */}
                           {acompModo === 'simultaneo' && (() => {
                             const otrosBarberos = barberos.filter(b => b.id !== formData.barbero_id)
+                            const barberoTitular = barberos.find(b => b.id === formData.barbero_id)
 
                             return (
                               <div className="p-4 bg-zinc-950/80 rounded-2xl border border-white/5 space-y-4">
                                 <div>
                                   <p className="text-xs text-zinc-300 font-medium">
-                                    Tú te atenderás a las <strong className="text-amber-400">{formatTime12h(formData.hora)}</strong> con {barberos.find(b => b.id === formData.barbero_id)?.full_name}.
+                                    Tú te atenderás a las <strong className="text-amber-400">{formatTime12h(formData.hora)}</strong> con {toTitleCase(barberoTitular?.full_name || 'tu especialista')}.
                                     Elige qué especialista atenderá a <strong className="text-white">{acompanante.nombre || 'tu acompañante'}</strong> a la misma hora:
                                   </p>
                                 </div>
@@ -3155,11 +3225,11 @@ function ReservarContent() {
                                               ? 'border-amber-500 bg-amber-500/20 ring-2 ring-amber-400 shadow-lg'
                                               : val.disponible
                                                 ? 'border-zinc-800 bg-zinc-900/90 hover:border-amber-500/50 hover:bg-zinc-800/80 cursor-pointer'
-                                                : 'border-zinc-800/50 bg-zinc-950/40 opacity-50 cursor-not-allowed'
+                                                : 'border-zinc-800/50 bg-zinc-950/40 opacity-40 cursor-not-allowed'
                                           }`}
                                         >
                                           <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-950 border-2 border-zinc-700 shrink-0">
+                                            <div className="w-11 h-11 rounded-full overflow-hidden bg-zinc-950 border-2 border-zinc-700 shrink-0">
                                               {b.avatar_url ? (
                                                 <img src={b.avatar_url} alt={b.full_name} className="w-full h-full object-cover" />
                                               ) : (
@@ -3175,129 +3245,18 @@ function ReservarContent() {
                                               </span>
                                             </div>
                                           </div>
-                                          {isSelected && <Check className="w-4 h-4 text-amber-400 shrink-0" />}
+                                          {isSelected && <Check className="w-5 h-5 text-amber-400 shrink-0" />}
                                         </button>
                                       )
                                     })}
                                   </div>
                                 )}
-                              </div>
-                            )
-                          })()}
 
-                          {acompModo === 'personalizado' && (() => {
-                            return (
-                              <div className="p-4 bg-zinc-950/80 rounded-2xl border border-white/5 space-y-4">
-                                <div>
-                                  <label className="text-xs font-black uppercase tracking-wider text-zinc-400 block mb-2">
-                                    1. Especialista para tu acompañante:
-                                  </label>
-                                  <div className="flex flex-wrap gap-2">
-                                    {barberos.map(b => (
-                                      <button
-                                        key={b.id}
-                                        type="button"
-                                        onClick={() => {
-                                          setAcompBarberoId(b.id)
-                                          setAcompHora('')
-                                        }}
-                                        className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all border ${
-                                          acompBarberoId === b.id
-                                            ? 'border-amber-500 bg-amber-500 text-black shadow-md'
-                                            : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700'
-                                        }`}
-                                      >
-                                        {toTitleCase(b.full_name)}
-                                      </button>
-                                    ))}
+                                {otrosBarberos.length > 0 && !otrosBarberos.some(b => validarSlotAcompanante(formData.hora, b.id).disponible) && (
+                                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300">
+                                    ⚠️ Ningún otro especialista está libre a las {formatTime12h(formData.hora)}. Selecciona la <strong>"Opción 1: Mismo Barbero"</strong> para atenderse uno tras otro o elige otro horario para tu cita.
                                   </div>
-                                </div>
-
-                                {acompBarberoId && (() => {
-                                  const disp = acompBarberoId === formData.barbero_id
-                                    ? {
-                                        ocupados: [...horasOcupadas, ...(formData.hora ? [{ hora: formData.hora, duracion: duracionServicioMin }] : [])],
-                                        rangoInicio: rangoHorario.inicio,
-                                        rangoFin: rangoHorario.fin,
-                                        disponible: disponibleAgenda,
-                                        turnos: turnosAgenda
-                                      }
-                                    : {
-                                        ocupados: disponibilidadBarberos[acompBarberoId]?.ocupados || [],
-                                        rangoInicio: disponibilidadBarberos[acompBarberoId]?.hora_inicio || '09:00',
-                                        rangoFin: disponibilidadBarberos[acompBarberoId]?.hora_fin || '20:00',
-                                        disponible: disponibilidadBarberos[acompBarberoId]?.disponible !== false,
-                                        turnos: disponibilidadBarberos[acompBarberoId]?.turnos
-                                      }
-
-                                  const slots = generateSmartSlots({
-                                    rangoInicio: disp.rangoInicio || '09:00',
-                                    rangoFin: disp.rangoFin || '20:00',
-                                    ocupados: disp.ocupados,
-                                    duracionServicio: duracionServicioMin,
-                                    pasoMinutos: 15,
-                                    fecha: formData.fecha,
-                                    tiempoMinimoReserva,
-                                    turnos: disp.turnos
-                                  })
-
-                                  const [hIni, mIni] = config2x1.hora_inicio.split(':').map(Number)
-                                  const [hFin, mFin] = config2x1.hora_fin.split(':').map(Number)
-                                  const minIni = hIni * 60 + (mIni || 0)
-                                  const minFin = hFin * 60 + (mFin || 0)
-
-                                  const slots2x1 = slots.filter(s => {
-                                    const min = timeStringToMinutes(s.hora)
-                                    return min >= minIni && min <= minFin
-                                  })
-
-                                  return (
-                                    <div className="space-y-3 pt-2 border-t border-zinc-800">
-                                      <div className="flex items-center justify-between">
-                                        <label className="text-xs font-black uppercase tracking-wider text-zinc-400 block">
-                                          2. Horario disponible para {acompanante.nombre || 'el acompañante'}:
-                                        </label>
-                                        <span className="text-[10px] text-amber-400 font-bold">
-                                          Horario 2×1: {config2x1.hora_inicio} - {config2x1.hora_fin}
-                                        </span>
-                                      </div>
-
-                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                        {slots2x1.map(slot => {
-                                          const hora12 = formatTime12h(slot.hora)
-                                          const isSelected = acompHora === slot.hora
-                                          const esOcupado = !slot.disponible || (acompBarberoId === formData.barbero_id && slot.hora === formData.hora)
-
-                                          if (esOcupado) {
-                                            return (
-                                              <div
-                                                key={slot.hora}
-                                                className="py-2.5 px-2 rounded-xl text-xs font-bold text-center bg-red-500/10 text-red-400 border border-red-500/20 line-through opacity-60"
-                                              >
-                                                {hora12}
-                                              </div>
-                                            )
-                                          }
-
-                                          return (
-                                            <button
-                                              key={slot.hora}
-                                              type="button"
-                                              onClick={() => setAcompHora(slot.hora)}
-                                              className={`py-2.5 px-2 rounded-xl text-xs font-black transition-all ${
-                                                isSelected
-                                                  ? 'bg-amber-500 text-black shadow-md ring-2 ring-amber-400 font-black'
-                                                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 hover:border-amber-500/40'
-                                              }`}
-                                            >
-                                              {hora12}
-                                            </button>
-                                          )
-                                        })}
-                                      </div>
-                                    </div>
-                                  )
-                                })()}
+                                )}
                               </div>
                             )
                           })()}
@@ -3309,20 +3268,20 @@ function ReservarContent() {
                             if (!val.disponible) return null
 
                             return (
-                              <div className="p-3.5 bg-gradient-to-r from-amber-500/20 via-emerald-500/10 to-transparent border border-amber-500/40 rounded-2xl flex items-center justify-between gap-3 animate-in fade-in">
-                                <div className="flex items-center gap-2.5">
-                                  <span className="text-base">🎫</span>
+                              <div className="p-4 bg-gradient-to-r from-amber-500/20 via-emerald-500/10 to-transparent border-2 border-amber-500/40 rounded-2xl flex items-center justify-between gap-3 animate-in fade-in">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xl">🎫</span>
                                   <div>
                                     <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block">
-                                      Reserva lista para {acompanante.nombre || 'el Acompañante'}
+                                      Cita 2×1 Asignada para {acompanante.nombre || 'el Acompañante'}
                                     </span>
-                                    <p className="text-xs font-black text-white">
-                                      {formatTime12h(acompHora)} con {barberoAcomp?.full_name || 'Especialista'} <span className="text-emerald-400 font-bold ml-1.5">(Bs 0 Promo 2×1)</span>
+                                    <p className="text-sm font-black text-white">
+                                      {formatTime12h(acompHora)} con {toTitleCase(barberoAcomp?.full_name || 'Especialista')} <span className="text-emerald-400 font-bold ml-1.5">(Bs 0 Promo 2×1)</span>
                                     </p>
                                   </div>
                                 </div>
-                                <span className="text-xs font-black text-amber-400 uppercase tracking-widest bg-amber-500/20 px-3 py-1 rounded-full border border-amber-500/40">
-                                  Asignado
+                                <span className="text-xs font-black text-amber-400 uppercase tracking-widest bg-amber-500/20 px-3 py-1.5 rounded-full border border-amber-500/40">
+                                  ✓ Confirmado
                                 </span>
                               </div>
                             )
@@ -3336,25 +3295,55 @@ function ReservarContent() {
                   <Button variant="ghost" onClick={() => setStep(2)} className="text-zinc-400 hover:text-white uppercase tracking-widest font-bold text-xs order-2 sm:order-1">
                     ← Atrás
                   </Button>
-                  <div className="flex flex-col items-center sm:items-end gap-1.5 order-1 sm:order-2 w-full sm:w-auto">
-                    {promoElegida?.tipo === '2x1' && modo2x1 === 'acompanante' && formData.hora && !validarSlotAcompanante(acompHora, acompBarberoId).disponible && (
-                      <span className="text-[11px] font-bold text-amber-400 text-center sm:text-right">
-                        ⚠️ Selecciona un horario y especialista disponible para {acompanante.nombre || 'tu acompañante'}
-                      </span>
-                    )}
-                    <Button
-                      disabled={
-                        !formData.fecha ||
-                        !formData.hora ||
-                        !validarHoraSeleccionada(formData.hora).disponible ||
-                        (promoElegida?.tipo === '2x1' && modo2x1 === 'acompanante' && (!acompBarberoId || !acompHora || !validarSlotAcompanante(acompHora, acompBarberoId).disponible))
+                  {(() => {
+                    const is2x1Acomp = promoElegida?.tipo === '2x1' && modo2x1 === 'acompanante'
+                    const horaValidaTitular = formData.hora && validarHoraSeleccionada(formData.hora).disponible
+                    const acompSlotVal = (is2x1Acomp && acompHora && acompBarberoId) ? validarSlotAcompanante(acompHora, acompBarberoId) : null
+                    const horaValidaAcomp = !is2x1Acomp || (
+                      acompanante.nombre.trim().length > 0 &&
+                      Boolean(acompBarberoId) &&
+                      Boolean(acompHora) &&
+                      Boolean(acompSlotVal?.disponible)
+                    )
+
+                    let missingReason = ''
+                    if (!formData.fecha) {
+                      missingReason = 'Selecciona una fecha en el calendario'
+                    } else if (!formData.hora) {
+                      missingReason = 'Selecciona el horario de tu cita'
+                    } else if (!horaValidaTitular) {
+                      missingReason = 'El horario seleccionado no está disponible'
+                    } else if (is2x1Acomp) {
+                      if (!acompanante.nombre.trim()) {
+                        missingReason = '⚠️ Ingresa el nombre de tu acompañante arriba'
+                      } else if (!acompBarberoId) {
+                        missingReason = '⚠️ Selecciona el especialista para tu acompañante'
+                      } else if (!acompHora) {
+                        missingReason = '⚠️ Selecciona el horario para tu acompañante'
+                      } else if (!acompSlotVal?.disponible) {
+                        missingReason = `⚠️ Horario del acompañante no disponible (${acompSlotVal?.motivo || 'Elige otra opción'})`
                       }
-                      onClick={() => setStep(4)}
-                      className="bg-amber-500 hover:bg-amber-400 text-black font-black px-10 py-6 text-sm uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto"
-                    >
-                      Siguiente
-                    </Button>
-                  </div>
+                    }
+
+                    const isButtonDisabled = !formData.fecha || !formData.hora || !horaValidaTitular || !horaValidaAcomp
+
+                    return (
+                      <div className="flex flex-col items-center sm:items-end gap-2 order-1 sm:order-2 w-full sm:w-auto">
+                        {isButtonDisabled && missingReason && (
+                          <span className="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-3.5 py-1.5 rounded-xl border border-amber-500/30 text-center sm:text-right max-w-md animate-in fade-in">
+                            {missingReason}
+                          </span>
+                        )}
+                        <Button
+                          disabled={isButtonDisabled}
+                          onClick={() => setStep(4)}
+                          className="bg-amber-500 hover:bg-amber-400 text-black font-black px-10 py-6 text-sm uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto"
+                        >
+                          Siguiente
+                        </Button>
+                      </div>
+                    )
+                  })()}
                 </div>
               </CardContent>
             </Card>

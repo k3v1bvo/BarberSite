@@ -104,6 +104,7 @@ export async function dispatchNotification(
   try {
     switch (event) {
       case 'reserva_nueva': {
+        const is2x1Acomp = p.monto === 0 || p.servicioNombre?.toLowerCase().includes('2×1') || p.servicioNombre?.toLowerCase().includes('acompañante')
         const metodoPagoLabel = String(p.metodoPago || (p.monto != null ? `Pago en el local (Bs ${Number(p.monto).toFixed(2)})` : 'Pago en el local'))
         const msg = `${p.clienteNombre || 'Cliente'} — ${p.servicioNombre || 'Servicio'} · ${p.fecha} ${p.hora} (${metodoPagoLabel})`
         const meta = { cita_id: p.citaId, barbero_id: p.barberoId }
@@ -114,7 +115,7 @@ export async function dispatchNotification(
             p.barberoId,
             event,
             {
-              titulo: '📅 Nueva cita',
+              titulo: is2x1Acomp ? '✂️ Nueva cita 2×1 (Acompañante)' : '📅 Nueva cita',
               mensaje: msg,
               tipo: 'info',
               categoria: event,
@@ -502,8 +503,11 @@ export async function dispatchNotification(
       }
 
       case 'pago_pendiente': {
+        const is2x1Acomp = p.monto === 0 || p.servicioNombre?.toLowerCase().includes('2×1') || p.servicioNombre?.toLowerCase().includes('acompañante')
         const anticipo = p.monto != null ? `Bs ${Number(p.monto).toFixed(2)}` : '—'
-        const msg = `💰 ${p.clienteNombre || 'Cliente'} pagó anticipo QR (${anticipo}) — ${p.servicioNombre || 'Servicio'} · ${p.fecha} ${p.hora}`
+        const msg = is2x1Acomp
+          ? `✂️ ${p.clienteNombre || 'Cliente'} — ${p.servicioNombre || 'Corte'} · ${p.fecha} ${p.hora} (Promo 2×1)`
+          : `💰 ${p.clienteNombre || 'Cliente'} pagó anticipo QR (${anticipo}) — ${p.servicioNombre || 'Servicio'} · ${p.fecha} ${p.hora}`
         const meta = { cita_id: p.citaId, barbero_id: p.barberoId }
 
         // Notificar al barbero asignado
@@ -513,9 +517,9 @@ export async function dispatchNotification(
             p.barberoId,
             event,
             {
-              titulo: '💰 Pago QR por verificar',
+              titulo: is2x1Acomp ? '✂️ Nueva cita 2×1 (Acompañante)' : '💰 Pago QR por verificar',
               mensaje: msg,
-              tipo: 'warning',
+              tipo: is2x1Acomp ? 'info' : 'warning',
               categoria: event,
               link: '/barbero' + (p.citaId ? `?cita_id=${p.citaId}` : ''),
               metadata: meta,

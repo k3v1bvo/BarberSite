@@ -75,6 +75,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Error al verificar pago' }, { status: 500 })
     }
 
+    // Auto-confirmar cita de acompañante 2x1 si existe vinculada
+    try {
+      const { data: citaAcomp } = await serverDb
+        .from('citas')
+        .select('id, barbero_id, estado')
+        .ilike('notas', `%Cita Principal #${citaId}%`)
+        .maybeSingle()
+
+      if (citaAcomp && citaAcomp.estado === 'pendiente_pago') {
+        await serverDb
+          .from('citas')
+          .update({
+            estado: 'confirmado',
+            anticipo_verificado: true,
+            anticipo_verificado_por: user.id,
+            anticipo_verificado_at: new Date().toISOString(),
+          })
+          .eq('id', citaAcomp.id)
+      }
+    } catch (eAcomp) {
+      console.error('[verificar-pago] Error confirmando cita acompañante:', eAcomp)
+    }
+
     // Obtener nombre del barbero
     let barberoNombre = 'Equipo'
     if (cita.barbero_id) {
