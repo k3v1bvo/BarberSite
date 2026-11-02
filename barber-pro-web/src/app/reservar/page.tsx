@@ -47,10 +47,12 @@ function esServicio2x1ValidoPorNombre(servicio: Servicio | undefined): boolean {
   )
 }
 
-// Cálculo del 2x1: Si es combo, NO va a mitad de precio todo el combo, SOLO la mitad del corte (o barba).
+// Cálculo del 2x1: Aplica exclusivamente al Corte de Cabello (o lista autorizada en 2x1).
+// Los servicios extra (barba, faciales, cejas, etc.) NO reciben descuento individual en el catálogo.
 function calcularDescuentoYPrecio2x1(
   servicio: Servicio | undefined,
-  todosLosServicios: Servicio[]
+  todosLosServicios: Servicio[],
+  serviciosAcompAutorizados?: string[]
 ): {
   precioOriginal: number
   precioFinal: number
@@ -78,7 +80,7 @@ function calcularDescuentoYPrecio2x1(
                   nombreLower.includes('combo') ||
                   nombreLower.includes('+')
   const tieneCorte = nombreLower.includes('corte')
-  const tieneBarba = nombreLower.includes('barba')
+  const tieneBarba = false // Los servicios extra/barba no tienen descuento individual en 2x1
 
   // Obtener el precio base del Corte de Cabello del catálogo (o fallback 50 Bs)
   const servicioCorteBase = todosLosServicios.find(s => {
@@ -89,39 +91,31 @@ function calcularDescuentoYPrecio2x1(
   const precioCorteBase = servicioCorteBase ? Number(servicioCorteBase.precio) : 50
   const mitadCorte = Math.round(precioCorteBase * 0.5) // Bs. 25
 
-  // Obtener el precio base del Arreglo de Barba del catálogo (o fallback 50 Bs)
-  const servicioBarbaBase = todosLosServicios.find(s => {
-    const n = s.nombre.toLowerCase().trim()
-    return (n.includes('arreglo de barba') || n.includes('arreglo barba') || n === 'barba') &&
-           !n.includes('combo') && !n.includes('+')
-  })
-  const precioBarbaBase = servicioBarbaBase ? Number(servicioBarbaBase.precio) : 50
-  const mitadBarba = Math.round(precioBarbaBase * 0.5) // Bs. 25
-
   let descuento = 0
   let etiquetaPromo = ''
 
+  // Verificar si es un servicio autorizado para 2x1 (Corte de cabello)
+  const esAutorizado2x1 = serviciosAcompAutorizados && serviciosAcompAutorizados.length > 0
+    ? serviciosAcompAutorizados.includes(servicio.id)
+    : (nombreLower.includes('corte de cabello') || nombreLower.includes('corte cabello') || nombreLower === 'corte' || nombreLower.includes('corte de niño'))
+
   if (esCombo) {
-    // REGLA CRÍTICA: En combos NO se aplica mitad de precio a todo el combo, SOLO al corte (o barba)
+    // En combos NO se aplica mitad de precio al combo completo, solo a la porción del corte
     if (tieneCorte) {
       descuento = mitadCorte
       etiquetaPromo = `Corte a mitad de precio (-Bs ${descuento})`
-    } else if (tieneBarba) {
-      descuento = mitadBarba
-      etiquetaPromo = `Barba a mitad de precio (-Bs ${descuento})`
     } else {
       descuento = 0
       etiquetaPromo = ''
     }
+  } else if (esAutorizado2x1) {
+    // Solo el corte de cabello individual recibe descuento de 2x1
+    descuento = Math.round(precioOriginal * 0.5)
+    etiquetaPromo = `2×1 Mitad de precio (-Bs ${descuento})`
   } else {
-    // Servicio individual (Corte o Barba): se aplica la mitad de su precio
-    if (tieneCorte || tieneBarba) {
-      descuento = Math.round(precioOriginal * 0.5)
-      etiquetaPromo = `2×1 Mitad de precio (-Bs ${descuento})`
-    } else {
-      descuento = 0
-      etiquetaPromo = ''
-    }
+    // Ningún servicio extra tiene descuento individual de 2x1
+    descuento = 0
+    etiquetaPromo = ''
   }
 
   const precioFinal = Math.max(0, precioOriginal - descuento)
@@ -235,26 +229,16 @@ function ReservarContent() {
     }
   }
 
-  // Función dinámica que usa config para validar servicios 2x1
+  // Función dinámica que usa config para validar servicios del 2x1 (Corte de Cabello autorizado)
   const esServicio2x1Valido = (servicio: Servicio | undefined): boolean => {
     if (!servicio) return false
-    // Si es con acompañante, debe ser estrictamente Corte de cabello autorizado (sin combos)
-    if (modo2x1 === 'acompanante') {
-      if (config2x1.servicios_acompanante && config2x1.servicios_acompanante.length > 0) {
-        return config2x1.servicios_acompanante.includes(servicio.id)
-      }
-      const nom = servicio.nombre.toLowerCase().trim()
-      const esCombo = (servicio as any).es_combo || nom.includes('+') || nom.includes('combo')
-      return !esCombo && (nom.includes('corte de cabello') || nom === 'corte' || nom.includes('corte de niño'))
+    // El servicio principal del 2x1 es el configurado en servicios_acompanante (por defecto Corte de cabello)
+    if (config2x1.servicios_acompanante && config2x1.servicios_acompanante.length > 0) {
+      return config2x1.servicios_acompanante.includes(servicio.id)
     }
-    // Si es servicio extra, verificar lista de servicios extra
-    if (modo2x1 === 'servicio_extra') {
-      if (config2x1.servicios_extra && config2x1.servicios_extra.length > 0) {
-        return config2x1.servicios_extra.includes(servicio.id)
-      }
-      return esServicio2x1ValidoPorNombre(servicio)
-    }
-    return esServicio2x1ValidoPorNombre(servicio)
+    const nom = servicio.nombre.toLowerCase().trim()
+    const esCombo = (servicio as any).es_combo || nom.includes('+') || nom.includes('combo')
+    return !esCombo && (nom.includes('corte de cabello') || nom === 'corte' || nom.includes('corte de niño'))
   }
   
   const [loading, setLoading] = useState(true)
@@ -1105,7 +1089,7 @@ function ReservarContent() {
           precioServicioFinal = Math.max(0, precioServicioFinal - (promoElegida.valor || 10))
         } else if (promoElegida.tipo === '2x1') {
           // 2x1: En combo solo se descuenta la mitad del corte (-Bs 25). En servicio individual, la mitad de su precio.
-          const res2x1 = calcularDescuentoYPrecio2x1(servicio, servicios)
+          const res2x1 = calcularDescuentoYPrecio2x1(servicio, servicios, config2x1.servicios_acompanante)
           precioServicioFinal = Math.max(0, precioServicioFinal - res2x1.descuento)
         } else if (promoElegida.tipo === 'descuento_porcentaje') {
           precioServicioFinal = precioServicioFinal * (1 - ((promoElegida.valor || 50) / 100))
@@ -1442,7 +1426,7 @@ function ReservarContent() {
     } else if (promoElegida.tipo === '2x1' && promo2x1Valida) {
       // 2x1: En combo NO se descuenta la mitad del combo completo, SOLO la mitad del corte (-Bs 25).
       // En servicio individual de corte/barba, se descuenta la mitad de su precio (-Bs 25).
-      const res2x1 = calcularDescuentoYPrecio2x1(servicioSeleccionado, servicios)
+      const res2x1 = calcularDescuentoYPrecio2x1(servicioSeleccionado, servicios, config2x1.servicios_acompanante)
       montoDescuentoPromo = res2x1.descuento
       precioServicio = Math.max(0, precioServicio - montoDescuentoPromo)
     } else if (promoElegida.tipo === 'descuento_porcentaje') {
@@ -2095,7 +2079,7 @@ function ReservarContent() {
                                   return !(s as any).es_combo && !s.nombre?.toLowerCase().includes('combo')
                                 })
                                 .map(s => (
-                                  <option key={s.id} value={s.id}>{s.nombre} · Bs. {Number(s.precio).toFixed(0)}</option>
+                                  <option key={s.id} value={s.id}>{s.nombre} · (GRATIS en 2×1)</option>
                                 ))}
                             </select>
                           </div>
@@ -2134,7 +2118,7 @@ function ReservarContent() {
                 )}
                 
                 {/* Pestañas / Filtros de Categorías (Ocultar si está en 2x1 con acompañante para mostrar solo Corte de Cabello) */}
-                {!(promoElegida?.tipo === '2x1' && modo2x1 === 'acompanante') && (
+                {!promoElegida || promoElegida.tipo !== '2x1' ? (
                   <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
                     <button
                       type="button"
@@ -2167,7 +2151,7 @@ function ReservarContent() {
                       )
                     })}
                   </div>
-                )}
+                ) : null}
 
                 {/* Renderizado de Servicios (Filtro Todos o por Categoría) */}
                 {promoElegida?.tipo === '2x1' && (
@@ -2180,18 +2164,18 @@ function ReservarContent() {
                       <p className="text-zinc-300 font-medium mt-0.5">
                         {modo2x1 === 'acompanante'
                           ? 'Esta promoción aplica exclusivamente para Corte de Cabello (ambos reciben su corte pagando solo Bs 50 en total, Bs 25 c/u).'
-                          : 'Cortes individuales a mitad de precio (Bs 25). En combos, solo el corte recibe la mitad de precio (-Bs 25), el resto del combo mantiene su tarifa normal.'}
+                          : 'Pagas tu Corte de Cabello (Bs 50) y te llevas 1 Servicio Extra completamente GRATIS en tu cita.'}
                       </p>
                     </div>
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {(filterCategoria === 'todos' || (promoElegida?.tipo === '2x1' && modo2x1 === 'acompanante')
+                  {(filterCategoria === 'todos' || promoElegida?.tipo === '2x1'
                     ? servicios
                     : servicios.filter(s => (s.categoria || 'Cortes') === filterCategoria)
                   )
                   .filter(s => {
-                    // Si el 2x1 está seleccionado, solo mostrar servicios válidos según el modo
+                    // Si el 2x1 está seleccionado, solo mostrar los servicios autorizados para 2x1 (Corte de cabello)
                     if (promoElegida?.tipo === '2x1' && !esServicio2x1Valido(s)) return false
                     if (!formData.barbero_id) return true
                     if (s.barberos_excluidos?.length) {
@@ -2260,7 +2244,7 @@ function ReservarContent() {
                                   promoPrecio = 0
                                   promoTag = '100% OFF'
                                 } else if (promoElegida.tipo === '2x1') {
-                                  const res2x1 = calcularDescuentoYPrecio2x1(s, servicios)
+                                  const res2x1 = calcularDescuentoYPrecio2x1(s, servicios, config2x1.servicios_acompanante)
                                   promoPrecio = res2x1.precioFinal
                                   promoTag = res2x1.etiquetaPromo
                                 } else if (promoElegida.tipo === 'descuento_porcentaje') {
@@ -3807,6 +3791,27 @@ function ReservarContent() {
                           </span>
                         </div>
                       )}
+
+                      {/* Detalle Servicio Extra 2x1 */}
+                      {promoElegida?.tipo === '2x1' && modo2x1 === 'servicio_extra' && servicioExtra2x1 && (() => {
+                        const extraObj = servicios.find(s => s.id === servicioExtra2x1)
+                        return (
+                          <div className="p-4 bg-gradient-to-r from-amber-500/15 via-zinc-900 to-black rounded-2xl border-2 border-amber-500/30 space-y-2">
+                            <div className="flex justify-between items-center text-xs font-black text-amber-400 uppercase tracking-wider border-b border-amber-500/20 pb-2">
+                              <span className="flex items-center gap-1.5">
+                                <Sparkles className="w-4 h-4 text-amber-400" /> Servicio Extra Incluido 2×1
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-black text-[10px]">
+                                GRATIS (Bs 0)
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs text-zinc-300">
+                              <span className="text-zinc-400">Servicio adicional:</span>
+                              <strong className="text-white font-black">{extraObj?.nombre || '—'}</strong>
+                            </div>
+                          </div>
+                        )
+                      })()}
 
                       {/* Detalle Acompañante 2x1 */}
                       {promoElegida?.tipo === '2x1' && modo2x1 === 'acompanante' && (
