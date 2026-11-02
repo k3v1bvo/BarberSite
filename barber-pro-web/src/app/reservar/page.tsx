@@ -47,8 +47,9 @@ function esServicio2x1ValidoPorNombre(servicio: Servicio | undefined): boolean {
   )
 }
 
-// Cálculo del 2x1: Aplica exclusivamente al Corte de Cabello (o lista autorizada en 2x1).
-// Los servicios extra (barba, faciales, cejas, etc.) NO reciben descuento individual en el catálogo.
+// Cálculo del 2x1: El titular paga el 100% del servicio completo (ej. Bs 50).
+// El beneficio del 2×1 es que la 2da cita (acompañante) o servicio extra entra completamente GRATIS (Bs 0).
+// NO se aplica descuento monetario al titular en el resumen final.
 function calcularDescuentoYPrecio2x1(
   servicio: Servicio | undefined,
   todosLosServicios: Servicio[],
@@ -80,54 +81,19 @@ function calcularDescuentoYPrecio2x1(
                   nombreLower.includes('combo') ||
                   nombreLower.includes('+')
   const tieneCorte = nombreLower.includes('corte')
-  const tieneBarba = false // Los servicios extra/barba no tienen descuento individual en 2x1
+  const tieneBarba = false
 
-  // Obtener el precio base del Corte de Cabello del catálogo (o fallback 50 Bs)
-  const servicioCorteBase = todosLosServicios.find(s => {
-    const n = s.nombre.toLowerCase().trim()
-    return (n.includes('corte de cabello') || n.includes('corte cabello') || n === 'corte') &&
-           !n.includes('combo') && !n.includes('+')
-  })
-  const precioCorteBase = servicioCorteBase ? Number(servicioCorteBase.precio) : 50
-  const mitadCorte = Math.round(precioCorteBase * 0.5) // Bs. 25
-
-  let descuento = 0
-  let etiquetaPromo = ''
-
-  // Verificar si es un servicio autorizado para 2x1 (Corte de cabello)
-  const esAutorizado2x1 = serviciosAcompAutorizados && serviciosAcompAutorizados.length > 0
-    ? serviciosAcompAutorizados.includes(servicio.id)
-    : (nombreLower.includes('corte de cabello') || nombreLower.includes('corte cabello') || nombreLower === 'corte' || nombreLower.includes('corte de niño'))
-
-  if (esCombo) {
-    // En combos NO se aplica mitad de precio al combo completo, solo a la porción del corte
-    if (tieneCorte) {
-      descuento = mitadCorte
-      etiquetaPromo = `Corte a mitad de precio (-Bs ${descuento})`
-    } else {
-      descuento = 0
-      etiquetaPromo = ''
-    }
-  } else if (esAutorizado2x1) {
-    // Solo el corte de cabello individual recibe descuento de 2x1
-    descuento = Math.round(precioOriginal * 0.5)
-    etiquetaPromo = `2×1 Mitad de precio (-Bs ${descuento})`
-  } else {
-    // Ningún servicio extra tiene descuento individual de 2x1
-    descuento = 0
-    etiquetaPromo = ''
-  }
-
-  const precioFinal = Math.max(0, precioOriginal - descuento)
-
+  // REGLA CRÍTICA 2×1: El titular paga el servicio completo (Bs 50).
+  // La 2da persona se atiende gratis (Bs 0) o recibe 1 servicio extra gratis (Bs 0).
+  // NO se resta descuento a la reserva del titular.
   return {
     precioOriginal,
-    precioFinal,
-    descuento,
+    precioFinal: precioOriginal,
+    descuento: 0,
     esCombo,
     tieneCorte,
     tieneBarba,
-    etiquetaPromo
+    etiquetaPromo: '2×1 (2da cita gratis)'
   }
 }
 
@@ -1128,9 +1094,9 @@ function ReservarContent() {
         if (promoElegida.tipo === 'descuento_fijo') {
           precioServicioFinal = Math.max(0, precioServicioFinal - (promoElegida.valor || 10))
         } else if (promoElegida.tipo === '2x1') {
-          // 2x1: En combo solo se descuenta la mitad del corte (-Bs 25). En servicio individual, la mitad de su precio.
-          const res2x1 = calcularDescuentoYPrecio2x1(servicio, servicios, config2x1.servicios_acompanante)
-          precioServicioFinal = Math.max(0, precioServicioFinal - res2x1.descuento)
+          // 2x1: El titular paga el servicio COMPLETO (Bs 50).
+          // El beneficio es que su acompañante entra GRATIS (Bs 0) o se incluye 1 servicio extra GRATIS.
+          // NO se descuenta el servicio del titular.
         } else if (promoElegida.tipo === 'descuento_porcentaje') {
           precioServicioFinal = precioServicioFinal * (1 - ((promoElegida.valor || 50) / 100))
         } else if (promoElegida.tipo === 'cumpleanos' || promoElegida.tipo === 'servicio_gratis') {
@@ -1139,12 +1105,7 @@ function ReservarContent() {
         
         let infoPromo = `[PROMO: ${promoElegida.nombre}]`
         if (promoElegida.tipo === '2x1') {
-          const res2x1 = calcularDescuentoYPrecio2x1(servicio, servicios)
-          if (res2x1.esCombo) {
-            infoPromo += ` Combo con corte a mitad de precio (-Bs ${res2x1.descuento})`
-          } else {
-            infoPromo += ` Corte a mitad de precio (-Bs ${res2x1.descuento})`
-          }
+          infoPromo += ` (Pagan 1 corte completo y se atienden 2)`
           if (modo2x1 === 'acompanante' && acompanante.nombre) {
             infoPromo += ` | Acompañante: ${acompanante.nombre}${acompanante.email ? ` (${acompanante.email})` : ''}`
           } else if (modo2x1 === 'servicio_extra' && servicioExtra2x1) {
@@ -1464,11 +1425,10 @@ function ReservarContent() {
       montoDescuentoPromo = Math.min(precioServicio, Number(promoElegida.valor || 10))
       precioServicio = Math.max(0, precioServicio - montoDescuentoPromo)
     } else if (promoElegida.tipo === '2x1' && promo2x1Valida) {
-      // 2x1: En combo NO se descuenta la mitad del combo completo, SOLO la mitad del corte (-Bs 25).
-      // En servicio individual de corte/barba, se descuenta la mitad de su precio (-Bs 25).
-      const res2x1 = calcularDescuentoYPrecio2x1(servicioSeleccionado, servicios, config2x1.servicios_acompanante)
-      montoDescuentoPromo = res2x1.descuento
-      precioServicio = Math.max(0, precioServicio - montoDescuentoPromo)
+      // 2x1: El titular paga el servicio COMPLETO (Bs 50).
+      // El beneficio es que el acompañante se atiende GRATIS (Bs 0) o recibe 1 servicio extra GRATIS.
+      // NO se aplica descuento al corte del titular en el total a pagar.
+      montoDescuentoPromo = 0
     } else if (promoElegida.tipo === 'descuento_porcentaje') {
       const pct = Number(promoElegida.valor || 50)
       montoDescuentoPromo = (precioServicio * pct) / 100
@@ -2284,9 +2244,8 @@ function ReservarContent() {
                                   promoPrecio = 0
                                   promoTag = '100% OFF'
                                 } else if (promoElegida.tipo === '2x1') {
-                                  const res2x1 = calcularDescuentoYPrecio2x1(s, servicios, config2x1.servicios_acompanante)
-                                  promoPrecio = res2x1.precioFinal
-                                  promoTag = res2x1.etiquetaPromo
+                                  promoPrecio = s.precio
+                                  promoTag = modo2x1 === 'acompanante' ? '✂️ 2×1 · 2do Corte Gratis' : '✂️ 2×1 · + Extra Gratis'
                                 } else if (promoElegida.tipo === 'descuento_porcentaje') {
                                   const pct = Number(promoElegida.valor || 50)
                                   promoPrecio = Math.max(0, s.precio * (1 - pct / 100))
@@ -2297,10 +2256,18 @@ function ReservarContent() {
                                 return (
                                   <div className="flex flex-col">
                                     <div className="flex items-baseline gap-1.5">
-                                      <span className="text-xs text-zinc-500 line-through font-bold">{formatCurrency(s.precio)}</span>
-                                      <span className="text-emerald-400 font-black text-xl tracking-tight">
-                                        {formatCurrency(promoPrecio)}
-                                      </span>
+                                      {promoElegida.tipo === '2x1' ? (
+                                        <span className="text-amber-400 font-black text-xl tracking-tight">
+                                          {formatCurrency(s.precio)}
+                                        </span>
+                                      ) : (
+                                        <>
+                                          <span className="text-xs text-zinc-500 line-through font-bold">{formatCurrency(s.precio)}</span>
+                                          <span className="text-emerald-400 font-black text-xl tracking-tight">
+                                            {formatCurrency(promoPrecio)}
+                                          </span>
+                                        </>
+                                      )}
                                     </div>
                                     {promoTag && (
                                       <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider">
@@ -3987,22 +3954,32 @@ function ReservarContent() {
                         </div>
                       )}
 
-                      {/* Descuento Promoción Especial */}
-                      {promoElegida && servicioSeleccionado && montoDescuentoPromo > 0 && (
+                      {/* Detalle Promoción 2×1 en Resumen de Costos */}
+                      {promoElegida?.tipo === '2x1' && servicioSeleccionado && (
+                        <div className="flex justify-between items-center text-sm bg-gradient-to-r from-amber-500/20 to-orange-500/10 p-4 rounded-2xl border border-amber-500/40 mt-3 shadow-inner">
+                          <div className="flex flex-col">
+                            <span className="text-amber-400 font-black text-xs uppercase tracking-wider flex items-center gap-1.5">
+                              <span>✂️</span> {promoElegida.nombre || 'Promoción 2×1'}
+                            </span>
+                            <span className="text-[10px] text-zinc-300 mt-0.5">
+                              {modo2x1 === 'acompanante'
+                                ? `2da Cita para ${acompanante.nombre ? acompanante.nombre : 'tu Acompañante'} (Incluida Bs 0)`
+                                : '1 Servicio Extra adicional (Incluido Bs 0)'}
+                            </span>
+                          </div>
+                          <span className="font-black text-emerald-400 text-xs uppercase px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30">
+                            2×1 Aplicado
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Descuento Otras Promociones Especiales (Descuento Monetario) */}
+                      {promoElegida && promoElegida.tipo !== '2x1' && servicioSeleccionado && montoDescuentoPromo > 0 && (
                         <div className="flex justify-between items-center text-sm bg-gradient-to-r from-amber-500/20 to-orange-500/10 p-4 rounded-2xl border border-amber-500/40 mt-3 shadow-inner">
                           <div className="flex flex-col">
                             <span className="text-amber-400 font-black text-xs uppercase tracking-wider flex items-center gap-1.5">
                               <span>{promoElegida.icono || '🎉'}</span> {promoElegida.nombre}
                             </span>
-                            {promoElegida.tipo === '2x1' && (() => {
-                              const res2x1 = calcularDescuentoYPrecio2x1(servicioSeleccionado, servicios)
-                              return (
-                                <span className="text-[10px] text-zinc-400 mt-0.5">
-                                  {res2x1.esCombo ? 'En combo solo el corte a mitad de precio' : 'Corte a mitad de precio'}
-                                  {acompanante.nombre ? ` · Acompañante: ${acompanante.nombre}` : ''}
-                                </span>
-                              )
-                            })()}
                           </div>
                           <span className="font-black text-emerald-400 text-lg">-{formatCurrency(montoDescuentoPromo)}</span>
                         </div>
