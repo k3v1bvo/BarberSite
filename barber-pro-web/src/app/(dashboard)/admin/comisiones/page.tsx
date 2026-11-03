@@ -315,9 +315,11 @@ export default function AdminComisionesPage() {
 
   const exportarCSV = () => {
     const rows = [
-      ['Fecha', 'Barbero', 'Servicio', 'Cliente', 'Precio Cobrado', '% Comisión', 'Comisión Barbero', 'Propina Barbero', 'Estado'],
+      ['Fecha', 'Barbero', 'Servicio', 'Cliente', 'Precio Servicio', 'Precio Cobrado', 'Descuento', '% Comisión', 'Comisión Barbero', 'Propina Barbero', 'Estado'],
       ...citas.map((c) => {
         const precio = Number(c.precio) || 0
+        const precioServicio = Number(c.servicios?.precio) || precio
+        const descuento = Math.max(0, precioServicio - precio)
         const comision = Number(c.comision_barbero) || 0
         const propinaBarbero = (Number(c.propinas) || 0) * 0.5
         const baseComision = Math.max(0, comision - propinaBarbero)
@@ -327,7 +329,9 @@ export default function AdminComisionesPage() {
           c.barbero?.full_name || '',
           c.servicios?.nombre || '',
           c.clientes?.nombre || '',
+          String(precioServicio),
           String(precio),
+          String(descuento),
           pct,
           String(comision),
           String(propinaBarbero),
@@ -722,6 +726,7 @@ export default function AdminComisionesPage() {
               <th className="text-left py-3 px-4">Barbero</th>
               <th className="text-left py-3 px-4">Servicio</th>
               <th className="text-left py-3 px-4">Cliente</th>
+              <th className="text-right py-3 px-4">Precio Servicio</th>
               <th className="text-right py-3 px-4">Precio Cobrado</th>
               <th className="text-center py-3 px-4">% Comisión</th>
               <th className="text-right py-3 px-4">Comisión Barbero</th>
@@ -731,15 +736,18 @@ export default function AdminComisionesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="py-12 text-center text-zinc-600">Cargando...</td></tr>
+              <tr><td colSpan={10} className="py-12 text-center text-zinc-600">Cargando...</td></tr>
             ) : citas.length === 0 ? (
-              <tr><td colSpan={9} className="py-12 text-center text-zinc-600">No hay citas registradas con los filtros actuales.</td></tr>
+              <tr><td colSpan={10} className="py-12 text-center text-zinc-600">No hay citas registradas con los filtros actuales.</td></tr>
             ) : citas.map((c) => {
-              const precio = Number(c.precio) || 0
+              const precioCobrado = Number(c.precio) || 0
+              const precioServicio = Number(c.servicios?.precio) || precioCobrado
+              const hayDescuento = precioServicio > precioCobrado
+              const montoDescuento = Math.max(0, precioServicio - precioCobrado)
               const comision = Number(c.comision_barbero) || 0
               const propinaBarbero = (Number(c.propinas) || 0) * 0.5
               const comisionServicioBase = Math.max(0, comision - propinaBarbero)
-              const pct = precio > 0 ? Math.round((comisionServicioBase / precio) * 100) : 0
+              const pct = precioCobrado > 0 ? Math.round((comisionServicioBase / precioCobrado) * 100) : 0
               const esFija = c.servicios?.comision_tipo === 'fija'
               const detallesDesc = parseDescuentoDetalle(c)
 
@@ -756,20 +764,37 @@ export default function AdminComisionesPage() {
                     )}
                   </td>
                   <td className="py-3 px-4 text-zinc-400">{c.clientes?.nombre || '—'}</td>
+                  
+                  {/* PRECIO ORIGINAL DEL SERVICIO (CATÁLOGO) */}
                   <td className="py-3 px-4 text-right whitespace-nowrap">
-                    {detallesDesc.esGratis ? (
+                    <span className="font-semibold text-zinc-300">
+                      {formatCurrency(precioServicio)}
+                    </span>
+                  </td>
+
+                  {/* PRECIO REAL COBRADO */}
+                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                    {detallesDesc.esGratis || precioCobrado === 0 ? (
                       <div>
                         <span className="font-bold text-emerald-400">Bs 0.00</span>
-                        <span className="block text-[10px] text-zinc-500 line-through">
-                          Valor: {formatCurrency(detallesDesc.precioBase || 50)}
+                        <span className="block text-[10px] text-red-400 font-mono">
+                          (-{formatCurrency(precioServicio)})
+                        </span>
+                      </div>
+                    ) : hayDescuento ? (
+                      <div>
+                        <span className="font-bold text-white">{formatCurrency(precioCobrado)}</span>
+                        <span className="block text-[10px] text-red-400 font-mono">
+                          (-{formatCurrency(montoDescuento)})
                         </span>
                       </div>
                     ) : (
-                      <span className="font-bold text-white">{formatCurrency(precio)}</span>
+                      <span className="font-bold text-white">{formatCurrency(precioCobrado)}</span>
                     )}
                   </td>
+                  
                   <td className="py-3 px-4 text-center whitespace-nowrap">
-                    {precio > 0 ? (
+                    {precioCobrado > 0 ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
                         {pct}%
                       </span>
