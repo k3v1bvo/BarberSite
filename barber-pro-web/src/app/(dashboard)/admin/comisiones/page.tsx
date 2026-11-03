@@ -73,6 +73,7 @@ export default function AdminComisionesPage() {
   const [isRecalculating, setIsRecalculating] = useState(false)
   const [showReglasModal, setShowReglasModal] = useState(false)
   const [modalBarberoId, setModalBarberoId] = useState<string | undefined>(undefined)
+  const [updatingBarberoId, setUpdatingBarberoId] = useState<string | null>(null)
   
   // Sanciones Modal
   const [showSancionesModal, setShowSancionesModal] = useState(false)
@@ -234,6 +235,7 @@ export default function AdminComisionesPage() {
 
   const cambiarPorcentajeBarbero = async (bId: string, bNombre: string, pct: number) => {
     if (!confirm(`¿Actualizar el porcentaje de ${bNombre} a ${pct}% y recalcular sus citas pendientes?`)) return
+    setUpdatingBarberoId(bId)
     try {
       const res = await fetch('/api/comisiones/pagos', {
         method: 'PATCH',
@@ -247,9 +249,11 @@ export default function AdminComisionesPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       success(data.mensaje || `Comisión actualizada a ${pct}%`)
-      load()
+      await load()
     } catch (e: any) {
       toastError(e.message || 'Error al cambiar porcentaje')
+    } finally {
+      setUpdatingBarberoId(null)
     }
   }
 
@@ -485,29 +489,39 @@ export default function AdminComisionesPage() {
                               {rb.pctEfectivo}%
                             </span>
                             <div className="flex items-center gap-1 mt-0.5">
-                              {[40, 45, 50].map((p) => (
-                                <button
-                                  key={p}
-                                  type="button"
-                                  onClick={() => cambiarPorcentajeBarbero(rb.barbero.id, rb.barbero.full_name, p)}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${
-                                    rb.barbero.comision_porcentaje === p
-                                      ? 'bg-amber-500 text-black border-amber-500'
-                                      : 'bg-zinc-950 text-zinc-400 border-white/10 hover:border-amber-500/50 hover:text-white'
-                                  }`}
-                                  title={`Fijar a ${p}% (${p === 40 ? '8 horas' : p === 45 ? '10 horas' : '11 horas'})`}
-                                >
-                                  {p}%
-                                </button>
-                              ))}
-                              <button
-                                type="button"
-                                onClick={() => cambiarPorcentajePersonalizado(rb.barbero.id, rb.barbero.full_name, rb.barbero.comision_porcentaje || 45)}
-                                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-950 text-zinc-400 border border-white/10 hover:text-white hover:border-white/30"
-                                title="Porcentaje personalizado"
-                              >
-                                ✏️
-                              </button>
+                              {updatingBarberoId === rb.barbero.id ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-bold py-0.5">
+                                  <RefreshCw className="w-3 h-3 animate-spin" /> Actualizando...
+                                </span>
+                              ) : (
+                                <>
+                                  {[40, 45, 50].map((p) => (
+                                    <button
+                                      key={p}
+                                      type="button"
+                                      disabled={updatingBarberoId !== null}
+                                      onClick={() => cambiarPorcentajeBarbero(rb.barbero.id, rb.barbero.full_name, p)}
+                                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${
+                                        rb.barbero.comision_porcentaje === p
+                                          ? 'bg-amber-500 text-black border-amber-500'
+                                          : 'bg-zinc-950 text-zinc-400 border-white/10 hover:border-amber-500/50 hover:text-white'
+                                      }`}
+                                      title={`Fijar a ${p}% (${p === 40 ? '8 horas' : p === 45 ? '10 horas' : '11 horas'})`}
+                                    >
+                                      {p}%
+                                    </button>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    disabled={updatingBarberoId !== null}
+                                    onClick={() => cambiarPorcentajePersonalizado(rb.barbero.id, rb.barbero.full_name, rb.barbero.comision_porcentaje || 45)}
+                                    className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-950 text-zinc-400 border border-white/10 hover:text-white hover:border-white/30"
+                                    title="Porcentaje personalizado"
+                                  >
+                                    ✏️
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -726,8 +740,14 @@ export default function AdminComisionesPage() {
               <th className="text-left py-3 px-4">Barbero</th>
               <th className="text-left py-3 px-4">Servicio</th>
               <th className="text-left py-3 px-4">Cliente</th>
-              <th className="text-right py-3 px-4">Precio Servicio</th>
-              <th className="text-right py-3 px-4">Precio Cobrado</th>
+              <th className="text-right py-3 px-4">
+                Precio Servicio
+                <span className="block text-[9px] text-zinc-500 font-normal lowercase tracking-normal">catálogo</span>
+              </th>
+              <th className="text-right py-3 px-4 text-amber-400">
+                Total Cobrado
+                <span className="block text-[9px] text-amber-500/80 font-normal lowercase tracking-normal">en pos</span>
+              </th>
               <th className="text-center py-3 px-4">% Comisión</th>
               <th className="text-right py-3 px-4">Comisión Barbero</th>
               <th className="text-right py-3 px-4">Estado</th>
@@ -816,8 +836,21 @@ export default function AdminComisionesPage() {
                     <span className={`font-black text-base ${comision > 0 ? 'text-amber-500' : 'text-zinc-600'}`}>
                       {formatCurrency(comision)}
                     </span>
+                    {esFija ? (
+                      <span className="block text-[10px] text-zinc-400 font-mono">
+                        (Fijo {formatCurrency(comision)})
+                      </span>
+                    ) : precioCobrado > 0 ? (
+                      <span className="block text-[10px] text-zinc-400 font-mono">
+                        ({pct}% de {formatCurrency(precioCobrado)})
+                      </span>
+                    ) : (
+                      <span className="block text-[10px] text-zinc-600 font-mono">
+                        (Sin cobro)
+                      </span>
+                    )}
                     {propinaBarbero > 0 && (
-                      <span className="block text-[10px] text-green-400">
+                      <span className="block text-[10px] text-green-400 font-mono">
                         +{formatCurrency(propinaBarbero)} propina
                       </span>
                     )}

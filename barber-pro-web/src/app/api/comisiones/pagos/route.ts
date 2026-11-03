@@ -391,40 +391,74 @@ export async function PATCH(req: Request) {
         .update({ comision_porcentaje: nuevo_porcentaje })
         .eq('id', barbero_id)
 
+      let citasActualizadas = 0
+
       if (recalcular_pendientes) {
+        // Obtenemos las citas pendientes más recientes (las activas que el admin ve y gestiona)
         const { data: citasPendientes } = await adminSupabase
           .from('citas')
-          .select('id, precio, propinas, servicios(nombre, comision_tipo, comision_valor)')
+          .select('id, precio, propinas, notas, fecha_hora, servicios(nombre, comision_tipo, comision_valor)')
           .eq('barbero_id', barbero_id)
           .eq('estado', 'completado')
           .eq('comision_pagada', false)
+          .order('fecha_hora', { ascending: false })
+          .limit(150)
 
         if (citasPendientes && citasPendientes.length > 0) {
-          for (const c of citasPendientes) {
+          const updates = citasPendientes.map(async (c) => {
             const serv = c.servicios as any
-            // Respetar servicios con monto fijo estricto (Corte niño 20, Baño luna 20, Combos 32)
-            if (serv?.comision_tipo === 'fija' && (serv?.comision_valor === 20 || serv?.comision_valor === 32)) {
-              continue
+            const servNombre = (serv?.nombre || '').toLowerCase()
+
+            // 1. Respetar servicios con monto fijo estricto (Corte niño 20, Baño luna 20)
+            if (
+              (serv?.comision_tipo === 'fija' && (serv?.comision_valor === 20 || serv?.comision_valor === 32)) ||
+              servNombre.includes('niño') ||
+              servNombre.includes('nino') ||
+              servNombre.includes('baño de luna') ||
+              servNombre.includes('bano de luna')
+            ) {
+              const fijaMonto = serv?.comision_valor === 32 ? 32 : 20
+              return adminSupabase.from('citas').update({ comision_barbero: fijaMonto }).eq('id', c.id)
             }
-            // Respetar servicios con porcentaje protegido específico (Tintes 35%, Diseño 50%)
-            if (/tinte/i.test(serv?.nombre || '') || (serv?.comision_valor === 35 && serv?.comision_tipo === 'porcentaje')) {
-              continue
-            }
-            if (/dise[ñn]o/i.test(serv?.nombre || '') || (serv?.comision_valor === 50 && /dise/i.test(serv?.nombre || ''))) {
-              continue
+
+            // 2. Respetar servicios con porcentaje protegido específico (Tintes 35%, Diseño 50%)
+            let pctAplicar = nuevo_porcentaje
+            if (servNombre.includes('tinte')) {
+              pctAplicar = 35
+            } else if (servNombre.includes('diseño') || servNombre.includes('diseno')) {
+              pctAplicar = 50
             }
 
             const precio = Number(c.precio) || 0
-            if (precio > 0) {
-              const propinaBarbero = (Number(c.propinas) || 0) * 0.5
-              const nuevaComision = ((precio * nuevo_porcentaje) / 100) + propinaBarbero
-              await adminSupabase.from('citas').update({ comision_barbero: nuevaComision }).eq('id', c.id)
+            let base = precio > 0 ? (precio * pctAplicar) / 100 : 0
+
+            // 3. Descuento asumido por el barbero si está registrado en notas
+            if (c.notas && base > 0) {
+              const matchDesc = c.notas.match(/Desc\.\s*Especial:\s*-?Bs\s*(\d+(?:\.\d+)?)/i)
+              if (matchDesc) {
+                const descMonto = Number(matchDesc[1]) || 0
+                if (/asume:\s*barbero/i.test(c.notas)) {
+                  base = Math.max(0, base - descMonto)
+                } else if (/asume:\s*compartido/i.test(c.notas) || /50\/50/i.test(c.notas)) {
+                  base = Math.max(0, base - (descMonto / 2))
+                }
+              }
             }
-          }
+
+            const propinaBarbero = (Number(c.propinas) || 0) * 0.5
+            const nuevaComision = Math.round((base + propinaBarbero) * 100) / 100
+            return adminSupabase.from('citas').update({ comision_barbero: nuevaComision }).eq('id', c.id)
+          })
+
+          await Promise.all(updates)
+          citasActualizadas = citasPendientes.length
         }
       }
 
-      return NextResponse.json({ success: true, mensaje: `Porcentaje actualizado a ${nuevo_porcentaje}%` })
+      return NextResponse.json({
+        success: true,
+        mensaje: `Porcentaje actualizado a ${nuevo_porcentaje}% (${citasActualizadas} citas pendientes recalculadas)`
+      })
     }
 
     // 2. Ajustar comisión de una cita individual

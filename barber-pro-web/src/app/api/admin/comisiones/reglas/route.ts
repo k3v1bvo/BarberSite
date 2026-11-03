@@ -133,7 +133,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4. Recalcular citas pendientes si se solicita
+    // 4. Recalcular citas pendientes si se solicita (en paralelo, ultra rápido)
     let citasRecalculadas = 0
     if (recalcular_pendientes) {
       const { data: citasPendientes } = await adminSupabase
@@ -141,43 +141,65 @@ export async function POST(req: Request) {
         .select('id, barbero_id, servicio_id, precio, propinas, fecha_hora, notas, servicios(nombre, comision_tipo, comision_valor)')
         .eq('estado', 'completado')
         .eq('comision_pagada', false)
+        .order('fecha_hora', { ascending: false })
+        .limit(150)
 
       if (citasPendientes && citasPendientes.length > 0) {
-        for (const c of citasPendientes) {
-          if (!c.barbero_id || !c.servicio_id) continue
-          const precio = Number(c.precio) || 0
-          const res = await calcularComisionBarbero(
-            adminSupabase,
-            c.barbero_id,
-            c.servicio_id,
-            precio,
-            c.fecha_hora ? new Date(c.fecha_hora) : new Date()
-          )
+        // Pre-cargar perfiles para evitar miles de queries en bucle
+        const { data: profilesList } = await adminSupabase
+          .from('profiles')
+          .select('id, comision_porcentaje')
+        const profileMap = new Map((profilesList || []).map(p => [p.id, p.comision_porcentaje]))
 
-          let baseComision = res.monto
-          // Aplicar descuento asumido por barbero si corresponde
-          if (c.notas && baseComision > 0) {
+        const updates = citasPendientes.map(async (c) => {
+          if (!c.barbero_id || !c.servicio_id) return
+          const serv = c.servicios as any
+          const servNombre = (serv?.nombre || '').toLowerCase()
+
+          // 1. Fijo estricto
+          if (
+            (serv?.comision_tipo === 'fija' && (serv?.comision_valor === 20 || serv?.comision_valor === 32)) ||
+            servNombre.includes('niño') ||
+            servNombre.includes('nino') ||
+            servNombre.includes('baño de luna') ||
+            servNombre.includes('bano de luna')
+          ) {
+            const fijaMonto = serv?.comision_valor === 32 ? 32 : 20
+            return adminSupabase.from('citas').update({ comision_barbero: fijaMonto }).eq('id', c.id)
+          }
+
+          // 2. Porcentajes protegidos o del perfil del barbero
+          let pctAplicar = profileMap.get(c.barbero_id) ?? 45
+          if (servNombre.includes('tinte')) {
+            pctAplicar = 35
+          } else if (servNombre.includes('diseño') || servNombre.includes('diseno')) {
+            pctAplicar = 50
+          }
+
+          const precio = Number(c.precio) || 0
+          let base = precio > 0 ? (precio * pctAplicar) / 100 : 0
+
+          // 3. Descuentos asumidos por el barbero
+          if (c.notas && base > 0) {
             const matchDesc = c.notas.match(/Desc\.\s*Especial:\s*-?Bs\s*(\d+(?:\.\d+)?)/i)
             if (matchDesc) {
               const descMonto = Number(matchDesc[1]) || 0
               if (/asume:\s*barbero/i.test(c.notas)) {
-                baseComision = Math.max(0, baseComision - descMonto)
+                base = Math.max(0, base - descMonto)
               } else if (/asume:\s*compartido/i.test(c.notas) || /50\/50/i.test(c.notas)) {
-                baseComision = Math.max(0, baseComision - (descMonto / 2))
+                base = Math.max(0, base - (descMonto / 2))
               }
             }
           }
 
           const propinaBarbero = (Number(c.propinas) || 0) * 0.5
-          const comisionFinal = baseComision + propinaBarbero
+          const comisionFinal = Math.round((base + propinaBarbero) * 100) / 100
 
-          await adminSupabase
-            .from('citas')
-            .update({ comision_barbero: comisionFinal })
-            .eq('id', c.id)
+          return adminSupabase.from('citas').update({ comision_barbero: comisionFinal }).eq('id', c.id)
+        })
 
-          citasRecalculadas++
-        }
+        await Promise.all(updates)
+        citasRecalculadas = citasPendientes.length
       }
     }
 

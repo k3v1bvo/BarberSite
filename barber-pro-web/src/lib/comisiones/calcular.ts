@@ -181,12 +181,13 @@ export async function calcularComisionBarbero(
     }
 
     if (servConfig && servConfig.comision_activa !== false && servConfig.comision_tipo !== 'ninguna') {
-      // 3.1. Servicios con monto fijo específico (ej. Corte de niño Bs 20, Baño de luna Bs 20, Combos Bs 32)
-      if (servConfig.comision_tipo === 'fija') {
+      // 3.1. Servicios con monto fijo específico (Corte de niño Bs 20, Baño de luna Bs 20)
+      const esFijoEspecial = servConfig.comision_tipo === 'fija' || /ni[ñn]o/i.test(servNombre) || /ba[ñn]o.*luna/i.test(servNombre)
+      if (esFijoEspecial) {
         resultado.tipo_usado = 'global'
         resultado.comision_tipo = 'fija'
-        resultado.comision_valor = servConfig.comision_valor || 0
-        resultado.monto = servConfig.comision_valor || 0
+        resultado.comision_valor = servConfig.comision_valor || 20
+        resultado.monto = resultado.comision_valor
         return resultado
       }
 
@@ -197,52 +198,69 @@ export async function calcularComisionBarbero(
       if (esTinte || esDiseno) {
         resultado.tipo_usado = 'global'
         resultado.comision_tipo = 'porcentaje'
-        resultado.comision_valor = servConfig.comision_valor || 0
-        resultado.monto = (precio_servicio * resultado.comision_valor) / 100
+        resultado.comision_valor = esTinte ? (servConfig.comision_valor || 35) : (servConfig.comision_valor || 50)
+        resultado.monto = precio_servicio > 0 ? (precio_servicio * resultado.comision_valor) / 100 : 0
         return resultado
       }
 
-      // 3.3. Servicios generales: calcular porcentaje dinámico por jornada del barbero (8h -> 40%, 10h -> 45%, 11h -> 50%)
-      const pctHoras = await obtenerPorcentajePorHoras(supabase, barbero_id, diaSemana)
-      if (pctHoras !== null) {
-        resultado.tipo_usado = 'horario'
-        resultado.comision_tipo = 'porcentaje'
-        resultado.comision_valor = pctHoras
-        resultado.monto = (precio_servicio * pctHoras) / 100
-        return resultado
+      // 3.3. Servicios generales (Corte de cabello, combos, barba, etc.):
+      // Prioridad A: Porcentaje asignado al barbero en su perfil (modificable por el admin con [40%] [45%] [50%] [✏️])
+      let pctFinal: number | null = null
+      if (barbero_id) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('comision_porcentaje')
+          .eq('id', barbero_id)
+          .maybeSingle()
+
+        if (prof && prof.comision_porcentaje && Number(prof.comision_porcentaje) > 0) {
+          pctFinal = Number(prof.comision_porcentaje)
+          resultado.tipo_usado = 'perfil'
+        }
       }
 
-      // 3.4. Si no tiene turno de horas registrado, usar el porcentaje base del servicio
-      resultado.tipo_usado = 'global'
+      // Prioridad B: Si el perfil no tiene porcentaje, calcular según horas de turno (8h -> 40%, 10h -> 45%, 11h -> 50%)
+      if (pctFinal === null && barbero_id) {
+        const pctHoras = await obtenerPorcentajePorHoras(supabase, barbero_id, diaSemana)
+        if (pctHoras !== null) {
+          pctFinal = pctHoras
+          resultado.tipo_usado = 'horario'
+        }
+      }
+
+      // Prioridad C: Fallback base (45%)
+      if (pctFinal === null) {
+        pctFinal = servConfig.comision_valor || 45
+        resultado.tipo_usado = 'global'
+      }
+
       resultado.comision_tipo = 'porcentaje'
-      resultado.comision_valor = servConfig.comision_valor || 45
-      resultado.monto = (precio_servicio * resultado.comision_valor) / 100
+      resultado.comision_valor = pctFinal
+      resultado.monto = precio_servicio > 0 ? (precio_servicio * pctFinal) / 100 : 0
       return resultado
     }
 
-    // 4. Fallback final: porcentaje por jornada o base configurado en el perfil del barbero
+    // 4. Fallback si no había servConfig
     if (resultado.tipo_usado === 'ninguna' && barbero_id) {
-      const pctHoras = await obtenerPorcentajePorHoras(supabase, barbero_id, diaSemana)
-      if (pctHoras !== null) {
-        resultado.tipo_usado = 'horario'
-        resultado.comision_tipo = 'porcentaje'
-        resultado.comision_valor = pctHoras
-        resultado.monto = (precio_servicio * pctHoras) / 100
-        return resultado
-      }
-
       const { data: prof } = await supabase
         .from('profiles')
         .select('comision_porcentaje')
         .eq('id', barbero_id)
         .maybeSingle()
 
-      if (prof && prof.comision_porcentaje && Number(prof.comision_porcentaje) > 0) {
-        resultado.tipo_usado = 'perfil'
-        resultado.comision_tipo = 'porcentaje'
-        resultado.comision_valor = Number(prof.comision_porcentaje)
-        resultado.monto = (precio_servicio * resultado.comision_valor) / 100
+      let pctFinal = (prof && prof.comision_porcentaje && Number(prof.comision_porcentaje) > 0)
+        ? Number(prof.comision_porcentaje)
+        : null
+
+      if (pctFinal === null) {
+        pctFinal = await obtenerPorcentajePorHoras(supabase, barbero_id, diaSemana)
       }
+
+      const p = pctFinal || 45
+      resultado.tipo_usado = 'perfil'
+      resultado.comision_tipo = 'porcentaje'
+      resultado.comision_valor = p
+      resultado.monto = precio_servicio > 0 ? (precio_servicio * p) / 100 : 0
     }
 
     return resultado

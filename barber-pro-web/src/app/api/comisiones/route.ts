@@ -147,7 +147,7 @@ export async function GET(req: Request) {
     }
   })
 
-  // Resumen global de rendimiento para todos los especialistas (independiente de filtros)
+  // Resumen de rendimiento para todos los especialistas (respetando fechas del filtro si se especifican)
   const { data: activeProfiles } = await adminSupabase
     .from('profiles')
     .select('id, full_name, avatar_url, role, comision_porcentaje')
@@ -155,10 +155,23 @@ export async function GET(req: Request) {
     .eq('is_active', true)
     .order('full_name')
 
-  const { data: allActiveCitas } = await adminSupabase
+  let citasRendimientoQuery = adminSupabase
     .from('citas')
     .select('id, barbero_id, precio, comision_barbero, comision_pagada, fecha_hora')
     .eq('estado', 'completado')
+    .order('fecha_hora', { ascending: false })
+
+  if (fecha_inicio) {
+    citasRendimientoQuery = citasRendimientoQuery.gte('fecha_hora', fecha_inicio.includes('T') ? fecha_inicio : `${fecha_inicio}T00:00:00-04:00`)
+  }
+  if (fecha_fin) {
+    citasRendimientoQuery = citasRendimientoQuery.lte('fecha_hora', fecha_fin.includes('T') ? fecha_fin : `${fecha_fin}T23:59:59-04:00`)
+  } else if (!fecha_inicio) {
+    // Si no hay filtro de fecha (ej. 'todas'), limitar al 2026 para no arrastrar miles de citas archivadas del 2022-2025
+    citasRendimientoQuery = citasRendimientoQuery.gte('fecha_hora', '2026-01-01T00:00:00Z').limit(1000)
+  }
+
+  const { data: allActiveCitas } = await citasRendimientoQuery
 
   const rendimiento_barberos = (activeProfiles || []).map(b => {
     const citasB = (allActiveCitas || []).filter(c => c.barbero_id === b.id)
@@ -167,7 +180,7 @@ export async function GET(req: Request) {
     const pendientes = citasB.filter(c => !c.comision_pagada)
     const cobradoPendiente = pendientes.reduce((sum, c) => sum + (Number(c.precio) || 0), 0)
     const comisionPendiente = pendientes.reduce((sum, c) => sum + (Number(c.comision_barbero) || 0), 0)
-    const pctEfectivo = cobradoTotal > 0 ? Math.round((comisionTotal / cobradoTotal) * 100) : 0
+    const pctEfectivo = cobradoTotal > 0 ? Math.round((comisionTotal / cobradoTotal) * 100) : (b.comision_porcentaje || 45)
 
     return {
       barbero: b,
