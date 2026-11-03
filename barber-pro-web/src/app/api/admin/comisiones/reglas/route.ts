@@ -138,7 +138,7 @@ export async function POST(req: Request) {
     if (recalcular_pendientes) {
       const { data: citasPendientes } = await adminSupabase
         .from('citas')
-        .select('id, barbero_id, servicio_id, precio, propinas, fecha_hora, notas, servicios(nombre, comision_tipo, comision_valor)')
+        .select('id, barbero_id, servicio_id, precio, propinas, fecha_hora, notas, servicios(nombre, precio, comision_tipo, comision_valor)')
         .eq('estado', 'completado')
         .eq('comision_pagada', false)
         .order('fecha_hora', { ascending: false })
@@ -176,19 +176,33 @@ export async function POST(req: Request) {
             pctAplicar = 50
           }
 
-          const precio = Number(c.precio) || 0
-          let base = precio > 0 ? (precio * pctAplicar) / 100 : 0
+          const precioCobrado = Number(c.precio) || 0
+          const precioCatalogo = Number(serv?.precio) || precioCobrado
 
-          // 3. Descuentos asumidos por el barbero
-          if (c.notas && base > 0) {
+          // Detectar monto de descuento
+          let descMonto = 0
+          if (c.notas) {
             const matchDesc = c.notas.match(/Desc\.\s*Especial:\s*-?Bs\s*(\d+(?:\.\d+)?)/i)
-            if (matchDesc) {
-              const descMonto = Number(matchDesc[1]) || 0
-              if (/asume:\s*barbero/i.test(c.notas)) {
-                base = Math.max(0, base - descMonto)
-              } else if (/asume:\s*compartido/i.test(c.notas) || /50\/50/i.test(c.notas)) {
-                base = Math.max(0, base - (descMonto / 2))
-              }
+            if (matchDesc) descMonto = Number(matchDesc[1]) || 0
+          }
+          if (descMonto === 0 && precioCatalogo > precioCobrado) {
+            descMonto = precioCatalogo - precioCobrado
+          }
+
+          // REGLA CLAVE:
+          // Si la barbería asume el descuento, la comisión se calcula sobre el precio de catálogo completo (50 Bs).
+          let base = (precioCatalogo * pctAplicar) / 100
+
+          if (c.notas && descMonto > 0) {
+            if (/asume:\s*barbero/i.test(c.notas)) {
+              base = Math.max(0, base - descMonto)
+            } else if (/asume:\s*compartido/i.test(c.notas) || /50\/50/i.test(c.notas)) {
+              base = Math.max(0, base - (descMonto / 2))
+            }
+            // Si es 'Asume: Barbería' → base se mantiene al 100% sobre el precio de catálogo
+          } else if (precioCobrado === 0 && precioCatalogo > 0 && !c.notas?.includes('asume:')) {
+            if (!c.notas?.includes('Barbería') && !c.notas?.includes('barberia')) {
+              base = 0
             }
           }
 

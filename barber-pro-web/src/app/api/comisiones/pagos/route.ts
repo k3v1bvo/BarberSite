@@ -397,7 +397,7 @@ export async function PATCH(req: Request) {
         // Obtenemos las citas pendientes más recientes (las activas que el admin ve y gestiona)
         const { data: citasPendientes } = await adminSupabase
           .from('citas')
-          .select('id, precio, propinas, notas, fecha_hora, servicios(nombre, comision_tipo, comision_valor)')
+          .select('id, precio, propinas, notas, fecha_hora, servicios(nombre, precio, comision_tipo, comision_valor)')
           .eq('barbero_id', barbero_id)
           .eq('estado', 'completado')
           .eq('comision_pagada', false)
@@ -429,19 +429,38 @@ export async function PATCH(req: Request) {
               pctAplicar = 50
             }
 
-            const precio = Number(c.precio) || 0
-            let base = precio > 0 ? (precio * pctAplicar) / 100 : 0
+            const precioCobrado = Number(c.precio) || 0
+            const precioCatalogo = Number(serv?.precio) || precioCobrado
 
-            // 3. Descuento asumido por el barbero si está registrado en notas
-            if (c.notas && base > 0) {
+            // Detectar monto de descuento
+            let descMonto = 0
+            if (c.notas) {
               const matchDesc = c.notas.match(/Desc\.\s*Especial:\s*-?Bs\s*(\d+(?:\.\d+)?)/i)
-              if (matchDesc) {
-                const descMonto = Number(matchDesc[1]) || 0
-                if (/asume:\s*barbero/i.test(c.notas)) {
-                  base = Math.max(0, base - descMonto)
-                } else if (/asume:\s*compartido/i.test(c.notas) || /50\/50/i.test(c.notas)) {
-                  base = Math.max(0, base - (descMonto / 2))
-                }
+              if (matchDesc) descMonto = Number(matchDesc[1]) || 0
+            }
+            if (descMonto === 0 && precioCatalogo > precioCobrado) {
+              descMonto = precioCatalogo - precioCobrado
+            }
+
+            // REGLA CLAVE:
+            // Si la barbería asume el descuento, la comisión del barbero NO se ve afectada.
+            // Se calcula sobre el precio de catálogo completo (ej. 50 Bs -> al 40% = 20 Bs).
+            let base = (precioCatalogo * pctAplicar) / 100
+
+            // Ajustar según quién asume el descuento:
+            if (c.notas && descMonto > 0) {
+              if (/asume:\s*barbero/i.test(c.notas)) {
+                // Barbero asume el 100% del descuento
+                base = Math.max(0, base - descMonto)
+              } else if (/asume:\s*compartido/i.test(c.notas) || /50\/50/i.test(c.notas)) {
+                // Compartido 50/50: se resta la mitad de la comisión del barbero
+                base = Math.max(0, base - (descMonto / 2))
+              }
+              // Si es 'Asume: Barbería' → base queda intacta sobre el precio de catálogo
+            } else if (precioCobrado === 0 && precioCatalogo > 0 && !c.notas?.includes('asume:')) {
+              // Cita gratuita sin nota explícita de asume barbería
+              if (!c.notas?.includes('Barbería') && !c.notas?.includes('barberia')) {
+                base = 0
               }
             }
 
