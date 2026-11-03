@@ -53,18 +53,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Datos requeridos faltantes' }, { status: 400 })
     }
 
-    // Find pending appointments for this barber within the dates
-    const { data: citas, error: citasError } = await adminSupabase
-      .from('citas')
-      .select('id, comision_barbero')
-      .eq('barbero_id', barbero_id)
-      .eq('estado', 'completado')
-      .eq('comision_pagada', false)
-      .gte('fecha_hora', fecha_inicio.includes('T') ? fecha_inicio : `${fecha_inicio}T00:00:00-04:00`)
-      .lte('fecha_hora', fecha_fin.includes('T') ? fecha_fin : `${fecha_fin}T23:59:59-04:00`)
+    // Find pending appointments for this barber (by IDs if provided or within the dates)
+    let citas: any[] = []
+    if (body.cita_ids && Array.isArray(body.cita_ids) && body.cita_ids.length > 0) {
+      const { data: cList, error: cErr } = await adminSupabase
+        .from('citas')
+        .select('id, comision_barbero, fecha_hora')
+        .in('id', body.cita_ids)
+        .eq('barbero_id', barbero_id)
+        .eq('estado', 'completado')
+        .eq('comision_pagada', false)
 
-    if (citasError) {
-      return NextResponse.json({ error: citasError.message }, { status: 500 })
+      if (cErr) {
+        return NextResponse.json({ error: cErr.message }, { status: 500 })
+      }
+      citas = cList || []
+    } else {
+      const { data: cList, error: citasError } = await adminSupabase
+        .from('citas')
+        .select('id, comision_barbero, fecha_hora')
+        .eq('barbero_id', barbero_id)
+        .eq('estado', 'completado')
+        .eq('comision_pagada', false)
+        .gte('fecha_hora', fecha_inicio.includes('T') ? fecha_inicio : `${fecha_inicio}T00:00:00-04:00`)
+        .lte('fecha_hora', fecha_fin.includes('T') ? fecha_fin : `${fecha_fin}T23:59:59-04:00`)
+
+      if (citasError) {
+        return NextResponse.json({ error: citasError.message }, { status: 500 })
+      }
+      citas = cList || []
     }
 
     if (!citas || citas.length === 0) {

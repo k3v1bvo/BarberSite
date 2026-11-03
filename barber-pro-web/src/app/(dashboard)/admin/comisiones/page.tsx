@@ -130,6 +130,12 @@ export default function AdminComisionesPage() {
       toastError('Selecciona un barbero')
       return
     }
+    const citasPendientesIds = citas.filter((c: any) => !c.comision_pagada).map((c: any) => c.id)
+    if (citasPendientesIds.length === 0) {
+      toastError('No hay citas pendientes para liquidar a este barbero')
+      return
+    }
+
     const hoyStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
     let inicio = hoyStr
     let fin = hoyStr
@@ -148,6 +154,7 @@ export default function AdminComisionesPage() {
           periodo_tipo: periodo,
           fecha_inicio: inicio,
           fecha_fin: fin,
+          cita_ids: citasPendientesIds,
           metodo_pago: metodoPago,
           monto_efectivo: pagoEfectivo,
           monto_qr: pagoQr,

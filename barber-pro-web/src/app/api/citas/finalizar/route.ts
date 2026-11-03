@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getNotificationDbClient } from '@/lib/supabase/admin'
 import { dispatchNotification } from '@/lib/notifications/dispatch'
 import { calcularNivelFidelidad } from '@/lib/lealtad/calcular-nivel'
+import { calcularComisionBarbero } from '@/lib/comisiones/calcular'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
@@ -45,7 +46,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'La cita no está en proceso' }, { status: 400 })
     }
 
-    const comisionTotal = (cita.comision_barbero || 0) + ((propinas || 0) * 0.5)
+    let baseComision = Number(cita.comision_barbero) || 0
+    if (baseComision === 0 && cita.barbero_id && cita.servicio_id && Number(cita.precio) > 0) {
+      const { data: serv } = await supabase
+        .from('servicios')
+        .select('comision_activa, comision_tipo, comision_valor, comision_acumulable')
+        .eq('id', cita.servicio_id)
+        .maybeSingle()
+      const comResult = await calcularComisionBarbero(
+        supabase,
+        cita.barbero_id,
+        cita.servicio_id,
+        Number(cita.precio),
+        cita.fecha_hora ? new Date(cita.fecha_hora) : new Date(),
+        serv || undefined
+      )
+      baseComision = comResult.monto
+    }
+
+    const comisionTotal = baseComision + ((propinas || 0) * 0.5)
 
     // ✅ ACTUALIZAR CITA Y ESTADÍSTICAS DEL CLIENTE
     const { error: updateCitaError } = await supabase
