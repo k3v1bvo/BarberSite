@@ -1,14 +1,38 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { formatCurrency } from '@/lib/utils'
-import { ArrowLeft, DollarSign, CheckCircle, Filter, Download, Edit, RefreshCw, AlertTriangle, X, Plus, Users, Settings } from 'lucide-react'
+import {
+  ArrowLeft,
+  DollarSign,
+  CheckCircle,
+  Filter,
+  Download,
+  Edit,
+  RefreshCw,
+  AlertTriangle,
+  X,
+  Plus,
+  Users,
+  Settings,
+  Scissors,
+  Calendar,
+  CreditCard,
+  Check,
+  FileText,
+  ChevronRight,
+  Wallet,
+  Clock,
+  Sparkles,
+  ExternalLink,
+} from 'lucide-react'
 import { ImageUpload } from '@/components/ui/ImageUpload'
 import ReglasComisionesModal from '@/components/comisiones/ReglasComisionesModal'
 
@@ -55,6 +79,10 @@ function parseDescuentoDetalle(c: any) {
 export default function AdminComisionesPage() {
   const router = useRouter()
   const { success, error: toastError } = useToast()
+
+  // Navegación por pestañas principales para UX clara y organizada
+  const [activeTab, setActiveTab] = useState<'liquidar' | 'citas' | 'historial'>('liquidar')
+
   const [citas, setCitas] = useState<any[]>([])
   const [pagos, setPagos] = useState<any[]>([])
   const [barberos, setBarberos] = useState<any[]>([])
@@ -65,10 +93,16 @@ export default function AdminComisionesPage() {
   const [fechaInicioCustom, setFechaInicioCustom] = useState<string>('')
   const [fechaFinCustom, setFechaFinCustom] = useState<string>('')
   const [rendimientoBarberos, setRendimientoBarberos] = useState<any[]>([])
+
+  // Modal de liquidación enfocado por especialista
+  const [showLiquidarModal, setShowLiquidarModal] = useState(false)
+  const [barberoALiquidar, setBarberoALiquidar] = useState<any>(null)
   const [metodoPago, setMetodoPago] = useState('efectivo')
   const [pagoEfectivo, setPagoEfectivo] = useState<number>(0)
   const [pagoQr, setPagoQr] = useState<number>(0)
   const [comprobanteUrl, setComprobanteUrl] = useState<string>('')
+  const [descuentoAdelanto, setDescuentoAdelanto] = useState<number>(0)
+
   const [loading, setLoading] = useState(true)
   const [isRecalculating, setIsRecalculating] = useState(false)
   const [showReglasModal, setShowReglasModal] = useState(false)
@@ -81,7 +115,6 @@ export default function AdminComisionesPage() {
   const [savingSancion, setSavingSancion] = useState(false)
 
   const [finanzas, setFinanzas] = useState({ saldo_adelantos: 0, sanciones_pendientes: [] as any[], total_sanciones: 0, bonos_pendientes: [] as any[], total_bonos: 0 })
-  const [descuentoAdelanto, setDescuentoAdelanto] = useState<number>(0)
   const [sancionesCatalogo, setSancionesCatalogo] = useState<any[]>([])
 
   const load = async () => {
@@ -128,8 +161,6 @@ export default function AdminComisionesPage() {
       if (cuentasSancion.length > 0 && nuevaSancion.tipo === 'llegada_tarde') {
         setNuevaSancion(prev => ({ ...prev, tipo: cuentasSancion[0].detalle }))
       }
-      
-      setDescuentoAdelanto(0) // Reset descuento on load
     } finally {
       setLoading(false)
     }
@@ -153,16 +184,29 @@ export default function AdminComisionesPage() {
     load()
   }, [barberoId, estado, periodo, fechaInicioCustom, fechaFinCustom])
 
+  // Abrir modal de liquidación enfocada para un barbero específico
+  const abrirLiquidacion = (b: any) => {
+    setBarberoALiquidar(b)
+    setBarberoId(b.id)
+    setEstado('pendiente')
+    setMetodoPago('efectivo')
+    setPagoEfectivo(0)
+    setPagoQr(0)
+    setComprobanteUrl('')
+    setDescuentoAdelanto(0)
+    setShowLiquidarModal(true)
+  }
+
   const marcarPagadas = async () => {
     if (!barberoId) {
-      toastError('Selecciona un barbero')
+      toastError('Selecciona un especialista')
       return
     }
     const barberoSeleccionado = barberos.find((b: any) => b.id === barberoId)
     const citasPendientes = citas.filter((c: any) => !c.comision_pagada)
     const citasPendientesIds = citasPendientes.map((c: any) => c.id)
     if (citasPendientesIds.length === 0) {
-      toastError('No hay citas pendientes para liquidar a este barbero')
+      toastError('No hay citas pendientes para liquidar a este especialista')
       return
     }
 
@@ -205,15 +249,17 @@ export default function AdminComisionesPage() {
       })
       if (!res.ok) throw new Error((await res.json()).error)
       success(`Comisiones pagadas correctamente a ${barberoSeleccionado?.full_name || 'especialista'}`)
+      setShowLiquidarModal(false)
       setComprobanteUrl('')
+      setDescuentoAdelanto(0)
       load()
     } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Error')
+      toastError(e instanceof Error ? e.message : 'Error al procesar pago')
     }
   }
 
   const editarComision = async (citaId: string, actual: number) => {
-    const val = prompt('Nuevo monto de comisión:', String(actual))
+    const val = prompt('Nuevo monto de comisión en Bs.:', String(actual))
     if (val === null) return
     const monto = parseFloat(val)
     if (Number.isNaN(monto) || monto < 0) {
@@ -282,7 +328,7 @@ export default function AdminComisionesPage() {
       setNuevaSancion({ tipo: sancionesCatalogo.length > 0 ? sancionesCatalogo[0].detalle : 'llegada_tarde', monto: 12, descripcion: '' })
       load()
     } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Error al crear sanción')
+      toastError(e instanceof Error ? e.message : 'Error')
     } finally {
       setSavingSancion(false)
     }
@@ -301,7 +347,7 @@ export default function AdminComisionesPage() {
   }
 
   const recalcularHistorico = async () => {
-    if (!confirm('¿Deseas intentar recalcular las comisiones antiguas que se guardaron en $0.00 automáticamente? El sistema revisará el porcentaje de cada barbero y el precio del servicio.')) return
+    if (!confirm('¿Deseas recalcular las comisiones antiguas que se guardaron en $0.00 automáticamente? El sistema revisará el porcentaje de cada barbero y el precio del servicio.')) return
     
     setIsRecalculating(true)
     try {
@@ -319,7 +365,7 @@ export default function AdminComisionesPage() {
 
   const exportarCSV = () => {
     const rows = [
-      ['Fecha', 'Barbero', 'Servicio', 'Cliente', 'Precio Servicio', 'Precio Cobrado', 'Descuento', '% Comisión', 'Comisión Barbero', 'Propina Barbero', 'Estado'],
+      ['Fecha', 'Barbero', 'Servicio', 'Cliente', 'Precio Catálogo', 'Total Cobrado POS', 'Descuento', '% Comisión', 'Comisión Barbero', 'Propina Barbero', 'Estado'],
       ...citas.map((c) => {
         const precio = Number(c.precio) || 0
         const precioServicio = Number(c.servicios?.precio) || precio
@@ -365,7 +411,7 @@ export default function AdminComisionesPage() {
         const pendientes = citasB.filter((c: any) => !c.comision_pagada)
         const comisionPendiente = pendientes.reduce((sum: number, c: any) => sum + (Number(c.comision_barbero) || 0), 0)
         const cobradoPendiente = pendientes.reduce((sum: number, c: any) => sum + (Number(c.precio) || 0), 0)
-        const pctEfectivo = cobrado > 0 ? Math.round((comisionTotal / cobrado) * 100) : 0
+        const pctEfectivo = cobrado > 0 ? Math.round((comisionTotal / cobrado) * 100) : (b.comision_porcentaje || 45)
 
         return {
           barbero: b,
@@ -380,182 +426,569 @@ export default function AdminComisionesPage() {
       })
 
   return (
-    <div className="space-y-8 pb-20">
-      <div className="flex items-center gap-6 border-b border-white/5 pb-8">
-        <button onClick={() => router.push('/admin')} className="p-4 hover:bg-white/5 border border-white/5 bg-zinc-950 rounded-2xl">
-          <ArrowLeft className="w-5 h-5 text-zinc-500" />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-4xl font-black text-white uppercase">Control de <span className="text-amber-500">Comisiones</span></h1>
-          <p className="text-zinc-500 mt-2">Pagos pendientes, historial y reportes por barbero</p>
+    <div className="space-y-6 pb-20 max-w-7xl mx-auto">
+      {/* HEADER SUPERIOR */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-6">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => router.push('/admin')} 
+            className="p-3.5 hover:bg-white/10 border border-white/10 bg-zinc-950 rounded-2xl transition-colors"
+            title="Volver al panel principal"
+          >
+            <ArrowLeft className="w-5 h-5 text-zinc-400" />
+          </button>
+          <div>
+            <h1 className="text-3xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+              Control de <span className="text-amber-500">Comisiones</span>
+            </h1>
+            <p className="text-zinc-400 text-xs mt-1">
+              Liquidaciones por barbero, escalas por horas y auditoría de servicios
+            </p>
+          </div>
         </div>
-        <Button
-          variant="primary"
-          className="bg-amber-500 hover:bg-amber-400 text-black font-bold"
+
+        {/* Acciones principales de cabecera */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            className="border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-black font-bold text-xs h-10"
+            onClick={() => {
+              setModalBarberoId(undefined)
+              setShowReglasModal(true)
+            }}
+          >
+            <Settings className="w-4 h-4 mr-2" /> Configurar Reglas %
+          </Button>
+
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={exportarCSV} 
+            disabled={!citas.length}
+            className="text-xs h-10 border-white/10"
+          >
+            <Download className="w-4 h-4 mr-1.5" /> CSV
+          </Button>
+
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="text-[11px] h-10 border-white/10 text-zinc-400 hover:text-white" 
+            onClick={recalcularHistorico} 
+            disabled={isRecalculating}
+            title="Recalcular citas antiguas en $0.00"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isRecalculating ? 'animate-spin' : ''}`} /> 
+            Corregir $0.00
+          </Button>
+        </div>
+      </div>
+
+      {/* PESTAÑAS PRINCIPALES (UX CLARA Y ENFOCADA) */}
+      <div className="flex items-center gap-2 border-b border-white/10 pb-1">
+        <button
           onClick={() => {
-            setModalBarberoId(undefined)
-            setShowReglasModal(true)
+            setActiveTab('liquidar')
+            setBarberoId('')
           }}
+          className={`flex items-center gap-2 px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
+            activeTab === 'liquidar'
+              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+              : 'text-zinc-400 hover:text-white hover:bg-white/5'
+          }`}
         >
-          <Settings className="w-4 h-4 mr-2" /> Configurar Porcentajes y Reglas
-        </Button>
-        <Button variant="outline" className="border-amber-500/30 text-amber-500 hover:bg-amber-500 hover:text-black" onClick={recalcularHistorico} disabled={isRecalculating}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${isRecalculating ? 'animate-spin' : ''}`} /> 
-          Corregir Citas a $0.00
-        </Button>
-        <Button variant="outline" onClick={exportarCSV} disabled={!citas.length}>
-          <Download className="w-4 h-4 mr-2" /> Exportar CSV
-        </Button>
+          <Wallet className="w-4 h-4" />
+          1. Liquidar a Especialistas
+          {resumen.pendiente > 0 && (
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${activeTab === 'liquidar' ? 'bg-black text-amber-400' : 'bg-amber-500/20 text-amber-400'}`}>
+              {formatCurrency(resumen.pendiente)}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('citas')}
+          className={`flex items-center gap-2 px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
+            activeTab === 'citas'
+              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+              : 'text-zinc-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Scissors className="w-4 h-4" />
+          2. Detalle de Citas ({citas.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('historial')}
+          className={`flex items-center gap-2 px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
+            activeTab === 'historial'
+              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+              : 'text-zinc-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          3. Historial de Pagos ({pagos.length})
+        </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {[
-          { label: 'Total Cobrado', value: resumen.total_cobrado, color: 'text-blue-400', sub: 'Monto de servicios' },
-          { label: 'Comisión Pendiente', value: resumen.pendiente, color: 'text-amber-500', sub: 'Por liquidar a barberos' },
-          { label: 'Generado Hoy', value: resumen.hoy, color: 'text-white', sub: 'Comisiones del día' },
-          { label: 'Esta Semana', value: resumen.semana, color: 'text-zinc-300', sub: 'Comisiones de semana' },
-          { label: 'Total Pagado', value: resumen.pagado, color: 'text-green-500', sub: 'Historial liquidado' },
-        ].map((s) => (
-          <Card key={s.label} className="bg-zinc-900 border-white/5">
-            <CardContent className="p-5">
-              <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">{s.label}</p>
-              <p className={`text-2xl font-black mt-2 ${s.color}`}>{formatCurrency(s.value)}</p>
-              <p className="text-[10px] text-zinc-500 mt-1">{s.sub}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Tabla de Rendimiento y Comisiones por Barbero */}
-      {barberos.length > 0 && (
-        <Card className="bg-zinc-900 border-white/5">
-          <CardHeader className="pb-3 border-b border-white/5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <CardTitle className="text-white uppercase text-sm flex items-center gap-2">
-                <Users size={16} className="text-amber-500" /> Rendimiento y Comisiones por Especialista
-              </CardTitle>
-              <span className="text-xs text-zinc-400">
-                Resumen de servicios atendidos, cobro total y liquidación por persona
-              </span>
+      {/* ============================================================== */}
+      {/* PESTAÑA 1: LIQUIDAR A ESPECIALISTAS (FLUJO PRINCIPAL DIARIO)   */}
+      {/* ============================================================== */}
+      {activeTab === 'liquidar' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Filtros de período rápido y Resumen KPI */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-900/60 p-4 rounded-2xl border border-white/5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-zinc-400 mr-2 uppercase tracking-wider">Periodo:</span>
+              <button
+                onClick={() => setPeriodo('todas')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  periodo === 'todas'
+                    ? 'bg-amber-500 text-black shadow-md'
+                    : 'bg-zinc-950 text-zinc-400 hover:text-white border border-white/10'
+                }`}
+              >
+                ⚡ Todo lo pendiente
+              </button>
+              <button
+                onClick={() => setPeriodo('diario')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  periodo === 'diario'
+                    ? 'bg-amber-500 text-black shadow-md'
+                    : 'bg-zinc-950 text-zinc-400 hover:text-white border border-white/10'
+                }`}
+              >
+                📅 Solo Hoy
+              </button>
+              <button
+                onClick={() => setPeriodo('semanal')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  periodo === 'semanal'
+                    ? 'bg-amber-500 text-black shadow-md'
+                    : 'bg-zinc-950 text-zinc-400 hover:text-white border border-white/10'
+                }`}
+              >
+                🗓️ Esta Semana
+              </button>
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs min-w-[700px]">
+
+            {/* KPIs compactos */}
+            <div className="flex items-center gap-6 text-right">
+              <div>
+                <p className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Total Cobrado en POS</p>
+                <p className="text-lg font-black text-blue-400">{formatCurrency(resumen.total_cobrado)}</p>
+              </div>
+              <div className="border-l border-white/10 pl-6">
+                <p className="text-[10px] uppercase font-bold text-amber-500 tracking-wider">Por Liquidar a Barberos</p>
+                <p className="text-xl font-black text-amber-400">{formatCurrency(resumen.pendiente)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Grid de Cards de Especialistas */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {resumenBarberos.map((rb) => {
+              const tienePendientes = rb.citasPendientes > 0 || rb.comisionPendiente > 0
+              const pctActual = rb.barbero.comision_porcentaje || 45
+
+              return (
+                <div
+                  key={rb.barbero.id}
+                  className={`bg-zinc-900 border rounded-2xl p-5 flex flex-col justify-between transition-all relative overflow-hidden group ${
+                    tienePendientes ? 'border-amber-500/30 hover:border-amber-500' : 'border-white/5 opacity-85 hover:opacity-100'
+                  }`}
+                >
+                  {/* Encabezado del Barbero */}
+                  <div>
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center font-black text-white text-lg overflow-hidden shrink-0">
+                          {rb.barbero.avatar_url ? (
+                            <img src={rb.barbero.avatar_url} alt={rb.barbero.full_name} className="w-full h-full object-cover" />
+                          ) : (
+                            rb.barbero.full_name?.charAt(0) || 'B'
+                          )}
+                        </div>
+                        <div>
+                          <h3 className="font-black text-white text-base leading-tight group-hover:text-amber-400 transition-colors">
+                            {rb.barbero.full_name}
+                          </h3>
+                          <Badge variant="outline" className="text-[9px] uppercase tracking-wider font-mono mt-1">
+                            {rb.barbero.role}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {tienePendientes ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
+                          {rb.citasPendientes} pend.
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          ✓ Al día
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Métricas clave */}
+                    <div className="grid grid-cols-2 gap-3 bg-zinc-950/70 p-3.5 rounded-xl border border-white/5 mb-4">
+                      <div>
+                        <span className="text-[10px] text-zinc-500 uppercase font-black tracking-wider block">Cobrado POS</span>
+                        <span className="text-base font-bold text-blue-400">{formatCurrency(rb.cobrado)}</span>
+                        <span className="text-[10px] text-zinc-500 block font-mono mt-0.5">{rb.totalCitas} citas</span>
+                      </div>
+                      <div className="border-l border-white/5 pl-3">
+                        <span className="text-[10px] text-amber-500 uppercase font-black tracking-wider block">Comisión Pendiente</span>
+                        <span className="text-xl font-black text-amber-400">{formatCurrency(rb.comisionPendiente)}</span>
+                        <span className="text-[10px] text-zinc-500 block font-mono mt-0.5">ganancia barbero</span>
+                      </div>
+                    </div>
+
+                    {/* Selector de Porcentaje Rápido por Horario */}
+                    <div className="bg-black/40 p-3 rounded-xl border border-white/5 mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] uppercase font-black text-zinc-400 tracking-wider">
+                          % Comisión Actual:
+                        </span>
+                        <span className="text-xs font-black text-amber-400 font-mono">
+                          {pctActual}%
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {updatingBarberoId === rb.barbero.id ? (
+                          <div className="w-full flex items-center justify-center gap-2 py-1 text-xs text-amber-400 font-bold">
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Actualizando citas...
+                          </div>
+                        ) : (
+                          <>
+                            {[40, 45, 50].map((p) => (
+                              <button
+                                key={p}
+                                type="button"
+                                disabled={updatingBarberoId !== null}
+                                onClick={() => cambiarPorcentajeBarbero(rb.barbero.id, rb.barbero.full_name, p)}
+                                className={`flex-1 py-1.5 rounded-lg text-[10px] font-black border transition-all ${
+                                  pctActual === p
+                                    ? 'bg-amber-500 text-black border-amber-500 shadow-md font-bold'
+                                    : 'bg-zinc-950 text-zinc-400 border-white/10 hover:border-amber-500/50 hover:text-white'
+                                }`}
+                                title={`Asignar ${p}% (${p === 40 ? 'Turno 8h' : p === 45 ? 'Turno 10h' : 'Turno 11h'})`}
+                              >
+                                {p}% <span className="text-[8px] font-normal opacity-70">({p === 40 ? '8h' : p === 45 ? '10h' : '11h'})</span>
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              disabled={updatingBarberoId !== null}
+                              onClick={() => cambiarPorcentajePersonalizado(rb.barbero.id, rb.barbero.full_name, pctActual)}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-zinc-950 text-zinc-400 border border-white/10 hover:text-white hover:border-white/30"
+                              title="Porcentaje personalizado"
+                            >
+                              ✏️
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Acciones de la Card */}
+                  <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
+                    {tienePendientes ? (
+                      <Button
+                        variant="primary"
+                        onClick={() => abrirLiquidacion(rb.barbero)}
+                        className="w-full h-11 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-wider text-xs shadow-lg shadow-amber-500/10"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" /> Liquidar {formatCurrency(rb.comisionPendiente)}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        disabled
+                        className="w-full h-11 border-white/5 text-zinc-500 text-xs uppercase font-bold"
+                      >
+                        ✓ Sin comisiones pendientes
+                      </Button>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setBarberoId(rb.barbero.id)
+                          setActiveTab('citas')
+                        }}
+                        className="flex-1 h-8 text-[10px] uppercase font-bold border-white/5 hover:border-white/20 text-zinc-400 hover:text-white"
+                      >
+                        Ver Citas ({rb.citasPendientes})
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setModalBarberoId(rb.barbero.id)
+                          setShowReglasModal(true)
+                        }}
+                        className="h-8 text-[10px] uppercase font-bold border-white/5 hover:border-amber-500/30 text-zinc-400 hover:text-amber-400 px-2.5"
+                        title="Configurar reglas especiales para este barbero"
+                      >
+                        <Settings className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* PESTAÑA 2: DETALLE DE CITAS Y SERVICIOS (AUDITORÍA COMPLETA)   */}
+      {/* ============================================================== */}
+      {activeTab === 'citas' && (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          {/* Barra de Filtros de la Tabla */}
+          <div className="flex flex-wrap items-center gap-3 bg-zinc-900 p-4 rounded-2xl border border-white/5">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-[9px] uppercase font-black text-zinc-500 mb-1 tracking-wider">Especialista</label>
+              <select 
+                className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white font-bold text-xs" 
+                value={barberoId} 
+                onChange={(e) => setBarberoId(e.target.value)}
+              >
+                <option value="">Todos los especialistas</option>
+                {barberos.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.full_name} ({b.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="w-[160px]">
+              <label className="block text-[9px] uppercase font-black text-zinc-500 mb-1 tracking-wider">Estado de Pago</label>
+              <select 
+                className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white text-xs font-bold" 
+                value={estado} 
+                onChange={(e) => setEstado(e.target.value)}
+              >
+                <option value="pendiente">Solo Pendientes</option>
+                <option value="pagada">Solo Pagadas</option>
+                <option value="todas">Todas las citas</option>
+              </select>
+            </div>
+
+            <div className="w-[180px]">
+              <label className="block text-[9px] uppercase font-black text-zinc-500 mb-1 tracking-wider">Rango de Fecha</label>
+              <select 
+                className="w-full h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white text-xs font-bold" 
+                value={periodo} 
+                onChange={(e) => setPeriodo(e.target.value as any)}
+              >
+                <option value="todas">Todas las fechas</option>
+                <option value="diario">Solo de hoy</option>
+                <option value="semanal">Esta semana</option>
+                <option value="personalizado">Personalizado...</option>
+              </select>
+            </div>
+
+            {periodo === 'personalizado' && (
+              <div className="flex items-end gap-2">
+                <div>
+                  <label className="block text-[9px] uppercase font-black text-zinc-500 mb-1">Desde</label>
+                  <input
+                    type="date"
+                    value={fechaInicioCustom}
+                    onChange={(e) => setFechaInicioCustom(e.target.value)}
+                    className="h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] uppercase font-black text-zinc-500 mb-1">Hasta</label>
+                  <input
+                    type="date"
+                    value={fechaFinCustom}
+                    onChange={(e) => setFechaFinCustom(e.target.value)}
+                    className="h-11 bg-zinc-950 border border-white/10 rounded-xl px-3 text-white text-xs font-mono"
+                  />
+                </div>
+              </div>
+            )}
+
+            {barberoId && (
+              <div className="self-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBarberoId('')}
+                  className="h-11 text-xs border-white/10 text-zinc-400 hover:text-white"
+                >
+                  <X className="w-3.5 h-3.5 mr-1" /> Quitar filtro
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Tabla de Detalle */}
+          <div className="bg-zinc-900 border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-sm min-w-[960px]">
                 <thead>
-                  <tr className="text-zinc-500 uppercase text-[10px] tracking-widest border-b border-white/5 bg-zinc-950/40">
-                    <th className="text-left py-3 px-4">Especialista</th>
-                    <th className="text-center py-3 px-3">Citas</th>
-                    <th className="text-right py-3 px-4">Total Cobrado</th>
-                    <th className="text-right py-3 px-4">Comisión Ganada</th>
-                    <th className="text-center py-3 px-3">% Efectivo</th>
-                    <th className="text-right py-3 px-4">Por Liquidar</th>
-                    <th className="text-right py-3 px-4">Acciones</th>
+                  <tr className="text-zinc-500 uppercase text-[10px] tracking-widest border-b border-white/5 bg-zinc-950/60">
+                    <th className="text-left py-3.5 px-4">Fecha</th>
+                    <th className="text-left py-3.5 px-4">Barbero</th>
+                    <th className="text-left py-3.5 px-4">Servicio</th>
+                    <th className="text-left py-3.5 px-4">Cliente</th>
+                    <th className="text-right py-3.5 px-4">
+                      Precio Servicio
+                      <span className="block text-[9px] text-zinc-500 font-normal lowercase tracking-normal">catálogo</span>
+                    </th>
+                    <th className="text-right py-3.5 px-4 text-amber-400">
+                      Total Cobrado
+                      <span className="block text-[9px] text-amber-500/80 font-normal lowercase tracking-normal">en pos</span>
+                    </th>
+                    <th className="text-center py-3.5 px-4">% Comisión</th>
+                    <th className="text-right py-3.5 px-4">Comisión Barbero</th>
+                    <th className="text-right py-3.5 px-4">Estado</th>
+                    <th className="text-right py-3.5 px-4">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {resumenBarberos.map((rb) => {
-                    const esActivo = barberoId === rb.barbero.id
+                  {loading ? (
+                    <tr><td colSpan={10} className="py-16 text-center text-zinc-500 font-bold text-xs uppercase tracking-wider">Cargando citas...</td></tr>
+                  ) : citas.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-20 text-center">
+                        <Scissors className="w-12 h-12 mx-auto text-zinc-700 mb-3 opacity-40" />
+                        <p className="text-zinc-400 font-bold text-sm">No se encontraron citas con los filtros seleccionados.</p>
+                      </td>
+                    </tr>
+                  ) : citas.map((c) => {
+                    const precioCobrado = Number(c.precio) || 0
+                    const precioServicio = Number(c.servicios?.precio) || precioCobrado
+                    const hayDescuento = precioServicio > precioCobrado
+                    const montoDescuento = Math.max(0, precioServicio - precioCobrado)
+                    const comision = Number(c.comision_barbero) || 0
+                    const propinaBarbero = (Number(c.propinas) || 0) * 0.5
+                    const comisionServicioBase = Math.max(0, comision - propinaBarbero)
+                    const pct = precioCobrado > 0 ? Math.round((comisionServicioBase / precioCobrado) * 100) : 0
+                    const esFija = c.servicios?.comision_tipo === 'fija'
+                    const detallesDesc = parseDescuentoDetalle(c)
+
                     return (
-                      <tr
-                        key={rb.barbero.id}
-                        className={`hover:bg-white/5 transition-colors ${esActivo ? 'bg-amber-500/10' : ''}`}
-                      >
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-white text-sm">{rb.barbero.full_name}</span>
-                            <Badge variant="outline" className="text-[9px] uppercase font-mono">
-                              {rb.barbero.role}
-                            </Badge>
-                          </div>
+                      <tr key={c.id} className="hover:bg-white/5 transition-colors">
+                        <td className="py-3 px-4 text-zinc-400 whitespace-nowrap font-mono text-xs">
+                          {new Date(c.fecha_hora).toLocaleDateString('es-BO')}
                         </td>
-                        <td className="py-3 px-3 text-center text-zinc-300">
-                          <span className="font-semibold">{rb.totalCitas}</span>
-                          {rb.citasPendientes > 0 && (
-                            <span className="text-[10px] text-amber-400 block font-mono">
-                              ({rb.citasPendientes} pend.)
+                        <td className="py-3 px-4 text-white font-bold">{c.barbero?.full_name}</td>
+                        <td className="py-3 px-4 text-zinc-200">
+                          <div className="font-semibold">{c.servicios?.nombre || 'Servicio'}</div>
+                          {c.comision_categoria && (
+                            <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">
+                              Cat: {c.comision_categoria}
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-right font-bold text-blue-400">
-                          {formatCurrency(rb.cobrado)}
+                        <td className="py-3 px-4 text-zinc-400">{c.clientes?.nombre || '—'}</td>
+                        
+                        {/* PRECIO ORIGINAL DEL SERVICIO (CATÁLOGO) */}
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <span className="font-semibold text-zinc-400">
+                            {formatCurrency(precioServicio)}
+                          </span>
                         </td>
-                        <td className="py-3 px-4 text-right font-bold text-white">
-                          {formatCurrency(rb.comisionTotal)}
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                              {rb.pctEfectivo}%
-                            </span>
-                            <div className="flex items-center gap-1 mt-0.5">
-                              {updatingBarberoId === rb.barbero.id ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-bold py-0.5">
-                                  <RefreshCw className="w-3 h-3 animate-spin" /> Actualizando...
-                                </span>
-                              ) : (
-                                <>
-                                  {[40, 45, 50].map((p) => (
-                                    <button
-                                      key={p}
-                                      type="button"
-                                      disabled={updatingBarberoId !== null}
-                                      onClick={() => cambiarPorcentajeBarbero(rb.barbero.id, rb.barbero.full_name, p)}
-                                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${
-                                        rb.barbero.comision_porcentaje === p
-                                          ? 'bg-amber-500 text-black border-amber-500'
-                                          : 'bg-zinc-950 text-zinc-400 border-white/10 hover:border-amber-500/50 hover:text-white'
-                                      }`}
-                                      title={`Fijar a ${p}% (${p === 40 ? '8 horas' : p === 45 ? '10 horas' : '11 horas'})`}
-                                    >
-                                      {p}%
-                                    </button>
-                                  ))}
-                                  <button
-                                    type="button"
-                                    disabled={updatingBarberoId !== null}
-                                    onClick={() => cambiarPorcentajePersonalizado(rb.barbero.id, rb.barbero.full_name, rb.barbero.comision_porcentaje || 45)}
-                                    className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-950 text-zinc-400 border border-white/10 hover:text-white hover:border-white/30"
-                                    title="Porcentaje personalizado"
-                                  >
-                                    ✏️
-                                  </button>
-                                </>
-                              )}
+
+                        {/* PRECIO REAL COBRADO */}
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          {detallesDesc.esGratis || precioCobrado === 0 ? (
+                            <div>
+                              <span className="font-bold text-emerald-400">Bs 0.00</span>
+                              <span className="block text-[10px] text-red-400 font-mono">
+                                (-{formatCurrency(precioServicio)})
+                              </span>
                             </div>
-                          </div>
+                          ) : hayDescuento ? (
+                            <div>
+                              <span className="font-bold text-white">{formatCurrency(precioCobrado)}</span>
+                              <span className="block text-[10px] text-red-400 font-mono">
+                                (-{formatCurrency(montoDescuento)})
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="font-bold text-white">{formatCurrency(precioCobrado)}</span>
+                          )}
                         </td>
-                        <td className="py-3 px-4 text-right font-black text-amber-500 text-sm">
-                          {formatCurrency(rb.comisionPendiente)}
+                        
+                        {/* % COMISION */}
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          {precioCobrado > 0 ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
+                              {pct}%
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700">
+                              0%
+                            </span>
+                          )}
+                          {esFija && (
+                            <span className="block text-[9px] text-zinc-500 font-mono mt-0.5">monto fijo</span>
+                          )}
+                          {detallesDesc.badges.map((b, i) => (
+                            <span key={i} className={`block text-[9px] font-bold px-1.5 py-0.5 rounded mt-1 border ${b.color}`}>
+                              {b.text}
+                            </span>
+                          ))}
                         </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              type="button"
-                              className="h-8 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-black"
-                              onClick={() => {
-                                setModalBarberoId(rb.barbero.id)
-                                setShowReglasModal(true)
-                              }}
-                              title="Configurar comisión por porcentaje o por servicio"
+
+                        {/* COMISION BARBERO */}
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <span className={`font-black text-base ${comision > 0 ? 'text-amber-500' : 'text-zinc-600'}`}>
+                            {formatCurrency(comision)}
+                          </span>
+                          {esFija ? (
+                            <span className="block text-[10px] text-zinc-400 font-mono">
+                              (Fijo {formatCurrency(comision)})
+                            </span>
+                          ) : precioCobrado > 0 ? (
+                            <span className="block text-[10px] text-zinc-400 font-mono">
+                              ({pct}% de {formatCurrency(precioCobrado)})
+                            </span>
+                          ) : (
+                            <span className="block text-[10px] text-zinc-600 font-mono">
+                              (Sin cobro)
+                            </span>
+                          )}
+                          {propinaBarbero > 0 && (
+                            <span className="block text-[10px] text-green-400 font-mono">
+                              +{formatCurrency(propinaBarbero)} propina
+                            </span>
+                          )}
+                        </td>
+
+                        {/* ESTADO */}
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <Badge variant={c.comision_pagada ? 'success' : 'warning'}>
+                            {c.comision_pagada ? 'Pagada' : 'Pendiente'}
+                          </Badge>
+                        </td>
+
+                        {/* ACCION */}
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          {!c.comision_pagada && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => editarComision(c.id, c.comision_barbero || 0)} 
+                              title="Ajustar monto manual de comisión"
+                              className="h-8 px-2 border-white/10 hover:border-amber-500"
                             >
-                              <Settings className="w-3.5 h-3.5 mr-1" /> Reglas %
+                              <Edit className="w-3.5 h-3.5 text-zinc-300" />
                             </Button>
-                            <Button
-                              variant={esActivo ? 'primary' : 'outline'}
-                              size="sm"
-                              type="button"
-                              className="h-8 text-xs"
-                              onClick={() => {
-                                setBarberoId(rb.barbero.id)
-                                setEstado('pendiente')
-                              }}
-                            >
-                              {esActivo ? 'Filtrado' : 'Liquidar'}
-                            </Button>
-                          </div>
+                          )}
                         </td>
                       </tr>
                     )
@@ -563,329 +996,248 @@ export default function AdminComisionesPage() {
                 </tbody>
               </table>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      <Card className="bg-zinc-900 border-white/5">
-        <CardHeader><CardTitle className="text-white uppercase text-sm flex items-center gap-2"><Filter size={16} /> Filtros y pago</CardTitle></CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex flex-wrap items-center gap-4">
-            <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white font-bold text-xs" value={barberoId} onChange={(e) => setBarberoId(e.target.value)}>
-              <option value="">Todos los barberos y personal</option>
-              {barberos.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.full_name} ({b.role === 'coordinador' ? 'Coordinador' : 'Barbero'})
-                </option>
-              ))}
-            </select>
-            {barberoId && (
-              <Button
-                variant="outline"
-                type="button"
-                className="h-12 border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-black font-bold text-xs uppercase"
-                onClick={() => {
-                  setModalBarberoId(barberoId)
-                  setShowReglasModal(true)
-                }}
-              >
-                <Settings className="w-4 h-4 mr-2" /> Configurar Reglas de {barberos.find(b => b.id === barberoId)?.full_name?.split(' ')[0]}
-              </Button>
-            )}
-            <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white" value={estado} onChange={(e) => setEstado(e.target.value)}>
-              <option value="pendiente">Pendientes</option>
-              <option value="pagada">Pagadas</option>
-              <option value="todas">Todas</option>
-            </select>
-            <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white" value={periodo} onChange={(e) => setPeriodo(e.target.value as any)}>
-              <option value="todas">Todas las pendientes (Recomendado)</option>
-              <option value="diario">Solo de hoy (Diario)</option>
-              <option value="semanal">Esta semana</option>
-              <option value="personalizado">Rango personalizado</option>
-            </select>
-            {periodo === 'personalizado' && (
-              <div className="flex items-center gap-2 bg-zinc-950 border border-white/10 rounded-xl px-3 h-12">
-                <input
-                  type="date"
-                  value={fechaInicioCustom}
-                  onChange={(e) => setFechaInicioCustom(e.target.value)}
-                  className="bg-transparent text-white text-xs font-mono outline-none"
-                  title="Fecha inicio"
-                />
-                <span className="text-zinc-500 text-xs">a</span>
-                <input
-                  type="date"
-                  value={fechaFinCustom}
-                  onChange={(e) => setFechaFinCustom(e.target.value)}
-                  className="bg-transparent text-white text-xs font-mono outline-none"
-                  title="Fecha fin"
-                />
-              </div>
-            )}
-            <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white uppercase text-xs font-bold" value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}>
-              <option value="efectivo">Efectivo</option>
-              <option value="qr">QR / Transferencia</option>
-              <option value="mixto">Mixto (Efec. + QR)</option>
-              <option value="tarjeta">Tarjeta</option>
-            </select>
-          </div>
+      {/* ============================================================== */}
+      {/* PESTAÑA 3: HISTORIAL DE LIQUIDACIONES                          */}
+      {/* ============================================================== */}
+      {activeTab === 'historial' && (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          <Card className="bg-zinc-900 border-white/5">
+            <CardHeader className="border-b border-white/5 pb-4">
+              <CardTitle className="text-white uppercase text-sm flex items-center gap-2">
+                <FileText size={16} className="text-amber-500" /> Registro Contable de Liquidaciones
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {pagos.length === 0 ? (
+                <div className="py-16 text-center text-zinc-500 font-bold text-xs uppercase">
+                  No hay pagos registrados aún.
+                </div>
+              ) : (
+                <div className="divide-y divide-white/5">
+                  {pagos.map((p) => (
+                    <div key={p.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white/5 transition-colors">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-base">{p.barbero?.full_name || 'Especialista'}</span>
+                          <Badge variant="outline" className="text-[10px] uppercase font-mono">
+                            {p.metodo_pago}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-zinc-400 mt-1 font-mono">
+                          Periodo: {p.fecha_inicio} → {p.fecha_fin} • Registrado el {new Date(p.created_at).toLocaleDateString('es-BO')}
+                        </p>
+                        {p.notas && (
+                          <p className="text-xs text-zinc-500 mt-0.5">{p.notas}</p>
+                        )}
+                      </div>
 
-          {metodoPago === 'mixto' && barberoId && estado === 'pendiente' && (
-            <div className="p-4 rounded-xl border border-white/10 bg-zinc-950 flex gap-4 animate-in fade-in">
-              <div className="flex-1">
-                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Monto en Efectivo</label>
-                <Input 
-                  type="number" 
-                  min={0}
-                  value={pagoEfectivo || ''} 
-                  onChange={e => setPagoEfectivo(Number(e.target.value) || 0)} 
-                  className="bg-black text-lg h-12"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Monto en QR</label>
-                <Input 
-                  type="number" 
-                  min={0}
-                  value={pagoQr || ''} 
-                  onChange={e => setPagoQr(Number(e.target.value) || 0)} 
-                  className="bg-black text-lg h-12"
-                />
-              </div>
-            </div>
-          )}
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase text-zinc-500 block font-bold">Monto Liquidado</span>
+                          <span className="text-xl font-black text-emerald-400 font-mono">{formatCurrency(p.monto_total)}</span>
+                        </div>
 
-          {barberoId && estado === 'pendiente' && (
-            <div className="p-4 rounded-xl border border-white/10 bg-black/50 space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500 border-b border-white/5 pb-2">Resumen Financiero para Pago</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
-                <div>
-                  <span className="block text-zinc-400 mb-1">Total Cobrado</span>
-                  <span className="font-bold text-blue-400">{formatCurrency(citasCobradoPendiente)}</span>
-                  <span className="text-[10px] text-zinc-500 block">En citas pendientes</span>
-                </div>
-                <div>
-                  <span className="block text-zinc-400 mb-1">Comisión Barbero</span>
-                  <span className="font-bold text-amber-500">{formatCurrency(resumen.pendiente)}</span>
-                  {citasCobradoPendiente > 0 && (
-                    <span className="text-[10px] text-zinc-400 block font-mono">
-                      ~{Math.round((resumen.pendiente / citasCobradoPendiente) * 100)}% del cobrado
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <span className="block text-zinc-400 mb-1">Deuda por Adelantos</span>
-                  <span className="font-bold text-red-400">{formatCurrency(finanzas.saldo_adelantos)}</span>
-                </div>
-                <div>
-                  <span className="block text-zinc-400 mb-1 flex items-center gap-2">
-                    Sanciones (se restarán)
-                    <button onClick={() => setShowSancionesModal(true)} className="text-blue-400 hover:text-blue-300">
-                      <Edit className="w-3 h-3" />
-                    </button>
-                  </span>
-                  <span className="font-bold text-red-400 cursor-pointer" onClick={() => setShowSancionesModal(true)}>
-                    -{formatCurrency(finanzas.total_sanciones)} ({finanzas.sanciones_pendientes.length})
-                  </span>
-                </div>
-                <div>
-                  <span className="block text-zinc-400 mb-1">Bonos (se sumarán)</span>
-                  <span className="font-bold text-green-400">+{formatCurrency(finanzas.total_bonos)}</span>
-                </div>
-              </div>
-
-              {(metodoPago === 'qr' || metodoPago === 'mixto' || metodoPago === 'tarjeta') && (
-                <div className="pt-2">
-                  <ImageUpload
-                    label="Comprobante de Pago"
-                    defaultImage={comprobanteUrl || undefined}
-                    onUploadSuccess={(url) => setComprobanteUrl(url)}
-                    onUploadError={(err) => toastError(err)}
-                  />
+                        {p.comprobante_url && (
+                          <a 
+                            href={p.comprobante_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="p-2.5 rounded-xl bg-zinc-950 border border-white/10 hover:border-amber-500/50 text-zinc-400 hover:text-white transition-colors"
+                            title="Ver comprobante adjunto"
+                          >
+                            <ExternalLink size={16} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-              
-              <div className="flex flex-col md:flex-row items-center gap-4 pt-4 border-t border-white/5">
-                <div className="flex-1">
-                  <label className="block text-xs text-zinc-400 mb-1">Monto de Adelanto a cobrar hoy (Max: {formatCurrency(finanzas.saldo_adelantos)})</label>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL DE LIQUIDACIÓN ENFOCADA (STEP-BY-STEP CHECKOUT)          */}
+      {/* ============================================================== */}
+      <Modal
+        isOpen={showLiquidarModal}
+        onClose={() => setShowLiquidarModal(false)}
+        title={
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-amber-500" />
+            <span>Liquidar a <span className="text-amber-500">{barberoALiquidar?.full_name}</span></span>
+          </div>
+        }
+        subtitle="Revisa el desglose de comisiones, aplica deducciones o adelantos y confirma el pago."
+        maxWidth="max-w-2xl"
+      >
+        <div className="space-y-6 pt-2">
+          {/* Desglose Contable */}
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-4 space-y-3">
+            <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+              <span className="text-zinc-400">Total cobrado al cliente (en citas):</span>
+              <span className="font-bold text-blue-400">{formatCurrency(citasCobradoPendiente)}</span>
+            </div>
+
+            <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+              <span className="text-white font-bold">Comisión bruta por servicios:</span>
+              <span className="font-bold text-amber-400 text-base">+{formatCurrency(resumen.pendiente)}</span>
+            </div>
+
+            {finanzas.total_bonos > 0 && (
+              <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                <span className="text-green-400">Bonos adicionales a favor:</span>
+                <span className="font-bold text-green-400">+{formatCurrency(finanzas.total_bonos)}</span>
+              </div>
+            )}
+
+            {finanzas.total_sanciones > 0 && (
+              <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                <span className="text-red-400 flex items-center gap-1.5">
+                  Sanciones pendientes:
+                  <button onClick={() => setShowSancionesModal(true)} className="text-blue-400 hover:underline text-xs">
+                    (ver detalles)
+                  </button>
+                </span>
+                <span className="font-bold text-red-400">-{formatCurrency(finanzas.total_sanciones)}</span>
+              </div>
+            )}
+
+            {finanzas.saldo_adelantos > 0 && (
+              <div className="pt-2">
+                <div className="flex justify-between items-center text-xs text-zinc-400 mb-1">
+                  <span>Deuda previa por adelantos recibidos:</span>
+                  <span className="font-bold text-red-400">{formatCurrency(finanzas.saldo_adelantos)}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="text-xs text-zinc-300 font-bold shrink-0">Descontar de adelanto hoy:</label>
                   <Input 
                     type="number" 
                     max={finanzas.saldo_adelantos} 
                     min={0} 
                     value={descuentoAdelanto} 
-                    onChange={(e) => setDescuentoAdelanto(Number(e.target.value) || 0)} 
-                    className="max-w-[200px]"
+                    onChange={(e) => setDescuentoAdelanto(Math.min(finanzas.saldo_adelantos, Number(e.target.value) || 0))} 
+                    className="max-w-[160px] h-9 text-sm"
+                  />
+                  <span className="text-xs text-zinc-500">Bs.</span>
+                </div>
+              </div>
+            )}
+
+            {/* BANNER TOTAL NETO */}
+            <div className="flex justify-between items-center pt-3 border-t border-white/10 bg-black/40 -mx-4 -mb-4 p-4 rounded-b-2xl">
+              <div>
+                <p className="text-[10px] uppercase font-black tracking-widest text-zinc-400">Total Neto a Entregar</p>
+                <p className="text-xs text-zinc-500">Monto final luego de deducciones</p>
+              </div>
+              <p className={`text-3xl font-black ${totalCalculado < 0 ? 'text-red-500' : 'text-amber-400'}`}>
+                {formatCurrency(totalCalculado)}
+              </p>
+            </div>
+          </div>
+
+          {/* Método de Pago */}
+          <div className="space-y-3">
+            <label className="block text-xs font-black uppercase tracking-wider text-zinc-400">
+              Método de Pago para la Liquidación
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { id: 'efectivo', label: 'Efectivo' },
+                { id: 'qr', label: 'QR / Transf.' },
+                { id: 'mixto', label: 'Mixto' },
+                { id: 'tarjeta', label: 'Tarjeta' },
+              ].map(m => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setMetodoPago(m.id)}
+                  className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all ${
+                    metodoPago === m.id
+                      ? 'bg-amber-500 text-black border-amber-500 font-black shadow-md'
+                      : 'bg-zinc-900 border-white/10 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            {metodoPago === 'mixto' && (
+              <div className="p-3 rounded-xl border border-white/10 bg-black/50 flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Monto en Efectivo</label>
+                  <Input 
+                    type="number" 
+                    min={0}
+                    value={pagoEfectivo || ''} 
+                    onChange={e => setPagoEfectivo(Number(e.target.value) || 0)} 
+                    className="h-10"
                   />
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-zinc-400 uppercase tracking-widest">Total a Pagar</p>
-                  <p className={`text-2xl font-black ${totalCalculado < 0 ? 'text-red-500' : 'text-amber-500'}`}>
-                    {formatCurrency(totalCalculado)}
-                  </p>
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Monto en QR</label>
+                  <Input 
+                    type="number" 
+                    min={0}
+                    value={pagoQr || ''} 
+                    onChange={e => setPagoQr(Number(e.target.value) || 0)} 
+                    className="h-10"
+                  />
                 </div>
-                <Button variant="primary" onClick={marcarPagadas} disabled={!barberoId || estado !== 'pendiente'} className="h-12 px-8">
-                  <CheckCircle className="w-5 h-5 mr-2" /> Pagar Comisiones
-                </Button>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
 
-      <div className="overflow-x-auto w-full">
-        <table className="w-full text-sm min-w-[880px]">
-          <thead>
-            <tr className="text-zinc-500 uppercase text-[10px] tracking-widest border-b border-white/5">
-              <th className="text-left py-3 px-4">Fecha</th>
-              <th className="text-left py-3 px-4">Barbero</th>
-              <th className="text-left py-3 px-4">Servicio</th>
-              <th className="text-left py-3 px-4">Cliente</th>
-              <th className="text-right py-3 px-4">
-                Precio Servicio
-                <span className="block text-[9px] text-zinc-500 font-normal lowercase tracking-normal">catálogo</span>
-              </th>
-              <th className="text-right py-3 px-4 text-amber-400">
-                Total Cobrado
-                <span className="block text-[9px] text-amber-500/80 font-normal lowercase tracking-normal">en pos</span>
-              </th>
-              <th className="text-center py-3 px-4">% Comisión</th>
-              <th className="text-right py-3 px-4">Comisión Barbero</th>
-              <th className="text-right py-3 px-4">Estado</th>
-              <th className="text-right py-3 px-4">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={10} className="py-12 text-center text-zinc-600">Cargando...</td></tr>
-            ) : citas.length === 0 ? (
-              <tr><td colSpan={10} className="py-12 text-center text-zinc-600">No hay citas registradas con los filtros actuales.</td></tr>
-            ) : citas.map((c) => {
-              const precioCobrado = Number(c.precio) || 0
-              const precioServicio = Number(c.servicios?.precio) || precioCobrado
-              const hayDescuento = precioServicio > precioCobrado
-              const montoDescuento = Math.max(0, precioServicio - precioCobrado)
-              const comision = Number(c.comision_barbero) || 0
-              const propinaBarbero = (Number(c.propinas) || 0) * 0.5
-              const comisionServicioBase = Math.max(0, comision - propinaBarbero)
-              const pct = precioCobrado > 0 ? Math.round((comisionServicioBase / precioCobrado) * 100) : 0
-              const esFija = c.servicios?.comision_tipo === 'fija'
-              const detallesDesc = parseDescuentoDetalle(c)
-
-              return (
-                <tr key={c.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                  <td className="py-3 px-4 text-zinc-400 whitespace-nowrap">{new Date(c.fecha_hora).toLocaleDateString('es-BO')}</td>
-                  <td className="py-3 px-4 text-white font-bold">{c.barbero?.full_name}</td>
-                  <td className="py-3 px-4 text-zinc-200">
-                    <div className="font-medium">{c.servicios?.nombre || 'Servicio'}</div>
-                    {c.comision_categoria && (
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">
-                        Cat: {c.comision_categoria} {c.comision_herramientas ? '• Con herram.' : ''}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-zinc-400">{c.clientes?.nombre || '—'}</td>
-                  
-                  {/* PRECIO ORIGINAL DEL SERVICIO (CATÁLOGO) */}
-                  <td className="py-3 px-4 text-right whitespace-nowrap">
-                    <span className="font-semibold text-zinc-300">
-                      {formatCurrency(precioServicio)}
-                    </span>
-                  </td>
-
-                  {/* PRECIO REAL COBRADO */}
-                  <td className="py-3 px-4 text-right whitespace-nowrap">
-                    {detallesDesc.esGratis || precioCobrado === 0 ? (
-                      <div>
-                        <span className="font-bold text-emerald-400">Bs 0.00</span>
-                        <span className="block text-[10px] text-red-400 font-mono">
-                          (-{formatCurrency(precioServicio)})
-                        </span>
-                      </div>
-                    ) : hayDescuento ? (
-                      <div>
-                        <span className="font-bold text-white">{formatCurrency(precioCobrado)}</span>
-                        <span className="block text-[10px] text-red-400 font-mono">
-                          (-{formatCurrency(montoDescuento)})
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="font-bold text-white">{formatCurrency(precioCobrado)}</span>
-                    )}
-                  </td>
-                  
-                  <td className="py-3 px-4 text-center whitespace-nowrap">
-                    {precioCobrado > 0 ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        {pct}%
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700">
-                        0%
-                      </span>
-                    )}
-                    {esFija && (
-                      <span className="block text-[9px] text-zinc-500 font-mono mt-0.5">monto fijo</span>
-                    )}
-                    {detallesDesc.badges.map((b, i) => (
-                      <span key={i} className={`block text-[9px] font-bold px-1.5 py-0.5 rounded mt-1 border ${b.color}`}>
-                        {b.text}
-                      </span>
-                    ))}
-                  </td>
-                  <td className="py-3 px-4 text-right whitespace-nowrap">
-                    <span className={`font-black text-base ${comision > 0 ? 'text-amber-500' : 'text-zinc-600'}`}>
-                      {formatCurrency(comision)}
-                    </span>
-                    {esFija ? (
-                      <span className="block text-[10px] text-zinc-400 font-mono">
-                        (Fijo {formatCurrency(comision)})
-                      </span>
-                    ) : precioCobrado > 0 ? (
-                      <span className="block text-[10px] text-zinc-400 font-mono">
-                        ({pct}% de {formatCurrency(precioCobrado)})
-                      </span>
-                    ) : (
-                      <span className="block text-[10px] text-zinc-600 font-mono">
-                        (Sin cobro)
-                      </span>
-                    )}
-                    {propinaBarbero > 0 && (
-                      <span className="block text-[10px] text-green-400 font-mono">
-                        +{formatCurrency(propinaBarbero)} propina
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <Badge variant={c.comision_pagada ? 'success' : 'warning'}>{c.comision_pagada ? 'Pagada' : 'Pendiente'}</Badge>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    {!c.comision_pagada && (
-                      <Button variant="outline" size="sm" onClick={() => editarComision(c.id, c.comision_barbero || 0)} title="Ajustar monto de comisión">
-                        <Edit className="w-3 h-3" />
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {pagos.length > 0 && (
-        <Card className="bg-zinc-900 border-white/5">
-          <CardHeader><CardTitle className="text-white uppercase text-sm flex items-center gap-2"><DollarSign size={16} /> Historial de pagos</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {pagos.slice(0, 15).map((p: any) => (
-              <div key={p.id} className="flex justify-between py-2 border-b border-white/5 text-sm">
-                <span className="text-zinc-300">{p.barbero?.full_name} — {p.periodo_tipo} ({p.fecha_inicio} → {p.fecha_fin})</span>
-                <span className="font-black text-green-500">{formatCurrency(p.monto_total)}</span>
+            {(metodoPago === 'qr' || metodoPago === 'mixto' || metodoPago === 'tarjeta') && (
+              <div className="pt-2">
+                <ImageUpload
+                  label="Comprobante de Pago (Opcional)"
+                  defaultImage={comprobanteUrl || undefined}
+                  onUploadSuccess={(url) => setComprobanteUrl(url)}
+                  onUploadError={(err) => toastError(err)}
+                />
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+            )}
+          </div>
 
+          {/* Botones de Acción del Modal */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setShowLiquidarModal(false)}
+              className="border-white/10"
+            >
+              Cancelar
+            </Button>
+
+            <Button
+              variant="primary"
+              type="button"
+              onClick={marcarPagadas}
+              className="bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-wider text-xs h-11 px-6 shadow-lg shadow-amber-500/10"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" /> Confirmar Pago de {formatCurrency(totalCalculado)}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL DE REGLAS GENERALES Y PORCENTAJES */}
+      <ReglasComisionesModal
+        isOpen={showReglasModal}
+        onClose={() => setShowReglasModal(false)}
+        barberoIdInicial={modalBarberoId}
+        onSaved={() => load()}
+      />
+
+      {/* MODAL DE SANCIONES */}
       {showSancionesModal && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 backdrop-blur-sm p-4 pt-12 overflow-y-auto">
           <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto relative">
@@ -927,7 +1279,7 @@ export default function AdminComisionesPage() {
               />
               <div className="flex gap-2 items-center">
                 <Input 
-                  type="number"
+                  type="number" 
                   placeholder="Monto a descontar (ej. 12)"
                   value={nuevaSancion.monto}
                   onChange={e => setNuevaSancion({ ...nuevaSancion, monto: Number(e.target.value) || 0 })}
@@ -948,12 +1300,12 @@ export default function AdminComisionesPage() {
                 {finanzas.sanciones_pendientes.map((s: any) => (
                   <div key={s.id} className="bg-black/50 border border-red-500/20 p-3 rounded-xl flex justify-between items-center">
                     <div>
-                      <p className="text-red-400 font-bold text-sm capitalize">{s.tipo.replace('_', ' ')}</p>
-                      <p className="text-zinc-500 text-xs">{s.descripcion}</p>
+                      <p className="font-bold text-white text-sm">{s.tipo}</p>
+                      {s.descripcion && <p className="text-xs text-zinc-400">{s.descripcion}</p>}
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-black text-white">{formatCurrency(s.monto)}</span>
-                      <button onClick={() => eliminarSancion(s.id)} className="text-zinc-600 hover:text-red-500">
+                      <span className="font-black text-red-400">-{formatCurrency(s.monto)}</span>
+                      <button onClick={() => eliminarSancion(s.id)} className="text-zinc-500 hover:text-red-400">
                         <X size={16} />
                       </button>
                     </div>
@@ -964,13 +1316,6 @@ export default function AdminComisionesPage() {
           </div>
         </div>
       )}
-
-      <ReglasComisionesModal
-        isOpen={showReglasModal}
-        onClose={() => setShowReglasModal(false)}
-        onSaved={load}
-        barberoIdInicial={modalBarberoId}
-      />
     </div>
   )
 }
