@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       )
       
       const extraPropinas = serv?.comision_acumulable !== false ? (propinas || 0) : 0
-      const comisionTotal = comResult.monto + extraPropinas
+      const comisionTotal = comResult.monto + (extraPropinas * 0.5)
 
       // Crear Cita Completada
       const inicio = new Date(ahora.getTime() - 30 * 60000)

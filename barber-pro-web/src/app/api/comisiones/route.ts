@@ -14,6 +14,8 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const barbero_id = searchParams.get('barbero_id')
   const estado = searchParams.get('estado')
+  const fecha_inicio = searchParams.get('fecha_inicio')
+  const fecha_fin = searchParams.get('fecha_fin')
 
   let query = adminSupabase
     .from('citas')
@@ -31,6 +33,13 @@ export async function GET(req: Request) {
     query = query.eq('comision_pagada', true)
   }
   // If 'todas', don't filter by comision_pagada
+
+  if (fecha_inicio) {
+    query = query.gte('fecha_hora', fecha_inicio.includes('T') ? fecha_inicio : `${fecha_inicio}T00:00:00-04:00`)
+  }
+  if (fecha_fin) {
+    query = query.lte('fecha_hora', fecha_fin.includes('T') ? fecha_fin : `${fecha_fin}T23:59:59-04:00`)
+  }
 
   const { data: citas, error } = await query
 
@@ -138,9 +147,44 @@ export async function GET(req: Request) {
     }
   })
 
+  // Resumen global de rendimiento para todos los especialistas (independiente de filtros)
+  const { data: activeProfiles } = await adminSupabase
+    .from('profiles')
+    .select('id, full_name, avatar_url, role, comision_porcentaje')
+    .in('role', ['barbero', 'coordinador'])
+    .eq('is_active', true)
+    .order('full_name')
+
+  const { data: allActiveCitas } = await adminSupabase
+    .from('citas')
+    .select('id, barbero_id, precio, comision_barbero, comision_pagada, fecha_hora')
+    .eq('estado', 'completado')
+
+  const rendimiento_barberos = (activeProfiles || []).map(b => {
+    const citasB = (allActiveCitas || []).filter(c => c.barbero_id === b.id)
+    const cobradoTotal = citasB.reduce((sum, c) => sum + (Number(c.precio) || 0), 0)
+    const comisionTotal = citasB.reduce((sum, c) => sum + (Number(c.comision_barbero) || 0), 0)
+    const pendientes = citasB.filter(c => !c.comision_pagada)
+    const cobradoPendiente = pendientes.reduce((sum, c) => sum + (Number(c.precio) || 0), 0)
+    const comisionPendiente = pendientes.reduce((sum, c) => sum + (Number(c.comision_barbero) || 0), 0)
+    const pctEfectivo = cobradoTotal > 0 ? Math.round((comisionTotal / cobradoTotal) * 100) : 0
+
+    return {
+      barbero: b,
+      totalCitas: citasB.length,
+      citasPendientes: pendientes.length,
+      cobrado: cobradoTotal,
+      cobradoPendiente,
+      comisionTotal,
+      comisionPendiente,
+      pctEfectivo,
+    }
+  })
+
   return NextResponse.json({ 
     citas, 
     resumen: { pendiente, pagado, hoy, semana, total_cobrado, total_cobrado_pendiente },
+    rendimiento_barberos,
     finanzas: {
       saldo_adelantos,
       sanciones_pendientes,

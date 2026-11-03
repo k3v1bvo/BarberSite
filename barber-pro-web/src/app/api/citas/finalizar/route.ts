@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     // Obtener la cita con el cliente_id
     const { data: cita } = await supabase
       .from('citas')
-      .select('barbero_id, estado, precio, comision_barbero, cliente_id, servicio_id, fecha_hora, servicios(nombre)')
+      .select('barbero_id, estado, precio, comision_barbero, cliente_id, servicio_id, fecha_hora, notas, servicios(nombre)')
       .eq('id', cita_id)
       .single()
 
@@ -62,6 +62,19 @@ export async function POST(request: Request) {
         serv || undefined
       )
       baseComision = comResult.monto
+
+      // Si había descuento especial asumido por barbero o 50/50, descontarlo de su comisión
+      if (cita.notas && baseComision > 0) {
+        const matchDesc = cita.notas.match(/Desc\.\s*Especial:\s*-?Bs\s*(\d+(?:\.\d+)?)/i)
+        if (matchDesc) {
+          const descMonto = Number(matchDesc[1]) || 0
+          if (/asume:\s*barbero/i.test(cita.notas)) {
+            baseComision = Math.max(0, baseComision - descMonto)
+          } else if (/asume:\s*compartido/i.test(cita.notas) || /50\/50/i.test(cita.notas)) {
+            baseComision = Math.max(0, baseComision - (descMonto / 2))
+          }
+        }
+      }
     }
 
     const comisionTotal = baseComision + ((propinas || 0) * 0.5)

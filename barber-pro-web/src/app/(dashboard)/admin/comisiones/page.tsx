@@ -61,7 +61,10 @@ export default function AdminComisionesPage() {
   const [resumen, setResumen] = useState({ pendiente: 0, pagado: 0, hoy: 0, semana: 0, total_cobrado: 0, total_cobrado_pendiente: 0 })
   const [barberoId, setBarberoId] = useState('')
   const [estado, setEstado] = useState('pendiente')
-  const [periodo, setPeriodo] = useState<'diario' | 'semanal' | 'personalizado'>('diario')
+  const [periodo, setPeriodo] = useState<'todas' | 'diario' | 'semanal' | 'personalizado'>('todas')
+  const [fechaInicioCustom, setFechaInicioCustom] = useState<string>('')
+  const [fechaFinCustom, setFechaFinCustom] = useState<string>('')
+  const [rendimientoBarberos, setRendimientoBarberos] = useState<any[]>([])
   const [metodoPago, setMetodoPago] = useState('efectivo')
   const [pagoEfectivo, setPagoEfectivo] = useState<number>(0)
   const [pagoQr, setPagoQr] = useState<number>(0)
@@ -84,6 +87,23 @@ export default function AdminComisionesPage() {
     try {
       const params = new URLSearchParams({ estado })
       if (barberoId) params.set('barbero_id', barberoId)
+
+      const hoyStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+      if (periodo === 'diario') {
+        params.set('fecha_inicio', hoyStr)
+        params.set('fecha_fin', hoyStr)
+      } else if (periodo === 'semanal') {
+        const d = new Date()
+        const boliviaDate = new Date(d.toLocaleString('en-US', { timeZone: 'America/La_Paz' }))
+        boliviaDate.setDate(boliviaDate.getDate() - boliviaDate.getDay())
+        const inicioSemana = `${boliviaDate.getFullYear()}-${String(boliviaDate.getMonth() + 1).padStart(2, '0')}-${String(boliviaDate.getDate()).padStart(2, '0')}`
+        params.set('fecha_inicio', inicioSemana)
+        params.set('fecha_fin', hoyStr)
+      } else if (periodo === 'personalizado' && fechaInicioCustom && fechaFinCustom) {
+        params.set('fecha_inicio', fechaInicioCustom)
+        params.set('fecha_fin', fechaFinCustom)
+      }
+
       const [cRes, pRes, rRes] = await Promise.all([
         fetch(`/api/comisiones?${params}`),
         fetch('/api/comisiones/pagos'),
@@ -97,6 +117,9 @@ export default function AdminComisionesPage() {
       setResumen(cJson.resumen ?? { pendiente: 0, pagado: 0, hoy: 0, semana: 0, total_cobrado: 0, total_cobrado_pendiente: 0 })
       setFinanzas(cJson.finanzas ?? { saldo_adelantos: 0, sanciones_pendientes: [], total_sanciones: 0, bonos_pendientes: [], total_bonos: 0 })
       setPagos(pJson.pagos ?? [])
+      if (cJson.rendimiento_barberos && Array.isArray(cJson.rendimiento_barberos)) {
+        setRendimientoBarberos(cJson.rendimiento_barberos)
+      }
       
       const cuentasSancion = (rJson.plan_cuentas ?? []).filter((c: any) => c.es_sancion)
       setSancionesCatalogo(cuentasSancion)
@@ -122,36 +145,50 @@ export default function AdminComisionesPage() {
           if (data) setBarberos(data)
         })
     })
+  }, [])
+
+  useEffect(() => {
     load()
-  }, [barberoId, estado])
+  }, [barberoId, estado, periodo, fechaInicioCustom, fechaFinCustom])
 
   const marcarPagadas = async () => {
     if (!barberoId) {
       toastError('Selecciona un barbero')
       return
     }
-    const citasPendientesIds = citas.filter((c: any) => !c.comision_pagada).map((c: any) => c.id)
+    const barberoSeleccionado = barberos.find((b: any) => b.id === barberoId)
+    const citasPendientes = citas.filter((c: any) => !c.comision_pagada)
+    const citasPendientesIds = citasPendientes.map((c: any) => c.id)
     if (citasPendientesIds.length === 0) {
       toastError('No hay citas pendientes para liquidar a este barbero')
       return
     }
 
-    const hoyStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
-    let inicio = hoyStr
-    let fin = hoyStr
-    if (periodo === 'semanal') {
-      const d = new Date()
-      const boliviaDate = new Date(d.toLocaleString('en-US', { timeZone: 'America/La_Paz' }))
-      boliviaDate.setDate(boliviaDate.getDate() - boliviaDate.getDay())
-      inicio = `${boliviaDate.getFullYear()}-${String(boliviaDate.getMonth() + 1).padStart(2, '0')}-${String(boliviaDate.getDate()).padStart(2, '0')}`
+    if (metodoPago === 'mixto') {
+      const sumaMixto = Number((pagoEfectivo + pagoQr).toFixed(2))
+      const totalEsperado = Number(totalCalculado.toFixed(2))
+      if (Math.abs(sumaMixto - totalEsperado) > 0.01) {
+        toastError(`La suma de Efectivo (Bs ${pagoEfectivo}) + QR (Bs ${pagoQr}) debe ser igual al Total a Pagar (Bs ${totalCalculado.toFixed(2)})`)
+        return
+      }
     }
+
+    if (!confirm(`¿Confirmas liquidar ${citasPendientesIds.length} cita(s) y pagar Bs ${totalCalculado.toFixed(2)} a ${barberoSeleccionado?.full_name || 'este especialista'}?`)) {
+      return
+    }
+
+    const hoyStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+    const fechas = citasPendientes.map((c: any) => (c.fecha_hora || '').split('T')[0]).filter(Boolean).sort()
+    const inicio = fechas[0] || hoyStr
+    const fin = fechas[fechas.length - 1] || hoyStr
+
     try {
       const res = await fetch('/api/comisiones/pagos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           barbero_id: barberoId,
-          periodo_tipo: periodo,
+          periodo_tipo: periodo === 'todas' ? 'diario' : periodo,
           fecha_inicio: inicio,
           fecha_fin: fin,
           cita_ids: citasPendientesIds,
@@ -165,7 +202,7 @@ export default function AdminComisionesPage() {
         }),
       })
       if (!res.ok) throw new Error((await res.json()).error)
-      success('Comisiones marcadas como pagadas')
+      success(`Comisiones pagadas correctamente a ${barberoSeleccionado?.full_name || 'especialista'}`)
       setComprobanteUrl('')
       load()
     } catch (e) {
@@ -310,26 +347,28 @@ export default function AdminComisionesPage() {
   const totalCalculado = resumen.pendiente - finanzas.total_sanciones + finanzas.total_bonos - descuentoAdelanto
   const citasCobradoPendiente = citas.filter((c: any) => !c.comision_pagada).reduce((sum: number, c: any) => sum + (Number(c.precio) || 0), 0)
 
-  const resumenBarberos = barberos.map((b) => {
-    const citasB = citas.filter((c: any) => c.barbero_id === b.id)
-    const cobrado = citasB.reduce((sum: number, c: any) => sum + (Number(c.precio) || 0), 0)
-    const comisionTotal = citasB.reduce((sum: number, c: any) => sum + (Number(c.comision_barbero) || 0), 0)
-    const pendientes = citasB.filter((c: any) => !c.comision_pagada)
-    const comisionPendiente = pendientes.reduce((sum: number, c: any) => sum + (Number(c.comision_barbero) || 0), 0)
-    const cobradoPendiente = pendientes.reduce((sum: number, c: any) => sum + (Number(c.precio) || 0), 0)
-    const pctEfectivo = cobrado > 0 ? Math.round((comisionTotal / cobrado) * 100) : 0
+  const resumenBarberos = (rendimientoBarberos && rendimientoBarberos.length > 0)
+    ? rendimientoBarberos
+    : barberos.map((b) => {
+        const citasB = citas.filter((c: any) => c.barbero_id === b.id)
+        const cobrado = citasB.reduce((sum: number, c: any) => sum + (Number(c.precio) || 0), 0)
+        const comisionTotal = citasB.reduce((sum: number, c: any) => sum + (Number(c.comision_barbero) || 0), 0)
+        const pendientes = citasB.filter((c: any) => !c.comision_pagada)
+        const comisionPendiente = pendientes.reduce((sum: number, c: any) => sum + (Number(c.comision_barbero) || 0), 0)
+        const cobradoPendiente = pendientes.reduce((sum: number, c: any) => sum + (Number(c.precio) || 0), 0)
+        const pctEfectivo = cobrado > 0 ? Math.round((comisionTotal / cobrado) * 100) : 0
 
-    return {
-      barbero: b,
-      totalCitas: citasB.length,
-      citasPendientes: pendientes.length,
-      cobrado,
-      cobradoPendiente,
-      comisionTotal,
-      comisionPendiente,
-      pctEfectivo,
-    }
-  })
+        return {
+          barbero: b,
+          totalCitas: citasB.length,
+          citasPendientes: pendientes.length,
+          cobrado,
+          cobradoPendiente,
+          comisionTotal,
+          comisionPendiente,
+          pctEfectivo,
+        }
+      })
 
   return (
     <div className="space-y-8 pb-20">
@@ -534,11 +573,31 @@ export default function AdminComisionesPage() {
               <option value="pagada">Pagadas</option>
               <option value="todas">Todas</option>
             </select>
-            <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white" value={periodo} onChange={(e) => setPeriodo(e.target.value as typeof periodo)}>
-              <option value="diario">Pago diario</option>
-              <option value="semanal">Pago semanal</option>
-              <option value="personalizado">Personalizado</option>
+            <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white" value={periodo} onChange={(e) => setPeriodo(e.target.value as any)}>
+              <option value="todas">Todas las pendientes (Recomendado)</option>
+              <option value="diario">Solo de hoy (Diario)</option>
+              <option value="semanal">Esta semana</option>
+              <option value="personalizado">Rango personalizado</option>
             </select>
+            {periodo === 'personalizado' && (
+              <div className="flex items-center gap-2 bg-zinc-950 border border-white/10 rounded-xl px-3 h-12">
+                <input
+                  type="date"
+                  value={fechaInicioCustom}
+                  onChange={(e) => setFechaInicioCustom(e.target.value)}
+                  className="bg-transparent text-white text-xs font-mono outline-none"
+                  title="Fecha inicio"
+                />
+                <span className="text-zinc-500 text-xs">a</span>
+                <input
+                  type="date"
+                  value={fechaFinCustom}
+                  onChange={(e) => setFechaFinCustom(e.target.value)}
+                  className="bg-transparent text-white text-xs font-mono outline-none"
+                  title="Fecha fin"
+                />
+              </div>
+            )}
             <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white uppercase text-xs font-bold" value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)}>
               <option value="efectivo">Efectivo</option>
               <option value="qr">QR / Transferencia</option>
