@@ -8,8 +8,49 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import { formatCurrency } from '@/lib/utils'
-import { ArrowLeft, DollarSign, CheckCircle, Filter, Download, Edit, RefreshCw, AlertTriangle, X, Plus } from 'lucide-react'
+import { ArrowLeft, DollarSign, CheckCircle, Filter, Download, Edit, RefreshCw, AlertTriangle, X, Plus, Users, Settings } from 'lucide-react'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import ComisionBarberoModal from '@/components/comisiones/ComisionBarberoModal'
+
+function parseDescuentoDetalle(c: any) {
+  const notas = c.notas || ''
+  const precio = Number(c.precio) || 0
+  const precioBase = Number(c.servicios?.precio) || 0
+  const badges: { text: string; color: string }[] = []
+
+  // Promo 2x1
+  if (notas.includes('2×1') || notas.includes('2x1') || notas.includes('2X1')) {
+    if (precio === 0) {
+      badges.push({ text: '🎟️ 2×1 Acompañante', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' })
+    } else {
+      badges.push({ text: '🎟️ Promo 2×1', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' })
+    }
+  }
+
+  // Lealtad / Fidelidad (ej. 5to corte gratis, 10mo corte, etc.)
+  if (notas.toLowerCase().includes('lealtad') || notas.toLowerCase().includes('fidelidad') || notas.includes('5ta') || notas.includes('10ma') || notas.includes('5to') || notas.includes('10mo')) {
+    badges.push({ text: '🎁 Recompensa Lealtad', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' })
+  } else if (precio === 0 && precioBase > 0 && badges.length === 0) {
+    badges.push({ text: '🎁 100% Descuento', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' })
+  }
+
+  // Descuento manual / Asume
+  if (notas.includes('Desc. Especial') || notas.includes('Asume:')) {
+    if (notas.includes('Asume: Barbero') || notas.includes('asume: barbero')) {
+      badges.push({ text: '💈 Asume Barbero (100%)', color: 'bg-orange-500/10 text-orange-400 border-orange-500/20' })
+    } else if (notas.includes('Compartido') || notas.includes('50/50')) {
+      badges.push({ text: '🤝 Asume 50/50', color: 'bg-violet-500/10 text-violet-400 border-violet-500/20' })
+    } else if (notas.includes('Asume: Barbería') || notas.includes('Barbería')) {
+      badges.push({ text: '🏢 Asume Barbería', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' })
+    }
+  }
+
+  return {
+    esGratis: precio === 0 && precioBase > 0,
+    precioBase,
+    badges,
+  }
+}
 
 export default function AdminComisionesPage() {
   const router = useRouter()
@@ -27,6 +68,7 @@ export default function AdminComisionesPage() {
   const [comprobanteUrl, setComprobanteUrl] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [isRecalculating, setIsRecalculating] = useState(false)
+  const [comisionModalBarbero, setComisionModalBarbero] = useState<{ id: string; nombre: string; imagen?: string } | null>(null)
   
   // Sanciones Modal
   const [showSancionesModal, setShowSancionesModal] = useState(false)
@@ -72,7 +114,7 @@ export default function AdminComisionesPage() {
     import('@/lib/supabase/client').then(({ createClient }) => {
       createClient()
         .from('profiles')
-        .select('id, full_name, role')
+        .select('id, full_name, role, avatar_url')
         .in('role', ['barbero', 'coordinador'])
         .eq('is_active', true)
         .order('full_name')
@@ -229,6 +271,27 @@ export default function AdminComisionesPage() {
   const totalCalculado = resumen.pendiente - finanzas.total_sanciones + finanzas.total_bonos - descuentoAdelanto
   const citasCobradoPendiente = citas.filter((c: any) => !c.comision_pagada).reduce((sum: number, c: any) => sum + (Number(c.precio) || 0), 0)
 
+  const resumenBarberos = barberos.map((b) => {
+    const citasB = citas.filter((c: any) => c.barbero_id === b.id)
+    const cobrado = citasB.reduce((sum: number, c: any) => sum + (Number(c.precio) || 0), 0)
+    const comisionTotal = citasB.reduce((sum: number, c: any) => sum + (Number(c.comision_barbero) || 0), 0)
+    const pendientes = citasB.filter((c: any) => !c.comision_pagada)
+    const comisionPendiente = pendientes.reduce((sum: number, c: any) => sum + (Number(c.comision_barbero) || 0), 0)
+    const cobradoPendiente = pendientes.reduce((sum: number, c: any) => sum + (Number(c.precio) || 0), 0)
+    const pctEfectivo = cobrado > 0 ? Math.round((comisionTotal / cobrado) * 100) : 0
+
+    return {
+      barbero: b,
+      totalCitas: citasB.length,
+      citasPendientes: pendientes.length,
+      cobrado,
+      cobradoPendiente,
+      comisionTotal,
+      comisionPendiente,
+      pctEfectivo,
+    }
+  })
+
   return (
     <div className="space-y-8 pb-20">
       <div className="flex items-center gap-6 border-b border-white/5 pb-8">
@@ -266,10 +329,117 @@ export default function AdminComisionesPage() {
         ))}
       </div>
 
+      {/* Tabla de Rendimiento y Comisiones por Barbero */}
+      {barberos.length > 0 && (
+        <Card className="bg-zinc-900 border-white/5">
+          <CardHeader className="pb-3 border-b border-white/5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <CardTitle className="text-white uppercase text-sm flex items-center gap-2">
+                <Users size={16} className="text-amber-500" /> Rendimiento y Comisiones por Especialista
+              </CardTitle>
+              <span className="text-xs text-zinc-400">
+                Resumen de servicios atendidos, cobro total y liquidación por persona
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs min-w-[700px]">
+                <thead>
+                  <tr className="text-zinc-500 uppercase text-[10px] tracking-widest border-b border-white/5 bg-zinc-950/40">
+                    <th className="text-left py-3 px-4">Especialista</th>
+                    <th className="text-center py-3 px-3">Citas</th>
+                    <th className="text-right py-3 px-4">Total Cobrado</th>
+                    <th className="text-right py-3 px-4">Comisión Ganada</th>
+                    <th className="text-center py-3 px-3">% Efectivo</th>
+                    <th className="text-right py-3 px-4">Por Liquidar</th>
+                    <th className="text-right py-3 px-4">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {resumenBarberos.map((rb) => {
+                    const esActivo = barberoId === rb.barbero.id
+                    return (
+                      <tr
+                        key={rb.barbero.id}
+                        className={`hover:bg-white/5 transition-colors ${esActivo ? 'bg-amber-500/10' : ''}`}
+                      >
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-white text-sm">{rb.barbero.full_name}</span>
+                            <Badge variant="outline" className="text-[9px] uppercase font-mono">
+                              {rb.barbero.role}
+                            </Badge>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-center text-zinc-300">
+                          <span className="font-semibold">{rb.totalCitas}</span>
+                          {rb.citasPendientes > 0 && (
+                            <span className="text-[10px] text-amber-400 block font-mono">
+                              ({rb.citasPendientes} pend.)
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-blue-400">
+                          {formatCurrency(rb.cobrado)}
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-white">
+                          {formatCurrency(rb.comisionTotal)}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            {rb.pctEfectivo}%
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-black text-amber-500 text-sm">
+                          {formatCurrency(rb.comisionPendiente)}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              type="button"
+                              className="h-8 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-black"
+                              onClick={() => {
+                                setComisionModalBarbero({
+                                  id: rb.barbero.id,
+                                  nombre: rb.barbero.full_name,
+                                  imagen: rb.barbero.avatar_url,
+                                })
+                              }}
+                              title="Configurar comisión por porcentaje o por servicio"
+                            >
+                              <Settings className="w-3.5 h-3.5 mr-1" /> Reglas %
+                            </Button>
+                            <Button
+                              variant={esActivo ? 'primary' : 'outline'}
+                              size="sm"
+                              type="button"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                setBarberoId(rb.barbero.id)
+                                setEstado('pendiente')
+                              }}
+                            >
+                              {esActivo ? 'Filtrado' : 'Liquidar'}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="bg-zinc-900 border-white/5">
         <CardHeader><CardTitle className="text-white uppercase text-sm flex items-center gap-2"><Filter size={16} /> Filtros y pago</CardTitle></CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white font-bold text-xs" value={barberoId} onChange={(e) => setBarberoId(e.target.value)}>
               <option value="">Todos los barberos y personal</option>
               {barberos.map((b) => (
@@ -278,6 +448,21 @@ export default function AdminComisionesPage() {
                 </option>
               ))}
             </select>
+            {barberoId && (
+              <Button
+                variant="outline"
+                type="button"
+                className="h-12 border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-black font-bold text-xs uppercase"
+                onClick={() => {
+                  const b = barberos.find(b => b.id === barberoId)
+                  if (b) {
+                    setComisionModalBarbero({ id: b.id, nombre: b.full_name, imagen: b.avatar_url })
+                  }
+                }}
+              >
+                <Settings className="w-4 h-4 mr-2" /> Configurar Reglas de {barberos.find(b => b.id === barberoId)?.full_name?.split(' ')[0]}
+              </Button>
+            )}
             <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white" value={estado} onChange={(e) => setEstado(e.target.value)}>
               <option value="pendiente">Pendientes</option>
               <option value="pagada">Pagadas</option>
@@ -425,6 +610,7 @@ export default function AdminComisionesPage() {
               const comisionServicioBase = Math.max(0, comision - propinaBarbero)
               const pct = precio > 0 ? Math.round((comisionServicioBase / precio) * 100) : 0
               const esFija = c.servicios?.comision_tipo === 'fija'
+              const detallesDesc = parseDescuentoDetalle(c)
 
               return (
                 <tr key={c.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
@@ -439,19 +625,41 @@ export default function AdminComisionesPage() {
                     )}
                   </td>
                   <td className="py-3 px-4 text-zinc-400">{c.clientes?.nombre || '—'}</td>
-                  <td className="py-3 px-4 text-right font-bold text-white whitespace-nowrap">
-                    {formatCurrency(precio)}
+                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                    {detallesDesc.esGratis ? (
+                      <div>
+                        <span className="font-bold text-emerald-400">Bs 0.00</span>
+                        <span className="block text-[10px] text-zinc-500 line-through">
+                          Valor: {formatCurrency(detallesDesc.precioBase || 50)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="font-bold text-white">{formatCurrency(precio)}</span>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-center whitespace-nowrap">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                      {pct}%
-                    </span>
+                    {precio > 0 ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        {pct}%
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700">
+                        0%
+                      </span>
+                    )}
                     {esFija && (
                       <span className="block text-[9px] text-zinc-500 font-mono mt-0.5">monto fijo</span>
                     )}
+                    {detallesDesc.badges.map((b, i) => (
+                      <span key={i} className={`block text-[9px] font-bold px-1.5 py-0.5 rounded mt-1 border ${b.color}`}>
+                        {b.text}
+                      </span>
+                    ))}
                   </td>
                   <td className="py-3 px-4 text-right whitespace-nowrap">
-                    <span className="font-black text-amber-500 text-base">{formatCurrency(comision)}</span>
+                    <span className={`font-black text-base ${comision > 0 ? 'text-amber-500' : 'text-zinc-600'}`}>
+                      {formatCurrency(comision)}
+                    </span>
                     {propinaBarbero > 0 && (
                       <span className="block text-[10px] text-green-400">
                         +{formatCurrency(propinaBarbero)} propina
@@ -566,6 +774,19 @@ export default function AdminComisionesPage() {
             )}
           </div>
         </div>
+      )}
+
+      {comisionModalBarbero && (
+        <ComisionBarberoModal
+          barberoId={comisionModalBarbero.id}
+          barberoNombre={comisionModalBarbero.nombre}
+          barberoImagen={comisionModalBarbero.imagen}
+          onClose={() => setComisionModalBarbero(null)}
+          onSaved={() => {
+            setComisionModalBarbero(null)
+            load()
+          }}
+        />
       )}
     </div>
   )

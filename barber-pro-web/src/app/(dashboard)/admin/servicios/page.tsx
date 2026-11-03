@@ -350,15 +350,6 @@ export default function ServiciosPage() {
                     <Clock size={12} />
                     <span className="text-[10px] font-black uppercase tracking-widest">{servicio.duracion_minutos} MINUTOS</span>
                   </div>
-                  <p className="text-[10px] font-black uppercase text-zinc-600 mt-2">
-                    Comisión:{' '}
-                    {!servicio.comision_activa || servicio.comision_tipo === 'ninguna'
-                      ? 'Sin comisión'
-                      : servicio.comision_tipo === 'fija'
-                        ? `Bs. ${servicio.comision_valor ?? 0}`
-                        : `${servicio.comision_valor ?? 30}%`}
-                    {servicio.comision_acumulable ? ' · acumulable' : ''}
-                  </p>
                   {(servicio.barberos_excluidos?.length ?? 0) > 0 && (
                     <div className="flex items-center gap-1 mt-2">
                       <UserX size={11} className="text-red-400" />
@@ -536,47 +527,6 @@ export default function ServiciosPage() {
             </div>
           </div>
           
-          <div className="border-t border-white/5 pt-6 space-y-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">Comisión del barbero</p>
-            <label className="flex items-center gap-2 text-sm text-zinc-400">
-              <input
-                type="checkbox"
-                checked={formData.comision_activa}
-                onChange={(e) => setFormData({ ...formData, comision_activa: e.target.checked })}
-                className="accent-amber-500"
-              />
-              Genera comisión
-            </label>
-            <select
-              className="w-full h-12 bg-zinc-900 border border-white/10 rounded-xl px-4 text-white text-sm"
-              value={formData.comision_tipo}
-              onChange={(e) => setFormData({ ...formData, comision_tipo: e.target.value as any })}
-              disabled={!formData.comision_activa}
-            >
-              <option value="porcentaje">Porcentaje</option>
-              <option value="fija">Comisión fija</option>
-              <option value="ninguna">Sin comisión</option>
-            </select>
-            {formData.comision_activa && formData.comision_tipo !== 'ninguna' && (
-              <Input
-                label={formData.comision_tipo === 'fija' ? 'Monto fijo (Bs.)' : 'Porcentaje (%)'}
-                type="number"
-                value={formData.comision_valor}
-                onChange={(e) => setFormData({ ...formData, comision_valor: parseFloat(e.target.value) })}
-                className="bg-zinc-900"
-              />
-            )}
-            <label className="flex items-center gap-2 text-sm text-zinc-400">
-              <input
-                type="checkbox"
-                checked={formData.comision_acumulable}
-                onChange={(e) => setFormData({ ...formData, comision_acumulable: e.target.checked })}
-                className="accent-amber-500"
-              />
-              Comisión acumulable (incluye propinas)
-            </label>
-          </div>
-
           <div className="border-t border-white/5 pt-6 space-y-4">
             <div className="flex items-center gap-2">
               <UserX size={16} className="text-red-400" />
