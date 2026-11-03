@@ -273,6 +273,10 @@ function ReservarContent() {
   })
 
   const handleSelectModo2x1 = (nuevoModo: 'acompanante' | 'servicio_extra') => {
+    const promo2x1 = promociones.find(p => p.tipo === '2x1')
+    if (promo2x1 && promoSeleccionada !== promo2x1.id) {
+      setPromoSeleccionada(promo2x1.id)
+    }
     setModo2x1(nuevoModo)
     if (nuevoModo === 'servicio_extra') {
       const extraIds = config2x1.servicios_extra || []
@@ -1963,281 +1967,180 @@ function ReservarContent() {
               <CardContent className="p-6 md:p-8">
                 <h2 className="text-3xl font-black mb-4 text-center tracking-tight">Selecciona tu <span className="text-amber-500">Servicio</span></h2>
 
-                {/* PROMOCIONES — Compactas */}
-                {promociones.length > 0 && (
-                  <div className="mb-6 p-3 bg-gradient-to-b from-black/60 to-zinc-950/80 border border-amber-500/20 rounded-2xl">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <h3 className="text-[10px] uppercase tracking-[0.15em] font-black text-amber-400 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-amber-500" /> Promos Disponibles
-                      </h3>
-                      {promoSeleccionada && (
-                        <button
-                          type="button"
-                          onClick={() => { setPromoSeleccionada(''); setModo2x1('acompanante'); setServicioExtra2x1(''); setAcompanante({ nombre: '', email: '' }) }}
-                          className="text-[9px] font-bold text-zinc-500 hover:text-white uppercase tracking-wider"
-                        >
-                          ✕ Quitar
-                        </button>
-                      )}
-                    </div>
-                    
-                    {(() => {
-                      const diaHoy = getDiaHoyLaPaz()
-                      const diaPermitido = config2x1.dia_reserva_permitido ?? 1 // 1 = Lunes
-                      const is2x1BloqueadoPorDia = config2x1.solo_reserva_lunes && diaHoy !== diaPermitido
+                {/* Panel Promoción 2×1 Martes (Sin combobox, selección directa desde el catálogo de abajo) */}
+                {(() => {
+                  const promo2x1Obj = promociones.find(p => p.tipo === '2x1')
+                  if (!promo2x1Obj) return null
 
-                      return (
-                        <>
-                          <div className="flex flex-wrap gap-2">
-                            {promociones.map(p => {
-                              const cleanName = p.nombre.replace(new RegExp(`^${p.icono}\\s*`, 'u'), '').trim()
-                              const isSelected = promoSeleccionada === p.id
-                              const is2x1 = p.tipo === '2x1'
-                              const servActual = servicios.find(s => s.id === formData.servicio_id)
-                              const is2x1DisabledServicio = is2x1 && servActual && !esServicio2x1Valido(servActual)
+                  const diaHoy = getDiaHoyLaPaz()
+                  const diaPermitido = config2x1.dia_reserva_permitido ?? 1 // 1 = Lunes
+                  const is2x1BloqueadoPorDia = config2x1.solo_reserva_lunes && diaHoy !== diaPermitido
 
-                              if (is2x1 && is2x1BloqueadoPorDia) {
-                                return (
-                                  <div
-                                    key={p.id}
-                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-zinc-950/80 border border-amber-500/25 rounded-2xl w-full"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-xl shrink-0">
-                                        ✂️
-                                      </div>
-                                      <div>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <p className="font-black text-xs text-white uppercase tracking-tight">{cleanName}</p>
-                                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                            🏪 Atención Presencial en Tienda
-                                          </span>
-                                        </div>
-                                        <p className="text-[10px] text-zinc-400 mt-0.5 leading-relaxed">
-                                          Los días Martes el 2×1 se atiende por orden de llegada directo en la barbería. <em>(Reservas online solo habilitadas los Lunes)</em>.
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedPromoForModal({
-                                          ...p,
-                                          descripcion: '✂️ Promoción 2×1 de los Martes (Pagan 1 y entran 2):\n\n• Los días MARTES la atención es 100% presencial por orden de llegada directamente en la barbería debido a la alta concurrencia de clientes.\n\n• Las reservas online del 2×1 se habilitan de manera exclusiva los días LUNES (1 día de anticipación).\n\n• Si vienes solo un Martes, ¡también puedes elegir tu Servicio Extra gratis en caja!'
-                                        })
-                                      }}
-                                      className="text-[10px] font-black text-amber-300 hover:text-black hover:bg-amber-400 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 transition flex items-center justify-center gap-1 shrink-0 self-start sm:self-center"
-                                    >
-                                      <span>ℹ️ ¿Cómo funciona?</span>
-                                    </button>
-                                  </div>
-                                )
-                              }
-
-                              return (
-                                <div
-                                  key={p.id}
-                                  onClick={() => {
-                                    if (is2x1 && is2x1DisabledServicio) return
-                                    const willSelect = !isSelected
-                                    setPromoSeleccionada(willSelect ? p.id : '')
-                                    if (willSelect && is2x1) {
-                                      const corteServ = getCorteCabelloDefault()
-                                      if (corteServ) {
-                                        setFormData(prev => ({ ...prev, servicio_id: corteServ.id }))
-                                      }
-                                    }
-                                  }}
-                                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left ${
-                                    is2x1 && is2x1DisabledServicio
-                                      ? 'opacity-40 cursor-not-allowed bg-black/20 border-zinc-800/50'
-                                      : isSelected
-                                        ? 'bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)] cursor-pointer'
-                                        : 'bg-black/40 border-zinc-800/80 hover:border-amber-500/40 cursor-pointer'
-                                  }`}
-                                >
-                                  <span className="text-sm flex-shrink-0">{p.icono || '🎁'}</span>
-                                  <div className="min-w-0">
-                                    <p className="font-black text-[11px] text-white leading-tight truncate">{cleanName}</p>
-                                    <p className="text-[9px] text-zinc-500 leading-tight">
-                                      {is2x1
-                                        ? (is2x1DisabledServicio ? 'Solo Cortes' : '2×1 Martes')
-                                        : p.tipo === 'cumpleanos' || p.tipo === 'servicio_gratis'
-                                          ? '100% OFF'
-                                          : p.tipo === 'descuento_porcentaje'
-                                            ? `${p.valor}% OFF`
-                                            : `Bs. ${p.valor || 10} OFF`}
-                                    </p>
-                                  </div>
-                                  {!isSelected && (
-                                    <span className="text-[8px] font-black uppercase bg-amber-500 text-black px-2 py-0.5 rounded-md flex-shrink-0">Reservar</span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => { 
-                                      e.stopPropagation(); 
-                                      setSelectedPromoForModal(p)
-                                    }}
-                                    className="text-[8px] font-black text-amber-400 hover:text-white px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 transition flex-shrink-0"
-                                  >
-                                    Info
-                                  </button>
-                                </div>
-                              )
-                            })}
+                  if (is2x1BloqueadoPorDia) {
+                    return (
+                      <div className="mb-6 p-3.5 bg-zinc-950/80 border border-amber-500/25 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-xl shrink-0">
+                            ✂️
                           </div>
-
-                          {/* Panel expandido del 2x1 (Solo cuando está permitido reservar online) */}
-                          {promoElegida?.tipo === '2x1' && !is2x1BloqueadoPorDia && (
-                            <div className="mt-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl animate-in fade-in duration-300 space-y-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm">{promoElegida.icono || '✂️'}</span>
-                                <p className="text-[11px] font-black text-amber-400 uppercase tracking-wide">
-                                  ¡2×1 Activado! — Elige una opción:
-                                </p>
-                              </div>
-
-                              {/* Tabs de modo */}
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleSelectModo2x1('acompanante')}
-                                  className={`flex-1 py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
-                                    modo2x1 === 'acompanante'
-                                      ? 'bg-amber-500 text-black border-amber-500 shadow-lg shadow-amber-500/20'
-                                      : 'bg-black/50 text-zinc-400 border-zinc-700 hover:border-amber-500/50 hover:text-white'
-                                  }`}
-                                >
-                                  👥 Con Acompañante (Solo Cortes)
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleSelectModo2x1('servicio_extra')}
-                                  className={`flex-1 py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
-                                    modo2x1 === 'servicio_extra'
-                                      ? 'bg-amber-500 text-black border-amber-500 shadow-lg shadow-amber-500/20'
-                                      : 'bg-black/50 text-zinc-400 border-zinc-700 hover:border-amber-500/50 hover:text-white'
-                                  }`}
-                                >
-                                  👤 Vengo Solo (Combos / Extra Gratis)
-                                </button>
-                              </div>
-
-                              {/* Contenido según modo */}
-                              {modo2x1 === 'acompanante' ? (
-                                <div className="space-y-2 pt-1">
-                                  <p className="text-[10px] text-zinc-300">
-                                    Ambos recibirán su <strong className="text-amber-400">Corte de Cabello</strong> pagando únicamente 1 (<strong className="text-emerald-400">Bs. 50 total</strong>).
-                                  </p>
-                                  <p className="text-[10px] text-amber-400/90 font-medium bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 mt-1.5">
-                                    <span>⏰</span> En el <strong>Paso 3 (Fecha y Hora)</strong> ingresarás el nombre de tu acompañante y podrás elegir si se atienden juntos o uno tras otro.
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="space-y-2 pt-1">
-                                  <p className="text-[10px] text-zinc-300">
-                                    Pagas tu <strong className="text-amber-400">Corte de Cabello (Bs. 50)</strong> y te llevas 1 Servicio Extra / Combo completamente gratis.
-                                  </p>
-                                  <label className="text-[9px] font-black uppercase text-amber-400 tracking-wider block">Servicio Extra / Combo *</label>
-                                  <select
-                                    value={servicioExtra2x1}
-                                    onChange={(e) => {
-                                      const val = e.target.value
-                                      setServicioExtra2x1(val)
-                                      if (val) {
-                                        setFormData(prev => ({ ...prev, servicio_id: val }))
-                                      }
-                                    }}
-                                    className="w-full bg-black/70 border border-amber-500/30 rounded-xl px-3 py-2 text-white text-xs font-bold outline-none focus:border-amber-500"
-                                  >
-                                    <option value="">— Seleccionar Servicio Extra / Combo —</option>
-                                    {servicios
-                                      .filter(s => {
-                                        const n = s.nombre?.toLowerCase() || ''
-                                        if (n.includes('niño') || n.includes('nino')) return false
-                                        if (config2x1.servicios_extra && config2x1.servicios_extra.length > 0) {
-                                          return config2x1.servicios_extra.includes(s.id)
-                                        }
-                                        return !(s as any).es_combo && !n.includes('combo') && !n.includes('+')
-                                      })
-                                      .map(s => (
-                                        <option key={s.id} value={s.id}>{s.nombre} · (Bs. 50 en 2×1)</option>
-                                      ))}
-                                  </select>
-                                </div>
-                              )}
-
-                              <div className="pt-2 border-t border-amber-500/20">
-                                <p className="text-[9px] text-amber-300 font-bold flex items-center gap-1">
-                                  ⚠️ El 2×1 requiere pago completo del servicio por QR para confirmar la reserva.
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                  </>
-                )
-              })()}
-
-                    {/* Banner para promos que NO son 2x1 */}
-                    {promoElegida && promoElegida.tipo !== '2x1' && (
-                      <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl animate-in fade-in duration-300">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">{promoElegida.icono || '🎉'}</span>
                           <div>
-                            <p className="text-[11px] font-black text-amber-400 uppercase tracking-wide">
-                              ¡{promoElegida.nombre} activada!
-                            </p>
-                            <p className="text-[10px] text-zinc-300">
-                              {promoElegida.tipo === 'cumpleanos' || promoElegida.tipo === 'servicio_gratis'
-                                ? 'Tu servicio tendrá 100% de descuento (presenta tu CI al llegar).'
-                                : `Se descontarán Bs. ${promoElegida.valor || 10} automáticamente en tu total.`}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-black text-xs text-white uppercase tracking-tight">2×1 Todos los Martes</p>
+                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                🏪 Atención Presencial en Tienda
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-zinc-400 mt-0.5 leading-relaxed">
+                              Los días Martes el 2×1 se atiende por orden de llegada directo en la barbería. <em>(Reservas online habilitadas los Lunes)</em>.
                             </p>
                           </div>
                         </div>
                       </div>
-                    )}
+                    )
+                  }
+
+                  const is2x1Active = promoSeleccionada === promo2x1Obj.id
+
+                  return (
+                    <div className="mb-6 p-4 bg-gradient-to-b from-black/80 to-zinc-950/90 border border-amber-500/30 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">✂️</span>
+                          <span className="text-xs font-black uppercase text-amber-400 tracking-wider">
+                            Promoción 2×1 (Todos los Martes)
+                          </span>
+                        </div>
+                        {is2x1Active ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPromoSeleccionada('')
+                              setModo2x1('acompanante')
+                              setServicioExtra2x1('')
+                            }}
+                            className="text-[9px] font-bold text-zinc-400 hover:text-white uppercase tracking-wider bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-lg border border-white/10 transition"
+                          >
+                            ✕ Ver catálogo normal
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPromoSeleccionada(promo2x1Obj.id)
+                              handleSelectModo2x1('acompanante')
+                            }}
+                            className="text-[9px] font-black text-black bg-amber-500 hover:bg-amber-400 uppercase tracking-wider px-3 py-1 rounded-lg transition"
+                          >
+                            ⚡ Aplicar 2×1
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Tabs de modo 2x1 */}
+                      {is2x1Active && (
+                        <div className="space-y-2 pt-1 border-t border-amber-500/20">
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectModo2x1('acompanante')}
+                              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                                modo2x1 === 'acompanante'
+                                  ? 'bg-amber-500 text-black border-amber-500 shadow-lg shadow-amber-500/20'
+                                  : 'bg-black/50 text-zinc-400 border-zinc-700 hover:border-amber-500/50 hover:text-white'
+                              }`}
+                            >
+                              👥 Con Acompañante
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectModo2x1('servicio_extra')}
+                              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                                modo2x1 === 'servicio_extra'
+                                  ? 'bg-amber-500 text-black border-amber-500 shadow-lg shadow-amber-500/20'
+                                  : 'bg-black/50 text-zinc-400 border-zinc-700 hover:border-amber-500/50 hover:text-white'
+                              }`}
+                            >
+                              ✂️ Vengo Solo (Combos 2×1)
+                            </button>
+                          </div>
+
+                          {modo2x1 === 'acompanante' ? (
+                            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                              <p className="text-xs text-zinc-200">
+                                Ambos recibirán su <strong className="text-amber-400">Corte de Cabello</strong> pagando solo 1 (<strong className="text-emerald-400">Bs. 50 total</strong>).
+                              </p>
+                              <p className="text-[10px] text-zinc-400 mt-1 flex items-center gap-1.5">
+                                <span>👇</span> Selecciona tu corte abajo; los datos y horario de tu acompañante se eligen en el Paso 3.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                              <p className="text-xs text-zinc-200">
+                                ¡Genial! Llévate cualquiera de nuestros <strong className="text-amber-400">Combos 2×1</strong> a tarifa fija de <strong className="text-emerald-400">Bs. 50</strong>.
+                              </p>
+                              <p className="text-[10px] text-amber-300 font-bold mt-1 flex items-center gap-1.5">
+                                <span>👇</span> Selecciona tu combo favorito directamente en el catálogo de abajo:
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {/* Pestañas / Filtros de Categorías (Solo cuando no está en 2x1) */}
+                {(!promoElegida || promoElegida.tipo !== '2x1') && (
+                  <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
+                    <button
+                      type="button"
+                      onClick={() => setFilterCategoria('todos')}
+                      className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
+                        filterCategoria === 'todos'
+                          ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
+                          : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
+                      }`}
+                    >
+                      Todos ({servicios.length})
+                    </button>
+                    {CATEGORIAS_SERVICIOS.map(cat => {
+                      const count = servicios.filter(s => (s.categoria || 'Cortes') === cat.id).length
+                      if (count === 0 && filterCategoria !== cat.id) return null
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setFilterCategoria(cat.id)}
+                          className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                            filterCategoria === cat.id
+                              ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
+                              : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
+                          }`}
+                        >
+                          <span>{cat.id}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/30 font-mono">{count}</span>
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
-                
-                {/* Pestañas / Filtros de Categorías */}
-                <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
-                  <button
-                    type="button"
-                    onClick={() => setFilterCategoria('todos')}
-                    className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
-                      filterCategoria === 'todos'
-                        ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
-                        : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
-                    }`}
-                  >
-                    Todos ({promoElegida?.tipo === '2x1' ? servicios.filter(s => esServicio2x1Valido(s)).length : servicios.length})
-                  </button>
-                  {CATEGORIAS_SERVICIOS.map(cat => {
-                    const count = servicios.filter(s => {
-                      const matchCat = (s.categoria || 'Cortes') === cat.id
-                      if (promoElegida?.tipo === '2x1') {
-                        return matchCat && esServicio2x1Valido(s)
-                      }
-                      return matchCat
-                    }).length
-                    if (count === 0 && filterCategoria !== cat.id) return null
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setFilterCategoria(cat.id)}
-                        className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
-                          filterCategoria === cat.id
-                            ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105'
-                            : 'bg-black/60 border border-zinc-800 text-zinc-400 hover:border-amber-500/50 hover:text-white'
-                        }`}
-                      >
-                        <span>{cat.id}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/30 font-mono">{count}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+
+                {/* Banner de modo 2x1 arriba del catálogo */}
+                {promoElegida?.tipo === '2x1' && (
+                  <div className="mb-6 p-4 bg-gradient-to-r from-amber-500/20 via-zinc-900 to-black border-2 border-amber-500/40 rounded-2xl flex items-center gap-3 shadow-lg">
+                    <span className="text-2xl">✂️</span>
+                    <div className="text-xs">
+                      <p className="font-black text-amber-400 uppercase tracking-wide">
+                        {modo2x1 === 'acompanante' ? 'Catálogo 2×1 con Acompañante' : 'Catálogo de Combos 2×1 (Tarifa Fija Bs. 50)'}
+                      </p>
+                      <p className="text-zinc-300 font-medium mt-0.5">
+                        {modo2x1 === 'acompanante'
+                          ? 'Selecciona tu Corte de Cabello (ambos cortes incluidos por Bs. 50 total). Los datos de tu acompañante se eligen en el Paso 3.'
+                          : 'Haz clic en el combo que desees recibir. Todos los combos de esta lista tienen precio especial de Bs. 50.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Renderizado de Servicios (Filtro Todos o por Categoría) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
