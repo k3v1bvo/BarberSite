@@ -111,15 +111,31 @@ export async function calcularComisionBarbero(
     }
 
     // 3. Fallback: usar comisión global del servicio
-    if (servicio_global && servicio_global.comision_activa !== false && servicio_global.comision_tipo !== 'ninguna') {
-      resultado.tipo_usado = 'global'
-      resultado.comision_tipo = servicio_global.comision_tipo || 'ninguna'
-      resultado.comision_valor = servicio_global.comision_valor || 0
+    let servConfig = servicio_global
+    if (!servConfig && servicio_id) {
+      const { data: servDb } = await supabase
+        .from('servicios')
+        .select('comision_activa, comision_tipo, comision_valor')
+        .eq('id', servicio_id)
+        .maybeSingle()
+      if (servDb) {
+        servConfig = {
+          comision_activa: servDb.comision_activa,
+          comision_tipo: servDb.comision_tipo,
+          comision_valor: servDb.comision_valor
+        }
+      }
+    }
 
-      if (servicio_global.comision_tipo === 'fija') {
-        resultado.monto = servicio_global.comision_valor || 0
-      } else if (servicio_global.comision_tipo === 'porcentaje') {
-        resultado.monto = (precio_servicio * (servicio_global.comision_valor || 0)) / 100
+    if (servConfig && servConfig.comision_activa !== false && servConfig.comision_tipo !== 'ninguna') {
+      resultado.tipo_usado = 'global'
+      resultado.comision_tipo = servConfig.comision_tipo || 'ninguna'
+      resultado.comision_valor = servConfig.comision_valor || 0
+
+      if (servConfig.comision_tipo === 'fija') {
+        resultado.monto = servConfig.comision_valor || 0
+      } else if (servConfig.comision_tipo === 'porcentaje') {
+        resultado.monto = (precio_servicio * (servConfig.comision_valor || 0)) / 100
       }
     }
 
