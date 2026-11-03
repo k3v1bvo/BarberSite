@@ -17,7 +17,7 @@ export async function GET(req: Request) {
 
   let query = adminSupabase
     .from('citas')
-    .select('*, barbero:profiles!citas_barbero_id_fkey(full_name), servicios(nombre), clientes(nombre)')
+    .select('*, barbero:profiles!citas_barbero_id_fkey(full_name, comision_porcentaje), servicios(nombre, precio, comision_tipo, comision_valor), clientes(nombre)')
     .eq('estado', 'completado')
     .order('fecha_hora', { ascending: false })
 
@@ -106,6 +106,8 @@ export async function GET(req: Request) {
   let pagado = 0
   let hoy = 0
   let semana = 0
+  let total_cobrado = 0
+  let total_cobrado_pendiente = 0
 
   const now = getBusinessNow()
   const todayStr = getBoliviaDateString()
@@ -117,10 +119,14 @@ export async function GET(req: Request) {
 
   citas?.forEach(c => {
     const comision = Number(c.comision_barbero) || 0
+    const precio = Number(c.precio) || 0
+    total_cobrado += precio
+
     if (c.comision_pagada) {
       pagado += comision
     } else {
       pendiente += comision
+      total_cobrado_pendiente += precio
     }
 
     const dateStr = getBoliviaDateKey(c.fecha_hora)
@@ -134,7 +140,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ 
     citas, 
-    resumen: { pendiente, pagado, hoy, semana },
+    resumen: { pendiente, pagado, hoy, semana, total_cobrado, total_cobrado_pendiente },
     finanzas: {
       saldo_adelantos,
       sanciones_pendientes,

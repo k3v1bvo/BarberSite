@@ -17,7 +17,7 @@ export default function AdminComisionesPage() {
   const [citas, setCitas] = useState<any[]>([])
   const [pagos, setPagos] = useState<any[]>([])
   const [barberos, setBarberos] = useState<any[]>([])
-  const [resumen, setResumen] = useState({ pendiente: 0, pagado: 0, hoy: 0, semana: 0 })
+  const [resumen, setResumen] = useState({ pendiente: 0, pagado: 0, hoy: 0, semana: 0, total_cobrado: 0, total_cobrado_pendiente: 0 })
   const [barberoId, setBarberoId] = useState('')
   const [estado, setEstado] = useState('pendiente')
   const [periodo, setPeriodo] = useState<'diario' | 'semanal' | 'personalizado'>('diario')
@@ -52,7 +52,7 @@ export default function AdminComisionesPage() {
       const rJson = rRes.ok ? await rRes.json() : { plan_cuentas: [] }
       
       setCitas(cJson.citas ?? [])
-      setResumen(cJson.resumen ?? { pendiente: 0, pagado: 0, hoy: 0, semana: 0 })
+      setResumen(cJson.resumen ?? { pendiente: 0, pagado: 0, hoy: 0, semana: 0, total_cobrado: 0, total_cobrado_pendiente: 0 })
       setFinanzas(cJson.finanzas ?? { saldo_adelantos: 0, sanciones_pendientes: [], total_sanciones: 0, bonos_pendientes: [], total_bonos: 0 })
       setPagos(pJson.pagos ?? [])
       
@@ -196,15 +196,25 @@ export default function AdminComisionesPage() {
 
   const exportarCSV = () => {
     const rows = [
-      ['Fecha', 'Barbero', 'Servicio', 'Cliente', 'Comisión', 'Estado'],
-      ...citas.map((c) => [
-        new Date(c.fecha_hora).toLocaleDateString('es-BO'),
-        c.barbero?.full_name || '',
-        c.servicios?.nombre || '',
-        c.clientes?.nombre || '',
-        String(c.comision_barbero || 0),
-        c.comision_pagada ? 'Pagada' : 'Pendiente',
-      ]),
+      ['Fecha', 'Barbero', 'Servicio', 'Cliente', 'Precio Cobrado', '% Comisión', 'Comisión Barbero', 'Propina Barbero', 'Estado'],
+      ...citas.map((c) => {
+        const precio = Number(c.precio) || 0
+        const comision = Number(c.comision_barbero) || 0
+        const propinaBarbero = (Number(c.propinas) || 0) * 0.5
+        const baseComision = Math.max(0, comision - propinaBarbero)
+        const pct = precio > 0 ? `${Math.round((baseComision / precio) * 100)}%` : '0%'
+        return [
+          new Date(c.fecha_hora).toLocaleDateString('es-BO'),
+          c.barbero?.full_name || '',
+          c.servicios?.nombre || '',
+          c.clientes?.nombre || '',
+          String(precio),
+          pct,
+          String(comision),
+          String(propinaBarbero),
+          c.comision_pagada ? 'Pagada' : 'Pendiente',
+        ]
+      }),
     ]
     const csv = rows.map((r) => r.map((cell) => `"${cell}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -217,6 +227,7 @@ export default function AdminComisionesPage() {
   }
 
   const totalCalculado = resumen.pendiente - finanzas.total_sanciones + finanzas.total_bonos - descuentoAdelanto
+  const citasCobradoPendiente = citas.filter((c: any) => !c.comision_pagada).reduce((sum: number, c: any) => sum + (Number(c.precio) || 0), 0)
 
   return (
     <div className="space-y-8 pb-20">
@@ -237,17 +248,19 @@ export default function AdminComisionesPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
-          { label: 'Pendiente', value: resumen.pendiente, color: 'text-amber-500' },
-          { label: 'Hoy', value: resumen.hoy, color: 'text-white' },
-          { label: 'Semana', value: resumen.semana, color: 'text-zinc-300' },
-          { label: 'Pagado', value: resumen.pagado, color: 'text-green-500' },
+          { label: 'Total Cobrado', value: resumen.total_cobrado, color: 'text-blue-400', sub: 'Monto de servicios' },
+          { label: 'Comisión Pendiente', value: resumen.pendiente, color: 'text-amber-500', sub: 'Por liquidar a barberos' },
+          { label: 'Generado Hoy', value: resumen.hoy, color: 'text-white', sub: 'Comisiones del día' },
+          { label: 'Esta Semana', value: resumen.semana, color: 'text-zinc-300', sub: 'Comisiones de semana' },
+          { label: 'Total Pagado', value: resumen.pagado, color: 'text-green-500', sub: 'Historial liquidado' },
         ].map((s) => (
           <Card key={s.label} className="bg-zinc-900 border-white/5">
-            <CardContent className="p-6">
-              <p className="text-[10px] font-black uppercase text-zinc-600 tracking-widest">{s.label}</p>
-              <p className={`text-3xl font-black mt-2 ${s.color}`}>{formatCurrency(s.value)}</p>
+            <CardContent className="p-5">
+              <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">{s.label}</p>
+              <p className={`text-2xl font-black mt-2 ${s.color}`}>{formatCurrency(s.value)}</p>
+              <p className="text-[10px] text-zinc-500 mt-1">{s.sub}</p>
             </CardContent>
           </Card>
         ))}
@@ -311,10 +324,20 @@ export default function AdminComisionesPage() {
           {barberoId && estado === 'pendiente' && (
             <div className="p-4 rounded-xl border border-white/10 bg-black/50 space-y-4">
               <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500 border-b border-white/5 pb-2">Resumen Financiero para Pago</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
                 <div>
-                  <span className="block text-zinc-400 mb-1">Total Generado</span>
-                  <span className="font-bold text-white">{formatCurrency(resumen.pendiente)}</span>
+                  <span className="block text-zinc-400 mb-1">Total Cobrado</span>
+                  <span className="font-bold text-blue-400">{formatCurrency(citasCobradoPendiente)}</span>
+                  <span className="text-[10px] text-zinc-500 block">En citas pendientes</span>
+                </div>
+                <div>
+                  <span className="block text-zinc-400 mb-1">Comisión Barbero</span>
+                  <span className="font-bold text-amber-500">{formatCurrency(resumen.pendiente)}</span>
+                  {citasCobradoPendiente > 0 && (
+                    <span className="text-[10px] text-zinc-400 block font-mono">
+                      ~{Math.round((resumen.pendiente / citasCobradoPendiente) * 100)}% del cobrado
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="block text-zinc-400 mb-1">Deuda por Adelantos</span>
@@ -376,40 +399,78 @@ export default function AdminComisionesPage() {
       </Card>
 
       <div className="overflow-x-auto w-full">
-        <table className="w-full text-sm min-w-[800px]">
+        <table className="w-full text-sm min-w-[880px]">
           <thead>
             <tr className="text-zinc-500 uppercase text-[10px] tracking-widest border-b border-white/5">
               <th className="text-left py-3 px-4">Fecha</th>
               <th className="text-left py-3 px-4">Barbero</th>
               <th className="text-left py-3 px-4">Servicio</th>
               <th className="text-left py-3 px-4">Cliente</th>
-              <th className="text-right py-3 px-4">Comisión</th>
+              <th className="text-right py-3 px-4">Precio Cobrado</th>
+              <th className="text-center py-3 px-4">% Comisión</th>
+              <th className="text-right py-3 px-4">Comisión Barbero</th>
               <th className="text-right py-3 px-4">Estado</th>
               <th className="text-right py-3 px-4">Acción</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="py-12 text-center text-zinc-600">Cargando...</td></tr>
-            ) : citas.map((c) => (
-              <tr key={c.id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="py-3 px-4 text-zinc-400">{new Date(c.fecha_hora).toLocaleDateString('es-BO')}</td>
-                <td className="py-3 px-4 text-white font-bold">{c.barbero?.full_name}</td>
-                <td className="py-3 px-4">{c.servicios?.nombre}</td>
-                <td className="py-3 px-4">{c.clientes?.nombre || '—'}</td>
-                <td className="py-3 px-4 text-right font-black text-amber-500">{formatCurrency(c.comision_barbero || 0)}</td>
-                <td className="py-3 px-4 text-right">
-                  <Badge variant={c.comision_pagada ? 'success' : 'warning'}>{c.comision_pagada ? 'Pagada' : 'Pendiente'}</Badge>
-                </td>
-                <td className="py-3 px-4 text-right">
-                  {!c.comision_pagada && (
-                    <Button variant="outline" size="sm" onClick={() => editarComision(c.id, c.comision_barbero || 0)}>
-                      <Edit className="w-3 h-3" />
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
+              <tr><td colSpan={9} className="py-12 text-center text-zinc-600">Cargando...</td></tr>
+            ) : citas.length === 0 ? (
+              <tr><td colSpan={9} className="py-12 text-center text-zinc-600">No hay citas registradas con los filtros actuales.</td></tr>
+            ) : citas.map((c) => {
+              const precio = Number(c.precio) || 0
+              const comision = Number(c.comision_barbero) || 0
+              const propinaBarbero = (Number(c.propinas) || 0) * 0.5
+              const comisionServicioBase = Math.max(0, comision - propinaBarbero)
+              const pct = precio > 0 ? Math.round((comisionServicioBase / precio) * 100) : 0
+              const esFija = c.servicios?.comision_tipo === 'fija'
+
+              return (
+                <tr key={c.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                  <td className="py-3 px-4 text-zinc-400 whitespace-nowrap">{new Date(c.fecha_hora).toLocaleDateString('es-BO')}</td>
+                  <td className="py-3 px-4 text-white font-bold">{c.barbero?.full_name}</td>
+                  <td className="py-3 px-4 text-zinc-200">
+                    <div className="font-medium">{c.servicios?.nombre || 'Servicio'}</div>
+                    {c.comision_categoria && (
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">
+                        Cat: {c.comision_categoria} {c.comision_herramientas ? '• Con herram.' : ''}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-zinc-400">{c.clientes?.nombre || '—'}</td>
+                  <td className="py-3 px-4 text-right font-bold text-white whitespace-nowrap">
+                    {formatCurrency(precio)}
+                  </td>
+                  <td className="py-3 px-4 text-center whitespace-nowrap">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      {pct}%
+                    </span>
+                    {esFija && (
+                      <span className="block text-[9px] text-zinc-500 font-mono mt-0.5">monto fijo</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                    <span className="font-black text-amber-500 text-base">{formatCurrency(comision)}</span>
+                    {propinaBarbero > 0 && (
+                      <span className="block text-[10px] text-green-400">
+                        +{formatCurrency(propinaBarbero)} propina
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <Badge variant={c.comision_pagada ? 'success' : 'warning'}>{c.comision_pagada ? 'Pagada' : 'Pendiente'}</Badge>
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    {!c.comision_pagada && (
+                      <Button variant="outline" size="sm" onClick={() => editarComision(c.id, c.comision_barbero || 0)} title="Ajustar monto de comisión">
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
