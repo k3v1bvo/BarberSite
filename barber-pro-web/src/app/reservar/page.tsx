@@ -274,23 +274,19 @@ function ReservarContent() {
 
   const handleSelectModo2x1 = (nuevoModo: 'acompanante' | 'servicio_extra') => {
     setModo2x1(nuevoModo)
-    if (nuevoModo === 'acompanante') {
+    if (nuevoModo === 'servicio_extra') {
+      const extraIds = config2x1.servicios_extra || []
+      const comboElegido = (servicioExtra2x1 && extraIds.includes(servicioExtra2x1)) ? servicioExtra2x1 : (extraIds[0] || '')
+      if (comboElegido) {
+        setServicioExtra2x1(comboElegido)
+        setFormData(prev => ({ ...prev, servicio_id: comboElegido }))
+      }
+    } else {
       const corteServ = getCorteCabelloDefault()
       if (corteServ) {
         setFormData(prev => ({ ...prev, servicio_id: corteServ.id }))
       }
       setServicioExtra2x1('')
-    } else {
-      const servActual = servicios.find(s => s.id === formData.servicio_id)
-      const extraIds = config2x1.servicios_extra || []
-      const esExtra = servActual && extraIds.includes(servActual.id)
-      if (!esExtra && extraIds.length > 0) {
-        const primerExtra = servicios.find(s => extraIds.includes(s.id))
-        if (primerExtra) {
-          setFormData(prev => ({ ...prev, servicio_id: primerExtra.id }))
-          setServicioExtra2x1(primerExtra.id)
-        }
-      }
     }
     if (filterCategoria.toLowerCase() === 'combos') {
       setFilterCategoria('todos')
@@ -351,29 +347,6 @@ function ReservarContent() {
     }
   }, [promoSeleccionada, promociones])
 
-  // Auto-sincronizar modo 2×1 (acompanante vs servicio_extra) según el servicio seleccionado
-  useEffect(() => {
-    const promo = promociones.find(p => p.id === promoSeleccionada)
-    if (promo?.tipo === '2x1') {
-      const serv = servicios.find(s => s.id === formData.servicio_id)
-      const extraIds = config2x1.servicios_extra || []
-      const esComboOExtra = serv ? (
-        extraIds.includes(serv.id) ||
-        (serv as any).es_combo ||
-        (serv.categoria || '').toLowerCase() === 'combos' ||
-        serv.nombre.toLowerCase().includes('+') ||
-        serv.nombre.toLowerCase().includes('combo')
-      ) : false
-
-      if (esComboOExtra && serv) {
-        setModo2x1('servicio_extra')
-        setServicioExtra2x1(serv.id)
-      } else {
-        setModo2x1('acompanante')
-        setServicioExtra2x1('')
-      }
-    }
-  }, [formData.servicio_id, promoSeleccionada, promociones, config2x1, servicios])
 
   // Si la promo 2x1 está activa, asegurar que el servicio sea válido según la configuración del admin
   useEffect(() => {
@@ -958,8 +931,8 @@ function ReservarContent() {
           return
         }
       }
-      if (modo2x1 === 'servicio_extra' && !servicioExtra2x1 && !formData.servicio_id) {
-        toastError('Por favor selecciona el servicio o combo para el 2×1.')
+      if (modo2x1 === 'servicio_extra' && !servicioExtra2x1) {
+        toastError('Por favor selecciona el servicio extra que deseas recibir en el 2×1.')
         return
       }
     }
@@ -1105,9 +1078,9 @@ function ReservarContent() {
           toastError('Debe ingresar el nombre del acompañante para la promoción 2x1.')
           return
         }
-        if (modo2x1 === 'servicio_extra' && !servicioExtra2x1 && !formData.servicio_id) {
+        if (modo2x1 === 'servicio_extra' && !servicioExtra2x1) {
           setSubmitting(false)
-          toastError('Debe seleccionar un servicio o combo para la promoción 2x1.')
+          toastError('Debe seleccionar un servicio extra para la promoción 2x1.')
           return
         }
 
@@ -1191,6 +1164,9 @@ function ReservarContent() {
         if (promoElegida.tipo === '2x1') {
           if (modo2x1 === 'acompanante' && acompanante.nombre) {
             infoPromo += ` (Pagan 1 corte y se atienden 2) | Acompañante: ${acompanante.nombre}${acompanante.email ? ` (${acompanante.email})` : ''}`
+          } else if (modo2x1 === 'servicio_extra') {
+            const extraObj = servicios.find(s => s.id === servicioExtra2x1 || s.id === formData.servicio_id)
+            infoPromo += ` (Vengo Solo 2×1 - Combo/Extra: ${extraObj?.nombre || 'Seleccionado'})`
           } else {
             infoPromo += ` (Combo 2×1 a Bs. 50 - Tarifa Especial)`
           }
@@ -1553,8 +1529,11 @@ function ReservarContent() {
           missingFields.push(`Horario Acompañante (${valA.motivo || 'No disponible'})`)
         }
       }
+    } else if (modo2x1 === 'servicio_extra') {
+      if (!servicioExtra2x1 && !formData.servicio_id) {
+        missingFields.push('Servicio Extra / Combo 2×1')
+      }
     }
-    // En modo 'servicio_extra', el cliente viene solo con su combo 2×1; formData.servicio_id ya es el combo.
   }
 
   const wizardSteps = [
@@ -1985,7 +1964,7 @@ function ReservarContent() {
                 <h2 className="text-3xl font-black mb-4 text-center tracking-tight">Selecciona tu <span className="text-amber-500">Servicio</span></h2>
 
                 {/* PROMOCIONES — Compactas */}
-                {promociones.filter(p => p.tipo === '2x1').length > 0 && (
+                {promociones.length > 0 && (
                   <div className="mb-6 p-3 bg-gradient-to-b from-black/60 to-zinc-950/80 border border-amber-500/20 rounded-2xl">
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <h3 className="text-[10px] uppercase tracking-[0.15em] font-black text-amber-400 flex items-center gap-1">
@@ -2010,13 +1989,14 @@ function ReservarContent() {
                       return (
                         <>
                           <div className="flex flex-wrap gap-2">
-                            {promociones.filter(p => p.tipo === '2x1').map(p => {
+                            {promociones.map(p => {
                               const cleanName = p.nombre.replace(new RegExp(`^${p.icono}\\s*`, 'u'), '').trim()
                               const isSelected = promoSeleccionada === p.id
+                              const is2x1 = p.tipo === '2x1'
                               const servActual = servicios.find(s => s.id === formData.servicio_id)
-                              const is2x1DisabledServicio = servActual && !esServicio2x1Valido(servActual)
+                              const is2x1DisabledServicio = is2x1 && servActual && !esServicio2x1Valido(servActual)
 
-                              if (is2x1BloqueadoPorDia) {
+                              if (is2x1 && is2x1BloqueadoPorDia) {
                                 return (
                                   <div
                                     key={p.id}
@@ -2058,10 +2038,10 @@ function ReservarContent() {
                                 <div
                                   key={p.id}
                                   onClick={() => {
-                                    if (is2x1DisabledServicio) return
+                                    if (is2x1 && is2x1DisabledServicio) return
                                     const willSelect = !isSelected
                                     setPromoSeleccionada(willSelect ? p.id : '')
-                                    if (willSelect) {
+                                    if (willSelect && is2x1) {
                                       const corteServ = getCorteCabelloDefault()
                                       if (corteServ) {
                                         setFormData(prev => ({ ...prev, servicio_id: corteServ.id }))
@@ -2069,7 +2049,7 @@ function ReservarContent() {
                                     }
                                   }}
                                   className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-left ${
-                                    is2x1DisabledServicio
+                                    is2x1 && is2x1DisabledServicio
                                       ? 'opacity-40 cursor-not-allowed bg-black/20 border-zinc-800/50'
                                       : isSelected
                                         ? 'bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)] cursor-pointer'
@@ -2080,7 +2060,13 @@ function ReservarContent() {
                                   <div className="min-w-0">
                                     <p className="font-black text-[11px] text-white leading-tight truncate">{cleanName}</p>
                                     <p className="text-[9px] text-zinc-500 leading-tight">
-                                      {is2x1DisabledServicio ? 'Solo Cortes / Combos' : '2×1 Martes'}
+                                      {is2x1
+                                        ? (is2x1DisabledServicio ? 'Solo Cortes' : '2×1 Martes')
+                                        : p.tipo === 'cumpleanos' || p.tipo === 'servicio_gratis'
+                                          ? '100% OFF'
+                                          : p.tipo === 'descuento_porcentaje'
+                                            ? `${p.valor}% OFF`
+                                            : `Bs. ${p.valor || 10} OFF`}
                                     </p>
                                   </div>
                                   {!isSelected && (
@@ -2101,25 +2087,91 @@ function ReservarContent() {
                             })}
                           </div>
 
-                          {/* Panel informativo del 2x1 (Solo cuando está permitido reservar online) */}
+                          {/* Panel expandido del 2x1 (Solo cuando está permitido reservar online) */}
                           {promoElegida?.tipo === '2x1' && !is2x1BloqueadoPorDia && (
-                            <div className="mt-3 p-4 bg-gradient-to-r from-amber-500/15 via-zinc-900 to-black border-2 border-amber-500/40 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-in fade-in duration-300">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-xl shrink-0">
-                                  ✂️
-                                </div>
-                                <div>
-                                  <p className="text-xs font-black text-amber-400 uppercase tracking-wide">
-                                    ¡Martes de 2×1 Activado! — Tarifa Promocional Bs. 50
-                                  </p>
-                                  <p className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
-                                    Elige <strong>Corte de Cabello</strong> si vienes con tu acompañante (sus datos se ingresan en el Paso 3) o selecciona cualquiera de nuestros <strong>Combos 2×1</strong> a solo Bs. 50 si vienes solo.
-                                  </p>
-                                </div>
+                            <div className="mt-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl animate-in fade-in duration-300 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm">{promoElegida.icono || '✂️'}</span>
+                                <p className="text-[11px] font-black text-amber-400 uppercase tracking-wide">
+                                  ¡2×1 Activado! — Elige una opción:
+                                </p>
                               </div>
-                              <span className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 text-[10px] font-black uppercase tracking-wider shrink-0 self-start sm:self-center">
-                                Tarifa Fija Bs. 50
-                              </span>
+
+                              {/* Tabs de modo */}
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectModo2x1('acompanante')}
+                                  className={`flex-1 py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                                    modo2x1 === 'acompanante'
+                                      ? 'bg-amber-500 text-black border-amber-500 shadow-lg shadow-amber-500/20'
+                                      : 'bg-black/50 text-zinc-400 border-zinc-700 hover:border-amber-500/50 hover:text-white'
+                                  }`}
+                                >
+                                  👥 Con Acompañante (Solo Cortes)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectModo2x1('servicio_extra')}
+                                  className={`flex-1 py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                                    modo2x1 === 'servicio_extra'
+                                      ? 'bg-amber-500 text-black border-amber-500 shadow-lg shadow-amber-500/20'
+                                      : 'bg-black/50 text-zinc-400 border-zinc-700 hover:border-amber-500/50 hover:text-white'
+                                  }`}
+                                >
+                                  👤 Vengo Solo (Combos / Extra Gratis)
+                                </button>
+                              </div>
+
+                              {/* Contenido según modo */}
+                              {modo2x1 === 'acompanante' ? (
+                                <div className="space-y-2 pt-1">
+                                  <p className="text-[10px] text-zinc-300">
+                                    Ambos recibirán su <strong className="text-amber-400">Corte de Cabello</strong> pagando únicamente 1 (<strong className="text-emerald-400">Bs. 50 total</strong>).
+                                  </p>
+                                  <p className="text-[10px] text-amber-400/90 font-medium bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 mt-1.5">
+                                    <span>⏰</span> En el <strong>Paso 3 (Fecha y Hora)</strong> ingresarás el nombre de tu acompañante y podrás elegir si se atienden juntos o uno tras otro.
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="space-y-2 pt-1">
+                                  <p className="text-[10px] text-zinc-300">
+                                    Pagas tu <strong className="text-amber-400">Corte de Cabello (Bs. 50)</strong> y te llevas 1 Servicio Extra / Combo completamente gratis.
+                                  </p>
+                                  <label className="text-[9px] font-black uppercase text-amber-400 tracking-wider block">Servicio Extra / Combo *</label>
+                                  <select
+                                    value={servicioExtra2x1}
+                                    onChange={(e) => {
+                                      const val = e.target.value
+                                      setServicioExtra2x1(val)
+                                      if (val) {
+                                        setFormData(prev => ({ ...prev, servicio_id: val }))
+                                      }
+                                    }}
+                                    className="w-full bg-black/70 border border-amber-500/30 rounded-xl px-3 py-2 text-white text-xs font-bold outline-none focus:border-amber-500"
+                                  >
+                                    <option value="">— Seleccionar Servicio Extra / Combo —</option>
+                                    {servicios
+                                      .filter(s => {
+                                        const n = s.nombre?.toLowerCase() || ''
+                                        if (n.includes('niño') || n.includes('nino')) return false
+                                        if (config2x1.servicios_extra && config2x1.servicios_extra.length > 0) {
+                                          return config2x1.servicios_extra.includes(s.id)
+                                        }
+                                        return !(s as any).es_combo && !n.includes('combo') && !n.includes('+')
+                                      })
+                                      .map(s => (
+                                        <option key={s.id} value={s.id}>{s.nombre} · (Bs. 50 en 2×1)</option>
+                                      ))}
+                                  </select>
+                                </div>
+                              )}
+
+                              <div className="pt-2 border-t border-amber-500/20">
+                                <p className="text-[9px] text-amber-300 font-bold flex items-center gap-1">
+                                  ⚠️ El 2×1 requiere pago completo del servicio por QR para confirmar la reserva.
+                                </p>
+                              </div>
                             </div>
                           )}
                   </>
@@ -2194,8 +2246,19 @@ function ReservarContent() {
                     : servicios.filter(s => (s.categoria || 'Cortes') === filterCategoria)
                   )
                   .filter(s => {
-                    // Si el 2x1 está seleccionado, filtrar por servicios autorizados (Cortes y Combos)
-                    if (promoElegida?.tipo === '2x1' && !esServicio2x1Valido(s)) return false
+                    // Si el 2x1 está seleccionado, filtrar por servicios autorizados según el modo
+                    if (promoElegida?.tipo === '2x1') {
+                      if (!esServicio2x1Valido(s)) return false
+                      if (modo2x1 === 'acompanante') {
+                        const acompIds = config2x1.servicios_acompanante || []
+                        if (acompIds.length > 0) return acompIds.includes(s.id)
+                        const nom = s.nombre.toLowerCase().trim()
+                        return !nom.includes('niño') && !nom.includes('nino') && nom.includes('corte') && !nom.includes('+') && !nom.includes('combo')
+                      } else {
+                        const extraIds = config2x1.servicios_extra || []
+                        if (extraIds.length > 0) return extraIds.includes(s.id)
+                      }
+                    }
                     if (!formData.barbero_id) return true
                     if (s.barberos_excluidos?.length) {
                       return !s.barberos_excluidos.includes(formData.barbero_id)
@@ -3946,7 +4009,7 @@ function ReservarContent() {
                           </div>
                           <div className="flex justify-between items-center text-xs text-zinc-300">
                             <span className="text-zinc-400">Combo seleccionado:</span>
-                            <strong className="text-white font-black">{servicioSeleccionado?.nombre || '—'}</strong>
+                            <strong className="text-white font-black">{servicios.find(s => s.id === servicioExtra2x1)?.nombre || servicioSeleccionado?.nombre || '—'}</strong>
                           </div>
                         </div>
                       )}
