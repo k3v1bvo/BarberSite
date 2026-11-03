@@ -114,7 +114,7 @@ export default function AdminComisionesPage() {
     import('@/lib/supabase/client').then(({ createClient }) => {
       createClient()
         .from('profiles')
-        .select('id, full_name, role, avatar_url')
+        .select('id, full_name, role, avatar_url, comision_porcentaje')
         .in('role', ['barbero', 'coordinador'])
         .eq('is_active', true)
         .order('full_name')
@@ -192,6 +192,38 @@ export default function AdminComisionesPage() {
     }
     success('Comisión actualizada')
     load()
+  }
+
+  const cambiarPorcentajeBarbero = async (bId: string, bNombre: string, pct: number) => {
+    if (!confirm(`¿Actualizar el porcentaje de ${bNombre} a ${pct}% y recalcular sus citas pendientes?`)) return
+    try {
+      const res = await fetch('/api/comisiones/pagos', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          barbero_id: bId,
+          nuevo_porcentaje: pct,
+          recalcular_pendientes: true,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      success(data.mensaje || `Comisión actualizada a ${pct}%`)
+      load()
+    } catch (e: any) {
+      toastError(e.message || 'Error al cambiar porcentaje')
+    }
+  }
+
+  const cambiarPorcentajePersonalizado = async (bId: string, bNombre: string, actual: number) => {
+    const val = prompt(`Ingresa el nuevo porcentaje para ${bNombre} (0 - 100):`, String(actual || 45))
+    if (val === null) return
+    const num = parseFloat(val)
+    if (isNaN(num) || num < 0 || num > 100) {
+      toastError('Porcentaje inválido')
+      return
+    }
+    cambiarPorcentajeBarbero(bId, bNombre, num)
   }
 
   const crearSancion = async () => {
@@ -394,9 +426,36 @@ export default function AdminComisionesPage() {
                           {formatCurrency(rb.comisionTotal)}
                         </td>
                         <td className="py-3 px-3 text-center">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                            {rb.pctEfectivo}%
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                              {rb.pctEfectivo}%
+                            </span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {[40, 45, 50].map((p) => (
+                                <button
+                                  key={p}
+                                  type="button"
+                                  onClick={() => cambiarPorcentajeBarbero(rb.barbero.id, rb.barbero.full_name, p)}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors ${
+                                    rb.barbero.comision_porcentaje === p
+                                      ? 'bg-amber-500 text-black border-amber-500'
+                                      : 'bg-zinc-950 text-zinc-400 border-white/10 hover:border-amber-500/50 hover:text-white'
+                                  }`}
+                                  title={`Fijar a ${p}% (${p === 40 ? '8 horas' : p === 45 ? '10 horas' : '11 horas'})`}
+                                >
+                                  {p}%
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => cambiarPorcentajePersonalizado(rb.barbero.id, rb.barbero.full_name, rb.barbero.comision_porcentaje || 45)}
+                                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-950 text-zinc-400 border border-white/10 hover:text-white hover:border-white/30"
+                                title="Porcentaje personalizado"
+                              >
+                                ✏️
+                              </button>
+                            </div>
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-right font-black text-amber-500 text-sm">
                           {formatCurrency(rb.comisionPendiente)}

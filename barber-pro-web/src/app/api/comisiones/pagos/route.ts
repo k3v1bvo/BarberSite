@@ -378,6 +378,56 @@ export async function PATCH(req: Request) {
 
     const adminSupabase = await createServerAdminClient()
     const body = await req.json()
+
+    // 1. Ajustar porcentaje global del barbero y recalcular sus citas pendientes si se solicita
+    if (body.barbero_id && typeof body.nuevo_porcentaje === 'number') {
+      const { barbero_id, nuevo_porcentaje, recalcular_pendientes } = body
+      if (nuevo_porcentaje < 0 || nuevo_porcentaje > 100) {
+        return NextResponse.json({ error: 'Porcentaje inválido (debe ser entre 0 y 100)' }, { status: 400 })
+      }
+
+      await adminSupabase
+        .from('profiles')
+        .update({ comision_porcentaje: nuevo_porcentaje })
+        .eq('id', barbero_id)
+
+      if (recalcular_pendientes) {
+        const { data: citasPendientes } = await adminSupabase
+          .from('citas')
+          .select('id, precio, propinas, servicios(nombre, comision_tipo, comision_valor)')
+          .eq('barbero_id', barbero_id)
+          .eq('estado', 'completado')
+          .eq('comision_pagada', false)
+
+        if (citasPendientes && citasPendientes.length > 0) {
+          for (const c of citasPendientes) {
+            const serv = c.servicios as any
+            // Respetar servicios con monto fijo estricto (Corte niño 20, Baño luna 20, Combos 32)
+            if (serv?.comision_tipo === 'fija' && (serv?.comision_valor === 20 || serv?.comision_valor === 32)) {
+              continue
+            }
+            // Respetar servicios con porcentaje protegido específico (Tintes 35%, Diseño 50%)
+            if (/tinte/i.test(serv?.nombre || '') || (serv?.comision_valor === 35 && serv?.comision_tipo === 'porcentaje')) {
+              continue
+            }
+            if (/dise[ñn]o/i.test(serv?.nombre || '') || (serv?.comision_valor === 50 && /dise/i.test(serv?.nombre || ''))) {
+              continue
+            }
+
+            const precio = Number(c.precio) || 0
+            if (precio > 0) {
+              const propinaBarbero = (Number(c.propinas) || 0) * 0.5
+              const nuevaComision = ((precio * nuevo_porcentaje) / 100) + propinaBarbero
+              await adminSupabase.from('citas').update({ comision_barbero: nuevaComision }).eq('id', c.id)
+            }
+          }
+        }
+      }
+
+      return NextResponse.json({ success: true, mensaje: `Porcentaje actualizado a ${nuevo_porcentaje}%` })
+    }
+
+    // 2. Ajustar comisión de una cita individual
     const { cita_id, comision_barbero } = body
 
     if (!cita_id || typeof comision_barbero !== 'number') {
