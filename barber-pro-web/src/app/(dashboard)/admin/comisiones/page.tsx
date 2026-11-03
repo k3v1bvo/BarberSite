@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/Toast'
 import { formatCurrency } from '@/lib/utils'
 import { ArrowLeft, DollarSign, CheckCircle, Filter, Download, Edit, RefreshCw, AlertTriangle, X, Plus, Users, Settings } from 'lucide-react'
 import { ImageUpload } from '@/components/ui/ImageUpload'
-import ComisionBarberoModal from '@/components/comisiones/ComisionBarberoModal'
+import ReglasComisionesModal from '@/components/comisiones/ReglasComisionesModal'
 
 function parseDescuentoDetalle(c: any) {
   const notas = c.notas || ''
@@ -71,7 +71,8 @@ export default function AdminComisionesPage() {
   const [comprobanteUrl, setComprobanteUrl] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [isRecalculating, setIsRecalculating] = useState(false)
-  const [comisionModalBarbero, setComisionModalBarbero] = useState<{ id: string; nombre: string; imagen?: string } | null>(null)
+  const [showReglasModal, setShowReglasModal] = useState(false)
+  const [modalBarberoId, setModalBarberoId] = useState<string | undefined>(undefined)
   
   // Sanciones Modal
   const [showSancionesModal, setShowSancionesModal] = useState(false)
@@ -380,6 +381,16 @@ export default function AdminComisionesPage() {
           <h1 className="text-4xl font-black text-white uppercase">Control de <span className="text-amber-500">Comisiones</span></h1>
           <p className="text-zinc-500 mt-2">Pagos pendientes, historial y reportes por barbero</p>
         </div>
+        <Button
+          variant="primary"
+          className="bg-amber-500 hover:bg-amber-400 text-black font-bold"
+          onClick={() => {
+            setModalBarberoId(undefined)
+            setShowReglasModal(true)
+          }}
+        >
+          <Settings className="w-4 h-4 mr-2" /> Configurar Porcentajes y Reglas
+        </Button>
         <Button variant="outline" className="border-amber-500/30 text-amber-500 hover:bg-amber-500 hover:text-black" onClick={recalcularHistorico} disabled={isRecalculating}>
           <RefreshCw className={`w-4 h-4 mr-2 ${isRecalculating ? 'animate-spin' : ''}`} /> 
           Corregir Citas a $0.00
@@ -507,11 +518,8 @@ export default function AdminComisionesPage() {
                               type="button"
                               className="h-8 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-black"
                               onClick={() => {
-                                setComisionModalBarbero({
-                                  id: rb.barbero.id,
-                                  nombre: rb.barbero.full_name,
-                                  imagen: rb.barbero.avatar_url,
-                                })
+                                setModalBarberoId(rb.barbero.id)
+                                setShowReglasModal(true)
                               }}
                               title="Configurar comisión por porcentaje o por servicio"
                             >
@@ -559,10 +567,8 @@ export default function AdminComisionesPage() {
                 type="button"
                 className="h-12 border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-black font-bold text-xs uppercase"
                 onClick={() => {
-                  const b = barberos.find(b => b.id === barberoId)
-                  if (b) {
-                    setComisionModalBarbero({ id: b.id, nombre: b.full_name, imagen: b.avatar_url })
-                  }
+                  setModalBarberoId(barberoId)
+                  setShowReglasModal(true)
                 }}
               >
                 <Settings className="w-4 h-4 mr-2" /> Configurar Reglas de {barberos.find(b => b.id === barberoId)?.full_name?.split(' ')[0]}
@@ -901,18 +907,12 @@ export default function AdminComisionesPage() {
         </div>
       )}
 
-      {comisionModalBarbero && (
-        <ComisionBarberoModal
-          barberoId={comisionModalBarbero.id}
-          barberoNombre={comisionModalBarbero.nombre}
-          barberoImagen={comisionModalBarbero.imagen}
-          onClose={() => setComisionModalBarbero(null)}
-          onSaved={() => {
-            setComisionModalBarbero(null)
-            load()
-          }}
-        />
-      )}
+      <ReglasComisionesModal
+        isOpen={showReglasModal}
+        onClose={() => setShowReglasModal(false)}
+        onSaved={load}
+        barberoIdInicial={modalBarberoId}
+      />
     </div>
   )
 }

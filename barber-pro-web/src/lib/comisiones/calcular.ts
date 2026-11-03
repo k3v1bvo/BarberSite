@@ -33,9 +33,22 @@ export async function obtenerPorcentajePorHoras(
       const [hFin, mFin = 0] = horario.hora_fin.split(':').map(Number)
       const horas = (hFin + mFin / 60) - (hIni + mIni / 60)
 
-      if (horas >= 10.75) return 50
-      if (horas >= 9.75) return 45
-      if (horas >= 7.75) return 40
+      let p8 = 40, p10 = 45, p11 = 50
+      try {
+        const { data: configList } = await supabase
+          .from('configuracion')
+          .select('clave, valor')
+          .in('clave', ['comision_horas_8', 'comision_horas_10', 'comision_horas_11'])
+        configList?.forEach(c => {
+          if (c.clave === 'comision_horas_8' && Number(c.valor)) p8 = Number(c.valor)
+          if (c.clave === 'comision_horas_10' && Number(c.valor)) p10 = Number(c.valor)
+          if (c.clave === 'comision_horas_11' && Number(c.valor)) p11 = Number(c.valor)
+        })
+      } catch (_) {}
+
+      if (horas >= 10.75) return p11
+      if (horas >= 9.75) return p10
+      if (horas >= 7.75) return p8
     }
   } catch (err) {
     console.error('[obtenerPorcentajePorHoras] Error:', err)
