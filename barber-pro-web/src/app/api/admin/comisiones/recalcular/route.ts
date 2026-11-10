@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     // 1. Obtener todas las citas que tengan comision_barbero = 0 o null y estén completadas
     const { data: citas } = await adminClient
       .from('citas')
-      .select('id, precio, barbero_id, servicio_id, comision_barbero, propinas, estado, fecha_hora')
+      .select('id, precio, barbero_id, servicio_id, comision_barbero, propinas, estado, fecha_hora, notas')
       .eq('estado', 'completado')
       .or('comision_barbero.eq.0,comision_barbero.is.null')
 
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     }
 
     // 2. Obtener servicios y sus reglas de comisión (para fallback global)
-    const { data: servicios } = await adminClient.from('servicios').select('id, comision_activa, comision_tipo, comision_valor, comision_acumulable')
+    const { data: servicios } = await adminClient.from('servicios').select('id, precio, comision_activa, comision_tipo, comision_valor, comision_acumulable')
     const servMap = new Map()
     if (servicios) {
       servicios.forEach(s => servMap.set(s.id, s))
@@ -31,19 +31,35 @@ export async function POST(request: Request) {
 
     // 3. Recalcular usando el sistema por barbero
     for (const cita of citas) {
-      const precioBase = Number(cita.precio) || 0
       const serv = servMap.get(cita.servicio_id)
+      const precioBase = Number(serv?.precio) || Number(cita.precio) || 0
 
       if (!cita.barbero_id || !cita.servicio_id) continue
 
       const comResult = await calcularComisionBarbero(
         adminClient, cita.barbero_id, cita.servicio_id, precioBase,
         cita.fecha_hora ? new Date(cita.fecha_hora) : new Date(),
-        serv ? { comision_activa: serv.comision_activa, comision_tipo: serv.comision_tipo, comision_valor: serv.comision_valor, comision_acumulable: serv.comision_acumulable } : undefined
+        serv ? { precio: serv.precio, comision_activa: serv.comision_activa, comision_tipo: serv.comision_tipo, comision_valor: serv.comision_valor, comision_acumulable: serv.comision_acumulable } : undefined
       )
 
+      let baseMonto = comResult.monto
+
+      // Si había descuento especial asumido por barbero o 50/50, descontarlo
+      if (cita.notas && baseMonto > 0) {
+        const matchDesc = cita.notas.match(/Desc\.\s*Especial:\s*-?Bs\s*(\d+(?:\.\d+)?)/i)
+        if (matchDesc) {
+          const descMonto = Number(matchDesc[1]) || 0
+          if (/asume:\s*barbero/i.test(cita.notas)) {
+            baseMonto = Math.max(0, baseMonto - descMonto)
+          } else if (/asume:\s*compartido/i.test(cita.notas) || /50\/50/i.test(cita.notas)) {
+            baseMonto = Math.max(0, baseMonto - (descMonto / 2))
+          }
+          // Si asume la barbería ([Asume: Barbería]), baseMonto queda 100% sobre el precio del servicio!
+        }
+      }
+
       const extraPropinas = (serv && serv.comision_acumulable !== false) ? (cita.propinas || 0) : 0
-      const comisionTotal = comResult.monto + (extraPropinas * 0.5)
+      const comisionTotal = baseMonto + (extraPropinas * 0.5)
 
       if (comisionTotal > 0) {
         const updateData: any = {

@@ -968,10 +968,8 @@ export default function AdminComisionesPage() {
                   const esFija = c.servicios?.comision_tipo === 'fija'
                   const detallesDesc = parseDescuentoDetalle(c)
 
-                  // Si la barbería asume el descuento, el porcentaje se calcula sobre el catálogo
-                  const baseCalculoPct = (detallesDesc.asume === 'barberia' && precioServicio > 0)
-                    ? precioServicio
-                    : (precioCobrado > 0 ? precioCobrado : (precioServicio > 0 ? precioServicio : 1))
+                  // El porcentaje SIEMPRE se calcula sobre el precio oficial del servicio/corte
+                  const baseCalculoPct = precioServicio > 0 ? precioServicio : (precioCobrado > 0 ? precioCobrado : 1)
                   const pct = Math.round((comisionBaseBarbero / baseCalculoPct) * 100)
 
                   return (
@@ -1032,9 +1030,9 @@ export default function AdminComisionesPage() {
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-black bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
                               {pct}%
                             </span>
-                            {detallesDesc.asume === 'barberia' && hayDescuento && (
+                            {hayDescuento && (
                               <span className="block text-[9px] text-emerald-400/90 font-mono mt-0.5">
-                                s/ catálogo
+                                s/ servicio
                               </span>
                             )}
                           </div>
@@ -1059,18 +1057,20 @@ export default function AdminComisionesPage() {
                           <span className="block text-[10px] text-zinc-400 font-mono">
                             (Fijo {formatCurrency(comision)})
                           </span>
-                        ) : detallesDesc.asume === 'barberia' && hayDescuento ? (
+                        ) : hayDescuento ? (
                           <div>
                             <span className="block text-[10px] text-zinc-400 font-mono">
                               ({pct}% de {formatCurrency(precioServicio)})
                             </span>
-                            <span className="block text-[9px] text-emerald-400 font-bold">
-                              Barbería asume desc.
-                            </span>
+                            {detallesDesc.asume === 'barberia' && (
+                              <span className="block text-[9px] text-emerald-400 font-bold">
+                                Barbería asume desc.
+                              </span>
+                            )}
                           </div>
                         ) : precioCobrado > 0 ? (
                           <span className="block text-[10px] text-zinc-400 font-mono">
-                            ({pct}% de {formatCurrency(precioCobrado)})
+                            ({pct}% de {formatCurrency(precioServicio)})
                           </span>
                         ) : (
                           <span className="block text-[10px] text-zinc-600 font-mono">
@@ -1089,14 +1089,16 @@ export default function AdminComisionesPage() {
                         <span className={`font-black text-base ${quedaBarberia > 0 ? 'text-emerald-400' : 'text-zinc-600'}`}>
                           {formatCurrency(quedaBarberia)}
                         </span>
-                        {detallesDesc.asume === 'barberia' && hayDescuento ? (
+                        {hayDescuento ? (
                           <div>
                             <span className="block text-[10px] text-zinc-400 font-mono">
                               ({formatCurrency(precioCobrado)} cobrado - {formatCurrency(comisionBaseBarbero)})
                             </span>
-                            <span className="block text-[9px] text-amber-400 font-mono font-bold">
-                              Asume -{formatCurrency(montoDescuento)}
-                            </span>
+                            {detallesDesc.asume === 'barberia' && (
+                              <span className="block text-[9px] text-amber-400 font-mono font-bold">
+                                Asume -{formatCurrency(montoDescuento)}
+                              </span>
+                            )}
                           </div>
                         ) : precioCobrado > 0 ? (
                           <span className="block text-[10px] text-zinc-400 font-mono">

@@ -47,17 +47,21 @@ export async function POST(request: Request) {
     }
 
     let baseComision = Number(cita.comision_barbero) || 0
-    if (baseComision === 0 && cita.barbero_id && cita.servicio_id && Number(cita.precio) > 0) {
+    if (baseComision === 0 && cita.barbero_id && cita.servicio_id) {
       const { data: serv } = await supabase
         .from('servicios')
-        .select('comision_activa, comision_tipo, comision_valor, comision_acumulable')
+        .select('precio, comision_activa, comision_tipo, comision_valor, comision_acumulable')
         .eq('id', cita.servicio_id)
         .maybeSingle()
+
+      // El % se saca SIEMPRE del precio oficial del servicio/corte, no del cobrado con descuento
+      const precioServicio = Number(serv?.precio) || Number(cita.precio) || 0
+
       const comResult = await calcularComisionBarbero(
         supabase,
         cita.barbero_id,
         cita.servicio_id,
-        Number(cita.precio),
+        precioServicio,
         cita.fecha_hora ? new Date(cita.fecha_hora) : new Date(),
         serv || undefined
       )
@@ -73,6 +77,7 @@ export async function POST(request: Request) {
           } else if (/asume:\s*compartido/i.test(cita.notas) || /50\/50/i.test(cita.notas)) {
             baseComision = Math.max(0, baseComision - (descMonto / 2))
           }
+          // Si asume la barbería ([Asume: Barbería]), baseComision se queda 100% sobre el precio de catálogo
         }
       }
     }

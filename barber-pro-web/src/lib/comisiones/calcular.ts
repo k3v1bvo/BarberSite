@@ -84,6 +84,7 @@ export async function calcularComisionBarbero(
   precio_servicio: number,
   fecha?: Date | string,
   servicio_global?: {
+    precio?: number
     comision_activa?: boolean
     comision_tipo?: string
     comision_valor?: number
@@ -115,6 +116,40 @@ export async function calcularComisionBarbero(
         diaSemana = fecha.getDay()
       }
     }
+
+    // 0. Obtener precio de catálogo y configuración oficial del servicio
+    let servConfig = servicio_global
+    let servNombre = ''
+    let precioCatalogo = (servicio_global as any)?.precio ? Number((servicio_global as any).precio) : 0
+
+    if (servicio_id) {
+      const { data: servDb } = await supabase
+        .from('servicios')
+        .select('nombre, precio, comision_activa, comision_tipo, comision_valor')
+        .eq('id', servicio_id)
+        .maybeSingle()
+
+      if (servDb) {
+        servNombre = servDb.nombre || ''
+        if (Number(servDb.precio) > 0) {
+          precioCatalogo = Number(servDb.precio)
+        }
+        if (!servConfig) {
+          servConfig = {
+            precio: servDb.precio,
+            comision_activa: servDb.comision_activa,
+            comision_tipo: servDb.comision_tipo,
+            comision_valor: servDb.comision_valor
+          }
+        }
+      }
+    }
+
+    // REGLA CRÍTICA DE COMISIONES:
+    // El monto del % se saca SIEMPRE del precio oficial del servicio (corte base / catálogo),
+    // NUNCA del total cobrado con descuento. Así, cuando la barbería asume el descuento,
+    // la comisión del barbero no varía (ej. servicio 50 Bs con desc. 10 Bs -> al 50% = 25 Bs).
+    const baseMonto = precioCatalogo > 0 ? precioCatalogo : (Number(precio_servicio) || 0)
 
     // 1. Buscar horario del barbero para este día
     const { data: horarioDia } = await supabase
@@ -153,7 +188,7 @@ export async function calcularComisionBarbero(
         if (tipo === 'fija') {
           resultado.monto = valor || 0
         } else if (tipo === 'porcentaje') {
-          resultado.monto = (precio_servicio * (valor || 0)) / 100
+          resultado.monto = (baseMonto * (valor || 0)) / 100
         }
         // 'ninguna' → monto = 0
 
@@ -162,24 +197,6 @@ export async function calcularComisionBarbero(
     }
 
     // 3. Fallback: usar comisión global del servicio o jornada de horas
-    let servConfig = servicio_global
-    let servNombre = ''
-    if (!servConfig && servicio_id) {
-      const { data: servDb } = await supabase
-        .from('servicios')
-        .select('nombre, comision_activa, comision_tipo, comision_valor')
-        .eq('id', servicio_id)
-        .maybeSingle()
-      if (servDb) {
-        servNombre = servDb.nombre || ''
-        servConfig = {
-          comision_activa: servDb.comision_activa,
-          comision_tipo: servDb.comision_tipo,
-          comision_valor: servDb.comision_valor
-        }
-      }
-    }
-
     if (servConfig && servConfig.comision_activa !== false && servConfig.comision_tipo !== 'ninguna') {
       // 3.1. Servicios con monto fijo específico (Corte de niño Bs 20, Baño de luna Bs 20)
       const esFijoEspecial = servConfig.comision_tipo === 'fija' || /ni[ñn]o/i.test(servNombre) || /ba[ñn]o.*luna/i.test(servNombre)
@@ -199,7 +216,7 @@ export async function calcularComisionBarbero(
         resultado.tipo_usado = 'global'
         resultado.comision_tipo = 'porcentaje'
         resultado.comision_valor = esTinte ? (servConfig.comision_valor || 35) : (servConfig.comision_valor || 50)
-        resultado.monto = precio_servicio > 0 ? (precio_servicio * resultado.comision_valor) / 100 : 0
+        resultado.monto = baseMonto > 0 ? (baseMonto * resultado.comision_valor) / 100 : 0
         return resultado
       }
 
@@ -236,7 +253,7 @@ export async function calcularComisionBarbero(
 
       resultado.comision_tipo = 'porcentaje'
       resultado.comision_valor = pctFinal
-      resultado.monto = precio_servicio > 0 ? (precio_servicio * pctFinal) / 100 : 0
+      resultado.monto = baseMonto > 0 ? (baseMonto * pctFinal) / 100 : 0
       return resultado
     }
 
@@ -260,7 +277,7 @@ export async function calcularComisionBarbero(
       resultado.tipo_usado = 'perfil'
       resultado.comision_tipo = 'porcentaje'
       resultado.comision_valor = p
-      resultado.monto = precio_servicio > 0 ? (precio_servicio * p) / 100 : 0
+      resultado.monto = baseMonto > 0 ? (baseMonto * p) / 100 : 0
     }
 
     return resultado
