@@ -75,10 +75,17 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
-      horarios: merged,
-      barberos: barberList
-    })
+    return NextResponse.json(
+      {
+        horarios: merged,
+        barberos: barberList
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300'
+        }
+      }
+    )
   } catch (err: any) {
     console.error('[GET /api/barberos/horarios] Excepción:', err?.message)
     return NextResponse.json({ horarios: [], barberos: [] })

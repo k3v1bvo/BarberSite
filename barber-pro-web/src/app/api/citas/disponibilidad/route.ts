@@ -1,4 +1,4 @@
-import { createServerSupabaseClient, createServerAdminClient } from '@/lib/supabase/server'
+import { createServerAdminClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -10,7 +10,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 })
   }
 
-  const supabase = await createServerSupabaseClient()
   const adminSupabase = await createServerAdminClient()
 
   // Definir el rango del día
@@ -338,14 +337,21 @@ export async function GET(request: Request) {
     })
   })
 
-  return NextResponse.json({ 
-    ocupados,
-    disponible,
-    hora_inicio,
-    hora_fin,
-    turnos,
-    fraccionado: esFraccionado,
-    motivo,
-    tiempo_minimo_reserva: tiempoMinimoReserva
-  })
+  return NextResponse.json(
+    { 
+      ocupados,
+      disponible,
+      hora_inicio,
+      hora_fin,
+      turnos,
+      fraccionado: esFraccionado,
+      motivo,
+      tiempo_minimo_reserva: tiempoMinimoReserva
+    },
+    {
+      headers: {
+        'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=30'
+      }
+    }
+  )
 }

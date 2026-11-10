@@ -55,7 +55,6 @@ export async function middleware(request: NextRequest) {
   const isAgendaRoute = pathname.startsWith('/agenda')
   const isClienteRoute = pathname.startsWith('/cliente')
   const isCalendarioRoute = pathname.startsWith('/calendario')
-  const isReservarRoute = pathname.startsWith('/reservar')
   const isLoginPage = pathname === '/login'
   const isRegisterPage = pathname === '/register'
 
@@ -122,7 +121,6 @@ export const config = {
     '/agenda/:path*',
     '/cliente/:path*',
     '/calendario',
-    '/reservar',
     '/login',
     '/register',
   ],

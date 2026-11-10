@@ -305,14 +305,6 @@ export default function HomePage() {
       .slice(0, 2) || 'U'
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Navigation */}
@@ -544,6 +536,17 @@ export default function HomePage() {
 
           {/* Grid de Servicios Destacados */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {loading && (!servicios || servicios.length === 0) && (
+              <>
+                {[1, 2, 3].map((n) => (
+                  <div key={n} className="bg-zinc-900/60 border border-white/5 rounded-2xl p-6 h-80 animate-pulse flex flex-col justify-between">
+                    <div className="w-full h-40 bg-zinc-800 rounded-xl mb-4" />
+                    <div className="w-3/4 h-6 bg-zinc-800 rounded mb-2" />
+                    <div className="w-1/2 h-4 bg-zinc-800 rounded" />
+                  </div>
+                ))}
+              </>
+            )}
             {servicios?.map((servicio) => {
               const allImgs =
                 servicio.imagenes && servicio.imagenes.length > 0
@@ -629,7 +632,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {(!servicios || servicios.length === 0) && (
+          {!loading && (!servicios || servicios.length === 0) && (
             <div className="text-center py-16">
               <Scissors className="w-16 h-16 text-gray-600 mx-auto mb-4" />
               <p className="text-gray-500 mb-4">No hay servicios disponibles</p>

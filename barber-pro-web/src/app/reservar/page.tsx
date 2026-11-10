@@ -729,7 +729,26 @@ function ReservarContent() {
 
   const loadData = async () => {
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
+      const hoyLocal = new Date()
+      const hoyStr = new Date(hoyLocal.getTime() - (hoyLocal.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
+
+      // Cargar autenticación y catálogo en paralelo simultáneo para máximo rendimiento
+      const [resAuth, resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo, resBarberoServicios, resAsistencias, resPermisos, config2x1Res, resHorarios] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.from('servicios').select('*').eq('is_active', true).order('orden', { ascending: true }),
+        supabase.from('profiles').select('id, full_name, email, avatar_url, qr_code_url').eq('role', 'barbero').eq('is_active', true),
+        supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url').eq('is_active', true).gt('stock_actual', 0).order('orden', { ascending: true }),
+        supabase.from('configuraciones').select('valor').eq('llave', 'qr_pago').maybeSingle(),
+        supabase.from('promociones').select('*').eq('activa', true),
+        supabase.from('configuraciones').select('valor').eq('llave', 'tiempo_minimo_reserva').maybeSingle(),
+        supabase.from('comision_barbero_servicios').select('barbero_id, servicio_id'),
+        supabase.from('asistencias').select('profile_id, estado, hora_entrada, hora_salida').eq('fecha', hoyStr),
+        supabase.from('solicitudes_permisos').select('barbero_id, estado, fecha, fecha_fin, tipo_permiso').eq('estado', 'aprobado').lte('fecha', hoyStr),
+        supabase.from('configuraciones').select('valor').eq('llave', 'promo_2x1_config').maybeSingle(),
+        fetch('/api/barberos/horarios').then(r => r.json()).catch(() => ({ horarios: [] }))
+      ])
+
+      const authUser = resAuth.data?.user
       if (authUser) {
         await loadUserProfile(authUser)
         // If user arrived with a pre-selected service, jump to step 2 (Barbero)
@@ -743,23 +762,6 @@ function ReservarContent() {
           setStep(1)
         }
       }
-
-      const hoyLocal = new Date()
-      const hoyStr = new Date(hoyLocal.getTime() - (hoyLocal.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
-
-      const [resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo, resBarberoServicios, resAsistencias, resPermisos, config2x1Res, resHorarios] = await Promise.all([
-        supabase.from('servicios').select('*').eq('is_active', true).order('orden', { ascending: true }),
-        supabase.from('profiles').select('id, full_name, email, avatar_url, qr_code_url').eq('role', 'barbero').eq('is_active', true),
-        supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url').eq('is_active', true).gt('stock_actual', 0).order('orden', { ascending: true }),
-        supabase.from('configuraciones').select('valor').eq('llave', 'qr_pago').maybeSingle(),
-        supabase.from('promociones').select('*').eq('activa', true),
-        supabase.from('configuraciones').select('valor').eq('llave', 'tiempo_minimo_reserva').maybeSingle(),
-        supabase.from('comision_barbero_servicios').select('barbero_id, servicio_id'),
-        supabase.from('asistencias').select('profile_id, estado, hora_entrada, hora_salida').eq('fecha', hoyStr),
-        supabase.from('solicitudes_permisos').select('barbero_id, estado, fecha, fecha_fin, tipo_permiso').eq('estado', 'aprobado').lte('fecha', hoyStr),
-        supabase.from('configuraciones').select('valor').eq('llave', 'promo_2x1_config').maybeSingle(),
-        fetch('/api/barberos/horarios').then(r => r.json()).catch(() => ({ horarios: [] }))
-      ])
 
       setServicios(resServicios.data || [])
       setBarberos(resBarberos.data || [])
