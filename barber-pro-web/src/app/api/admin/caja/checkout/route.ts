@@ -311,6 +311,16 @@ export async function POST(request: NextRequest) {
     // Calcular total de productos y descuento de productos
     const totalProductos = productosCarrito.reduce((sum: number, item: ProductoCarrito) => sum + (item.precio * item.cantidad), 0)
     const totalProductosNeto = Math.max(0, totalProductos - descuentoProductos)
+    const unidadesProductos = productosCarrito.reduce((sum: number, item: ProductoCarrito) => sum + (Number(item.cantidad) || 1), 0)
+
+    // Comisión de productos para el especialista (+Bs 10 por producto vendido, según regla de negocio de comisiones)
+    let comisionProductos = 0
+    if (unidadesProductos > 0 && finalBarberoId && estado === 'completado') {
+      const { data: bProf } = await adminSupabase.from('profiles').select('role').eq('id', finalBarberoId).single()
+      if (bProf && ['barbero', 'coordinador'].includes(bProf.role)) {
+        comisionProductos = unidadesProductos * 10
+      }
+    }
 
     // 3. Crear la cita (si hay servicio)
     const ahora = new Date()
@@ -335,6 +345,11 @@ export async function POST(request: NextRequest) {
       let finalNotas = notas || 'Venta desde Caja'
       if (acompanante_2x1 && acompanante_2x1.nombre) {
         finalNotas += `\n[PROMO 2x1] Acompañante: ${acompanante_2x1.nombre}${acompanante_2x1.email ? ` (${acompanante_2x1.email})` : ''}`
+      }
+
+      if (comisionProductos > 0) {
+        comisionTotal += comisionProductos
+        finalNotas += `\n🧴 Comisión Productos: +Bs ${comisionProductos} (${unidadesProductos}x prod. a Bs 10 c/u)`
       }
 
       // Calcular el precio neto del servicio (después de descuentos asignados al servicio, sin contar productos)
@@ -371,6 +386,7 @@ export async function POST(request: NextRequest) {
         duracion_real_minutos: serv.duracion_minutos || 30,
         estado: estado || 'en_proceso',
         notas: finalNotas,
+        productos_adicionales: productosCarrito.length > 0 ? productosCarrito : [],
       }
       citaFechaHoraFinal = insertData.fecha_hora
 
@@ -445,9 +461,48 @@ export async function POST(request: NextRequest) {
       if (citaError) throw citaError
       if (!citaNueva) throw new Error('Error guardando cita')
       citaId = citaNueva.id
-    } else if (productosCarrito.length > 0 && !servicio_id) {
-      // Si solo hay productos sin servicio, crear una cita "virtual" para registro
-      // No se crea cita, solo se registra la transacción contable abajo
+    } else if (productosCarrito.length > 0 && !servicio_id && estado === 'completado' && finalBarberoId) {
+      // Venta directa de productos POS atendida por un barbero / especialista
+      const efValProd = metodo_pago === 'mixto' ? Number(monto_efectivo || 0) : (metodo_pago === 'efectivo' ? totalProductosNeto : 0)
+      const qrValProd = (metodo_pago === 'mixto' ? Number(monto_qr || 0) : (metodo_pago === 'qr' || metodo_pago === 'tarjeta' ? totalProductosNeto : 0)) + anticipoQr
+
+      let glosaProductosCita = `Venta de Productos POS (${unidadesProductos}x productos)`
+      if (descuentoProductos > 0) {
+        glosaProductosCita += `\n🏷️ Desc. Productos: -Bs ${descuentoProductos} [Asume 100% Barbería]`
+        if (descuentoProductosMotivo) glosaProductosCita += ` | Motivo: ${descuentoProductosMotivo}`
+      }
+      if (comisionProductos > 0) {
+        glosaProductosCita += `\n🧴 Comisión Productos: +Bs ${comisionProductos} (${unidadesProductos}x prod. a Bs 10 c/u)`
+      }
+      if (comprobante_url && !comprobante_url.startsWith('data:')) {
+        glosaProductosCita += `\n[Comprobante]: ${comprobante_url}`
+      }
+
+      const { data: citaProd, error: citaProdErr } = await adminSupabase
+        .from('citas')
+        .insert({
+          cliente_id: finalClienteId,
+          barbero_id: finalBarberoId,
+          servicio_id: null,
+          fecha_hora: ahora.toISOString(),
+          precio: totalProductosNeto,
+          duracion_real_minutos: 5,
+          estado: 'completado',
+          metodo_pago: metodo_pago || 'efectivo',
+          monto_efectivo: efValProd,
+          monto_transferencia: qrValProd,
+          propinas: propinas || 0,
+          comision_barbero: comisionProductos,
+          productos_adicionales: productosCarrito,
+          notas: glosaProductosCita,
+          comision_pagada: false
+        })
+        .select('id')
+        .single()
+
+      if (!citaProdErr && citaProd) {
+        citaId = citaProd.id
+      }
     }
 
     // 3.1. Notificación de Nueva Reserva / Turno si no es completada inmediata
@@ -615,6 +670,7 @@ export async function POST(request: NextRequest) {
             empleado_id: finalBarberoId,
             cliente_id: finalClienteId,
             cita_id: citaId || null,
+            cantidad_producto: item.cantidad,
             metodo_pago: metodo_pago || 'efectivo',
             monto_efectivo: prodEf,
             monto_qr: prodQr,

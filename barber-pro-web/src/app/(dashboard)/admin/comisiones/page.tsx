@@ -78,12 +78,43 @@ function parseDescuentoDetalle(c: any) {
     asume = 'barberia'
   }
 
+  // Productos adicionales y comisión por venta de productos (+Bs 10 por producto para el barbero)
+  let comisionProductos = 0
+  let unidadesProductos = 0
+  let nombresProductos = ''
+
+  if (c.productos_adicionales && Array.isArray(c.productos_adicionales) && c.productos_adicionales.length > 0) {
+    unidadesProductos = c.productos_adicionales.reduce((acc: number, p: any) => acc + (Number(p.cantidad) || 1), 0)
+    comisionProductos = unidadesProductos * 10
+    nombresProductos = c.productos_adicionales.map((p: any) => `${p.cantidad || 1}x ${p.nombre}`).join(', ')
+  } else if (notas) {
+    const matchProd = notas.match(/Comisi[oó]n Productos:\s*\+?Bs\s*(\d+(?:\.\d+)?)/i)
+    if (matchProd) {
+      comisionProductos = Number(matchProd[1]) || 0
+      const matchUnits = notas.match(/\((\d+)x\s*prod/i)
+      unidadesProductos = matchUnits ? Number(matchUnits[1]) : Math.round(comisionProductos / 10)
+    }
+  }
+
+  if (comisionProductos > 0) {
+    badges.push({ 
+      text: `🧴 +Bs ${comisionProductos} (${unidadesProductos} prod.)`, 
+      color: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' 
+    })
+  }
+
+  const esSoloProducto = !c.servicio_id && (unidadesProductos > 0 || (c.productos_adicionales && c.productos_adicionales.length > 0) || notas.toLowerCase().includes('venta de productos'))
+
   return {
     esGratis: precio === 0 && precioBase > 0,
     precioBase,
     asume,
     montoDescuento,
     badges,
+    comisionProductos,
+    unidadesProductos,
+    nombresProductos,
+    esSoloProducto,
   }
 }
 
@@ -358,25 +389,34 @@ export default function AdminComisionesPage() {
 
   const exportarCSV = () => {
     const rows = [
-      ['Fecha', 'Barbero', 'Servicio', 'Cliente', 'Precio Catálogo', 'Total Cobrado POS', 'Descuento', '% Comisión', 'Gana Barbero', 'Queda Barbería', 'Propina Barbero', 'Estado'],
+      ['Fecha', 'Barbero', 'Servicio', 'Cliente', 'Precio Catálogo', 'Total Cobrado POS', 'Descuento', '% Comisión', 'Comisión Servicio', 'Comisión Productos', 'Gana Barbero', 'Queda Barbería', 'Propina Barbero', 'Estado'],
       ...citas.map((c) => {
+        const detallesDesc = parseDescuentoDetalle(c)
         const precio = Number(c.precio) || 0
         const precioServicio = Number(c.servicios?.precio) || precio
         const descuento = Math.max(0, precioServicio - precio)
         const comision = Number(c.comision_barbero) || 0
         const propinaBarbero = (Number(c.propinas) || 0) * 0.5
-        const baseComision = Math.max(0, comision - propinaBarbero)
-        const quedaBarberia = Math.max(0, precio - baseComision) + propinaBarbero
-        const pct = precio > 0 ? `${Math.round((baseComision / precio) * 100)}%` : '0%'
+        const comisionProductos = detallesDesc.comisionProductos
+        const baseComisionServicio = Math.max(0, comision - propinaBarbero - comisionProductos)
+        const quedaBarberia = Math.max(0, precio - (baseComisionServicio + comisionProductos)) + propinaBarbero
+        const baseCalculoPct = precioServicio > 0 ? precioServicio : (precio > 0 ? precio : 1)
+        const pct = detallesDesc.esSoloProducto ? 'Fijo (Bs 10/u)' : `${Math.round((baseComisionServicio / baseCalculoPct) * 100)}%`
+        const nombreServicio = detallesDesc.esSoloProducto
+          ? `Venta Productos${detallesDesc.nombresProductos ? `: ${detallesDesc.nombresProductos}` : ''}`
+          : `${c.servicios?.nombre || 'Servicio'}${detallesDesc.nombresProductos ? ` + ${detallesDesc.nombresProductos}` : ''}`
+
         return [
           new Date(c.fecha_hora).toLocaleDateString('es-BO'),
           c.barbero?.full_name || '',
-          c.servicios?.nombre || '',
+          nombreServicio,
           c.clientes?.nombre || '',
           String(precioServicio),
           String(precio),
           String(descuento),
           pct,
+          String(baseComisionServicio),
+          String(comisionProductos),
           String(comision),
           String(quedaBarberia),
           String(propinaBarbero),
@@ -395,7 +435,16 @@ export default function AdminComisionesPage() {
   }
 
   const totalCalculado = resumen.pendiente - finanzas.total_sanciones + finanzas.total_bonos - descuentoAdelanto
-  const citasCobradoPendiente = citas.filter((c: any) => !c.comision_pagada).reduce((sum: number, c: any) => sum + (Number(c.precio) || 0), 0)
+  const citasPendientes = citas.filter((c: any) => !c.comision_pagada)
+  const citasCobradoPendiente = citasPendientes.reduce((sum: number, c: any) => sum + (Number(c.precio) || 0), 0)
+
+  // Desglose de comisiones pendientes: Servicios vs Productos (+Bs 10 c/u)
+  let totalComisionProductosPendiente = 0
+  citasPendientes.forEach(c => {
+    const d = parseDescuentoDetalle(c)
+    totalComisionProductosPendiente += d.comisionProductos
+  })
+  const totalComisionServiciosPendiente = Math.max(0, resumen.pendiente - totalComisionProductosPendiente)
 
   // Margen de ganancia total que queda para la barbería (cobrado menos comisiones)
   const totalQuedaBarberia = Math.max(0, resumen.total_cobrado - (resumen.pendiente + resumen.pagado))
@@ -811,20 +860,21 @@ export default function AdminComisionesPage() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-sm">
                 <div>
                   <span className="block text-zinc-400 mb-1 text-xs">Total Cobrado (POS)</span>
                   <span className="font-bold text-blue-400 text-lg">{formatCurrency(citasCobradoPendiente)}</span>
-                  <span className="text-[10px] text-zinc-500 block">En citas a pagar</span>
+                  <span className="text-[10px] text-zinc-500 block">En caja a liquidar</span>
                 </div>
                 <div>
-                  <span className="block text-zinc-400 mb-1 text-xs">Comisión Barbero</span>
-                  <span className="font-bold text-amber-400 text-lg">{formatCurrency(resumen.pendiente)}</span>
-                  {citasCobradoPendiente > 0 && (
-                    <span className="text-[10px] text-zinc-400 block font-mono">
-                      ~{Math.round((resumen.pendiente / citasCobradoPendiente) * 100)}% del cobro
-                    </span>
-                  )}
+                  <span className="block text-zinc-400 mb-1 text-xs">Comisión Servicios</span>
+                  <span className="font-bold text-amber-400 text-lg">{formatCurrency(totalComisionServiciosPendiente)}</span>
+                  <span className="text-[10px] text-zinc-500 block">Cortes y combos</span>
+                </div>
+                <div>
+                  <span className="block text-zinc-400 mb-1 text-xs text-cyan-400 font-bold">Comisión Productos</span>
+                  <span className="font-bold text-cyan-400 text-lg">+{formatCurrency(totalComisionProductosPendiente)}</span>
+                  <span className="text-[10px] text-zinc-500 block">Bs 10 por unidad</span>
                 </div>
                 <div>
                   <span className="block text-zinc-400 mb-1 text-xs">Deuda por Adelantos</span>
@@ -957,20 +1007,23 @@ export default function AdminComisionesPage() {
                   const propinaTotal = Number(c.propinas) || 0
                   const propinaBarbero = propinaTotal * 0.5
                   const propinaBarberia = propinaTotal * 0.5
+
+                  const detallesDesc = parseDescuentoDetalle(c)
+                  const comisionProductos = detallesDesc.comisionProductos
                   const comisionBaseBarbero = Math.max(0, comision - propinaBarbero)
+                  const comisionServicio = Math.max(0, comisionBaseBarbero - comisionProductos)
 
                   // Lo que agarra el barbero
                   const agarraBarbero = comision
 
                   // Lo que le queda a la barbería
-                  const quedaBarberia = Math.max(0, precioCobrado - comisionBaseBarbero) + propinaBarberia
+                  const quedaBarberia = Math.max(0, precioCobrado - (comisionServicio + comisionProductos)) + propinaBarberia
 
                   const esFija = c.servicios?.comision_tipo === 'fija'
-                  const detallesDesc = parseDescuentoDetalle(c)
 
-                  // El porcentaje SIEMPRE se calcula sobre el precio oficial del servicio/corte
+                  // El porcentaje SIEMPRE se calcula sobre el precio oficial del servicio/corte (sin inflar por productos)
                   const baseCalculoPct = precioServicio > 0 ? precioServicio : (precioCobrado > 0 ? precioCobrado : 1)
-                  const pct = Math.round((comisionBaseBarbero / baseCalculoPct) * 100)
+                  const pct = detallesDesc.esSoloProducto ? 0 : Math.round((comisionServicio / baseCalculoPct) * 100)
 
                   return (
                     <tr key={c.id} className="hover:bg-white/5 transition-colors">
@@ -979,7 +1032,20 @@ export default function AdminComisionesPage() {
                       </td>
                       <td className="py-3 px-4 text-white font-bold">{c.barbero?.full_name}</td>
                       <td className="py-3 px-4 text-zinc-200">
-                        <div className="font-semibold">{c.servicios?.nombre || 'Servicio'}</div>
+                        <div className="font-semibold">
+                          {detallesDesc.esSoloProducto ? (
+                            <span className="text-cyan-400 flex items-center gap-1.5 font-bold">
+                              🛍️ Venta de Productos
+                            </span>
+                          ) : (
+                            c.servicios?.nombre || 'Servicio'
+                          )}
+                        </div>
+                        {detallesDesc.nombresProductos && (
+                          <span className="text-[10px] text-cyan-400/90 font-mono block">
+                            + {detallesDesc.nombresProductos}
+                          </span>
+                        )}
                         {c.comision_categoria && (
                           <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">
                             Cat: {c.comision_categoria}
@@ -1018,7 +1084,14 @@ export default function AdminComisionesPage() {
                       
                       {/* % COMISION */}
                       <td className="py-3 px-4 text-center whitespace-nowrap">
-                        {esFija ? (
+                        {detallesDesc.esSoloProducto ? (
+                          <div>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-black bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono">
+                              Bs 10 / prod.
+                            </span>
+                            <span className="block text-[9px] text-zinc-500 font-mono mt-0.5">comisión fija</span>
+                          </div>
+                        ) : esFija ? (
                           <div>
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-black bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono">
                               Fijo
@@ -1053,14 +1126,18 @@ export default function AdminComisionesPage() {
                         <span className={`font-black text-base ${agarraBarbero > 0 ? 'text-amber-400' : 'text-zinc-600'}`}>
                           {formatCurrency(agarraBarbero)}
                         </span>
-                        {esFija ? (
+                        {detallesDesc.esSoloProducto ? (
+                          <span className="block text-[10px] text-cyan-400 font-mono">
+                            ({detallesDesc.unidadesProductos}x a Bs 10 c/u)
+                          </span>
+                        ) : esFija ? (
                           <span className="block text-[10px] text-zinc-400 font-mono">
-                            (Fijo {formatCurrency(comision)})
+                            (Fijo {formatCurrency(comisionServicio)}{comisionProductos > 0 ? ` + Bs ${comisionProductos} prod.` : ''})
                           </span>
                         ) : hayDescuento ? (
                           <div>
                             <span className="block text-[10px] text-zinc-400 font-mono">
-                              ({pct}% de {formatCurrency(precioServicio)})
+                              ({pct}% de {formatCurrency(precioServicio)}{comisionProductos > 0 ? ` + Bs ${comisionProductos} prod.` : ''})
                             </span>
                             {detallesDesc.asume === 'barberia' && (
                               <span className="block text-[9px] text-emerald-400 font-bold">
@@ -1070,7 +1147,7 @@ export default function AdminComisionesPage() {
                           </div>
                         ) : precioCobrado > 0 ? (
                           <span className="block text-[10px] text-zinc-400 font-mono">
-                            ({pct}% de {formatCurrency(precioServicio)})
+                            ({pct}% de {formatCurrency(precioServicio)}{comisionProductos > 0 ? ` + Bs ${comisionProductos} prod.` : ''})
                           </span>
                         ) : (
                           <span className="block text-[10px] text-zinc-600 font-mono">

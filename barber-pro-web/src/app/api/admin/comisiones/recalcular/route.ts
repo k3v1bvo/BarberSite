@@ -58,6 +58,14 @@ export async function POST(request: Request) {
         }
       }
 
+      // Si la cita incluía comisión por venta de productos (+Bs 10 por producto), preservarla
+      if (cita.notas) {
+        const matchProd = cita.notas.match(/Comisi[oó]n Productos:\s*\+?Bs\s*(\d+(?:\.\d+)?)/i)
+        if (matchProd) {
+          baseMonto += Number(matchProd[1]) || 0
+        }
+      }
+
       const extraPropinas = (serv && serv.comision_acumulable !== false) ? (cita.propinas || 0) : 0
       const comisionTotal = baseMonto + (extraPropinas * 0.5)
 

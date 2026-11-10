@@ -63,6 +63,11 @@ export async function POST(request: Request) {
 
     const ahora = new Date()
     let precioBase = 0
+    let citaIdWalkin: string | null = null
+
+    // Calcular unidades y comisión por venta de productos (+Bs 10 por producto vendido por barbero)
+    const unidadesProductos = productosCarrito.reduce((s: number, p: ProductoWalkin) => s + (Number(p.cantidad) || 1), 0)
+    const comisionProductos = unidadesProductos * 10
 
     // 2. Servicio (si existe)
     if (servicio_id) {
@@ -76,7 +81,12 @@ export async function POST(request: Request) {
       )
       
       const extraPropinas = serv?.comision_acumulable !== false ? (propinas || 0) : 0
-      const comisionTotal = comResult.monto + (extraPropinas * 0.5)
+      const comisionTotal = comResult.monto + (extraPropinas * 0.5) + comisionProductos
+
+      let notasWalkin = 'Venta Rápida (Walk-in)'
+      if (comisionProductos > 0) {
+        notasWalkin += `\n🧴 Comisión Productos: +Bs ${comisionProductos} (${unidadesProductos}x prod. a Bs 10 c/u)`
+      }
 
       // Crear Cita Completada
       const inicio = new Date(ahora.getTime() - 30 * 60000)
@@ -94,17 +104,20 @@ export async function POST(request: Request) {
         comision_barbero: comisionTotal,
         comision_categoria: comResult.categoria_nombre,
         comision_herramientas: comResult.tiene_herramientas,
-        notas: 'Venta Rápida (Walk-in)',
+        productos_adicionales: productosCarrito.length > 0 ? productosCarrito : [],
+        notas: notasWalkin,
       }
 
-      let { error: citaError } = await supabase.from('citas').insert(citaData)
+      let { data: newCitaData, error: citaError } = await supabase.from('citas').insert(citaData).select('id').single()
       if (citaError && (citaError.message?.includes('comision_') || citaError.message?.includes('column') || (citaError as any).code === 'PGRST204')) {
         delete citaData.comision_categoria
         delete citaData.comision_herramientas
-        const retry = await supabase.from('citas').insert(citaData)
+        const retry = await supabase.from('citas').insert(citaData).select('id').single()
+        newCitaData = retry.data
         citaError = retry.error
       }
       if (citaError) throw citaError
+      if (newCitaData) citaIdWalkin = newCitaData.id
 
       const { data: barberoProfileServ } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
       const fechaBolivia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora)
@@ -139,6 +152,32 @@ export async function POST(request: Request) {
     const totalProductos = productosCarrito.reduce((s: number, p: ProductoWalkin) => s + p.precio * p.cantidad, 0)
     
     if (productosCarrito.length > 0) {
+      if (!servicio_id) {
+        const isDigital = ['qr', 'tarjeta', 'transferencia', 'banco'].includes(metodo_pago)
+        const mEf = metodo_pago === 'efectivo' ? totalProductos : (metodo_pago === 'mixto' ? Number(body.monto_efectivo || 0) : 0)
+        const mQr = isDigital ? totalProductos : (metodo_pago === 'mixto' ? Number(body.monto_qr || 0) : 0)
+
+        const citaDataProd: any = {
+          cliente_id: clienteId,
+          barbero_id: user.id,
+          servicio_id: null,
+          fecha_hora: ahora.toISOString(),
+          precio: totalProductos,
+          duracion_real_minutos: 5,
+          estado: 'completado',
+          metodo_pago: metodo_pago || 'efectivo',
+          monto_efectivo: mEf,
+          monto_transferencia: mQr,
+          propinas: propinas || 0,
+          comision_barbero: comisionProductos,
+          productos_adicionales: productosCarrito,
+          notas: `Venta Rápida Walk-in (Productos)\n🧴 Comisión Productos: +Bs ${comisionProductos} (${unidadesProductos}x prod. a Bs 10 c/u)`,
+          comision_pagada: false
+        }
+        const { data: cDataRes } = await adminSupabase.from('citas').insert(citaDataProd).select('id').single()
+        if (cDataRes) citaIdWalkin = cDataRes.id
+      }
+
       const { data: barberoProfile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
       
       for (const item of productosCarrito) {
@@ -156,7 +195,7 @@ export async function POST(request: Request) {
             cantidad: -item.cantidad,
             stock_anterior: stockAnterior,
             stock_nuevo: nuevoStock,
-            referencia: 'venta-walkin',
+            referencia: citaIdWalkin || 'venta-walkin',
             notas: `Venta Walk-in Barbero - ${item.cantidad}x ${item.nombre}`,
             usuario_id: user.id,
           })
@@ -180,6 +219,8 @@ export async function POST(request: Request) {
           es_sancion: false,
           empleado_id: user.id,
           cliente_id: clienteId,
+          cita_id: citaIdWalkin || null,
+          cantidad_producto: item.cantidad,
           metodo_pago: metodo_pago || 'efectivo',
           monto_efectivo: metodo_pago === 'efectivo' ? itemTotal : (metodo_pago === 'mixto' ? Math.round((Number(body.monto_efectivo || 0) * (itemTotal / (totalProductos || 1))) * 100) / 100 : 0),
           monto_qr: isDigitalProd ? itemTotal : (metodo_pago === 'mixto' ? Math.round((Number(body.monto_qr || 0) * (itemTotal / (totalProductos || 1))) * 100) / 100 : 0),
