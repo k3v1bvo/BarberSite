@@ -60,13 +60,13 @@ export function ImageUpload({
         setPreview(localBase64)
       }
 
-      // 2. Subir a servicio externo (ImgBB/Catbox) — solo el link se guarda en Supabase
+      // 2. Subir a Supabase Storage nativo (o Catbox como respaldo)
       let url = ''
       try {
         url = await uploadImageToImgBB(file)
-      } catch (imgbbErr) {
+      } catch (imgbbErr: any) {
         console.error('Todos los servicios de subida fallaron:', imgbbErr)
-        onUploadError?.('No se pudo subir la imagen. Verifica tu conexión e intenta de nuevo.')
+        onUploadError?.(imgbbErr?.message || 'No se pudo subir la imagen. Verifica tu conexión e intenta de nuevo.')
         setPreview(null)
         return
       }

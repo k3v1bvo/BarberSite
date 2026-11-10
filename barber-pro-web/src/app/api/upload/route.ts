@@ -24,7 +24,54 @@ export async function POST(req: Request) {
 
     const fileName = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${cleanExt}`
 
-    // 1. INTENTO PRINCIPAL: Supabase Storage nativo (bucket 'general' o 'avatars')
+    // 1. INTENTO PRINCIPAL: Cloudinary (si está configurado con cuenta del usuario)
+    const cCloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+    const cApiKey = process.env.CLOUDINARY_API_KEY
+    const cApiSecret = process.env.CLOUDINARY_API_SECRET
+    const cPreset = process.env.CLOUDINARY_UPLOAD_PRESET || process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+
+    if (cCloudName && (cPreset || (cApiKey && cApiSecret))) {
+      try {
+        const cForm = new FormData()
+        cForm.append('file', `data:${mimeType};base64,${buffer.toString('base64')}`)
+        if (cPreset) {
+          cForm.append('upload_preset', cPreset)
+        } else if (cApiKey && cApiSecret) {
+          const timestamp = Math.floor(Date.now() / 1000).toString()
+          const folder = 'barbershop_uploads'
+          const crypto = await import('crypto')
+          const strToSign = `folder=${folder}&timestamp=${timestamp}${cApiSecret}`
+          const signature = crypto.createHash('sha1').update(strToSign).digest('hex')
+          cForm.append('api_key', cApiKey)
+          cForm.append('timestamp', timestamp)
+          cForm.append('folder', folder)
+          cForm.append('signature', signature)
+        }
+
+        const cRes = await fetch(`https://api.cloudinary.com/v1_1/${cCloudName}/image/upload`, {
+          method: 'POST',
+          body: cForm,
+        })
+        if (cRes.ok) {
+          const cData = await cRes.json()
+          if (cData.secure_url) {
+            return NextResponse.json({
+              url: cData.secure_url,
+              success: true,
+              provider: 'cloudinary',
+              fileName
+            })
+          }
+        } else {
+          const errData = await cRes.json().catch(() => ({}))
+          console.warn('Cloudinary upload warning:', errData)
+        }
+      } catch (cErr: any) {
+        console.warn('Cloudinary upload error:', cErr?.message)
+      }
+    }
+
+    // 2. INTENTO SECUNDARIO: Supabase Storage nativo (bucket 'general' o 'avatars')
     // Usamos el cliente admin con Service Role para evitar bloqueos por políticas RLS
     try {
       const adminSupabase = createAdminSupabaseClient() || await createServerSupabaseClient()
@@ -58,7 +105,7 @@ export async function POST(req: Request) {
         if (publicUrlData?.publicUrl) {
           return NextResponse.json({ 
             url: publicUrlData.publicUrl, 
-            success: true,
+            success: true, 
             provider: 'supabase',
             fileName 
           })
@@ -70,48 +117,7 @@ export async function POST(req: Request) {
       console.warn('Error en Supabase Storage:', sErr?.message)
     }
 
-    // 2. INTENTO OPCIONAL: Cloudinary (si está configurado con cuenta gratis)
-    const cCloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
-    const cApiKey = process.env.CLOUDINARY_API_KEY
-    const cApiSecret = process.env.CLOUDINARY_API_SECRET
-    const cPreset = process.env.CLOUDINARY_UPLOAD_PRESET || process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
-
-    if (cCloudName && (cPreset || (cApiKey && cApiSecret))) {
-      try {
-        const cForm = new FormData()
-        cForm.append('file', `data:${mimeType};base64,${buffer.toString('base64')}`)
-        if (cPreset) {
-          cForm.append('upload_preset', cPreset)
-        } else if (cApiKey && cApiSecret) {
-          const timestamp = Math.floor(Date.now() / 1000).toString()
-          const crypto = await import('crypto')
-          const signature = crypto.createHash('sha1').update(`timestamp=${timestamp}${cApiSecret}`).digest('hex')
-          cForm.append('api_key', cApiKey)
-          cForm.append('timestamp', timestamp)
-          cForm.append('signature', signature)
-        }
-
-        const cRes = await fetch(`https://api.cloudinary.com/v1_1/${cCloudName}/image/upload`, {
-          method: 'POST',
-          body: cForm,
-        })
-        if (cRes.ok) {
-          const cData = await cRes.json()
-          if (cData.secure_url) {
-            return NextResponse.json({
-              url: cData.secure_url,
-              success: true,
-              provider: 'cloudinary',
-              fileName
-            })
-          }
-        }
-      } catch (cErr: any) {
-        console.warn('Cloudinary upload error:', cErr?.message)
-      }
-    }
-
-    // 3. FALLBACK SECUNDARIO: Catbox.moe
+    // 3. FALLBACK TERCIARIO: Catbox.moe
     try {
       const catboxForm = new FormData()
       catboxForm.append('reqtype', 'fileupload')

@@ -8,10 +8,24 @@ async function compressImage(file: File, maxWidth = 1920, maxHeight = 1920, qual
   }
 
   return new Promise((resolve) => {
+    let resolved = false
     const img = new Image()
     const url = URL.createObjectURL(file)
+
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        try { URL.revokeObjectURL(url) } catch (_) {}
+        resolve(file)
+      }
+    }, 2500)
+
     img.onload = () => {
-      URL.revokeObjectURL(url)
+      if (resolved) return
+      resolved = true
+      clearTimeout(timer)
+      try { URL.revokeObjectURL(url) } catch (_) {}
+
       let width = img.width
       let height = img.height
 
@@ -45,10 +59,15 @@ async function compressImage(file: File, maxWidth = 1920, maxHeight = 1920, qual
         quality
       )
     }
+
     img.onerror = () => {
-      URL.revokeObjectURL(url)
+      if (resolved) return
+      resolved = true
+      clearTimeout(timer)
+      try { URL.revokeObjectURL(url) } catch (_) {}
       resolve(file)
     }
+
     img.src = url
   })
 }
@@ -69,6 +88,7 @@ export async function uploadImage(file: File, retries = 2): Promise<string> {
   }
 
   // 2. Intentar subir mediante la API interna de Supabase Storage nativo
+  let ultimoError = ''
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const formData = new FormData()
@@ -80,9 +100,14 @@ export async function uploadImage(file: File, retries = 2): Promise<string> {
       if (internalRes.ok) {
         const data = await internalRes.json()
         if (data.url) return data.url
+      } else {
+        const errJson = await internalRes.json().catch(() => ({}))
+        ultimoError = errJson.error || `HTTP ${internalRes.status}`
+        console.warn(`Intento ${attempt} en API interna falló (${internalRes.status}):`, ultimoError)
       }
-    } catch (e) {
-      console.warn(`Intento ${attempt} en API interna falló:`, e)
+    } catch (e: any) {
+      ultimoError = e?.message || 'Error de red'
+      console.warn(`Intento ${attempt} en API interna falló por excepción:`, e)
     }
   }
 
@@ -97,12 +122,15 @@ export async function uploadImage(file: File, retries = 2): Promise<string> {
     if (catRes.ok) {
       const cData = await catRes.json()
       if (cData.url) return cData.url
+    } else {
+      const cErr = await catRes.json().catch(() => ({}))
+      console.warn('Fallback a Catbox retornó error:', cErr)
     }
   } catch (e) {
-    console.warn('Fallback a Catbox también falló:', e)
+    console.warn('Fallback a Catbox falló por excepción:', e)
   }
 
-  throw new Error('No se pudo procesar la subida de la foto. Por favor reintenta.')
+  throw new Error(ultimoError ? `Fallo al subir: ${ultimoError}` : 'No se pudo procesar la subida del comprobante. Por favor reintenta.')
 }
 
 /**
