@@ -73,13 +73,14 @@ async function compressImage(file: File, maxWidth = 1920, maxHeight = 1920, qual
 }
 
 /**
- * Sube una imagen al almacenamiento del sistema (Supabase Storage nativo con fallback a Catbox/Cloudinary).
+ * Sube una imagen al almacenamiento externo del sistema (Cloudinary CDN con fallback a Catbox.moe).
+ * 100% EXTERNO A SUPABASE: Evita saturar la base de datos o agotar cuotas de almacenamiento de Supabase.
  * @param file El archivo de imagen (obtenido de un input type="file")
  * @param retries Cantidad de reintentos en caso de fallos de red (por defecto 2)
- * @returns La URL pública directa de la imagen subida.
+ * @returns La URL pública directa de la imagen subida en Cloudinary o Catbox.
  */
 export async function uploadImage(file: File, retries = 2): Promise<string> {
-  // 1. Comprimir la imagen para evitar fallos de subida por archivos muy pesados (fotos de cámara)
+  // 1. Comprimir la imagen en el cliente para acelerar la subida y reducir peso
   let fileToUpload = file
   try {
     fileToUpload = await compressImage(file)
@@ -87,7 +88,7 @@ export async function uploadImage(file: File, retries = 2): Promise<string> {
     console.warn('No se pudo comprimir la imagen, subiendo archivo original:', e)
   }
 
-  // 2. Intentar subir mediante la API interna de Supabase Storage nativo
+  // 2. Intentar subir mediante la API interna (Cloudinary CDN firmado)
   let ultimoError = ''
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -111,7 +112,7 @@ export async function uploadImage(file: File, retries = 2): Promise<string> {
     }
   }
 
-  // 3. Fallback a Catbox.moe
+  // 3. Fallback a Catbox.moe (servidor CDN secundario gratuito)
   try {
     const catboxData = new FormData()
     catboxData.append('file', fileToUpload)
@@ -130,10 +131,10 @@ export async function uploadImage(file: File, retries = 2): Promise<string> {
     console.warn('Fallback a Catbox falló por excepción:', e)
   }
 
-  throw new Error(ultimoError ? `Fallo al subir: ${ultimoError}` : 'No se pudo procesar la subida del comprobante. Por favor reintenta.')
+  throw new Error(ultimoError ? `Fallo al subir: ${ultimoError}` : 'No se pudo procesar la subida de la imagen. Por favor reintenta.')
 }
 
 /**
- * Alias de compatibilidad hacia atrás para uploadImage (reemplaza ImgBB por Supabase Storage nativo).
+ * Alias de compatibilidad hacia atrás para uploadImage (reemplaza ImgBB y Supabase por Cloudinary CDN).
  */
 export const uploadImageToImgBB = uploadImage

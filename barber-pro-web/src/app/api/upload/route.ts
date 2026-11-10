@@ -1,5 +1,3 @@
-import { createAdminSupabaseClient } from '@/lib/supabase/admin'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
@@ -24,7 +22,8 @@ export async function POST(req: Request) {
 
     const fileName = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${cleanExt}`
 
-    // 1. INTENTO PRINCIPAL: Cloudinary (si está configurado con cuenta del usuario)
+    // 1. INTENTO PRINCIPAL: Cloudinary CDN (Almacenamiento multimedia 100% externo a Supabase)
+    // Protege la base de datos de Supabase de sobrecostos, llenado de disco o saturación de cuotas.
     const cCloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
     const cApiKey = process.env.CLOUDINARY_API_KEY
     const cApiSecret = process.env.CLOUDINARY_API_SECRET
@@ -71,53 +70,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. INTENTO SECUNDARIO: Supabase Storage nativo (bucket 'general' o 'avatars')
-    // Usamos el cliente admin con Service Role para evitar bloqueos por políticas RLS
-    try {
-      const adminSupabase = createAdminSupabaseClient() || await createServerSupabaseClient()
-      
-      // Probar en bucket 'general' primero, o fallback a 'avatars'
-      let uploadBucket = 'general'
-      let { data: storageData, error: storageErr } = await adminSupabase
-        .storage
-        .from(uploadBucket)
-        .upload(fileName, buffer, {
-          contentType: mimeType,
-          upsert: true,
-        })
-
-      // Si falla 'general', probar 'avatars'
-      if (storageErr) {
-        uploadBucket = 'avatars'
-        const retry = await adminSupabase
-          .storage
-          .from(uploadBucket)
-          .upload(fileName, buffer, {
-            contentType: mimeType,
-            upsert: true,
-          })
-        storageData = retry.data
-        storageErr = retry.error
-      }
-
-      if (!storageErr && storageData) {
-        const { data: publicUrlData } = adminSupabase.storage.from(uploadBucket).getPublicUrl(fileName)
-        if (publicUrlData?.publicUrl) {
-          return NextResponse.json({ 
-            url: publicUrlData.publicUrl, 
-            success: true, 
-            provider: 'supabase',
-            fileName 
-          })
-        }
-      } else if (storageErr) {
-        console.warn('Supabase Storage fallo al subir:', storageErr.message)
-      }
-    } catch (sErr: any) {
-      console.warn('Error en Supabase Storage:', sErr?.message)
-    }
-
-    // 3. FALLBACK TERCIARIO: Catbox.moe
+    // 2. FALLBACK DE CONTINGENCIA: Catbox.moe (Hosting CDN externo gratuito y sin límite, 0 impacto en Supabase)
     try {
       const catboxForm = new FormData()
       catboxForm.append('reqtype', 'fileupload')
@@ -145,7 +98,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(
-      { error: 'No se pudo subir la imagen al almacenamiento. Intenta nuevamente.' },
+      { error: 'No se pudo subir la imagen a Cloudinary ni al servidor secundario. Verifica tu conexión.' },
       { status: 500 }
     )
   } catch (err: any) {
