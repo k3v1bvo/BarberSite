@@ -182,6 +182,13 @@ export async function GET(req: Request) {
     const comisionPendiente = pendientes.reduce((sum, c) => sum + (Number(c.comision_barbero) || 0), 0)
     const pctEfectivo = cobradoTotal > 0 ? Math.round((comisionTotal / cobradoTotal) * 100) : (b.comision_porcentaje || 45)
 
+    // Desglose: Hoy vs Acumulado anterior no pagado
+    const citasHoy = citasB.filter(c => getBoliviaDateKey(c.fecha_hora) === todayStr)
+    const comisionHoy = citasHoy.reduce((sum, c) => sum + (Number(c.comision_barbero) || 0), 0)
+    const cobradoHoy = citasHoy.reduce((sum, c) => sum + (Number(c.precio) || 0), 0)
+    const pendientesAnteriores = pendientes.filter(c => getBoliviaDateKey(c.fecha_hora) < todayStr)
+    const comisionAnteriorAcumulada = pendientesAnteriores.reduce((sum, c) => sum + (Number(c.comision_barbero) || 0), 0)
+
     return {
       barbero: b,
       totalCitas: citasB.length,
@@ -191,6 +198,11 @@ export async function GET(req: Request) {
       comisionTotal,
       comisionPendiente,
       pctEfectivo,
+      citasHoyCount: citasHoy.length,
+      cobradoHoy,
+      comisionHoy,
+      pendientesAnterioresCount: pendientesAnteriores.length,
+      comisionAnteriorAcumulada,
     }
   })
 

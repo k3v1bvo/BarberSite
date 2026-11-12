@@ -23,6 +23,7 @@ import {
   Settings,
   Scissors,
   Calendar,
+  Clock,
   CreditCard,
   Building2,
   ExternalLink,
@@ -128,7 +129,7 @@ export default function AdminComisionesPage() {
   const [resumen, setResumen] = useState({ pendiente: 0, pagado: 0, hoy: 0, semana: 0, total_cobrado: 0, total_cobrado_pendiente: 0 })
   const [barberoId, setBarberoId] = useState('')
   const [estado, setEstado] = useState('pendiente')
-  const [periodo, setPeriodo] = useState<'todas' | 'diario' | 'semanal' | 'personalizado'>('todas')
+  const [periodo, setPeriodo] = useState<'todas' | 'diario' | 'semanal' | 'personalizado'>('diario')
   const [fechaInicioCustom, setFechaInicioCustom] = useState<string>('')
   const [fechaFinCustom, setFechaFinCustom] = useState<string>('')
   const [rendimientoBarberos, setRendimientoBarberos] = useState<any[]>([])
@@ -687,8 +688,21 @@ export default function AdminComisionesPage() {
                           </div>
                         </td>
 
-                        <td className="py-3 px-4 text-right font-black text-amber-500 text-sm font-mono">
-                          {formatCurrency(rb.comisionPendiente)}
+                        <td className="py-3 px-4 text-right">
+                          <span className="font-black text-amber-400 text-sm font-mono block">
+                            {formatCurrency(rb.comisionPendiente)}
+                          </span>
+                          {rb.comisionHoy !== undefined && rb.comisionAnteriorAcumulada > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-mono font-bold mt-0.5 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                              (Hoy: {formatCurrency(rb.comisionHoy)} + Ant: {formatCurrency(rb.comisionAnteriorAcumulada)})
+                            </span>
+                          ) : (
+                            rb.comisionHoy !== undefined && rb.comisionHoy > 0 && (
+                              <span className="text-[10px] text-zinc-500 font-mono block">
+                                Generado hoy: {formatCurrency(rb.comisionHoy)}
+                              </span>
+                            )
+                          )}
                         </td>
 
                         <td className="py-3 px-4 text-right">
@@ -743,6 +757,43 @@ export default function AdminComisionesPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6 pt-4">
+          {/* BOTONES RÁPIDOS DE VISTA: DIARIO (PREFERIDO) vs ACUMULADO */}
+          <div className="flex flex-wrap items-center gap-2 p-1.5 bg-zinc-950/80 border border-white/10 rounded-2xl w-fit">
+            <button
+              type="button"
+              onClick={() => setPeriodo('diario')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                periodo === 'diario'
+                  ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" /> 📅 Vista Diaria (Solo Hoy - Preferido)
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodo('todas')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                periodo === 'todas'
+                  ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <CheckCircle className="w-3.5 h-3.5" /> 📦 Todo lo Pendiente Acumulado
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodo('semanal')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                periodo === 'semanal'
+                  ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" /> 🗓️ Esta Semana
+            </button>
+          </div>
+
           <div className="flex flex-wrap items-center gap-4">
             <select 
               className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white font-bold text-xs" 
@@ -778,8 +829,8 @@ export default function AdminComisionesPage() {
             </select>
 
             <select className="h-12 bg-zinc-950 border border-white/10 rounded-xl px-4 text-white text-xs font-bold" value={periodo} onChange={(e) => setPeriodo(e.target.value as any)}>
-              <option value="todas">Todas las pendientes (Recomendado)</option>
-              <option value="diario">Solo de hoy (Diario)</option>
+              <option value="diario">Solo de hoy (Diario - Preferido)</option>
+              <option value="todas">Todas las pendientes (Acumulado histórico)</option>
               <option value="semanal">Esta semana</option>
               <option value="personalizado">Rango personalizado</option>
             </select>
