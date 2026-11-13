@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { formatCurrency, toTitleCase, toSentenceCase, cn } from '@/lib/utils'
 import { getTurnoInfo } from '@/components/cliente/HorariosBarberosWidget'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Calendar, User, Scissors, CheckCircle, Package, Plus, Minus, X, Info, AlertTriangle, Clock, UserPlus, Gift, Shield, Smartphone, Mail, IdCard, ArrowLeft, Home, Sparkles, Zap, Users, Check } from 'lucide-react'
+import { Calendar, User, Scissors, CheckCircle, Package, Plus, Minus, X, Info, AlertTriangle, Clock, UserPlus, Gift, Shield, ShieldCheck, Smartphone, Mail, IdCard, ArrowLeft, Home, Sparkles, Zap, Users, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import { ImageUpload } from '@/components/ui/ImageUpload'
@@ -259,6 +259,17 @@ function ReservarContent() {
   const [registerError, setRegisterError] = useState('')
   const [filterCategoria, setFilterCategoria] = useState<string>('todos')
   const [tipoReserva, setTipoReserva] = useState<'adelanto_20' | 'pago_total' | 'sin_adelanto'>('adelanto_20')
+
+  // Política de anticipos, tolerancia y anti-plantón
+  const [configAnticipos, setConfigAnticipos] = useState({
+    activo: true,
+    porcentaje_anticipo: 50,
+    permitir_pago_total: true,
+    permitir_sin_adelanto: false,
+    tolerancia_minutos: 15,
+    excluir_martes_2x1: true,
+    mensaje_cliente: 'Para asegurar tu espacio y evitar inasistencias que perjudiquen el flujo de trabajo, se requiere un anticipo del 50% o pago total por QR.'
+  })
 
   const [formData, setFormData] = useState({
     servicio_id: '',
@@ -733,7 +744,7 @@ function ReservarContent() {
       const hoyStr = new Date(hoyLocal.getTime() - (hoyLocal.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
 
       // Cargar autenticación y catálogo en paralelo simultáneo para máximo rendimiento
-      const [resAuth, resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo, resBarberoServicios, resAsistencias, resPermisos, config2x1Res, resHorarios] = await Promise.all([
+      const [resAuth, resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo, resBarberoServicios, resAsistencias, resPermisos, config2x1Res, resHorarios, configAnticiposRes] = await Promise.all([
         supabase.auth.getUser(),
         supabase.from('servicios').select('*').eq('is_active', true).order('orden', { ascending: true }),
         supabase.from('profiles').select('id, full_name, email, avatar_url, qr_code_url').eq('role', 'barbero').eq('is_active', true),
@@ -745,7 +756,8 @@ function ReservarContent() {
         supabase.from('asistencias').select('profile_id, estado, hora_entrada, hora_salida').eq('fecha', hoyStr),
         supabase.from('solicitudes_permisos').select('barbero_id, estado, fecha, fecha_fin, tipo_permiso').eq('estado', 'aprobado').lte('fecha', hoyStr),
         supabase.from('configuraciones').select('valor').eq('llave', 'promo_2x1_config').maybeSingle(),
-        fetch('/api/barberos/horarios').then(r => r.json()).catch(() => ({ horarios: [] }))
+        fetch('/api/barberos/horarios').then(r => r.json()).catch(() => ({ horarios: [] })),
+        supabase.from('configuraciones').select('valor').eq('llave', 'politica_anticipos').maybeSingle()
       ])
 
       const authUser = resAuth.data?.user
@@ -802,6 +814,13 @@ function ReservarContent() {
           dia_reserva_permitido: parsed.dia_reserva_permitido ?? 1,
           servicios_acompanante: parsed.servicios_acompanante || [],
           servicios_extra: parsed.servicios_extra || []
+        }))
+      }
+      if (configAnticiposRes.data?.valor) {
+        const parsedAnticipos = typeof configAnticiposRes.data.valor === 'string' ? JSON.parse(configAnticiposRes.data.valor) : configAnticiposRes.data.valor
+        setConfigAnticipos(prev => ({
+          ...prev,
+          ...parsedAnticipos
         }))
       }
 
@@ -944,6 +963,15 @@ function ReservarContent() {
     }
 
     const esGratis = totalReserva === 0
+    const esPromo2x1Submit = promoElegidaSubmit?.tipo === '2x1'
+    const aplicaPoliticaSubmit = configAnticipos.activo && !(configAnticipos.excluir_martes_2x1 && esPromo2x1Submit)
+    const sinAdelantoBloqueadoSubmit = esPromo2x1Submit || (aplicaPoliticaSubmit && !configAnticipos.permitir_sin_adelanto)
+
+    if (!esGratis && sinAdelantoBloqueadoSubmit && tipoReserva === 'sin_adelanto') {
+      toastError('⚠️ Para confirmar tu reserva se requiere un anticipo por QR o el pago total. "Pagar en local" no está permitido.')
+      return
+    }
+
     if (!esGratis && tipoReserva !== 'sin_adelanto' && !formData.comprobante_url) {
       toastError('⚠️ Para confirmar tu reserva con QR, es OBLIGATORIO adjuntar la captura de tu comprobante de pago.')
       return
@@ -1193,10 +1221,18 @@ function ReservarContent() {
       let anticipoCalculado = 0
       let tipoReservaEfectivo = 'sin_adelanto'
 
+      const pctAnticipoSubmit = Number(configAnticipos.porcentaje_anticipo) || 50
+      const toleranciaMinutosSubmit = Number(configAnticipos.tolerancia_minutos) || 15
+      const anticipoDinamicoSubmit = Math.round((precioFinalTotal * pctAnticipoSubmit) / 100)
+
       if (!esGratis) {
-        if (tipoReserva === 'adelanto_20') anticipoCalculado = Math.min(20, precioFinalTotal)
-        else if (tipoReserva === 'pago_total') anticipoCalculado = precioFinalTotal
-        else if (tipoReserva === 'sin_adelanto') anticipoCalculado = 0
+        if (tipoReserva === 'adelanto_20') {
+          anticipoCalculado = configAnticipos.activo ? anticipoDinamicoSubmit : Math.min(20, precioFinalTotal)
+        } else if (tipoReserva === 'pago_total') {
+          anticipoCalculado = precioFinalTotal
+        } else if (tipoReserva === 'sin_adelanto') {
+          anticipoCalculado = 0
+        }
         tipoReservaEfectivo = tipoReserva
       }
 
@@ -1204,11 +1240,11 @@ function ReservarContent() {
       if (esGratis) {
         notaReserva = '[Reserva]: Servicio Gratuito (10mo corte / beneficio 100% descuento)'
       } else if (tipoReservaEfectivo === 'sin_adelanto') {
-        notaReserva = '[Reserva]: Sin adelanto (Pago en local. Debe estar 5 min antes)'
+        notaReserva = '[Reserva]: Sin adelanto (Pago en local)'
       } else if (tipoReservaEfectivo === 'pago_total') {
-        notaReserva = `[Reserva QR]: Pago Completo por QR (Bs ${precioFinalTotal})`
+        notaReserva = `[Reserva QR]: Pago Completo por QR (Bs ${precioFinalTotal}) - Tolerancia: ${toleranciaMinutosSubmit} min`
       } else {
-        notaReserva = `[Reserva QR]: Adelanto de Bs ${anticipoCalculado} por Reserva`
+        notaReserva = `[Reserva QR]: Adelanto del ${pctAnticipoSubmit}% (Bs ${anticipoCalculado}) por Reserva - Tolerancia: ${toleranciaMinutosSubmit} min`
       }
       notasFinales = notasFinales ? `${notasFinales}\n${notaReserva}` : notaReserva
 
@@ -1513,16 +1549,28 @@ function ReservarContent() {
   const totalProductos = carrito.reduce((s, i) => s + (i.producto.precio_venta * i.cantidad), 0)
   const descuentoCruzado = (formData.servicio_id && carrito.length > 0) ? 10 : 0
   const totalReserva = Math.max(0, precioServicio + totalProductos - descuentoCruzado)
-  let anticipo = 20
-  if (tipoReserva === 'adelanto_20') anticipo = Math.min(20, totalReserva)
+
+  const pctAnticipo = Number(configAnticipos.porcentaje_anticipo) || 50
+  const toleranciaMinutos = Number(configAnticipos.tolerancia_minutos) || 15
+  const anticipoDinamico = configAnticipos.activo
+    ? Math.round((totalReserva * pctAnticipo) / 100)
+    : Math.min(20, totalReserva)
+
+  let anticipo = anticipoDinamico
+  if (tipoReserva === 'adelanto_20') anticipo = anticipoDinamico
   else if (tipoReserva === 'pago_total') anticipo = totalReserva
   else if (tipoReserva === 'sin_adelanto' || totalReserva === 0) anticipo = 0
+
+  const esPromo2x1 = promoElegida?.tipo === '2x1'
+  const aplicaPoliticaAnticipo = configAnticipos.activo && !(configAnticipos.excluir_martes_2x1 && esPromo2x1)
+  const sinAdelantoBloqueado = esPromo2x1 || (aplicaPoliticaAnticipo && !configAnticipos.permitir_sin_adelanto)
 
   const missingFields = []
   if (!formData.servicio_id && carrito.length === 0) missingFields.push('Servicio o Producto')
   if (!formData.barbero_id) missingFields.push('Barbero')
   if (!formData.fecha || !formData.hora) missingFields.push('Fecha y Hora')
   if (!formData.nombre || !formData.telefono || !formData.email) missingFields.push('Tus Datos')
+  if (sinAdelantoBloqueado && tipoReserva === 'sin_adelanto') missingFields.push('Selecciona Adelanto o Pago Total (Pagar en local no está permitido)')
   if (tipoReserva !== 'sin_adelanto' && totalReserva > 0 && !formData.comprobante_url) missingFields.push('Comprobante de Pago QR')
   if (promoElegida?.tipo === '2x1') {
     if (modo2x1 === 'acompanante') {
@@ -1541,6 +1589,12 @@ function ReservarContent() {
       }
     }
   }
+
+  useEffect(() => {
+    if (sinAdelantoBloqueado && tipoReserva === 'sin_adelanto') {
+      setTipoReserva('adelanto_20')
+    }
+  }, [sinAdelantoBloqueado, tipoReserva])
 
   const wizardSteps = [
     ...(!user ? [{ s: 0, label: 'Registro', icon: UserPlus }] : []),
@@ -3722,11 +3776,31 @@ function ReservarContent() {
                         <label className="text-xs font-black uppercase tracking-widest text-amber-500 block">
                           💳 Elige cómo confirmar tu reserva:
                         </label>
+
                         {promoElegida?.tipo === '2x1' && (
                           <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl mb-2">
                             <p className="text-[10px] font-bold text-amber-300">⚠️ La promoción 2×1 requiere pago completo del servicio por QR. La opción "Pagar en Local" no está disponible.</p>
                           </div>
                         )}
+
+                        {aplicaPoliticaAnticipo && !configAnticipos.permitir_sin_adelanto && promoElegida?.tipo !== '2x1' && (
+                          <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl mb-2 flex items-start gap-3">
+                            <ShieldCheck className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                              <p className="text-xs font-black uppercase tracking-wider text-amber-400">
+                                🛡️ Política de Reserva con Anticipo ({pctAnticipo}%) o Pago Total
+                              </p>
+                              <p className="text-[11px] text-zinc-300 font-medium leading-relaxed">
+                                {configAnticipos.mensaje_cliente || `Para asegurar tu espacio y evitar inasistencias que perjudiquen el flujo de trabajo, se requiere un anticipo del ${pctAnticipo}% o pago total por QR.`}
+                              </p>
+                              <p className="text-[11px] text-amber-300 font-bold flex items-center gap-1.5 pt-0.5">
+                                <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                <span>Tiempo de tolerancia para tu llegada: <strong>{toleranciaMinutos} minutos</strong>.</span>
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <button
                             type="button"
@@ -3734,10 +3808,12 @@ function ReservarContent() {
                             className={`p-4 rounded-2xl border text-left transition-all ${promoElegida?.tipo === '2x1' ? 'opacity-40 cursor-not-allowed border-zinc-800 bg-zinc-950' : tipoReserva === 'adelanto_20' ? 'border-amber-500 bg-amber-500/10 shadow-[0_0_20px_rgba(245,158,11,0.15)]' : 'border-zinc-800 bg-zinc-950 hover:border-amber-500/30'}`}
                           >
                             <div className="flex justify-between items-center mb-1">
-                              <span className="font-black text-sm text-white">Adelanto Bs 20 (QR)</span>
+                              <span className="font-black text-sm text-white">
+                                {configAnticipos.activo ? `Adelanto ${pctAnticipo}% (Bs ${anticipoDinamico})` : `Adelanto Bs ${anticipoDinamico} (QR)`}
+                              </span>
                               {promoElegida?.tipo !== '2x1' && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-black font-black">RECOMENDADO</span>}
                             </div>
-                            <p className="text-xs text-zinc-400">Tolerancia de 5 min (ni más ni menos). Cita asegurada.</p>
+                            <p className="text-xs text-zinc-400">Tolerancia de {toleranciaMinutos} min. Cita asegurada.</p>
                           </button>
 
                           <button
@@ -3749,25 +3825,30 @@ function ReservarContent() {
                               <span className="font-black text-sm text-emerald-400">Pagar Total 100% (QR)</span>
                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500 text-black font-black">{promoElegida?.tipo === '2x1' ? 'OBLIGATORIO 2×1' : 'COMPLETO'}</span>
                             </div>
-                            <p className="text-xs text-zinc-400">Tolerancia de 10 min en total. Cita 100% pagada y asegurada.</p>
+                            <p className="text-xs text-zinc-400">Tolerancia de {toleranciaMinutos} min. Cita 100% pagada y asegurada.</p>
                           </button>
 
                           <button
                             type="button"
-                            onClick={() => { if (promoElegida?.tipo !== '2x1') setTipoReserva('sin_adelanto') }}
-                            className={`p-4 rounded-2xl border text-left transition-all ${promoElegida?.tipo === '2x1' ? 'opacity-40 cursor-not-allowed border-zinc-800 bg-zinc-950' : tipoReserva === 'sin_adelanto' ? 'border-red-500 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'border-zinc-800 bg-zinc-950 hover:border-red-500/30'}`}
+                            disabled={sinAdelantoBloqueado}
+                            onClick={() => { if (!sinAdelantoBloqueado) setTipoReserva('sin_adelanto') }}
+                            className={`p-4 rounded-2xl border text-left transition-all ${sinAdelantoBloqueado ? 'opacity-40 cursor-not-allowed border-zinc-800 bg-zinc-950/60' : tipoReserva === 'sin_adelanto' ? 'border-red-500 bg-red-500/10 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'border-zinc-800 bg-zinc-950 hover:border-red-500/30'}`}
                           >
                             <div className="flex justify-between items-center mb-1">
                               <span className="font-black text-sm text-red-400">Pagar en Local (Bs 0 QR)</span>
-                              {promoElegida?.tipo === '2x1' && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/30 text-red-300 font-black">NO DISPONIBLE</span>}
+                              {sinAdelantoBloqueado && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/30 text-red-300 font-black">NO DISPONIBLE</span>}
                             </div>
-                            <p className="text-xs text-zinc-400">Estar 5 minutos antes de tu cita o el turno se pasa a otro cliente.</p>
+                            <p className="text-xs text-zinc-400">
+                              {sinAdelantoBloqueado 
+                                ? 'Se requiere anticipo previo para asegurar la reserva y evitar ausencias.' 
+                                : 'Estar 5 minutos antes de tu cita o el turno se pasa a otro cliente.'}
+                            </p>
                           </button>
                         </div>
                       </div>
                     )}
 
-                    {tipoReserva === 'sin_adelanto' && totalReserva > 0 && (
+                    {tipoReserva === 'sin_adelanto' && totalReserva > 0 && !sinAdelantoBloqueado && (
                       <div className="mt-6 p-5 bg-red-500/10 border border-red-500/30 rounded-2xl">
                         <p className="text-xs font-black text-red-400 uppercase tracking-widest mb-1">⚠️ Regla para Pago en Local:</p>
                         <p className="text-xs text-zinc-300 font-medium">
@@ -3778,9 +3859,11 @@ function ReservarContent() {
 
                     {tipoReserva === 'adelanto_20' && totalReserva > 0 && (
                       <div className="mt-6 p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl">
-                        <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">✅ Beneficio Adelanto Bs 20:</p>
+                        <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">
+                          ✅ Beneficio Adelanto {pctAnticipo}% ({formatCurrency(anticipoDinamico)}):
+                        </p>
                         <p className="text-xs text-zinc-300 font-medium">
-                          Con tu adelanto de Bs 20 tienes una tolerancia de <strong>5 min (ni más ni menos)</strong>. Tu cita queda asegurada y puedes reprogramarla sin recargo.
+                          Con tu adelanto de {formatCurrency(anticipoDinamico)} tienes una tolerancia de <strong>{toleranciaMinutos} min</strong> el día de tu cita. Tu turno queda asegurado y puedes reprogramar si te surge un imprevisto.
                         </p>
                       </div>
                     )}
@@ -3789,7 +3872,7 @@ function ReservarContent() {
                       <div className="mt-6 p-5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl">
                         <p className="text-xs font-black text-emerald-400 uppercase tracking-widest mb-1">✅ Beneficio Pago Total 100%:</p>
                         <p className="text-xs text-zinc-300 font-medium">
-                          Con tu pago completo del 100% tienes una tolerancia de <strong>10 min en total</strong>. Evitas trámites en caja y tu cita queda asegurada.
+                          Con tu pago completo del 100% tienes una tolerancia de <strong>{toleranciaMinutos} min</strong>. Evitas trámites en caja al salir y tu cita queda asegurada con máxima prioridad.
                         </p>
                       </div>
                     )}
@@ -4043,14 +4126,20 @@ function ReservarContent() {
                         </div>
                         <div className="flex justify-between items-center mt-2">
                           <span className="text-amber-500 font-black text-sm uppercase tracking-widest">
-                            {tipoReserva === 'pago_total' ? 'A Pagar Hoy (100% QR)' : tipoReserva === 'sin_adelanto' ? 'A Pagar Hoy (QR)' : 'A Pagar Hoy (Adelanto)'}
+                            {tipoReserva === 'pago_total' 
+                              ? 'A Pagar Hoy (100% QR)' 
+                              : tipoReserva === 'sin_adelanto' 
+                                ? 'A Pagar Hoy (QR)' 
+                                : configAnticipos.activo 
+                                  ? `A Pagar Hoy (Adelanto ${pctAnticipo}%)` 
+                                  : 'A Pagar Hoy (Adelanto)'}
                           </span>
                           <span className="font-black text-4xl text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.3)]">{formatCurrency(anticipo)}</span>
                         </div>
                         <p className="text-[10px] text-zinc-500 mt-4 text-center uppercase tracking-widest font-bold">
                           {tipoReserva === 'sin_adelanto'
-                            ? 'Pago pendiente en local. Tolerancia cero al retraso.'
-                            : 'Pago por QR verificado por administración.'}
+                            ? 'Pago pendiente en local. Debe presentarse con anticipación.'
+                            : `Pago por QR verificado por administración. Tolerancia de ${toleranciaMinutos} min.`}
                         </p>
                       </div>
                     </div>

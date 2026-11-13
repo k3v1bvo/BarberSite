@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useToast } from '@/components/ui/Toast'
-import { QrCode, Save, ArrowLeft, Image as ImageIcon, Info, Sparkles, Tag, Gift, ToggleLeft, ToggleRight, Megaphone, X, Eye, EyeOff, Clock, Calendar } from 'lucide-react'
+import { QrCode, Save, ArrowLeft, Image as ImageIcon, Info, Sparkles, Tag, Gift, ToggleLeft, ToggleRight, Megaphone, X, Eye, EyeOff, Clock, Calendar, ShieldCheck, Percent, AlertCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { isValidImageUrl } from '@/lib/validators'
 import { ImageUpload } from '@/components/ui/ImageUpload'
@@ -31,6 +31,16 @@ const defaultHero = {
   subtitulo: "Donde la tradición barbera se encuentra con la innovación.\nExperimenta el arte del cuidado masculino en su máxima expresión."
 }
 
+export const defaultPoliticaAnticipos = {
+  activo: true,
+  porcentaje_anticipo: 50,
+  permitir_pago_total: true,
+  permitir_sin_adelanto: false,
+  tolerancia_minutos: 15,
+  excluir_martes_2x1: true,
+  mensaje_cliente: 'Para asegurar tu espacio y evitar inasistencias que perjudiquen el flujo de trabajo, se requiere un anticipo del 50% o pago total por QR.'
+}
+
 export default function AdminConfiguracionPage() {
   const { brand, updateBrand } = useBrand()
   const [brandConfig, setBrandConfig] = useState(defaultBrandConfig)
@@ -42,6 +52,8 @@ export default function AdminConfiguracionPage() {
   const [aboutUsConfig, setAboutUsConfig] = useState(defaultAboutUs)
   const [initialAboutUsConfig, setInitialAboutUsConfig] = useState(defaultAboutUs)
   const [montoBonoReferido, setMontoBonoReferido] = useState('10')
+  const [politicaAnticipos, setPoliticaAnticipos] = useState(defaultPoliticaAnticipos)
+  const [initialPoliticaAnticipos, setInitialPoliticaAnticipos] = useState(defaultPoliticaAnticipos)
   const [bannerPromo, setBannerPromo] = useState({
     imagen_url: '',
     titulo: '',
@@ -64,7 +76,7 @@ export default function AdminConfiguracionPage() {
         const { data, error } = await supabase
           .from('configuraciones')
           .select('llave, valor')
-          .in('llave', ['qr_pago', 'hero_bg_image', 'about_us_config', 'brand_config', 'monto_bono_referido', 'banner_promo_cliente'])
+          .in('llave', ['qr_pago', 'hero_bg_image', 'about_us_config', 'brand_config', 'monto_bono_referido', 'banner_promo_cliente', 'politica_anticipos'])
 
         if (data) {
           const brandData = data.find(c => c.llave === 'brand_config')
@@ -120,6 +132,12 @@ export default function AdminConfiguracionPage() {
           if (aboutConfig && aboutConfig.valor) {
             setAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
             setInitialAboutUsConfig(aboutConfig.valor as typeof defaultAboutUs)
+          }
+          const polConfig = data.find(c => c.llave === 'politica_anticipos')
+          if (polConfig && polConfig.valor) {
+            const mergedPol = { ...defaultPoliticaAnticipos, ...(polConfig.valor as any) }
+            setPoliticaAnticipos(mergedPol)
+            setInitialPoliticaAnticipos(mergedPol)
           }
         }
       } catch (err) {
@@ -299,6 +317,37 @@ export default function AdminConfiguracionPage() {
       toastSuccess(bannerPromo.activo ? '📢 Banner promocional activado y guardado' : 'Banner guardado (desactivado)')
     } catch (err: any) {
       toastError(err.message || 'Error al guardar el banner')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSavePoliticaAnticipos = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const pct = Math.min(100, Math.max(1, Number(politicaAnticipos.porcentaje_anticipo) || 50))
+      const tol = Math.max(0, Number(politicaAnticipos.tolerancia_minutos) || 15)
+      const toSave = {
+        ...politicaAnticipos,
+        porcentaje_anticipo: pct,
+        tolerancia_minutos: tol
+      }
+
+      const { error } = await supabase
+        .from('configuraciones')
+        .upsert({
+          llave: 'politica_anticipos',
+          valor: toSave,
+          descripcion: 'Política de anticipos obligatorios, porcentaje y tolerancia por cita'
+        }, { onConflict: 'llave' })
+
+      if (error) throw error
+      setPoliticaAnticipos(toSave)
+      setInitialPoliticaAnticipos(toSave)
+      toastSuccess('🛡️ Política de anticipos y tolerancia guardada correctamente')
+    } catch (err: any) {
+      toastError(err.message || 'Error al guardar la política de anticipos')
     } finally {
       setSaving(false)
     }
@@ -758,6 +807,261 @@ export default function AdminConfiguracionPage() {
             >
               <Save className="w-5 h-5 mr-2" />
               {saving ? 'Guardando...' : 'Guardar QR'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* POLÍTICA DE ANTICIPOS Y TOLERANCIA DE RESERVAS */}
+      <Card className="bg-zinc-900 border-amber-500/20 shadow-xl overflow-hidden">
+        <CardHeader className="border-b border-white/5 bg-zinc-900/50 p-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500 shrink-0">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-black uppercase text-white flex items-center gap-2 flex-wrap">
+                  <span>Anticipos y Tolerancia de Reservas</span>
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider ${
+                    politicaAnticipos.activo 
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                      : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                  }`}>
+                    {politicaAnticipos.activo ? 'ACTIVO (Anticipo Obligatorio)' : 'DESACTIVADO (Reservas Libres)'}
+                  </span>
+                </CardTitle>
+                <p className="text-sm text-zinc-400">
+                  Control anti no-shows: exige anticipo o pago total a reservas web y define minutos de tolerancia por cita.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPoliticaAnticipos({ ...politicaAnticipos, activo: !politicaAnticipos.activo })}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                politicaAnticipos.activo
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                  : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-zinc-700'
+              }`}
+            >
+              {politicaAnticipos.activo ? (
+                <>
+                  <ToggleRight className="w-5 h-5 text-emerald-400" />
+                  <span>Activo</span>
+                </>
+              ) : (
+                <>
+                  <ToggleLeft className="w-5 h-5 text-zinc-500" />
+                  <span>Inactivo</span>
+                </>
+              )}
+            </button>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-6">
+          <form onSubmit={handleSavePoliticaAnticipos} className="space-y-6">
+            
+            {/* Estado Informativo */}
+            <div className={`p-4 rounded-2xl border text-xs ${
+              politicaAnticipos.activo
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                : 'bg-zinc-950 border-white/5 text-zinc-400'
+            }`}>
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 shrink-0 mt-0.5 text-amber-400" />
+                <div className="space-y-1">
+                  <p className="font-bold text-white uppercase tracking-wider text-[11px]">
+                    {politicaAnticipos.activo ? '🛡️ Política Activa: Máxima Protección de Agenda' : '⚠️ Política Desactivada'}
+                  </p>
+                  <p className="leading-relaxed">
+                    {politicaAnticipos.activo
+                      ? `Los clientes que reserven fuera de promociones (como martes 2×1) deberán abonar el ${politicaAnticipos.porcentaje_anticipo}% de anticipo (o el 100%) por QR para confirmar su cita. Se les esperará máximo ${politicaAnticipos.tolerancia_minutos} minutos.`
+                      : 'Cualquier cliente puede reservar seleccionando "Pagar en Local (Bs 0 QR)" sin realizar ningún pago previo.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Configuración de Porcentaje y Tolerancia */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Porcentaje de Anticipo */}
+              <div className="p-5 bg-zinc-950 rounded-2xl border border-white/5 space-y-4">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+                    <Percent className="w-4 h-4 text-amber-500" /> Porcentaje de Anticipo
+                  </label>
+                  <span className="text-lg font-black text-amber-400">
+                    {politicaAnticipos.porcentaje_anticipo}%
+                  </span>
+                </div>
+
+                <div className="flex gap-2">
+                  {[30, 40, 50, 100].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setPoliticaAnticipos({ ...politicaAnticipos, porcentaje_anticipo: pct })}
+                      className={`flex-1 py-2 text-xs font-black rounded-xl border transition-all ${
+                        Number(politicaAnticipos.porcentaje_anticipo) === pct
+                          ? 'bg-amber-500 text-black border-amber-500 shadow-md shadow-amber-500/20'
+                          : 'bg-zinc-900 text-zinc-400 border-white/10 hover:border-amber-500/30'
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
+
+                <Input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={politicaAnticipos.porcentaje_anticipo}
+                  onChange={(e) => setPoliticaAnticipos({ ...politicaAnticipos, porcentaje_anticipo: Number(e.target.value) })}
+                  className="bg-zinc-900 border-white/10 text-white font-black text-center text-lg h-12"
+                  placeholder="50"
+                />
+
+                <p className="text-[11px] text-zinc-500 leading-tight">
+                  💡 <strong>Ejemplo:</strong> Para un corte de Bs 50, el cliente deberá transferir por QR un adelanto de <strong>Bs {Math.round(50 * ((Number(politicaAnticipos.porcentaje_anticipo) || 50) / 100))}</strong>.
+                </p>
+              </div>
+
+              {/* Tiempo de Tolerancia */}
+              <div className="p-5 bg-zinc-950 rounded-2xl border border-white/5 space-y-4">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-amber-500" /> Tolerancia de Espera
+                  </label>
+                  <span className="text-lg font-black text-amber-400">
+                    {politicaAnticipos.tolerancia_minutos} min
+                  </span>
+                </div>
+
+                <div className="flex gap-2">
+                  {[5, 10, 15, 20].map((mins) => (
+                    <button
+                      key={mins}
+                      type="button"
+                      onClick={() => setPoliticaAnticipos({ ...politicaAnticipos, tolerancia_minutos: mins })}
+                      className={`flex-1 py-2 text-xs font-black rounded-xl border transition-all ${
+                        Number(politicaAnticipos.tolerancia_minutos) === mins
+                          ? 'bg-amber-500 text-black border-amber-500 shadow-md shadow-amber-500/20'
+                          : 'bg-zinc-900 text-zinc-400 border-white/10 hover:border-amber-500/30'
+                      }`}
+                    >
+                      {mins}m
+                    </button>
+                  ))}
+                </div>
+
+                <Input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={politicaAnticipos.tolerancia_minutos}
+                  onChange={(e) => setPoliticaAnticipos({ ...politicaAnticipos, tolerancia_minutos: Number(e.target.value) })}
+                  className="bg-zinc-900 border-white/10 text-white font-black text-center text-lg h-12"
+                  placeholder="15"
+                />
+
+                <p className="text-[11px] text-zinc-500 leading-tight">
+                  ⏱️ Minutos que el barbero esperará al cliente antes de que la cita se considere ausente o pase al siguiente en espera.
+                </p>
+              </div>
+            </div>
+
+            {/* Reglas e Interruptores Detallados */}
+            <div className="space-y-3 pt-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Reglas de Pago Permitidas</label>
+              
+              {/* Switch Pago Total */}
+              <div 
+                onClick={() => setPoliticaAnticipos({ ...politicaAnticipos, permitir_pago_total: !politicaAnticipos.permitir_pago_total })}
+                className="p-4 bg-zinc-950 rounded-2xl border border-white/5 flex items-center justify-between cursor-pointer hover:border-white/10 transition-all"
+              >
+                <div>
+                  <p className="text-sm font-bold text-white">Permitir opción de Pago Total 100% por QR</p>
+                  <p className="text-xs text-zinc-400">El cliente puede elegir pagar todo el corte por adelantado si no desea hacer filas en caja.</p>
+                </div>
+                <div className="text-amber-500 shrink-0 ml-4">
+                  {politicaAnticipos.permitir_pago_total ? <ToggleRight className="w-6 h-6 text-emerald-400" /> : <ToggleLeft className="w-6 h-6 text-zinc-600" />}
+                </div>
+              </div>
+
+              {/* Switch Pagar en Local */}
+              <div 
+                onClick={() => setPoliticaAnticipos({ ...politicaAnticipos, permitir_sin_adelanto: !politicaAnticipos.permitir_sin_adelanto })}
+                className={`p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
+                  politicaAnticipos.permitir_sin_adelanto 
+                    ? 'bg-amber-500/5 border-amber-500/20' 
+                    : 'bg-zinc-950 border-white/5'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-white">Permitir "Pagar en Local (Sin Adelanto)"</p>
+                    {!politicaAnticipos.permitir_sin_adelanto ? (
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        RECOMENDADO (BLOQUEADO)
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
+                        PERMITIDO (RIESGO AUSENCIAS)
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    {politicaAnticipos.permitir_sin_adelanto 
+                      ? '⚠️ Advertencia: Los clientes podrán agendar sin pagar nada previo, lo que puede causar ausencias no deseadas.' 
+                      : '✅ Bloqueado: El cliente obligatoriamente debe abonar anticipo o pago total por QR para reservar.'}
+                  </p>
+                </div>
+                <div className="shrink-0 ml-4">
+                  {politicaAnticipos.permitir_sin_adelanto ? <ToggleRight className="w-6 h-6 text-amber-400" /> : <ToggleLeft className="w-6 h-6 text-zinc-600" />}
+                </div>
+              </div>
+
+              {/* Switch Excluir Martes 2x1 */}
+              <div 
+                onClick={() => setPoliticaAnticipos({ ...politicaAnticipos, excluir_martes_2x1: !politicaAnticipos.excluir_martes_2x1 })}
+                className="p-4 bg-zinc-950 rounded-2xl border border-white/5 flex items-center justify-between cursor-pointer hover:border-white/10 transition-all"
+              >
+                <div>
+                  <p className="text-sm font-bold text-white">Excluir Martes 2×1 de esta regla</p>
+                  <p className="text-xs text-zinc-400">Los martes conservarán su regla propia de pago total fijo de Bs 50 para la promoción 2×1.</p>
+                </div>
+                <div className="shrink-0 ml-4">
+                  {politicaAnticipos.excluir_martes_2x1 ? <ToggleRight className="w-6 h-6 text-emerald-400" /> : <ToggleLeft className="w-6 h-6 text-zinc-600" />}
+                </div>
+              </div>
+            </div>
+
+            {/* Mensaje al cliente */}
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
+                Mensaje visible para el cliente en la pantalla de Reserva
+              </label>
+              <textarea
+                className="mt-1 w-full bg-zinc-950 border border-white/10 text-white font-medium rounded-xl p-3 text-sm min-h-[80px] focus:border-amber-500 outline-none transition-all resize-none"
+                value={politicaAnticipos.mensaje_cliente}
+                onChange={(e) => setPoliticaAnticipos({ ...politicaAnticipos, mensaje_cliente: e.target.value })}
+                placeholder="Para asegurar tu espacio y evitar ausencias que perjudiquen la agenda..."
+              />
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              className="w-full h-14 shadow-lg font-black uppercase tracking-widest"
+              disabled={saving}
+            >
+              <Save className="w-5 h-5 mr-2" />
+              {saving ? 'Guardando...' : 'Guardar Política de Anticipos y Reservas'}
             </Button>
           </form>
         </CardContent>
