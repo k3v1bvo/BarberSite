@@ -192,7 +192,8 @@ function RegisterContent() {
       }).catch(err => console.error('Error enviando email de bienvenida:', err))
 
       if (authData.session) {
-        success(`¡Bienvenido a BarberSite, ${formData.full_name.split(' ')[0]}!`)
+        const primerNombre = (formData.full_name || 'Cliente').trim().split(/\s+/)[0] || 'Cliente'
+        success(`¡Bienvenido a BarberSite, ${primerNombre}!`)
         router.push('/cliente')
         router.refresh()
         return

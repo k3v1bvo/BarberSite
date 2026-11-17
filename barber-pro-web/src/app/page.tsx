@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency, toSentenceCase, toTitleCase } from '@/lib/utils'
+import { formatCurrency, toSentenceCase, toTitleCase, getInitials } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -294,15 +294,6 @@ export default function HomePage() {
       case 'cliente': return '/cliente'  // ✅ AGREGADO
       default: return '/'
     }
-  }
-
-  const getInitials = (name: string) => {
-    return name
-      ?.split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2) || 'U'
   }
 
   return (
@@ -995,7 +986,7 @@ export default function HomePage() {
             ]).map((testimonio) => (
               <div key={testimonio.id} className="bg-zinc-900 p-8 rounded-2xl relative">
                 <div className="flex gap-1 mb-4">
-                  {Array.from({ length: testimonio.estrellas }).map((_, j) => (
+                  {Array.from({ length: Math.max(1, Math.min(5, Math.floor(Number(testimonio.estrellas) || 5))) }).map((_, j) => (
                     <Star key={j} className="w-5 h-5 fill-amber-400 text-amber-400" />
                   ))}
                 </div>
@@ -1007,7 +998,11 @@ export default function HomePage() {
                 <p className="font-bold text-amber-400">{toTitleCase(testimonio.cliente?.full_name || 'Cliente')}</p>
                 {testimonio.barbero && (
                   <p className="text-xs text-zinc-500 font-bold uppercase mt-1">
-                    Atendido por: {toTitleCase(testimonio.barbero.full_name)}
+                    Atendido por: {toTitleCase(
+                      (Array.isArray(testimonio.barbero)
+                        ? (testimonio.barbero as any)[0]?.full_name
+                        : (testimonio.barbero as any)?.full_name) || 'Barbero'
+                    )}
                   </p>
                 )}
               </div>

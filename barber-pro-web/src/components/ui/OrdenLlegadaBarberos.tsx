@@ -236,7 +236,7 @@ export function OrdenLlegadaBarberos() {
         <span className="font-extrabold uppercase tracking-wider text-[10px] sm:text-[11px]">Turnos</span>
         {proximoBarbero && (
           <span className="hidden md:inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-400 px-2 py-0.5 rounded-lg text-[10px] font-black">
-            👉 {proximoBarbero.full_name.split(' ')[0]}
+            👉 {(proximoBarbero.full_name || 'Barbero').split(' ')[0]}
           </span>
         )}
         <span className="bg-amber-500 text-black font-black px-1.5 py-0.5 rounded-md text-[10px]">

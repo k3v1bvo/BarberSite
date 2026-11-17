@@ -433,7 +433,7 @@ export function HorariosBarberosWidget({ className, onSelectBarbero }: HorariosB
                     className="w-full bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-black font-black text-xs uppercase tracking-wider py-2.5 rounded-xl shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2 active:scale-98 transition-all"
                   >
                     <Scissors size={14} />
-                    <span>Reservar con {barbero.full_name.split(' ')[0]}</span>
+                    <span>Reservar con {(barbero.full_name || 'Barbero').split(' ')[0]}</span>
                     <ChevronRight size={14} />
                   </Button>
                 </div>

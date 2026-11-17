@@ -55,7 +55,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
       }
     }
     fetchBrand()
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     if (typeof document !== 'undefined' && brand.nombre) {

@@ -2615,7 +2615,7 @@ function ReservarContent() {
                     }}
                     className="w-full bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-wider py-3 rounded-xl"
                   >
-                    Elegir a {toTitleCase(bObj.full_name.split(' ')[0])} y Continuar
+                    Elegir a {toTitleCase((bObj.full_name || 'Barbero').split(' ')[0])} y Continuar
                   </Button>
                 </div>
               </div>

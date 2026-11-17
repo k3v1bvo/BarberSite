@@ -25,13 +25,11 @@ export function formatDateTime(date: string | Date): string {
   }).format(new Date(date))
 }
 
-export function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
+export function getInitials(name?: string | null): string {
+  if (!name || typeof name !== 'string') return 'U'
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return 'U'
+  return parts.map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U'
 }
 
 /**

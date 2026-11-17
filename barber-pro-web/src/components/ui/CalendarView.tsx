@@ -158,7 +158,7 @@ export function CalendarView({
                 {cita.barbero_nombre?.charAt(0)?.toUpperCase() || 'B'}
               </div>
             )}
-            <span className="opacity-90 text-[9px] truncate max-w-[60px]">{cita.barbero_nombre.split(' ')[0]}</span>
+            <span className="opacity-90 text-[9px] truncate max-w-[60px]">{(cita.barbero_nombre || 'Barbero').split(' ')[0]}</span>
           </div>
         )}
       </div>

@@ -19,7 +19,7 @@ import {
   BarChart3,
 } from 'lucide-react'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
+import { cn, getInitials } from '@/lib/utils'
 import { CampanaNotificaciones } from './CampanaNotificaciones'
 import { OrdenLlegadaBarberos } from './OrdenLlegadaBarberos'
 import { DashboardBreadcrumb } from './DashboardBreadcrumb'
@@ -87,10 +87,6 @@ export function Navbar() {
       cliente: 'Cliente'
     }
     return roles[role] || role
-  }
-
-  const getInitials = (name: string) => {
-    return name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U'
   }
 
   const agendaHref = getAgendaHref(user?.role, user?.id)
