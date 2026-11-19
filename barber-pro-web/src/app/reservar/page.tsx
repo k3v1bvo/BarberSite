@@ -330,7 +330,13 @@ function ReservarContent() {
   useEffect(() => {
     if (wizardRef.current) {
       const timer = setTimeout(() => {
-        wizardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        try {
+          wizardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        } catch {
+          try {
+            wizardRef.current?.scrollIntoView(true)
+          } catch {}
+        }
       }, 50)
       return () => clearTimeout(timer)
     }
@@ -739,25 +745,54 @@ function ReservarContent() {
   }
 
   const loadData = async () => {
+    // Temporizador de rescate: jamás dejar la pantalla bloqueada en "Cargando..."
+    const safetyTimer = setTimeout(() => {
+      setLoading(false)
+    }, 5000)
+
     try {
       const hoyLocal = new Date()
       const hoyStr = new Date(hoyLocal.getTime() - (hoyLocal.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
 
-      // Cargar autenticación y catálogo en paralelo simultáneo para máximo rendimiento
-      const [resAuth, resServicios, resBarberos, resProductos, configQr, resPromos, configTiempo, resBarberoServicios, resAsistencias, resPermisos, config2x1Res, resHorarios, configAnticiposRes] = await Promise.all([
+      // Helper con timeout seguro para llamadas HTTP en WebViews
+      const fetchHorariosConTimeout = async () => {
+        try {
+          const controller = typeof AbortController !== 'undefined' ? new AbortController() : null
+          const timeoutId = controller ? setTimeout(() => controller.abort(), 3500) : null
+          const res = await fetch('/api/barberos/horarios', {
+            signal: controller?.signal,
+          })
+          if (timeoutId) clearTimeout(timeoutId)
+          if (!res.ok) return { horarios: [] }
+          return await res.json()
+        } catch {
+          return { horarios: [] }
+        }
+      }
+
+      // Cargar autenticación y catálogo agrupando consultas para evitar saturación de sockets en WebView
+      const [
+        resAuth,
+        resServicios,
+        resBarberos,
+        resProductos,
+        resConfigs,
+        resPromos,
+        resBarberoServicios,
+        resAsistencias,
+        resPermisos,
+        resHorarios
+      ] = await Promise.all([
         supabase.auth.getUser(),
         supabase.from('servicios').select('*').eq('is_active', true).order('orden', { ascending: true }),
         supabase.from('profiles').select('id, full_name, email, avatar_url, qr_code_url').eq('role', 'barbero').eq('is_active', true),
         supabase.from('productos').select('id, nombre, precio_venta, stock_actual, image_url').eq('is_active', true).gt('stock_actual', 0).order('orden', { ascending: true }),
-        supabase.from('configuraciones').select('valor').eq('llave', 'qr_pago').maybeSingle(),
+        supabase.from('configuraciones').select('llave, valor').in('llave', ['qr_pago', 'tiempo_minimo_reserva', 'promo_2x1_config', 'politica_anticipos']),
         supabase.from('promociones').select('*').eq('activa', true),
-        supabase.from('configuraciones').select('valor').eq('llave', 'tiempo_minimo_reserva').maybeSingle(),
         supabase.from('comision_barbero_servicios').select('barbero_id, servicio_id'),
         supabase.from('asistencias').select('profile_id, estado, hora_entrada, hora_salida').eq('fecha', hoyStr),
         supabase.from('solicitudes_permisos').select('barbero_id, estado, fecha, fecha_fin, tipo_permiso').eq('estado', 'aprobado').lte('fecha', hoyStr),
-        supabase.from('configuraciones').select('valor').eq('llave', 'promo_2x1_config').maybeSingle(),
-        fetch('/api/barberos/horarios').then(r => r.json()).catch(() => ({ horarios: [] })),
-        supabase.from('configuraciones').select('valor').eq('llave', 'politica_anticipos').maybeSingle()
+        fetchHorariosConTimeout(),
       ])
 
       const authUser = resAuth.data?.user
@@ -793,35 +828,59 @@ function ReservarContent() {
         new Map(rawPromosData.map((p: any) => [(p.nombre || '').toLowerCase().trim(), p])).values()
       )
       setPromociones(promosUnicas)
-      if (configTiempo.data?.valor?.minutos !== undefined) {
-        setTiempoMinimoReserva(Number(configTiempo.data.valor.minutos))
-      } else if (typeof configTiempo.data?.valor === 'number') {
-        setTiempoMinimoReserva(Number(configTiempo.data.valor))
-      } else if (typeof configTiempo.data?.valor === 'string') {
-        setTiempoMinimoReserva(Number(configTiempo.data.valor) || 60)
-      }
-      if (configQr.data?.valor?.url) {
-        setQrPago(configQr.data.valor.url)
-      } else if (typeof configQr.data?.valor === 'string') {
-        setQrPago(configQr.data.valor)
-      }
-      if (config2x1Res.data?.valor) {
-        const parsed = typeof config2x1Res.data.valor === 'string' ? JSON.parse(config2x1Res.data.valor) : config2x1Res.data.valor
-        setConfig2x1(prev => ({
-          ...prev,
-          ...parsed,
-          solo_reserva_lunes: parsed.solo_reserva_lunes ?? true,
-          dia_reserva_permitido: parsed.dia_reserva_permitido ?? 1,
-          servicios_acompanante: parsed.servicios_acompanante || [],
-          servicios_extra: parsed.servicios_extra || []
-        }))
-      }
-      if (configAnticiposRes.data?.valor) {
-        const parsedAnticipos = typeof configAnticiposRes.data.valor === 'string' ? JSON.parse(configAnticiposRes.data.valor) : configAnticiposRes.data.valor
-        setConfigAnticipos(prev => ({
-          ...prev,
-          ...parsedAnticipos
-        }))
+
+      // Procesar configuraciones desde consulta consolidada
+      if (resConfigs.data) {
+        const configTiempo = resConfigs.data.find((c: any) => c.llave === 'tiempo_minimo_reserva')
+        const configQr = resConfigs.data.find((c: any) => c.llave === 'qr_pago')
+        const config2x1Res = resConfigs.data.find((c: any) => c.llave === 'promo_2x1_config')
+        const configAnticiposRes = resConfigs.data.find((c: any) => c.llave === 'politica_anticipos')
+
+        if (configTiempo?.valor?.minutos !== undefined) {
+          setTiempoMinimoReserva(Number(configTiempo.valor.minutos))
+        } else if (typeof configTiempo?.valor === 'number') {
+          setTiempoMinimoReserva(Number(configTiempo.valor))
+        } else if (typeof configTiempo?.valor === 'string') {
+          setTiempoMinimoReserva(Number(configTiempo.valor) || 60)
+        }
+
+        if (configQr?.valor?.url) {
+          setQrPago(configQr.valor.url)
+        } else if (typeof configQr?.valor === 'string') {
+          setQrPago(configQr.valor)
+        }
+
+        if (config2x1Res?.valor) {
+          try {
+            const parsed = typeof config2x1Res.valor === 'string' ? JSON.parse(config2x1Res.valor) : config2x1Res.valor
+            if (parsed && typeof parsed === 'object') {
+              setConfig2x1(prev => ({
+                ...prev,
+                ...parsed,
+                solo_reserva_lunes: parsed.solo_reserva_lunes ?? true,
+                dia_reserva_permitido: parsed.dia_reserva_permitido ?? 1,
+                servicios_acompanante: parsed.servicios_acompanante || [],
+                servicios_extra: parsed.servicios_extra || []
+              }))
+            }
+          } catch (e) {
+            console.warn('Error parseando promo_2x1_config:', e)
+          }
+        }
+
+        if (configAnticiposRes?.valor) {
+          try {
+            const parsedAnticipos = typeof configAnticiposRes.valor === 'string' ? JSON.parse(configAnticiposRes.valor) : configAnticiposRes.valor
+            if (parsedAnticipos && typeof parsedAnticipos === 'object') {
+              setConfigAnticipos(prev => ({
+                ...prev,
+                ...parsedAnticipos
+              }))
+            }
+          } catch (e) {
+            console.warn('Error parseando politica_anticipos:', e)
+          }
+        }
       }
 
       // Capturar recomendante desde ?ref=...
@@ -844,8 +903,9 @@ function ReservarContent() {
         }
       }
     } catch (error) {
-      console.error(error)
+      console.error('[Reservar loadData Error]:', error)
     } finally {
+      clearTimeout(safetyTimer)
       setLoading(false)
     }
   }
@@ -985,7 +1045,7 @@ function ReservarContent() {
       if (user) {
         clienteId = user.id
         // Verificar que el registro en "clientes" realmente exista (por si fue borrado en un truncate)
-        const { data: clienteVerificado } = await supabase.from('clientes').select('id').eq('id', user.id).single()
+        const { data: clienteVerificado } = await supabase.from('clientes').select('id').eq('id', user.id).maybeSingle()
         if (!clienteVerificado) {
           const { error: insertErr } = await supabase.from('clientes').insert({
             id: user.id,
@@ -1000,7 +1060,7 @@ function ReservarContent() {
           .from('clientes')
           .select('id')
           .eq('email', formData.email)
-          .single()
+          .maybeSingle()
 
         if (clienteExistente) {
           clienteId = clienteExistente.id
