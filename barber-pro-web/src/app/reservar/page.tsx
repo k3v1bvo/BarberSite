@@ -320,6 +320,8 @@ function ReservarContent() {
   const [tiempoMinimoReserva, setTiempoMinimoReserva] = useState(60) // minutos
   const [asistenciasHoy, setAsistenciasHoy] = useState<any[]>([])
   const [permisosHoy, setPermisosHoy] = useState<any[]>([])
+  const [modoHoraLibre, setModoHoraLibre] = useState(false)
+  const [horaLibreCustom, setHoraLibreCustom] = useState('')
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -367,6 +369,18 @@ function ReservarContent() {
       setTipoReserva('pago_total')
     }
   }, [promoSeleccionada, promociones])
+
+  // Bloquear "sin adelanto" si la política de anticipos o el 2x1 lo exigen
+  useEffect(() => {
+    const promo = promociones.find(p => p.id === promoSeleccionada)
+    const esPromo2x1 = promo?.tipo === '2x1'
+    const aplicaPolitica = configAnticipos.activo && !(configAnticipos.excluir_martes_2x1 && esPromo2x1)
+    const sinAdelantoBloqueado = esPromo2x1 || (aplicaPolitica && !configAnticipos.permitir_sin_adelanto)
+
+    if (sinAdelantoBloqueado && tipoReserva === 'sin_adelanto') {
+      setTipoReserva('adelanto_20')
+    }
+  }, [promoSeleccionada, promociones, configAnticipos, tipoReserva])
 
 
   // Si la promo 2x1 está activa, asegurar que el servicio sea válido según la configuración del admin
@@ -1508,9 +1522,6 @@ function ReservarContent() {
     }
   }
 
-  const [modoHoraLibre, setModoHoraLibre] = useState(false)
-  const [horaLibreCustom, setHoraLibreCustom] = useState('')
-
   const hoyLocal = new Date()
   const hoy = new Date(hoyLocal.getTime() - (hoyLocal.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
 
@@ -1649,12 +1660,6 @@ function ReservarContent() {
       }
     }
   }
-
-  useEffect(() => {
-    if (sinAdelantoBloqueado && tipoReserva === 'sin_adelanto') {
-      setTipoReserva('adelanto_20')
-    }
-  }, [sinAdelantoBloqueado, tipoReserva])
 
   const wizardSteps = [
     ...(!user ? [{ s: 0, label: 'Registro', icon: UserPlus }] : []),
